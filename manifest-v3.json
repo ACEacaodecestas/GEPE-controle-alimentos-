@@ -2,7 +2,7 @@
   "name": "Alimentos",
   "short_name": "Alimentos",
   "description": "Controle de entradas, estoque, saídas, perdas e presença.",
-  "start_url": "./?app=6",
+  "start_url": "./?app=7",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -149,3 +149,28 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
   .ace-name-v6{font-size:17px}
   .ace-title-v6 h1{font-size:28px}
 }
+
+/* V7 — botão Instalar volta para a posição original do cabeçalho.
+   Nenhuma alteração nos ícones/cartões da V3. */
+.ace-header-v6{
+  position:relative;
+}
+.ace-install-v7{
+  position:absolute !important;
+  top:18px;
+  right:24px;
+  z-index:50;
+  margin:0 !important;
+  white-space:nowrap;
+}
+@media(max-width:700px){
+  .ace-install-v7{
+    top:14px;
+    right:12px;
+    bottom:auto !important;
+    left:auto !important;
+    font-size:12px;
+    padding:8px 10px;
+    border-radius:10px;
+  }
+}
