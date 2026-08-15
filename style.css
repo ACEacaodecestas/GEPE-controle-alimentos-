@@ -44,3 +44,117 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 .hidden{display:none!important}
 @media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
 @media(max-width:560px){.topbar{padding:16px}.tabs{padding:6px}.tab{padding:9px 10px;font-size:12px}main{padding:15px 10px 60px}.cards{grid-template-columns:repeat(2,1fr);gap:8px}.card{padding:12px}.card strong{font-size:24px}.form-grid{grid-template-columns:1fr}.full{grid-column:auto}.page-head{align-items:flex-start;flex-direction:column}.attendance-tools{flex-direction:column;align-items:stretch}.inline-form{flex-direction:column}}
+
+/* ===== ACE Ação de Cestas — nova tela inicial ===== */
+.ace-header{min-height:270px;position:relative;padding:30px clamp(18px,5vw,56px);display:grid;grid-template-columns:90px minmax(220px,430px) 1fr 150px;align-items:center;gap:18px;overflow:hidden;background:linear-gradient(135deg,#0b3a63,#0a527f)}
+.menu-button{width:68px;height:68px;border:1px solid #ffffff2b;border-radius:16px;background:#ffffff08;color:#fff;font-size:40px;line-height:1;cursor:pointer}
+.ace-brand-mark{display:flex;justify-content:center;align-items:center}.ace-brand-mark img{width:min(100%,360px);height:225px;object-fit:contain}
+.ace-title-block{color:#fff}.ace-name{font-size:clamp(22px,3vw,34px);font-weight:800;margin-bottom:8px}.ace-title-block h1{margin:0;white-space:nowrap;font-size:clamp(30px,4.5vw,58px);line-height:1.05;font-weight:900;letter-spacing:-1px}
+.ace-date{justify-self:end;color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:7px}.calendar-icon{width:68px;height:68px;border:1px solid #ffffff2b;border-radius:16px;background:#ffffff08;display:grid;place-items:center;font-size:38px}
+.ace-date input{color:#fff;background:transparent;border:0;padding:0;width:145px;font-weight:800;font-size:18px;text-align:center}.ace-date input::-webkit-calendar-picker-indicator{filter:invert(1)}
+.ace-tabs{position:sticky;top:0;z-index:20;padding:12px 18px;gap:12px;justify-content:center;box-shadow:0 2px 10px #0f28410d}.ace-tabs .tab{min-width:130px;padding:13px 16px;font-size:15px}
+.home-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:18px;margin:0 0 28px}
+.home-card{min-height:190px;border:1px solid #e2e8ef;border-radius:16px;background:#fff;box-shadow:0 5px 16px #0f284112;padding:22px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#173b61;cursor:pointer;transition:.18s}
+.home-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px #0f28411f}.home-card.highlighted{background:#e9f3fb;border-color:#d9eaf7}.home-icon{font-size:48px;line-height:1;margin-bottom:8px}.home-card strong{font-size:22px}.home-card small{font-size:16px;line-height:1.35;text-align:center;color:#475467}
+.daily-summary{background:#fff;border:1px solid #e3e8ee;border-radius:16px;box-shadow:0 5px 16px #0f28410d;padding:18px 24px;margin-bottom:20px}.daily-summary h2{margin:0 0 18px;color:#1457a6;font-size:22px}
+.summary-grid{display:grid;grid-template-columns:repeat(5,1fr)}.summary-item{min-height:105px;padding:5px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #e1e6ec}.summary-item:last-child{border-right:0}
+.summary-icon{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:900;font-size:20px;margin-bottom:5px}.summary-icon.green{background:#1e9b56}.summary-icon.red{background:#e73535}.summary-icon.orange{background:#ff9814}.summary-icon.blue{background:#1774dc}
+.summary-label{font-size:15px;color:#475467;font-weight:800}.summary-item strong{font-size:34px;line-height:1.1;margin-top:5px}.summary-item small{font-size:14px;color:#667085;margin-top:3px}
+.summary-item:nth-child(1) strong{color:#188a4a}.summary-item:nth-child(2) strong{color:#1774dc}.summary-item:nth-child(3) strong{color:#e73535}.summary-item:nth-child(4) strong{color:#f28b00}.summary-item:nth-child(5) strong{color:#1774dc}
+.home-footer{background:#07365e;color:#fff;min-height:55px;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:13px 24px;margin:0 -16px 25px;font-size:15px}.home-details{margin-top:0}
+@media(max-width:950px){.ace-header{grid-template-columns:70px 230px 1fr 120px;min-height:230px}.ace-brand-mark img{height:190px}.ace-title-block h1{font-size:36px}.home-actions{gap:10px}.home-card{min-height:165px}.home-card strong{font-size:18px}.home-card small{font-size:13px}}
+@media(max-width:700px){
+ .ace-header{min-height:235px;padding:18px 14px 20px;grid-template-columns:58px 1fr 78px;grid-template-rows:auto 1fr;gap:8px}
+ .menu-button{width:54px;height:54px;font-size:32px}.ace-brand-mark{grid-column:2;grid-row:1 / span 2;align-self:center}.ace-brand-mark img{height:180px;max-width:230px}.ace-title-block{display:none}.ace-date{grid-column:3;grid-row:1 / span 2}.calendar-icon{width:54px;height:54px;font-size:30px}.ace-date input{width:90px;font-size:13px}
+ .ace-header:after{content:"ACE Ação de Cestas • Controle de Alimentos";position:absolute;left:14px;right:14px;bottom:8px;color:#fff;font-weight:800;font-size:17px;text-align:center}
+ .ace-tabs{display:none}.home-actions{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}.home-card{min-height:145px;padding:15px 8px}.home-card:nth-child(3){grid-column:1 / -1;min-height:135px}.home-icon{font-size:40px}.home-card strong{font-size:18px}.home-card small{font-size:13px}
+ .daily-summary{padding:14px 8px;border-radius:13px}.daily-summary h2{font-size:18px;margin-left:5px}.summary-grid{grid-template-columns:repeat(2,1fr)}.summary-item{border-right:0;border-bottom:1px solid #e1e6ec;min-height:100px;padding:10px 4px}.summary-item:last-child{grid-column:1 / -1;border-bottom:0}
+ .home-footer{margin:0 -10px 18px;flex-direction:column;text-align:center;font-size:12px}.home-details{display:none}
+}
+
+/* ===== V5 — correção de escala no celular ===== */
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 700px) {
+  .ace-header {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 245px;
+    padding: 14px 12px 48px;
+    grid-template-columns: 52px 1fr 72px;
+    grid-template-rows: 1fr;
+  }
+
+  .menu-button {
+    width: 48px;
+    height: 48px;
+    font-size: 28px;
+  }
+
+  .ace-brand-mark {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    height: 170px;
+    align-self: center;
+  }
+
+  .ace-brand-mark img {
+    width: 175px;
+    height: 170px;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  .ace-date {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .calendar-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 25px;
+  }
+
+  .ace-date input {
+    width: 72px;
+    font-size: 11px;
+  }
+
+  .ace-header:after {
+    bottom: 10px;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+
+  main {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 10px 40px;
+  }
+
+  .home-actions {
+    width: 100%;
+    box-sizing: border-box;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-card {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .daily-summary {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .home-footer {
+    box-sizing: border-box;
+  }
+}
