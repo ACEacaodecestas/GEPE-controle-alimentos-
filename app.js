@@ -158,11 +158,21 @@ function download(blob,name){const a=document.createElement("a");a.href=URL.crea
 
 function renderAll(){refreshSelects();renderDashboard();renderEntries();renderMovements();renderAttendance();renderStock();renderCadastros()}
 function nav(){
-  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{
-    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");
-    document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));document.getElementById(b.dataset.page).classList.add("active");
+  document.querySelectorAll(".tab,.home-card").forEach(b=>b.addEventListener("click",()=>{
+    const page=b.dataset.page;
+    document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
+    document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+    const target=document.getElementById(page);
+    if(target) target.classList.add("active");
     window.scrollTo({top:0,behavior:"smooth"});
-  }))
+  }));
+  const menu=document.getElementById("menuButton");
+  if(menu){
+    menu.addEventListener("click",()=>{
+      const tabs=document.querySelector(".ace-tabs");
+      if(tabs) tabs.classList.toggle("menu-open");
+    });
+  }
 }
 
 document.getElementById("entryForm").addEventListener("submit",e=>{
