@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b3a63">
+  <meta name="description" content="Controle de alimentos, estoque e presença">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <title>Controle de Alimentos</title>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">CONTROLE OPERACIONAL</div>
+      <h1>🍚 Controle de Alimentos</h1>
+      <div class="subtitle">Entradas • Estoque • Saídas • Perdas • Presença</div>
+    </div>
+    <button id="installBtn" class="btn btn-light hidden">📲 Instalar</button>
+  </header>
+
+  <nav class="tabs" aria-label="Navegação">
+    <button data-page="dashboard" class="tab active">📊 Início</button>
+    <button data-page="entrada" class="tab">📦 Entrada</button>
+    <button data-page="movimentacao" class="tab">📤 Saída/Perda</button>
+    <button data-page="presenca" class="tab">👥 Presença</button>
+    <button data-page="estoque" class="tab">🏬 Estoque</button>
+    <button data-page="relatorios" class="tab">📋 Relatórios</button>
+    <button data-page="cadastros" class="tab">⚙️ Cadastros</button>
+  </nav>
+
+  <main>
+    <section id="dashboard" class="page active">
+      <div class="page-head">
+        <div>
+          <h2>Resumo do dia</h2>
+          <p id="todayLabel"></p>
+        </div>
+        <input id="dashboardDate" type="date" class="input compact">
+      </div>
+      <div class="cards">
+        <div class="card"><span>📦 Entradas</span><strong id="kpiEntrada">0</strong><small>unidades</small></div>
+        <div class="card"><span>📤 Saídas</span><strong id="kpiSaida">0</strong><small>unidades</small></div>
+        <div class="card danger"><span>⚠️ Perdas</span><strong id="kpiPerda">0</strong><small>unidades</small></div>
+        <div class="card success"><span>🏬 Estoque</span><strong id="kpiEstoque">0</strong><small>unidades</small></div>
+        <div class="card"><span>👥 Presentes</span><strong id="kpiPresentes">0</strong><small>pessoas</small></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Estoque por origem</h3>
+          <div id="originSummary"></div>
+        </div>
+        <div class="panel">
+          <h3>Últimos lançamentos</h3>
+          <div id="recentMovements"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="entrada" class="page">
+      <div class="page-head">
+        <div><h2>📦 Entrada de alimentos</h2><p>Registre de onde veio cada entrada.</p></div>
+      </div>
+      <form id="entryForm" class="panel form-grid">
+        <label>Data<input id="entryDate" name="date" type="date" required></label>
+        <label>Origem
+          <select id="entryOrigin" name="origin" required></select>
+        </label>
+        <label>Alimento
+          <select id="entryFood" name="foodId" required></select>
+        </label>
+        <label>Quantidade<input name="qty" type="number" min="0.01" step="0.01" required placeholder="Ex.: 85"></label>
+        <label class="full">Observação<input name="note" maxlength="200" placeholder="Opcional"></label>
+        <div class="full actions"><button class="btn primary" type="submit">➕ Registrar entrada</button></div>
+      </form>
+      <div class="panel">
+        <div class="table-head"><h3>Entradas do dia</h3><span id="entryDayTotal" class="badge"></span></div>
+        <div id="entriesTable"></div>
+      </div>
+    </section>
+
+    <section id="movimentacao" class="page">
+      <div class="page-head">
+        <div><h2>📤 Saída e perda</h2><p>O estoque é descontado automaticamente pela origem.</p></div>
+      </div>
+      <form id="movementForm" class="panel form-grid">
+        <label>Data<input id="movementDate" name="date" type="date" required></label>
+        <label>Tipo
+          <select name="type" required>
+            <option value="saida">Saída</option>
+            <option value="perda">Perda</option>
+          </select>
+        </label>
+        <label>Origem
+          <select id="movementOrigin" name="origin" required></select>
+        </label>
+        <label>Alimento
+          <select id="movementFood" name="foodId" required></select>
+        </label>
+        <label>Quantidade<input name="qty" type="number" min="0.01" step="0.01" required></label>
+        <label>Motivo<select id="movementReason" name="reasonId" required></select></label>
+        <label class="full">Observação<input name="note" maxlength="200" placeholder="Ex.: autorizado por..."></label>
+        <div class="full actions"><button class="btn primary" type="submit">💾 Registrar movimentação</button></div>
+      </form>
+      <div class="panel">
+        <div class="table-head"><h3>Movimentações</h3></div>
+        <div id="movementsTable"></div>
+      </div>
+    </section>
+
+    <section id="presenca" class="page">
+      <div class="page-head">
+        <div><h2>👥 Presença do dia</h2><p>Selecione quem compareceu para realizar o trabalho.</p></div>
+        <input id="attendanceDate" type="date" class="input compact">
+      </div>
+      <div class="panel">
+        <div class="attendance-tools">
+          <input id="attendanceSearch" class="input" placeholder="🔎 Procurar por nome ou matrícula">
+          <span id="attendanceCount" class="badge"></span>
+        </div>
+        <div id="attendanceList"></div>
+      </div>
+    </section>
+
+    <section id="estoque" class="page">
+      <div class="page-head">
+        <div><h2>🏬 Estoque atual</h2><p>Piedade e Água Fria ficam separados e também há o total geral.</p></div>
+        <button id="refreshStock" class="btn">🔄 Atualizar</button>
+      </div>
+      <div id="stockCards" class="grid-2"></div>
+      <div class="panel">
+        <h3>Consolidado</h3>
+        <div id="stockTable"></div>
+      </div>
+    </section>
+
+    <section id="relatorios" class="page">
+      <div class="page-head">
+        <div><h2>📋 Relatórios</h2><p>Consulte o movimento e gere um arquivo para Excel.</p></div>
+      </div>
+      <div class="panel form-grid">
+        <label>Data inicial<input id="reportStart" type="date"></label>
+        <label>Data final<input id="reportEnd" type="date"></label>
+        <label>Origem
+          <select id="reportOrigin"><option value="">Todas</option></select>
+        </label>
+        <div class="actions align-end">
+          <button id="generateReport" class="btn primary">📊 Gerar relatório</button>
+          <button id="exportCSV" class="btn">⬇️ CSV</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div id="reportResult"></div>
+      </div>
+    </section>
+
+    <section id="cadastros" class="page">
+      <div class="page-head">
+        <div><h2>⚙️ Cadastros</h2><p>Cadastre pessoas, alimentos, origens e motivos.</p></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>👤 Pessoas</h3>
+          <form id="personForm" class="inline-form">
+            <input name="name" required placeholder="Nome completo">
+            <input name="registration" required placeholder="Matrícula">
+            <button class="btn primary">Adicionar</button>
+          </form>
+          <div id="peopleTable"></div>
+        </div>
+        <div class="panel">
+          <h3>📦 Alimentos</h3>
+          <form id="foodForm" class="inline-form">
+            <input name="name" required placeholder="Ex.: Açúcar 1 kg">
+            <button class="btn primary">Adicionar</button>
+          </form>
+          <div id="foodsTable"></div>
+        </div>
+        <div class="panel">
+          <h3>📍 Origens / estoques</h3>
+          <form id="originForm" class="inline-form">
+            <input name="name" required placeholder="Ex.: Piedade">
+            <button class="btn primary">Adicionar</button>
+          </form>
+          <div id="originsTable"></div>
+        </div>
+        <div class="panel">
+          <h3>📝 Motivos</h3>
+          <form id="reasonForm" class="inline-form">
+            <input name="name" required placeholder="Ex.: Gorbulho">
+            <button class="btn primary">Adicionar</button>
+          </form>
+          <div id="reasonsTable"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>💾 Backup dos dados</h3>
+        <p class="muted">Os dados ficam salvos neste aparelho. Faça backup regularmente para não perder informações.</p>
+        <div class="actions">
+          <button id="backupBtn" class="btn">⬇️ Fazer backup</button>
+          <label class="btn file-btn">⬆️ Restaurar backup<input id="restoreFile" type="file" accept=".json"></label>
+          <button id="resetBtn" class="btn danger-btn">🗑️ Restaurar padrão</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
