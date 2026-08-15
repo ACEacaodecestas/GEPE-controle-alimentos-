@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b3a63">
   <meta name="description" content="Controle de alimentos, estoque e presença">
   <link rel="manifest" href="manifest-v3.json">
@@ -12,22 +12,20 @@
   <title>Alimentos</title>
 </head>
 <body>
-  <header class="topbar ace-header">
-    <button class="menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
-    <div class="ace-brand-mark"><img src="ace-cesta.png" alt="ACE Ação de Cestas"></div>
-    <div class="ace-title-block">
-      <div class="ace-name">ACE Ação de Cestas</div>
+  <header class="topbar ace-header-v6">
+    <div class="ace-logo-v6">
+      <img src="ace-cesta.png" alt="ACE Ação de Cestas">
+    </div>
+
+    <div class="ace-title-v6">
+      <div class="ace-name-v6">ACE Ação de Cestas</div>
       <h1>Controle de Alimentos</h1>
     </div>
-    <div class="ace-date">
-      <div class="calendar-icon">▣</div>
-      <input id="dashboardDate" type="date" aria-label="Data do controle">
-      <span id="todayLabel"></span>
-    </div>
+
     <button id="installBtn" class="btn btn-light hidden">📲 Instalar</button>
   </header>
 
-  <nav class="tabs ace-tabs" aria-label="Navegação">
+  <nav class="tabs" aria-label="Navegação">
     <button data-page="dashboard" class="tab active">📊 Início</button>
     <button data-page="entrada" class="tab">📦 Entrada</button>
     <button data-page="movimentacao" class="tab">📤 Saída/Perda</button>
@@ -39,35 +37,29 @@
 
   <main>
     <section id="dashboard" class="page active">
-      <div class="home-actions">
-        <button class="home-card" data-page="dashboard"><span class="home-icon">📊</span><strong>Início</strong><small>Página inicial</small></button>
-        <button class="home-card" data-page="entrada"><span class="home-icon">📦</span><strong>Entrada</strong><small>Registrar entradas</small></button>
-        <button class="home-card highlighted" data-page="movimentacao"><span class="home-icon">📤</span><strong>Saída/Perda</strong><small>Registrar saídas<br>e perdas</small></button>
-        <button class="home-card" data-page="presenca"><span class="home-icon">👥</span><strong>Presença</strong><small>Controle de<br>presentes</small></button>
-        <button class="home-card" data-page="estoque"><span class="home-icon">🏬</span><strong>Estoque</strong><small>Ver estoque<br>atual</small></button>
-      </div>
-
-      <div class="daily-summary">
-        <h2>📋 RESUMO DO DIA</h2>
-        <div class="summary-grid">
-          <div class="summary-item"><span class="summary-icon green">👥</span><span class="summary-label">PRESENTES</span><strong id="kpiPresentes">0</strong><small>pessoas</small></div>
-          <div class="summary-item"><span class="summary-icon green">↓</span><span class="summary-label">ENTRADAS</span><strong id="kpiEntrada">0</strong><small>itens</small></div>
-          <div class="summary-item"><span class="summary-icon red">↑</span><span class="summary-label">SAÍDAS</span><strong id="kpiSaida">0</strong><small>itens</small></div>
-          <div class="summary-item"><span class="summary-icon orange">!</span><span class="summary-label">PERDAS</span><strong id="kpiPerda">0</strong><small>itens</small></div>
-          <div class="summary-item"><span class="summary-icon blue">⌂</span><span class="summary-label">ESTOQUE</span><strong id="kpiEstoque">0</strong><small>itens</small></div>
+      <div class="page-head">
+        <div>
+          <h2>Resumo do dia</h2>
+          <p id="todayLabel"></p>
         </div>
+        <input id="dashboardDate" type="date" class="input compact">
+      </div>
+      <div class="cards">
+        <div class="card"><span>📦 Entradas</span><strong id="kpiEntrada">0</strong><small>unidades</small></div>
+        <div class="card"><span>📤 Saídas</span><strong id="kpiSaida">0</strong><small>unidades</small></div>
+        <div class="card danger"><span>⚠️ Perdas</span><strong id="kpiPerda">0</strong><small>unidades</small></div>
+        <div class="card success"><span>🏬 Estoque</span><strong id="kpiEstoque">0</strong><small>unidades</small></div>
+        <div class="card"><span>👥 Presentes</span><strong id="kpiPresentes">0</strong><small>pessoas</small></div>
       </div>
 
-      <div class="home-footer">
-        <span>🛡️ GEPE Paulo e Estevão</span>
-        <span>Todas as informações são salvas automaticamente</span>
-        <span>☁️ Backup em nuvem</span>
-      </div>
-
-      <div class="home-details">
-        <div class="grid-2">
-          <div class="panel"><h3>Estoque por origem</h3><div id="originSummary"></div></div>
-          <div class="panel"><h3>Últimos lançamentos</h3><div id="recentMovements"></div></div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Estoque por origem</h3>
+          <div id="originSummary"></div>
+        </div>
+        <div class="panel">
+          <h3>Últimos lançamentos</h3>
+          <div id="recentMovements"></div>
         </div>
       </div>
     </section>
