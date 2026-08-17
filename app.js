@@ -2499,118 +2499,33 @@ async function startAuth() {
 
 
 // ============================================================
-// ATUALIZAR USUÁRIO ATUAL
-// ============================================================
-
-function setCurrentUserFromSession(user) {
-
-  if (!user) {
-    return;
-  }
-
-  try {
-
-    // Mantém o objeto currentUser original do aplicativo.
-    // Não substituímos o objeto inteiro.
-
-    if (
-      typeof currentUser !== "undefined" &&
-      currentUser !== null
-    ) {
-
-      currentUser.id =
-        user.id || null;
-
-      currentUser.email =
-        user.email || "";
-
-      currentUser.nome =
-        user.user_metadata?.nome ||
-        user.user_metadata?.nome_completo ||
-        "";
-
-    }
-
-  } catch (error) {
-
-    console.error(
-      "ACE - ERRO AO ATUALIZAR USUÁRIO:",
-      error
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// REMOVER TELAS DE AUTENTICAÇÃO
-// ============================================================
-
-function removeAuthScreens() {
-
-  const loginScreen =
-    document.getElementById("loginScreen");
-
-  if (loginScreen) {
-    loginScreen.remove();
-  }
-
-
-  const signupScreen =
-    document.getElementById("signupScreen");
-
-  if (signupScreen) {
-    signupScreen.remove();
-  }
-
-}
-
-
-// ============================================================
-// INICIALIZAÇÃO DO APLICATIVO
+// 22. INICIALIZAÇÃO DO APLICATIVO
 // ============================================================
 
 async function initApp() {
 
-  // Evita inicializar o aplicativo duas vezes.
-
-  if (
-    typeof appStarted !== "undefined" &&
-    appStarted
-  ) {
-    return;
-  }
+  console.log(
+    "ACE Controle de Alimentos iniciado."
+  );
 
 
   try {
 
-    console.log(
-      "ACE: iniciando aplicativo..."
-    );
-
-
     // ========================================================
-    // CARREGAR BANCO
+    // CARREGAR DADOS DO SUPABASE
     // ========================================================
 
-    // Mantém exatamente a função original do aplicativo.
+    // IMPORTANTE:
+    // NÃO usar load().
+    //
+    // O aplicativo atual usa o Supabase como banco oficial.
 
-    if (typeof load === "function") {
-
-      db = load();
-
-    } else {
-
-      throw new Error(
-        "A função load() não foi encontrada."
-      );
-
-    }
+    db =
+      await loadFromSupabase();
 
 
     console.log(
-      "ACE: banco carregado."
+      "ACE: banco carregado com sucesso."
     );
 
 
@@ -2618,132 +2533,70 @@ async function initApp() {
     // DATAS
     // ========================================================
 
-    if (
-      typeof setDates === "function"
-    ) {
-
-      setDates();
-
-    }
+    setDates();
 
 
     // ========================================================
     // NAVEGAÇÃO
     // ========================================================
 
-    if (
-      typeof nav === "function"
-    ) {
+    // ESSA FUNÇÃO É A RESPONSÁVEL PELOS MENUS.
 
-      nav();
-
-    }
+    nav();
 
 
     // ========================================================
     // EVENTOS
     // ========================================================
 
-    if (
-      typeof bindEvents === "function"
-    ) {
+    // ESSA FUNÇÃO LIGA OS BOTÕES DO SISTEMA.
 
-      bindEvents();
-
-    }
-
-
-    // ========================================================
-    // BACKUP
-    // ========================================================
-
-    if (
-      typeof setupBackup === "function"
-    ) {
-
-      setupBackup();
-
-    }
+    bindEvents();
 
 
     // ========================================================
     // PWA
     // ========================================================
 
-    if (
-      typeof setupPWA === "function"
-    ) {
-
-      setupPWA();
-
-    }
+    setupPWA();
 
 
     // ========================================================
     // BARRA DO USUÁRIO
     // ========================================================
 
-    if (
-      typeof addUserBar === "function"
-    ) {
-
-      addUserBar();
-
-    }
+    addUserBar();
 
 
     // ========================================================
     // RENDERIZAÇÃO
     // ========================================================
 
-    if (
-      typeof renderAll === "function"
-    ) {
-
-      renderAll();
-
-    }
-
-
-    // Só marca como iniciado DEPOIS que tudo terminou.
-
-    if (
-      typeof appStarted !== "undefined"
-    ) {
-
-      appStarted = true;
-
-    }
+    renderAll();
 
 
     console.log(
-      "ACE: aplicativo iniciado com sucesso."
+      "ACE: aplicativo carregado com sucesso."
     );
 
 
   } catch (error) {
 
     console.error(
-      "ACE - ERRO AO INICIAR SISTEMA:",
+      "Erro ao iniciar aplicativo:",
       error
     );
 
 
-    if (
-      typeof appStarted !== "undefined"
-    ) {
-
-      appStarted = false;
-
-    }
-
-
     alert(
+
       "Erro ao carregar o sistema:\n\n" +
+
       (
         error?.message ||
-        "Erro desconhecido"
+        "Verifique a conexão com o Supabase."
       )
+
     );
 
   }
@@ -2752,215 +2605,23 @@ async function initApp() {
 
 
 // ============================================================
-// PROCESSAR USUÁRIO AUTENTICADO
-// ============================================================
-
-async function enterSystem(user) {
-
-  if (!user) {
-    return;
-  }
-
-
-  console.log(
-    "ACE: usuário autenticado:",
-    user.email
-  );
-
-
-  // Atualiza currentUser.
-
-  setCurrentUserFromSession(user);
-
-
-  // Remove login/cadastro.
-
-  removeAuthScreens();
-
-
-  // Inicia sistema.
-
-  await initApp();
-
-}
-
-
-// ============================================================
-// MOSTRAR LOGIN
-// ============================================================
-
-function showLogin() {
-
-  // Evita criar duas telas de login.
-
-  if (
-    document.getElementById("loginScreen")
-  ) {
-    return;
-  }
-
-
-  if (
-    typeof createLoginScreen === "function"
-  ) {
-
-    createLoginScreen();
-
-  }
-
-}
-
-
-// ============================================================
-// CONTROLE PARA IGNORAR LOGIN AUTOMÁTICO DO CADASTRO
-// ============================================================
-
-let creatingAccount = false;
-
-
-// Esta função poderá ser usada pela função de cadastro.
-//
-// Antes do signUp:
-//
-// creatingAccount = true;
-//
-// Depois do cadastro:
-//
-// await supabaseClient.auth.signOut();
-// creatingAccount = false;
-// showLogin();
-//
-//
-// Assim a criação da conta NÃO entra automaticamente no sistema.
-
-
-// ============================================================
-// INICIAR AUTENTICAÇÃO
+// 23. VERIFICA LOGIN
 // ============================================================
 
 async function startAuth() {
 
-  console.log(
-    "ACE: iniciando autenticação..."
-  );
+  // ----------------------------------------------------------
+  // CRIA A TELA DE LOGIN
+  // ----------------------------------------------------------
 
+  createLoginScreen();
 
-  // ==========================================================
-  // OUVIR ALTERAÇÕES DE AUTENTICAÇÃO
-  // ==========================================================
-
-  supabaseClient.auth.onAuthStateChange(
-    async (event, session) => {
-
-      console.log(
-        "ACE AUTH:",
-        event
-      );
-
-
-      // ======================================================
-      // LOGIN
-      // ======================================================
-
-      if (
-        event === "SIGNED_IN"
-      ) {
-
-        // IMPORTANTE:
-        // Se o SIGNED_IN aconteceu durante a criação
-        // da conta, NÃO entra no aplicativo.
-
-        if (creatingAccount) {
-
-          console.log(
-            "ACE: SIGNED_IN do cadastro ignorado."
-          );
-
-          return;
-
-        }
-
-
-        if (
-          session?.user
-        ) {
-
-          await enterSystem(
-            session.user
-          );
-
-        }
-
-      }
-
-
-      // ======================================================
-      // TOKEN ATUALIZADO
-      // ======================================================
-
-      else if (
-        event === "TOKEN_REFRESHED"
-      ) {
-
-        if (
-          session?.user
-        ) {
-
-          setCurrentUserFromSession(
-            session.user
-          );
-
-        }
-
-      }
-
-
-      // ======================================================
-      // LOGOUT
-      // ======================================================
-
-      else if (
-        event === "SIGNED_OUT"
-      ) {
-
-        console.log(
-          "ACE: usuário desconectado."
-        );
-
-
-        if (
-          typeof currentUser !== "undefined" &&
-          currentUser !== null
-        ) {
-
-          currentUser.id = null;
-          currentUser.email = "";
-          currentUser.nome = "";
-
-        }
-
-
-        // Se o logout aconteceu durante criação
-        // da conta, não recarrega a página.
-
-        if (creatingAccount) {
-          return;
-        }
-
-
-        location.reload();
-
-      }
-
-    }
-  );
-
-
-  // ==========================================================
-  // VERIFICAR SESSÃO EXISTENTE
-  // ==========================================================
 
   try {
+
+    // ========================================================
+    // VERIFICAR SESSÃO EXISTENTE
+    // ========================================================
 
     const {
       data,
@@ -2972,12 +2633,14 @@ async function startAuth() {
 
 
     if (error) {
+
       throw error;
+
     }
 
 
     // ========================================================
-    // JÁ EXISTE USUÁRIO LOGADO
+    // USUÁRIO JÁ ESTÁ LOGADO
     // ========================================================
 
     if (
@@ -2985,13 +2648,26 @@ async function startAuth() {
     ) {
 
       console.log(
-        "ACE: sessão existente encontrada."
+        "ACE: sessão encontrada."
       );
 
 
-      await enterSystem(
-        data.session.user
-      );
+      currentUser =
+        data.session.user;
+
+
+      // Remove a tela de login.
+
+      document
+        .getElementById(
+          "loginScreen"
+        )
+        ?.remove();
+
+
+      // Carrega o aplicativo.
+
+      await initApp();
 
 
       return;
@@ -3000,53 +2676,117 @@ async function startAuth() {
 
 
     // ========================================================
-    // NÃO EXISTE SESSÃO
+    // NÃO ESTÁ LOGADO
     // ========================================================
 
     console.log(
-      "ACE: nenhuma sessão encontrada."
+      "ACE: usuário não autenticado."
     );
 
-
-    showLogin();
+    // A tela de login permanece aberta.
 
 
   } catch (error) {
 
     console.error(
-      "ACE - ERRO AO VERIFICAR SESSÃO:",
+      "Erro ao verificar sessão:",
       error
     );
 
 
-    showLogin();
-
-
-    const errorMessage =
-      error?.message || "";
-
-
-    if (
-      errorMessage
-        .toLowerCase()
-        .includes("jwt")
-    ) {
-
-      console.warn(
-        "ACE: problema de JWT detectado."
+    const loginError =
+      document.getElementById(
+        "loginError"
       );
 
-      return;
+
+    if (loginError) {
+
+      loginError.textContent =
+        "Não foi possível conectar ao Supabase. Verifique a URL e a Publishable Key.";
+
+      loginError.classList.add(
+        "show"
+      );
 
     }
 
   }
 
+
+  // ==========================================================
+  // MONITORAR ALTERAÇÕES DE AUTENTICAÇÃO
+  // ==========================================================
+
+  supabaseClient
+    .auth
+    .onAuthStateChange(
+      (
+        event,
+        session
+      ) => {
+
+        console.log(
+          "ACE AUTH:",
+          event
+        );
+
+
+        // ====================================================
+        // LOGIN REALIZADO
+        // ====================================================
+
+        if (
+          event ===
+          "SIGNED_IN" &&
+          session?.user
+        ) {
+
+          currentUser =
+            session.user;
+
+
+          document
+            .getElementById(
+              "loginScreen"
+            )
+            ?.remove();
+
+
+          // IMPORTANTE:
+          // depois do login carregamos o banco,
+          // ativamos os menus e renderizamos tudo.
+
+          initApp();
+
+        }
+
+
+        // ====================================================
+        // LOGOUT
+        // ====================================================
+
+        if (
+          event ===
+          "SIGNED_OUT"
+        ) {
+
+          currentUser =
+            null;
+
+
+          location.reload();
+
+        }
+
+      }
+    );
+
 }
 
 
 // ============================================================
-// INICIAR APLICAÇÃO
+// 24. INÍCIO
 // ============================================================
 
 startAuth();
