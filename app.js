@@ -8,29 +8,22 @@
 // 1. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 
-const SUPABASE_URL =
-  "https://jblyzktbngvjqgvejgsa.supabase.co";
-
+const SUPABASE_URL = "https://jblyzktbngvjqgvejgsa.supabase.co";
 
 // COLE AQUI A SUA SUPABASE PUBLISHABLE KEY
-const SUPABASE_PUBLISHABLE_KEY =
-  "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
 
-
-const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
-  );
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
 
 
 // ============================================================
 // 2. BANCO LOCAL TEMPORÁRIO
 // ============================================================
 
-const KEY =
-  "controle_alimentos_v1";
-
+const KEY = "controle_alimentos_v1";
 
 const DEFAULT = {
 
@@ -39,7 +32,6 @@ const DEFAULT = {
     "Água Fria"
   ],
 
-
   reasons: [
     "Gorbulho",
     "Vencimento",
@@ -47,9 +39,7 @@ const DEFAULT = {
     "Outro"
   ],
 
-
   foods: [
-
     "Açúcar 1 kg",
     "Arroz 1 kg",
     "Café 250g",
@@ -64,54 +54,20 @@ const DEFAULT = {
     "Óleo 900ml",
     "Proteína de Soja 400g",
     "Sal 1kg"
-
   ],
 
-
   people: [
-
-    [
-      "Alexandre Gonçalves Tavares",
-      "43571"
-    ],
-
-    [
-      "Angelo Potrichi",
-      "43986"
-    ],
-
-    [
-      "Mariella Pompeu",
-      "43983"
-    ],
-
-    [
-      "Stefania Márcia Câmara Monteiro",
-      "44134"
-    ],
-
-    [
-      "José Airton Martins Filho",
-      "44051"
-    ],
-
-    [
-      "André Settinieri",
-      "42705"
-    ]
-
-  ].map(
-    ([name, registration]) => ({
-
-      id:
-        uid(),
-
-      name,
-
-      registration
-
-    })
-  )
+    ["Alexandre Gonçalves Tavares", "43571"],
+    ["Angelo Potrichi", "43986"],
+    ["Mariella Pompeu", "43983"],
+    ["Stefania Márcia Câmara Monteiro", "44134"],
+    ["José Airton Martins Filho", "44051"],
+    ["André Settinieri", "42705"]
+  ].map(([name, registration]) => ({
+    id: uid(),
+    name,
+    registration
+  }))
 
 };
 
@@ -120,28 +76,9 @@ const DEFAULT = {
 // 3. VARIÁVEIS
 // ============================================================
 
-let db =
-  null;
-
-
-let deferredPrompt =
-  null;
-
-
-let currentUser =
-  null;
-
-
-let appStarted =
-  false;
-
-
-// IMPORTANTE:
-// controla o processo de criação da conta.
-// Durante o cadastro, o Supabase pode disparar SIGNED_IN.
-// Não queremos que isso abra o aplicativo.
-let registrationInProgress =
-  false;
+let db = null;
+let deferredPrompt = null;
+let currentUser = null;
 
 
 // ============================================================
@@ -152,16 +89,10 @@ function uid() {
 
   return crypto.randomUUID
     ? crypto.randomUUID()
-    : Date.now() +
-      "-" +
-      Math.random()
-        .toString(16)
-        .slice(2);
+    : Date.now() + "-" + Math.random().toString(16).slice(2);
 
 }
 
-
-// ============================================================
 
 function isoToday() {
 
@@ -172,25 +103,16 @@ function isoToday() {
 }
 
 
-// ============================================================
-// CARREGAR BANCO LOCAL
-// ============================================================
-
 function load() {
 
   try {
 
     const raw =
-      localStorage.getItem(
-        KEY
-      );
-
+      localStorage.getItem(KEY);
 
     if (raw) {
 
-      return JSON.parse(
-        raw
-      );
+      return JSON.parse(raw);
 
     }
 
@@ -209,54 +131,33 @@ function load() {
     origins:
       DEFAULT.origins.map(
         x => ({
-
-          id:
-            uid(),
-
-          name:
-            x
-
+          id: uid(),
+          name: x
         })
       ),
-
 
     reasons:
       DEFAULT.reasons.map(
         x => ({
-
-          id:
-            uid(),
-
-          name:
-            x
-
+          id: uid(),
+          name: x
         })
       ),
-
 
     foods:
       DEFAULT.foods.map(
         x => ({
-
-          id:
-            uid(),
-
-          name:
-            x
-
+          id: uid(),
+          name: x
         })
       ),
-
 
     people:
       DEFAULT.people,
 
-
     entries: [],
 
-
     movements: [],
-
 
     attendance: {}
 
@@ -265,22 +166,13 @@ function load() {
 }
 
 
-// ============================================================
-// SALVAR BANCO LOCAL
-// ============================================================
-
 function save() {
 
   try {
 
     localStorage.setItem(
-
       KEY,
-
-      JSON.stringify(
-        db
-      )
-
+      JSON.stringify(db)
     );
 
   } catch (e) {
@@ -297,18 +189,6 @@ function save() {
 
 // ============================================================
 // 4.1 CARREGAMENTO DOS DADOS DO SUPABASE
-// ============================================================
-//
-// ATENÇÃO:
-//
-// Esta função precisa permanecer no app.js.
-// O erro:
-//
-//     loadFromSupabase is not defined
-//
-// acontecia quando a Parte 5 era colocada sem esta função.
-//
-// Aqui ela fica definida ANTES da inicialização.
 // ============================================================
 
 async function loadFromSupabase() {
@@ -330,28 +210,18 @@ async function loadFromSupabase() {
   try {
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // PESSOAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: people,
       error: peopleError
     } =
       await supabaseClient
-
         .from("Pessoas")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
-        .order(
-          "nome"
-        );
+        .order("nome");
 
 
     if (peopleError) {
@@ -361,28 +231,18 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ALIMENTOS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: foods,
       error: foodsError
     } =
       await supabaseClient
-
         .from("Alimentos")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
-        .order(
-          "nome"
-        );
+        .order("nome");
 
 
     if (foodsError) {
@@ -392,28 +252,18 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ORIGENS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: origins,
       error: originsError
     } =
       await supabaseClient
-
         .from("origens")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
-        .order(
-          "nome"
-        );
+        .order("nome");
 
 
     if (originsError) {
@@ -423,25 +273,17 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ENTRADAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: entries,
       error: entriesError
     } =
       await supabaseClient
-
         .from("entradas")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
         .order(
           "data_entrada",
           {
@@ -457,25 +299,17 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // SAÍDAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: outputs,
       error: outputsError
     } =
       await supabaseClient
-
         .from("saídas")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
         .order(
           "data_saida",
           {
@@ -491,25 +325,17 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // PERDAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: losses,
       error: lossesError
     } =
       await supabaseClient
-
         .from("perdas")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
         .order(
           "data_perda",
           {
@@ -525,25 +351,17 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // PRESENÇA
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: attendanceRows,
       error: attendanceError
     } =
       await supabaseClient
-
         .from("presença")
-
         .select("*")
-
-        .eq(
-          "usuario_id",
-          currentUser.id
-        )
-
         .order(
           "data",
           {
@@ -559,289 +377,276 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // MOTIVOS
-    // ========================================================
-    //
-    // NÃO MEXER NA TABELA MOTIVOS.
-    //
-    // Os motivos continuam como estavam no V7:
-    //
-    // Gorbulho
-    // Vencimento
-    // Avaria
-    // Outro
-    //
-    // ========================================================
+    // Não existe tabela de motivos no Supabase neste momento.
+    // Portanto, os motivos permanecem no cadastro local do app.
+    // ----------------------------------------------------------
 
     const reasons =
       DEFAULT.reasons.map(
         name => ({
-
-          id:
-            name,
-
+          id: name,
           name
-
         })
       );
 
 
-    // ========================================================
-    // CONVERTER PARA O FORMATO DO APP
-    // ========================================================
+    // ----------------------------------------------------------
+    // CONVERSÃO PARA O FORMATO QUE O APP JÁ UTILIZA
+    // ----------------------------------------------------------
 
     const dbSupabase = {
 
 
-      // ------------------------------------------------------
+      // --------------------------------------------------------
       // PESSOAS
-      // ------------------------------------------------------
+      // --------------------------------------------------------
 
       people:
-        (people || [])
-          .map(
-            p => ({
+        (people || []).map(
+          p => ({
 
-              id:
-                p.id,
+            id:
+              p.id,
 
-              name:
-                p.nome,
+            name:
+              p.nome,
 
-              registration:
-                p["matrícula"]
+            registration:
+              p["matrícula"]
 
-            })
-          ),
+          })
+        ),
 
 
-      // ------------------------------------------------------
+      // --------------------------------------------------------
       // ALIMENTOS
-      // ------------------------------------------------------
+      // --------------------------------------------------------
 
       foods:
-        (foods || [])
-          .map(
-            f => ({
+        (foods || []).map(
+          f => ({
 
-              id:
-                f.id,
+            id:
+              f.id,
 
-              name:
-                f.nome
+            name:
+              f.nome
 
-            })
-          ),
+          })
+        ),
 
 
-      // ------------------------------------------------------
+      // --------------------------------------------------------
       // ORIGENS
-      // ------------------------------------------------------
+      // --------------------------------------------------------
 
       origins:
-        (origins || [])
-          .map(
-            o => ({
+        (origins || []).map(
+          o => ({
 
-              id:
-                o.id,
+            id:
+              o.id,
 
-              name:
-                o.nome
+            name:
+              o.nome
 
-            })
-          ),
+          })
+        ),
 
 
-      // ------------------------------------------------------
+      // --------------------------------------------------------
       // ENTRADAS
-      // ------------------------------------------------------
+      // --------------------------------------------------------
 
       entries:
-        (entries || [])
-          .map(
-            e => ({
+        (entries || []).map(
+          e => ({
 
-              id:
-                e.id,
+            id:
+              e.id,
 
-              date:
-                e.data_entrada,
+            date:
+              e.data_entrada,
 
-              foodId:
-                e.alimento_id,
+            foodId:
+              e.alimento_id,
 
-              qty:
-                Number(
-                  e.quantidade || 0
-                ),
+            qty:
+              Number(
+                e.quantidade || 0
+              ),
 
-              originId:
-                e.origem_id,
+            originId:
+              e.origem_id,
 
-              note:
-                "",
+            note:
+              "",
 
-              createdAt:
-                e.created_at ||
-                new Date()
-                  .toISOString()
+            createdAt:
+              e.created_at ||
+              new Date().toISOString()
 
-            })
-          ),
+          })
+        ),
 
 
-      // ------------------------------------------------------
-      // MOVIMENTAÇÕES
-      // ------------------------------------------------------
+      // --------------------------------------------------------
+      // SAÍDAS + PERDAS
+      // --------------------------------------------------------
 
       movements: [
 
-        ...(outputs || [])
-          .map(
-            s => ({
 
-              id:
-                "saida-" +
-                s.id,
+        // ------------------------------------------------------
+        // SAÍDAS
+        // ------------------------------------------------------
 
-              date:
-                s.data_saida,
+        ...(outputs || []).map(
+          s => ({
 
-              type:
-                "saida",
+            id:
+              "saida-" + s.id,
 
-              foodId:
-                s.alimento_id,
+            date:
+              s.data_saida,
 
-              qty:
-                Number(
-                  s.quantidade || 0
-                ),
+            type:
+              "saida",
 
-              originId:
-                s.origem_id,
+            foodId:
+              s.alimento_id,
 
-              reasonId:
-                null,
+            qty:
+              Number(
+                s.quantidade || 0
+              ),
 
-              note:
-                s.destino || "",
+            originId:
+              s.origem_id,
 
-              createdAt:
-                s.created_at ||
-                new Date()
-                  .toISOString()
+            reasonId:
+              null,
 
-            })
-          ),
+            note:
+              s.destino || "",
+
+            createdAt:
+              s.created_at ||
+              new Date().toISOString()
+
+          })
+        ),
 
 
-        ...(losses || [])
-          .map(
-            p => ({
+        // ------------------------------------------------------
+        // PERDAS
+        // ------------------------------------------------------
 
-              id:
-                "perda-" +
-                p.id,
+        ...(losses || []).map(
+          p => ({
 
-              date:
-                p.data_perda,
+            id:
+              "perda-" + p.id,
 
-              type:
-                "perda",
+            date:
+              p.data_perda,
 
-              foodId:
-                p.alimento_id,
+            type:
+              "perda",
 
-              qty:
-                Number(
-                  p.quantidade || 0
-                ),
+            foodId:
+              p.alimento_id,
 
-              originId:
-                p.origem_id,
+            qty:
+              Number(
+                p.quantidade || 0
+              ),
 
-              reasonId:
-                reasons.find(
-                  r =>
-                    r.name ===
-                    p.motivo
-                )?.id ||
-                p.motivo ||
-                null,
+            originId:
+              p.origem_id,
 
-              note:
-                "",
+            reasonId:
+              reasons.find(
+                r =>
+                  r.name ===
+                  p.motivo
+              )?.id ||
 
-              createdAt:
-                p.created_at ||
-                new Date()
-                  .toISOString()
+              p.motivo ||
 
-            })
-          )
+              null,
+
+            note:
+              "",
+
+            createdAt:
+              p.created_at ||
+              new Date().toISOString()
+
+          })
+        )
 
       ],
 
 
-      // ------------------------------------------------------
+      // --------------------------------------------------------
       // PRESENÇA
-      // ------------------------------------------------------
+      // --------------------------------------------------------
 
-      attendance: {},
+      attendance:
+        {},
 
 
-      // ------------------------------------------------------
+      // --------------------------------------------------------
       // MOTIVOS
-      // ------------------------------------------------------
+      // --------------------------------------------------------
 
       reasons
 
     };
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ORGANIZAR PRESENÇA POR DATA
-    // ========================================================
+    // ----------------------------------------------------------
 
-    (
-      attendanceRows || []
-    ).forEach(
-      row => {
+    (attendanceRows || [])
+      .forEach(
+        row => {
 
-        if (
-          !dbSupabase
-            .attendance[
-              row.data
-            ]
-        ) {
+          if (
+            !dbSupabase
+              .attendance[
+                row.data
+              ]
+          ) {
 
-          dbSupabase
-            .attendance[
-              row.data
-            ] = [];
+            dbSupabase
+              .attendance[
+                row.data
+              ] = [];
+
+          }
+
+
+          if (
+            row.present
+          ) {
+
+            dbSupabase
+              .attendance[
+                row.data
+              ]
+              .push(
+                row.pessoa_id
+              );
+
+          }
 
         }
-
-
-        if (
-          row.present
-        ) {
-
-          dbSupabase
-            .attendance[
-              row.data
-            ]
-            .push(
-              row.pessoa_id
-            );
-
-        }
-
-      }
-    );
+      );
 
 
     console.log(
@@ -860,911 +665,11 @@ async function loadFromSupabase() {
       error
     );
 
-
     throw error;
 
   }
 
 }
-
-
-// ============================================================
-// ESCAPAR HTML
-// ============================================================
-
-function esc(s) {
-
-  return String(
-    s ?? ""
-  ).replace(
-
-    /[&<>"']/g,
-
-    m => ({
-
-      "&":
-        "&amp;",
-
-      "<":
-        "&lt;",
-
-      ">":
-        "&gt;",
-
-      '"':
-        "&quot;",
-
-      "'":
-        "&#039;"
-
-    }[m])
-
-  );
-
-}
-
-
-// ============================================================
-// FORMATAR NÚMERO
-// ============================================================
-
-function fmt(n) {
-
-  return Number(
-    n || 0
-  ).toLocaleString(
-
-    "pt-BR",
-
-    {
-      maximumFractionDigits:
-        2
-    }
-
-  );
-
-}
-
-
-// ============================================================
-// FORMATAR DATA
-// ============================================================
-
-function fmtDate(d) {
-
-  return d
-
-    ? new Date(
-        d +
-        "T12:00:00"
-      ).toLocaleDateString(
-        "pt-BR"
-      )
-
-    : "";
-
-}
-
-
-// ============================================================
-// PEGAR NOME PELO ID
-// ============================================================
-
-function getName(
-  arr,
-  id
-) {
-
-  return arr.find(
-    x =>
-      x.id === id
-  )?.name ||
-    "—";
-
-}
-
-
-// ============================================================
-// TOAST
-// ============================================================
-
-function toast(msg) {
-
-  const el =
-    document.getElementById(
-      "toast"
-    );
-
-
-  if (!el) {
-
-    return;
-
-  }
-
-
-  el.textContent =
-    msg;
-
-
-  el.classList.add(
-    "show"
-  );
-
-
-  clearTimeout(
-    window._toast
-  );
-
-
-  window._toast =
-    setTimeout(
-
-      () =>
-        el.classList.remove(
-          "show"
-        ),
-
-      2400
-
-    );
-
-}
-
-
-// ============================================================
-// 5. TELA DE LOGIN
-// ============================================================
-
-function createLoginScreen() {
-
-  if (
-    document.getElementById(
-      "loginScreen"
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  const style =
-    document.createElement(
-      "style"
-    );
-
-
-  style.id =
-    "loginStyle";
-
-
-  style.textContent = `
-
-    #loginScreen{
-      position:fixed;
-      inset:0;
-      z-index:99999;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-      background:
-        linear-gradient(
-          135deg,
-          #0b3a63 0%,
-          #075486 55%,
-          #0b3a63 100%
-        );
-    }
-
-    .login-box{
-      width:min(420px,100%);
-      background:#fff;
-      border-radius:20px;
-      padding:30px;
-      box-shadow:0 20px 60px rgba(0,0,0,.28);
-    }
-
-    .login-logo{
-      text-align:center;
-      margin-bottom:18px;
-    }
-
-    .login-logo img{
-      width:150px;
-      max-width:70%;
-      height:auto;
-    }
-
-    .login-title{
-      text-align:center;
-      color:#0b3a63;
-      font-size:27px;
-      font-weight:900;
-      margin:5px 0;
-    }
-
-    .login-subtitle{
-      text-align:center;
-      color:#667085;
-      font-size:14px;
-      margin-bottom:25px;
-    }
-
-    .login-box label{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      margin-bottom:14px;
-      font-size:13px;
-      font-weight:800;
-      color:#344054;
-    }
-
-    .login-box input{
-      width:100%;
-      padding:13px;
-      border:1px solid #d9e1e8;
-      border-radius:10px;
-      font-size:15px;
-      outline:none;
-      box-sizing:border-box;
-    }
-
-    .login-box input:focus{
-      border-color:#1467a8;
-      box-shadow:0 0 0 3px rgba(20,103,168,.12);
-    }
-
-    .login-button{
-      width:100%;
-      padding:13px;
-      margin-top:8px;
-      border:0;
-      border-radius:10px;
-      background:#0b3a63;
-      color:#fff;
-      font-weight:900;
-      font-size:15px;
-      cursor:pointer;
-    }
-
-    .login-button:hover{
-      filter:brightness(1.08);
-    }
-
-    .login-button:disabled{
-      opacity:.65;
-      cursor:not-allowed;
-    }
-
-    .register-button{
-      width:100%;
-      padding:12px;
-      margin-top:10px;
-      border:1px solid #0b3a63;
-      border-radius:10px;
-      background:#fff;
-      color:#0b3a63;
-      font-weight:900;
-      font-size:14px;
-      cursor:pointer;
-    }
-
-    .register-button:hover{
-      background:#f2f7fb;
-    }
-
-    .back-login-button{
-      width:100%;
-      padding:10px;
-      margin-top:8px;
-      border:0;
-      background:transparent;
-      color:#0b3a63;
-      font-weight:800;
-      cursor:pointer;
-    }
-
-    .login-error{
-      display:none;
-      margin-top:14px;
-      padding:11px;
-      border-radius:9px;
-      background:#fdeceb;
-      color:#b42318;
-      font-size:13px;
-      font-weight:700;
-    }
-
-    .login-error.show{
-      display:block;
-    }
-
-    .login-success{
-      display:none;
-      margin-top:14px;
-      padding:11px;
-      border-radius:9px;
-      background:#ecfdf3;
-      color:#027a48;
-      font-size:13px;
-      font-weight:700;
-    }
-
-    .login-success.show{
-      display:block;
-    }
-
-    .login-loading{
-      text-align:center;
-      color:#667085;
-      font-size:13px;
-      margin-top:12px;
-    }
-
-    .user-bar{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      margin-left:auto;
-    }
-
-    .user-email{
-      font-size:12px;
-      opacity:.9;
-    }
-
-    .logout-btn{
-      border:1px solid rgba(255,255,255,.35);
-      background:rgba(255,255,255,.12);
-      color:#fff;
-      border-radius:8px;
-      padding:8px 11px;
-      cursor:pointer;
-      font-weight:800;
-    }
-
-    .logout-btn:hover{
-      background:rgba(255,255,255,.22);
-    }
-
-    @media(max-width:700px){
-
-      .login-box{
-        padding:24px 20px;
-      }
-
-      .login-title{
-        font-size:24px;
-      }
-
-      .user-email{
-        display:none;
-      }
-
-    }
-
-  `;
-
-
-  document.head.appendChild(
-    style
-  );
-
-
-  const login =
-    document.createElement(
-      "div"
-    );
-
-
-  login.id =
-    "loginScreen";
-
-
-  login.innerHTML = `
-
-    <div class="login-box">
-
-      <div class="login-logo">
-        <img
-          src="ace-cesta.png"
-          alt="ACE"
-        >
-      </div>
-
-      <div class="login-title">
-        ACE Ação de Cestas
-      </div>
-
-      <div class="login-subtitle">
-        Controle de Alimentos
-      </div>
-
-      <div id="loginView">
-
-        <form id="loginForm">
-
-          <label>
-            E-mail
-
-            <input
-              id="loginEmail"
-              type="email"
-              placeholder="Digite seu e-mail"
-              autocomplete="username"
-              required
-            >
-
-          </label>
-
-          <label>
-            Senha
-
-            <input
-              id="loginPassword"
-              type="password"
-              placeholder="Digite sua senha"
-              autocomplete="current-password"
-              required
-            >
-
-          </label>
-
-          <button
-            id="loginButton"
-            class="login-button"
-            type="submit"
-          >
-            🔐 Entrar
-          </button>
-
-        </form>
-
-        <button
-          id="showRegisterButton"
-          class="register-button"
-          type="button"
-        >
-          📝 Criar minha conta
-        </button>
-
-      </div>
-
-
-      <div
-        id="registerView"
-        style="display:none;"
-      >
-
-        <form id="registerForm">
-
-          <label>
-            Nome
-
-            <input
-              id="registerName"
-              type="text"
-              placeholder="Digite seu nome"
-              autocomplete="name"
-              required
-            >
-
-          </label>
-
-          <label>
-            E-mail
-
-            <input
-              id="registerEmail"
-              type="email"
-              placeholder="Digite seu e-mail"
-              autocomplete="email"
-              required
-            >
-
-          </label>
-
-          <label>
-            Senha
-
-            <input
-              id="registerPassword"
-              type="password"
-              placeholder="Crie uma senha"
-              autocomplete="new-password"
-              minlength="6"
-              required
-            >
-
-          </label>
-
-          <label>
-            Confirmar senha
-
-            <input
-              id="registerPasswordConfirm"
-              type="password"
-              placeholder="Digite a senha novamente"
-              autocomplete="new-password"
-              minlength="6"
-              required
-            >
-
-          </label>
-
-          <button
-            id="registerButton"
-            class="login-button"
-            type="submit"
-          >
-            📝 Criar conta
-          </button>
-
-        </form>
-
-        <button
-          id="backLoginButton"
-          class="back-login-button"
-          type="button"
-        >
-          ← Voltar para o login
-        </button>
-
-      </div>
-
-
-      <div
-        id="loginError"
-        class="login-error"
-      ></div>
-
-
-      <div
-        id="loginSuccess"
-        class="login-success"
-      ></div>
-
-
-      <div
-        id="loginLoading"
-        class="login-loading"
-      ></div>
-
-    </div>
-
-  `;
-
-
-  document.body.appendChild(
-    login
-  );
-
-
-  document
-    .getElementById(
-      "loginForm"
-    )
-    .addEventListener(
-      "submit",
-      loginUser
-    );
-
-
-  document
-    .getElementById(
-      "registerForm"
-    )
-    .addEventListener(
-      "submit",
-      registerUser
-    );
-
-
-  document
-    .getElementById(
-      "showRegisterButton"
-    )
-    .addEventListener(
-      "click",
-      showRegisterView
-    );
-
-
-  document
-    .getElementById(
-      "backLoginButton"
-    )
-    .addEventListener(
-      "click",
-      showLoginView
-    );
-
-}
-
-
-// ============================================================
-// LIMPAR MENSAGENS DE AUTENTICAÇÃO
-// ============================================================
-
-function clearAuthMessages() {
-
-  const error =
-    document.getElementById(
-      "loginError"
-    );
-
-
-  const success =
-    document.getElementById(
-      "loginSuccess"
-    );
-
-
-  const loading =
-    document.getElementById(
-      "loginLoading"
-    );
-
-
-  if (error) {
-
-    error.classList.remove(
-      "show"
-    );
-
-    error.textContent =
-      "";
-
-  }
-
-
-  if (success) {
-
-    success.classList.remove(
-      "show"
-    );
-
-    success.textContent =
-      "";
-
-  }
-
-
-  if (loading) {
-
-    loading.textContent =
-      "";
-
-  }
-
-}
-
-
-// ============================================================
-// MOSTRAR CADASTRO
-// ============================================================
-
-function showRegisterView() {
-
-  clearAuthMessages();
-
-
-  const loginView =
-    document.getElementById(
-      "loginView"
-    );
-
-
-  const registerView =
-    document.getElementById(
-      "registerView"
-    );
-
-
-  if (loginView) {
-
-    loginView.style.display =
-      "none";
-
-  }
-
-
-  if (registerView) {
-
-    registerView.style.display =
-      "block";
-
-  }
-
-
-  document
-    .getElementById(
-      "registerName"
-    )
-    ?.focus();
-
-}
-
-
-// ============================================================
-// VOLTAR PARA LOGIN
-// ============================================================
-
-function showLoginView() {
-
-  clearAuthMessages();
-
-
-  const loginView =
-    document.getElementById(
-      "loginView"
-    );
-
-
-  const registerView =
-    document.getElementById(
-      "registerView"
-    );
-
-
-  if (loginView) {
-
-    loginView.style.display =
-      "block";
-
-  }
-
-
-  if (registerView) {
-
-    registerView.style.display =
-      "none";
-
-  }
-
-
-  document
-    .getElementById(
-      "loginEmail"
-    )
-    ?.focus();
-
-}
-
-
-// ============================================================
-// LOGIN DO USUÁRIO
-// ============================================================
-
-async function loginUser(e) {
-
-  e.preventDefault();
-
-
-  const email =
-    document
-      .getElementById(
-        "loginEmail"
-      )
-      .value
-      .trim();
-
-
-  const password =
-    document
-      .getElementById(
-        "loginPassword"
-      )
-      .value;
-
-
-  const button =
-    document.getElementById(
-      "loginButton"
-    );
-
-
-  const error =
-    document.getElementById(
-      "loginError"
-    );
-
-
-  const loading =
-    document.getElementById(
-      "loginLoading"
-    );
-
-
-  clearAuthMessages();
-
-
-  button.disabled =
-    true;
-
-
-  button.textContent =
-    "Entrando...";
-
-
-  loading.textContent =
-    "Autenticando...";
-
-
-  try {
-
-    const {
-      data,
-      error: authError
-    } =
-      await supabaseClient
-        .auth
-        .signInWithPassword({
-
-          email,
-
-          password
-
-        });
-
-
-    if (authError) {
-
-      throw authError;
-
-    }
-
-
-    currentUser =
-      data.user;
-
-
-    document
-      .getElementById(
-        "loginScreen"
-      )
-      ?.remove();
-
-
-    await initApp();
-
-
-  } catch (err) {
-
-    console.error(
-      err
-    );
-
-
-    error.textContent =
-      traduzirErroLogin(
-        err
-      );
-
-
-    error.classList.add(
-      "show"
-    );
-
-
-    button.disabled =
-      false;
-
-
-    button.textContent =
-      "🔐 Entrar";
-
-
-    loading.textContent =
-      "";
-
-  }
-
-}
-
 
 // ============================================================
 // FIM DA PARTE 1/5
