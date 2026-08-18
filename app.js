@@ -1,6 +1,6 @@
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
-// V7 + SUPABASE AUTH
+// PARTE 1 - CONFIGURAÇÃO + BANCO + SUPABASE
 // ============================================================
 
 
@@ -8,22 +8,30 @@
 // 1. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 
-const SUPABASE_URL = "https://jblyzktbngvjqgvejgsa.supabase.co";
+const SUPABASE_URL =
+  "https://jblyzktbngvjqgvejgsa.supabase.co";
+
 
 // COLE AQUI A SUA SUPABASE PUBLISHABLE KEY
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
 
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY
-);
+const SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
+
+
+const supabaseClient =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+  );
 
 
 // ============================================================
 // 2. BANCO LOCAL TEMPORÁRIO
 // ============================================================
 
-const KEY = "controle_alimentos_v1";
+const KEY =
+  "controle_alimentos_v1";
+
 
 const DEFAULT = {
 
@@ -57,17 +65,47 @@ const DEFAULT = {
   ],
 
   people: [
-    ["Alexandre Gonçalves Tavares", "43571"],
-    ["Angelo Potrichi", "43986"],
-    ["Mariella Pompeu", "43983"],
-    ["Stefania Márcia Câmara Monteiro", "44134"],
-    ["José Airton Martins Filho", "44051"],
-    ["André Settinieri", "42705"]
-  ].map(([name, registration]) => ({
-    id: uid(),
-    name,
-    registration
-  }))
+    [
+      "Alexandre Gonçalves Tavares",
+      "43571"
+    ],
+
+    [
+      "Angelo Potrichi",
+      "43986"
+    ],
+
+    [
+      "Mariella Pompeu",
+      "43983"
+    ],
+
+    [
+      "Stefania Márcia Câmara Monteiro",
+      "44134"
+    ],
+
+    [
+      "José Airton Martins Filho",
+      "44051"
+    ],
+
+    [
+      "André Settinieri",
+      "42705"
+    ]
+
+  ].map(
+    ([name, registration]) => ({
+
+      id: uid(),
+
+      name,
+
+      registration
+
+    })
+  )
 
 };
 
@@ -77,7 +115,9 @@ const DEFAULT = {
 // ============================================================
 
 let db = null;
+
 let deferredPrompt = null;
+
 let currentUser = null;
 
 
@@ -89,7 +129,11 @@ function uid() {
 
   return crypto.randomUUID
     ? crypto.randomUUID()
-    : Date.now() + "-" + Math.random().toString(16).slice(2);
+    : Date.now() +
+      "-" +
+      Math.random()
+        .toString(16)
+        .slice(2);
 
 }
 
@@ -103,12 +147,17 @@ function isoToday() {
 }
 
 
+// ============================================================
+// CARREGAR BANCO LOCAL
+// ============================================================
+
 function load() {
 
   try {
 
     const raw =
       localStorage.getItem(KEY);
+
 
     if (raw) {
 
@@ -131,33 +180,48 @@ function load() {
     origins:
       DEFAULT.origins.map(
         x => ({
+
           id: uid(),
+
           name: x
+
         })
       ),
+
 
     reasons:
       DEFAULT.reasons.map(
         x => ({
+
           id: uid(),
+
           name: x
+
         })
       ),
+
 
     foods:
       DEFAULT.foods.map(
         x => ({
+
           id: uid(),
+
           name: x
+
         })
       ),
+
 
     people:
       DEFAULT.people,
 
+
     entries: [],
 
+
     movements: [],
+
 
     attendance: {}
 
@@ -166,19 +230,32 @@ function load() {
 }
 
 
+// ============================================================
+// SALVAR CACHE LOCAL
+// ============================================================
+//
+// IMPORTANTE:
+// O localStorage NÃO será mais usado como banco principal.
+// Ele serve somente como cache local.
+// O banco oficial é o SUPABASE.
+// ============================================================
+
 function save() {
 
   try {
 
     localStorage.setItem(
+
       KEY,
+
       JSON.stringify(db)
+
     );
 
   } catch (e) {
 
     console.error(
-      "Erro ao salvar:",
+      "Erro ao salvar cache local:",
       e
     );
 
@@ -188,7 +265,22 @@ function save() {
 
 
 // ============================================================
-// 4.1 CARREGAMENTO DOS DADOS DO SUPABASE
+// 4.1 CARREGAMENTO DO SUPABASE
+// ============================================================
+//
+// ATENÇÃO:
+//
+// NÃO FILTRAMOS POR currentUser.id.
+//
+// O estoque é COMPARTILHADO.
+//
+// Portanto:
+//
+// usuário A
+// usuário B
+// usuário C
+//
+// todos carregam os mesmos dados.
 // ============================================================
 
 async function loadFromSupabase() {
@@ -203,25 +295,28 @@ async function loadFromSupabase() {
 
 
   console.log(
-    "Carregando dados do Supabase..."
+    "ACE: carregando banco compartilhado do Supabase..."
   );
 
 
   try {
 
-
-    // ----------------------------------------------------------
+    // ========================================================
     // PESSOAS
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: people,
       error: peopleError
-    } =
-      await supabaseClient
-        .from("Pessoas")
-        .select("*")
-        .order("nome");
+    } = await supabaseClient
+
+      .from("Pessoas")
+
+      .select("*")
+
+      .order(
+        "nome"
+      );
 
 
     if (peopleError) {
@@ -231,18 +326,22 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // ALIMENTOS
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: foods,
       error: foodsError
-    } =
-      await supabaseClient
-        .from("Alimentos")
-        .select("*")
-        .order("nome");
+    } = await supabaseClient
+
+      .from("Alimentos")
+
+      .select("*")
+
+      .order(
+        "nome"
+      );
 
 
     if (foodsError) {
@@ -252,18 +351,22 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // ORIGENS
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: origins,
       error: originsError
-    } =
-      await supabaseClient
-        .from("origens")
-        .select("*")
-        .order("nome");
+    } = await supabaseClient
+
+      .from("origens")
+
+      .select("*")
+
+      .order(
+        "nome"
+      );
 
 
     if (originsError) {
@@ -273,23 +376,25 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // ENTRADAS
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: entries,
       error: entriesError
-    } =
-      await supabaseClient
-        .from("entradas")
-        .select("*")
-        .order(
-          "data_entrada",
-          {
-            ascending: false
-          }
-        );
+    } = await supabaseClient
+
+      .from("entradas")
+
+      .select("*")
+
+      .order(
+        "data_entrada",
+        {
+          ascending: false
+        }
+      );
 
 
     if (entriesError) {
@@ -299,23 +404,25 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // SAÍDAS
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: outputs,
       error: outputsError
-    } =
-      await supabaseClient
-        .from("saídas")
-        .select("*")
-        .order(
-          "data_saida",
-          {
-            ascending: false
-          }
-        );
+    } = await supabaseClient
+
+      .from("saídas")
+
+      .select("*")
+
+      .order(
+        "data_saida",
+        {
+          ascending: false
+        }
+      );
 
 
     if (outputsError) {
@@ -325,23 +432,25 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // PERDAS
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: losses,
       error: lossesError
-    } =
-      await supabaseClient
-        .from("perdas")
-        .select("*")
-        .order(
-          "data_perda",
-          {
-            ascending: false
-          }
-        );
+    } = await supabaseClient
+
+      .from("perdas")
+
+      .select("*")
+
+      .order(
+        "data_perda",
+        {
+          ascending: false
+        }
+      );
 
 
     if (lossesError) {
@@ -351,23 +460,25 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // PRESENÇA
-    // ----------------------------------------------------------
+    // ========================================================
 
     const {
       data: attendanceRows,
       error: attendanceError
-    } =
-      await supabaseClient
-        .from("presença")
-        .select("*")
-        .order(
-          "data",
-          {
-            ascending: false
-          }
-        );
+    } = await supabaseClient
+
+      .from("presença")
+
+      .select("*")
+
+      .order(
+        "data",
+        {
+          ascending: false
+        }
+      );
 
 
     if (attendanceError) {
@@ -377,240 +488,233 @@ async function loadFromSupabase() {
     }
 
 
-    // ----------------------------------------------------------
+    // ========================================================
     // MOTIVOS
-    // Não existe tabela de motivos no Supabase neste momento.
-    // Portanto, os motivos permanecem no cadastro local do app.
-    // ----------------------------------------------------------
+    // ========================================================
 
     const reasons =
       DEFAULT.reasons.map(
         name => ({
+
           id: name,
+
           name
+
         })
       );
 
 
-    // ----------------------------------------------------------
-    // CONVERSÃO PARA O FORMATO QUE O APP JÁ UTILIZA
-    // ----------------------------------------------------------
+    // ========================================================
+    // CONVERTER PARA O FORMATO DO APLICATIVO
+    // ========================================================
 
     const dbSupabase = {
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // PESSOAS
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
       people:
-        (people || []).map(
-          p => ({
+        (people || [])
+          .map(
+            p => ({
 
-            id:
-              p.id,
+              id: p.id,
 
-            name:
-              p.nome,
+              name: p.nome,
 
-            registration:
-              p["matrícula"]
+              registration:
+                p["matrícula"]
 
-          })
-        ),
+            })
+          ),
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // ALIMENTOS
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
       foods:
-        (foods || []).map(
-          f => ({
+        (foods || [])
+          .map(
+            f => ({
 
-            id:
-              f.id,
+              id: f.id,
 
-            name:
-              f.nome
+              name: f.nome
 
-          })
-        ),
+            })
+          ),
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // ORIGENS
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
       origins:
-        (origins || []).map(
-          o => ({
+        (origins || [])
+          .map(
+            o => ({
 
-            id:
-              o.id,
+              id: o.id,
 
-            name:
-              o.nome
+              name: o.nome
 
-          })
-        ),
+            })
+          ),
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // ENTRADAS
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
       entries:
-        (entries || []).map(
-          e => ({
+        (entries || [])
+          .map(
+            e => ({
 
-            id:
-              e.id,
+              id: e.id,
 
-            date:
-              e.data_entrada,
+              date:
+                e.data_entrada,
 
-            foodId:
-              e.alimento_id,
+              foodId:
+                e.alimento_id,
 
-            qty:
-              Number(
-                e.quantidade || 0
-              ),
+              qty:
+                Number(
+                  e.quantidade || 0
+                ),
 
-            originId:
-              e.origem_id,
+              originId:
+                e.origem_id,
 
-            note:
-              "",
+              note: "",
 
-            createdAt:
-              e.created_at ||
-              new Date().toISOString()
+              createdAt:
+                e.created_at ||
+                new Date()
+                  .toISOString()
 
-          })
-        ),
+            })
+          ),
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // SAÍDAS + PERDAS
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
       movements: [
 
+        ...(outputs || [])
+          .map(
+            s => ({
 
-        // ------------------------------------------------------
-        // SAÍDAS
-        // ------------------------------------------------------
+              id:
+                "saida-" +
+                s.id,
 
-        ...(outputs || []).map(
-          s => ({
+              date:
+                s.data_saida,
 
-            id:
-              "saida-" + s.id,
+              type:
+                "saida",
 
-            date:
-              s.data_saida,
+              foodId:
+                s.alimento_id,
 
-            type:
-              "saida",
+              qty:
+                Number(
+                  s.quantidade || 0
+                ),
 
-            foodId:
-              s.alimento_id,
+              originId:
+                s.origem_id,
 
-            qty:
-              Number(
-                s.quantidade || 0
-              ),
+              reasonId:
+                null,
 
-            originId:
-              s.origem_id,
+              note:
+                s.destino || "",
 
-            reasonId:
-              null,
+              createdAt:
+                s.created_at ||
+                new Date()
+                  .toISOString()
 
-            note:
-              s.destino || "",
-
-            createdAt:
-              s.created_at ||
-              new Date().toISOString()
-
-          })
-        ),
+            })
+          ),
 
 
-        // ------------------------------------------------------
-        // PERDAS
-        // ------------------------------------------------------
+        ...(losses || [])
+          .map(
+            p => ({
 
-        ...(losses || []).map(
-          p => ({
+              id:
+                "perda-" +
+                p.id,
 
-            id:
-              "perda-" + p.id,
+              date:
+                p.data_perda,
 
-            date:
-              p.data_perda,
+              type:
+                "perda",
 
-            type:
-              "perda",
+              foodId:
+                p.alimento_id,
 
-            foodId:
-              p.alimento_id,
+              qty:
+                Number(
+                  p.quantidade || 0
+                ),
 
-            qty:
-              Number(
-                p.quantidade || 0
-              ),
+              originId:
+                p.origem_id,
 
-            originId:
-              p.origem_id,
+              reasonId:
+                reasons.find(
+                  r =>
+                    r.name ===
+                    p.motivo
+                )?.id ||
 
-            reasonId:
-              reasons.find(
-                r =>
-                  r.name ===
-                  p.motivo
-              )?.id ||
+                p.motivo ||
 
-              p.motivo ||
+                null,
 
-              null,
+              note: "",
 
-            note:
-              "",
+              createdAt:
+                p.created_at ||
+                new Date()
+                  .toISOString()
 
-            createdAt:
-              p.created_at ||
-              new Date().toISOString()
-
-          })
-        )
+            })
+          )
 
       ],
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // PRESENÇA
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
-      attendance:
-        {},
+      attendance: {},
 
 
-      // --------------------------------------------------------
+      // ------------------------------------------------------
       // MOTIVOS
-      // --------------------------------------------------------
+      // ------------------------------------------------------
 
       reasons
 
     };
 
 
-    // ----------------------------------------------------------
-    // ORGANIZAR PRESENÇA POR DATA
-    // ----------------------------------------------------------
+    // ========================================================
+    // ORGANIZAR PRESENÇA
+    // ========================================================
 
     (attendanceRows || [])
       .forEach(
@@ -631,9 +735,7 @@ async function loadFromSupabase() {
           }
 
 
-          if (
-            row.present
-          ) {
+          if (row.present) {
 
             dbSupabase
               .attendance[
@@ -649,9 +751,20 @@ async function loadFromSupabase() {
       );
 
 
+    // ========================================================
+    // SALVAR CÓPIA LOCAL DO BANCO COMPARTILHADO
+    // ========================================================
+
+    db =
+      dbSupabase;
+
+
+    save();
+
+
     console.log(
-      "Dados carregados do Supabase:",
-      dbSupabase
+      "ACE: banco compartilhado carregado.",
+      db
     );
 
 
@@ -661,7 +774,7 @@ async function loadFromSupabase() {
   } catch (error) {
 
     console.error(
-      "Erro ao carregar dados do Supabase:",
+      "ACE - ERRO AO CARREGAR SUPABASE:",
       error
     );
 
@@ -670,6 +783,96 @@ async function loadFromSupabase() {
   }
 
 }
+
+
+// ============================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================
+
+function esc(s) {
+
+  return String(
+    s ?? ""
+  ).replace(
+
+    /[&<>"']/g,
+
+    m => ({
+
+      "&":
+        "&amp;",
+
+      "<":
+        "&lt;",
+
+      ">":
+        "&gt;",
+
+      '"':
+        "&quot;",
+
+      "'":
+        "&#039;"
+
+    }[m])
+
+  );
+
+}
+
+
+function fmt(n) {
+
+  return Number(
+    n || 0
+  ).toLocaleString(
+
+    "pt-BR",
+
+    {
+
+      maximumFractionDigits:
+        2
+
+    }
+
+  );
+
+}
+
+
+function fmtDate(d) {
+
+  return d
+
+    ? new Date(
+        d + "T12:00:00"
+      )
+        .toLocaleDateString(
+          "pt-BR"
+        )
+
+    : "";
+
+}
+
+
+function getName(
+  arr,
+  id
+) {
+
+  return arr.find(
+    x =>
+      x.id === id
+  )?.name || "—";
+
+}
+
+
+// ============================================================
+// FIM DA PARTE 1
+// ============================================================
 
 // ============================================================
 // FIM DA PARTE 1/5
