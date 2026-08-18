@@ -1489,17 +1489,19 @@ function createLoginScreen() {
     }
 
     .forgot-password-button{
-      display:block;
+      display:block !important;
       width:100%;
       margin-top:12px;
-      padding:8px;
+      padding:9px;
       border:0;
       background:transparent;
       color:#0b3a63;
-      font-weight:800;
+      font-weight:900;
       font-size:14px;
       cursor:pointer;
       text-align:center;
+      visibility:visible !important;
+      opacity:1 !important;
     }
 
     .forgot-password-button:hover{
@@ -1712,12 +1714,7 @@ function createLoginScreen() {
     .getElementById("loginForm")
     .addEventListener("submit", loginUser);
 
-  document
-    .getElementById("forgotPasswordButton")
-    .addEventListener(
-      "click",
-      openForgotPasswordModal
-    );
+  ensureForgotPasswordButton();
 
   document
     .getElementById("createAccountButton")
@@ -1725,6 +1722,72 @@ function createLoginScreen() {
 
 }
 
+
+
+// ============================================================
+// 5.0 GARANTE BOTÃO "ESQUECI MINHA SENHA"
+// ============================================================
+
+function ensureForgotPasswordButton() {
+
+  const loginForm =
+    document.getElementById("loginForm");
+
+  if (!loginForm) {
+    return;
+  }
+
+  let button =
+    document.getElementById("forgotPasswordButton");
+
+  if (!button) {
+
+    button =
+      document.createElement("button");
+
+    button.id =
+      "forgotPasswordButton";
+
+    button.className =
+      "forgot-password-button";
+
+    button.type =
+      "button";
+
+    button.textContent =
+      "🔑 Esqueci minha senha";
+
+    const createButton =
+      document.getElementById(
+        "createAccountButton"
+      );
+
+    if (createButton) {
+      loginForm.insertBefore(
+        button,
+        createButton
+      );
+    } else {
+      loginForm.appendChild(button);
+    }
+
+  }
+
+  // Evita adicionar vários listeners ao mesmo botão.
+  if (
+    button.dataset.aceForgotBound !== "1"
+  ) {
+
+    button.dataset.aceForgotBound = "1";
+
+    button.addEventListener(
+      "click",
+      openForgotPasswordModal
+    );
+
+  }
+
+}
 
 
 // ============================================================
@@ -5189,6 +5252,10 @@ async function initApp() {
 async function startAuth() {
 
   createLoginScreen();
+
+  // Garante o botão mesmo se uma versão anterior do HTML
+  // do login estiver em cache no navegador.
+  ensureForgotPasswordButton();
 
 
   // ==========================================================
