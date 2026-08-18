@@ -3319,69 +3319,198 @@ function download(
 
 
 // ============================================================
+// ZERAR MOVIMENTAÇÕES
+// ============================================================
+
+async function resetMovements() {
+
+  const confirmation = confirm(
+    "⚠️ ATENÇÃO!\n\n" +
+    "Isso irá apagar TODAS as movimentações do sistema:\n\n" +
+    "• Entradas\n" +
+    "• Saídas\n" +
+    "• Perdas\n" +
+    "• Presenças\n\n" +
+    "Os cadastros NÃO serão apagados:\n" +
+    "• Pessoas\n" +
+    "• Alimentos\n" +
+    "• Origens\n" +
+    "• Motivos\n" +
+    "• Usuários\n\n" +
+    "Deseja continuar?"
+  );
+
+  if (!confirmation) {
+    return;
+  }
+
+  const code = prompt(
+    'Para confirmar, digite exatamente: ZERAR'
+  );
+
+  if (code !== "ZERAR") {
+    alert("Operação cancelada. A confirmação não foi validada.");
+    return;
+  }
+
+  const button =
+    document.getElementById("resetMovementsButton");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "⏳ Zerando...";
+  }
+
+  try {
+
+    // IMPORTANTE:
+    // Não usamos usuário_id aqui porque o estoque é compartilhado
+    // entre os usuários do sistema. O objetivo é zerar o movimento
+    // geral, preservando todos os cadastros.
+
+    const tables = [
+      "entradas",
+      "saídas",
+      "perdas",
+      "presença"
+    ];
+
+    for (const tableName of tables) {
+
+      const { error } =
+        await supabaseClient
+          .from(tableName)
+          .delete()
+          .not("id", "is", null);
+
+      if (error) {
+        throw new Error(
+          `Falha ao zerar a tabela ${tableName}: ${error.message}`
+        );
+      }
+    }
+
+    // Recarrega os dados do Supabase.
+    await loadFromSupabase(false);
+
+    if (typeof renderAll === "function") {
+      renderAll();
+    }
+
+    alert(
+      "✅ Movimentações zeradas com sucesso!\n\n" +
+      "Entradas, saídas, perdas e presenças foram apagadas.\n" +
+      "Os cadastros e usuários foram preservados."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO ZERAR MOVIMENTAÇÕES:",
+      error
+    );
+
+    alert(
+      "❌ Não foi possível zerar as movimentações.\n\n" +
+      (error?.message || "Erro desconhecido.")
+    );
+
+  } finally {
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = "🗑️ Zerar movimentações";
+    }
+
+  }
+
+}
+
+
+// ============================================================
 // BOTÃO "ZERAR MOVIMENTAÇÕES" NO MENU
 // ============================================================
 
 function setupResetMovementsButton() {
 
-  const tabs = document.querySelector(".tabs");
+  const tabs =
+    document.querySelector(".tabs");
 
   if (!tabs) {
+    console.warn(
+      "ACE: menu .tabs não encontrado."
+    );
     return;
   }
 
-  // Evita criar o botão mais de uma vez.
-  if (document.getElementById("resetMovementsButton")) {
+  if (
+    document.getElementById(
+      "resetMovementsButton"
+    )
+  ) {
     return;
   }
 
-  const button = document.createElement("button");
+  const button =
+    document.createElement("button");
 
-  button.id = "resetMovementsButton";
-  button.type = "button";
-  button.className = "reset-btn";
-  button.textContent = "🗑️ Zerar movimentações";
+  button.id =
+    "resetMovementsButton";
 
-  button.style.cssText = [
-    "display:inline-flex",
-    "align-items:center",
-    "justify-content:center",
-    "flex:0 0 auto",
-    "visibility:visible",
-    "opacity:1",
-    "position:relative",
-    "z-index:20",
-    "margin-left:8px",
-    "padding:10px 14px",
-    "border-radius:8px",
-    "cursor:pointer",
-    "font-weight:800",
-    "color:#b42318",
-    "background:#fff1f0",
-    "border:1px solid #f0b8b4",
-    "white-space:nowrap"
-  ].join(";");
+  button.type =
+    "button";
 
-  button.addEventListener("click", async (event) => {
+  button.textContent =
+    "🗑️ Zerar movimentações";
 
-    event.preventDefault();
-    event.stopPropagation();
+  button.style.cssText = `
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex:0 0 auto;
+    visibility:visible;
+    opacity:1;
+    position:relative;
+    z-index:20;
+    margin-left:8px;
+    padding:10px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:800;
+    color:#b42318;
+    background:#fff1f0;
+    border:1px solid #f0b8b4;
+    white-space:nowrap;
+  `;
 
-    await resetMovements();
+  button.addEventListener(
+    "click",
+    async event => {
 
-  });
+      event.preventDefault();
+      event.stopPropagation();
 
-  // Coloca imediatamente depois do botão Cadastros.
+      await resetMovements();
+
+    }
+  );
+
   const cadastrosButton =
-    tabs.querySelector('[data-page="cadastros"]');
+    tabs.querySelector(
+      '[data-page="cadastros"]'
+    );
 
   if (cadastrosButton) {
+
     cadastrosButton.insertAdjacentElement(
       "afterend",
       button
     );
+
   } else {
+
     tabs.appendChild(button);
+
   }
 
 }
@@ -3389,6 +3518,8 @@ function setupResetMovementsButton() {
 
 // ============================================================
 // 18. NAVEGAÇÃO
+// ============================================================
+
 // ============================================================
 
 function nav() {
