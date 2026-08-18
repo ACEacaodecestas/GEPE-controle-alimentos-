@@ -129,23 +129,83 @@ function saveLocalReasons() {
 
 
 async function loadFromSupabase() {
-  if (!currentUser?.id) throw new Error("Usuário não autenticado.");
+  if (!currentUser?.id) {
+    throw new Error("Usuário não autenticado.");
+  }
 
-  const [peopleResult, foodsResult, originsResult, entriesResult, outputsResult, lossesResult, attendanceResult] = await Promise.all([
-    supabaseClient.from("Pessoas").select("*").order("nome"),
-    supabaseClient.from("Alimentos").select("*").order("nome"),
-    supabaseClient.from("origens").select("*").order("nome"),
-    supabaseClient.from("entradas").select("*").order("data_entrada", { ascending: false }),
-    supabaseClient.from("saídas").select("*").order("data_saida", { ascending: false }),
-    supabaseClient.from("perdas").select("*").order("data_perda", { ascending: false }),
-    supabaseClient.from("presença").select("*").order("data", { ascending: false })
-  ]);
+  // ----------------------------------------------------------
+  // O Supabase pode rejeitar um JWT recém-criado por alguns
+  // segundos com "JWT issued at future". Isso é uma falha de
+  // sincronização de relógio entre Auth/PostgREST. Fazemos UMA
+  // renovação e uma nova tentativa antes de informar erro.
+  // ----------------------------------------------------------
+  async function carregarTabelas() {
+    return await Promise.all([
+      supabaseClient.from("Pessoas").select("*").order("nome"),
+      supabaseClient.from("Alimentos").select("*").order("nome"),
+      supabaseClient.from("origens").select("*").order("nome"),
+      supabaseClient.from("entradas").select("*").order("data_entrada", { ascending: false }),
+      supabaseClient.from("saídas").select("*").order("data_saida", { ascending: false }),
+      supabaseClient.from("perdas").select("*").order("data_perda", { ascending: false }),
+      supabaseClient.from("presença").select("*").order("data", { ascending: false })
+    ]);
+  }
 
-  const failed = [["Pessoas", peopleResult], ["Alimentos", foodsResult], ["origens", originsResult], ["entradas", entriesResult], ["saídas", outputsResult], ["perdas", lossesResult], ["presença", attendanceResult]].find(([, r]) => r.error);
+  let results = await carregarTabelas();
+
+  let failed = [
+    ["Pessoas", results[0]],
+    ["Alimentos", results[1]],
+    ["origens", results[2]],
+    ["entradas", results[3]],
+    ["saídas", results[4]],
+    ["perdas", results[5]],
+    ["presença", results[6]]
+  ].find(([, r]) => r.error);
+
+  // ----------------------------------------------------------
+  // RETENTATIVA ESPECÍFICA PARA JWT RECÉM-EMITIDO
+  // Não apaga nem altera nenhum dado existente.
+  // ----------------------------------------------------------
+  if (failed && String(failed[1]?.error?.message || "").toLowerCase().includes("jwt issued at future")) {
+    console.warn("ACE: JWT emitido no futuro. Renovando sessão e tentando novamente...");
+
+    try {
+      await supabaseClient.auth.refreshSession();
+    } catch (refreshError) {
+      console.warn("ACE: não foi possível renovar a sessão:", refreshError);
+    }
+
+    // Pequena tolerância para diferença de relógio entre Auth e PostgREST.
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    results = await carregarTabelas();
+
+    failed = [
+      ["Pessoas", results[0]],
+      ["Alimentos", results[1]],
+      ["origens", results[2]],
+      ["entradas", results[3]],
+      ["saídas", results[4]],
+      ["perdas", results[5]],
+      ["presença", results[6]]
+    ].find(([, r]) => r.error);
+  }
+
   if (failed) {
     const err = failed[1].error;
-    throw new Error(`Falha ao carregar a tabela ${failed[0]}: ${err?.message || "erro desconhecido"}`);
+    throw new Error(
+      `Falha ao carregar a tabela ${failed[0]}: ${err?.message || "erro desconhecido"}`
+    );
   }
+
+  const peopleResult = results[0];
+  const foodsResult = results[1];
+  const originsResult = results[2];
+  const entriesResult = results[3];
+  const outputsResult = results[4];
+  const lossesResult = results[5];
+  const attendanceResult = results[6];
 
   const people = peopleResult.data || [];
   const foods = foodsResult.data || [];
@@ -156,36 +216,90 @@ async function loadFromSupabase() {
   const attendanceRows = attendanceResult.data || [];
   const reasons = loadLocalReasons();
 
+  // IMPORTANTE:
+  // Estas consultas NÃO filtram por usuario_id.
+  // Assim, qualquer usuário autenticado enxerga o mesmo
+  // estoque, entradas, saídas, perdas e cadastros compartilhados.
   const dbSupabase = {
-    people: people.map(p => ({ id: Number(p.id), name: p.nome, registration: p["matrícula"] ?? p.matricula ?? "" })),
-    foods: foods.map(f => ({ id: Number(f.id), name: f.nome })),
-    origins: origins.map(o => ({ id: Number(o.id), name: o.nome })),
-    entries: entries.map(e => ({
-      id: Number(e.id), date: e.data_entrada, foodId: Number(e.alimento_id), qty: Number(e.quantidade || 0), originId: Number(e.origem_id), note: e.observacao || e.obs || "", createdAt: e.created_at || `${e.data_entrada || isoToday()}T00:00:00Z`
+    people: people.map(p => ({
+      id: Number(p.id),
+      name: p.nome,
+      registration: p["matrícula"] ?? p.matricula ?? ""
     })),
+
+    foods: foods.map(f => ({
+      id: Number(f.id),
+      name: f.nome
+    })),
+
+    origins: origins.map(o => ({
+      id: Number(o.id),
+      name: o.nome
+    })),
+
+    entries: entries.map(e => ({
+      id: Number(e.id),
+      date: e.data_entrada,
+      foodId: Number(e.alimento_id),
+      qty: Number(e.quantidade || 0),
+      originId: Number(e.origem_id),
+      note: e.observacao || e.obs || "",
+      createdAt: e.created_at || `${e.data_entrada || isoToday()}T00:00:00Z`
+    })),
+
     movements: [
       ...outputs.map(s => ({
-        id: `saida-${s.id}`, rawId: Number(s.id), sourceTable: "saídas", date: s.data_saida, type: "saida", foodId: Number(s.alimento_id), qty: Number(s.quantidade || 0), originId: Number(s.origem_id), reasonId: null, note: s.destino || s.observacao || "", createdAt: s.created_at || `${s.data_saida || isoToday()}T00:00:00Z`
+        id: `saida-${s.id}`,
+        rawId: Number(s.id),
+        sourceTable: "saídas",
+        date: s.data_saida,
+        type: "saida",
+        foodId: Number(s.alimento_id),
+        qty: Number(s.quantidade || 0),
+        originId: Number(s.origem_id),
+        reasonId: null,
+        note: s.destino || s.observacao || "",
+        createdAt: s.created_at || `${s.data_saida || isoToday()}T00:00:00Z`
       })),
+
       ...losses.map(p => ({
-        id: `perda-${p.id}`, rawId: Number(p.id), sourceTable: "perdas", date: p.data_perda, type: "perda", foodId: Number(p.alimento_id), qty: Number(p.quantidade || 0), originId: Number(p.origem_id), reasonId: reasons.find(r => r.name.toLowerCase() === String(p.motivo || "").toLowerCase())?.id || p.motivo || null, note: p.observacao || p.obs || "", createdAt: p.created_at || `${p.data_perda || isoToday()}T00:00:00Z`
+        id: `perda-${p.id}`,
+        rawId: Number(p.id),
+        sourceTable: "perdas",
+        date: p.data_perda,
+        type: "perda",
+        foodId: Number(p.alimento_id),
+        qty: Number(p.quantidade || 0),
+        originId: Number(p.origem_id),
+        reasonId:
+          reasons.find(
+            r => r.name.toLowerCase() === String(p.motivo || "").toLowerCase()
+          )?.id || p.motivo || null,
+        note: p.observacao || p.obs || "",
+        createdAt: p.created_at || `${p.data_perda || isoToday()}T00:00:00Z`
       }))
     ],
+
     attendance: {},
     reasons
   };
 
   attendanceRows.forEach(row => {
-    if (!dbSupabase.attendance[row.data]) dbSupabase.attendance[row.data] = [];
+    if (!dbSupabase.attendance[row.data]) {
+      dbSupabase.attendance[row.data] = [];
+    }
+
     if (row.present && row.pessoa_id != null) {
       const id = Number(row.pessoa_id);
-      if (!dbSupabase.attendance[row.data].includes(id)) dbSupabase.attendance[row.data].push(id);
+
+      if (!dbSupabase.attendance[row.data].includes(id)) {
+        dbSupabase.attendance[row.data].push(id);
+      }
     }
   });
 
   return dbSupabase;
 }
-
 
 function save() {
   // Compatibilidade com a estrutura antiga.
