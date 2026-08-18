@@ -98,21 +98,6 @@ function isoToday() {
 }
 
 
-// ============================================================
-// 4.1 CARREGAR DADOS DO SUPABASE
-// ============================================================
-//
-// IMPORTANTE:
-//
-// O ESTOQUE É COMPARTILHADO.
-//
-// Aqui NÃO filtramos por usuario_id.
-//
-// O usuario_id continua sendo gravado nas operações,
-// apenas não será usado para esconder os registros
-// dos demais usuários.
-// ============================================================
-
 async function loadFromSupabase() {
 
   if (!currentUser?.id) {
@@ -143,43 +128,49 @@ async function loadFromSupabase() {
   ] = await Promise.all([
 
 
-    // --------------------------------------------------------
-    // PESSOAS
-    // --------------------------------------------------------
-
     supabaseClient
       .from("Pessoas")
       .select("*")
-      .order("nome"),
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
+      .order(
+        "nome"
+      ),
 
-
-    // --------------------------------------------------------
-    // ALIMENTOS
-    // --------------------------------------------------------
 
     supabaseClient
       .from("Alimentos")
       .select("*")
-      .order("nome"),
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
+      .order(
+        "nome"
+      ),
 
-
-    // --------------------------------------------------------
-    // ORIGENS
-    // --------------------------------------------------------
 
     supabaseClient
       .from("origens")
       .select("*")
-      .order("nome"),
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
+      .order(
+        "nome"
+      ),
 
-
-    // --------------------------------------------------------
-    // ENTRADAS
-    // --------------------------------------------------------
 
     supabaseClient
       .from("entradas")
       .select("*")
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
       .order(
         "data_entrada",
         {
@@ -188,13 +179,13 @@ async function loadFromSupabase() {
       ),
 
 
-    // --------------------------------------------------------
-    // SAÍDAS
-    // --------------------------------------------------------
-
     supabaseClient
       .from("saídas")
       .select("*")
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
       .order(
         "data_saida",
         {
@@ -203,13 +194,13 @@ async function loadFromSupabase() {
       ),
 
 
-    // --------------------------------------------------------
-    // PERDAS
-    // --------------------------------------------------------
-
     supabaseClient
       .from("perdas")
       .select("*")
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
       .order(
         "data_perda",
         {
@@ -218,13 +209,13 @@ async function loadFromSupabase() {
       ),
 
 
-    // --------------------------------------------------------
-    // PRESENÇA
-    // --------------------------------------------------------
-
     supabaseClient
       .from("presença")
       .select("*")
+      .eq(
+        "usuario_id",
+        currentUser.id
+      )
       .order(
         "data",
         {
@@ -235,25 +226,42 @@ async function loadFromSupabase() {
   ]);
 
 
-  // ==========================================================
-  // VERIFICAR ERROS
-  // ==========================================================
-
   const results = [
 
-    ["Pessoas", peopleResult],
+    [
+      "Pessoas",
+      peopleResult
+    ],
 
-    ["Alimentos", foodsResult],
+    [
+      "Alimentos",
+      foodsResult
+    ],
 
-    ["origens", originsResult],
+    [
+      "origens",
+      originsResult
+    ],
 
-    ["entradas", entriesResult],
+    [
+      "entradas",
+      entriesResult
+    ],
 
-    ["saídas", outputsResult],
+    [
+      "saídas",
+      outputsResult
+    ],
 
-    ["perdas", lossesResult],
+    [
+      "perdas",
+      lossesResult
+    ],
 
-    ["presença", attendanceResult]
+    [
+      "presença",
+      attendanceResult
+    ]
 
   ];
 
@@ -271,10 +279,6 @@ async function loadFromSupabase() {
 
   }
 
-
-  // ==========================================================
-  // DADOS
-  // ==========================================================
 
   const people =
     peopleResult.data || [];
@@ -304,10 +308,6 @@ async function loadFromSupabase() {
     attendanceResult.data || [];
 
 
-  // ==========================================================
-  // MOTIVOS
-  // ==========================================================
-
   const reasons =
     DEFAULT.reasons.map(
       name => ({
@@ -320,16 +320,8 @@ async function loadFromSupabase() {
     );
 
 
-  // ==========================================================
-  // CONVERTER PARA O FORMATO DO APP
-  // ==========================================================
-
   const dbSupabase = {
 
-
-    // --------------------------------------------------------
-    // PESSOAS
-    // --------------------------------------------------------
 
     people:
 
@@ -351,10 +343,6 @@ async function loadFromSupabase() {
       ),
 
 
-    // --------------------------------------------------------
-    // ALIMENTOS
-    // --------------------------------------------------------
-
     foods:
 
       foods.map(
@@ -370,10 +358,6 @@ async function loadFromSupabase() {
       ),
 
 
-    // --------------------------------------------------------
-    // ORIGENS
-    // --------------------------------------------------------
-
     origins:
 
       origins.map(
@@ -388,10 +372,6 @@ async function loadFromSupabase() {
         })
       ),
 
-
-    // --------------------------------------------------------
-    // ENTRADAS
-    // --------------------------------------------------------
 
     entries:
 
@@ -431,15 +411,7 @@ async function loadFromSupabase() {
       ),
 
 
-    // --------------------------------------------------------
-    // SAÍDAS + PERDAS
-    // --------------------------------------------------------
-
     movements: [
-
-      // ------------------------------------------------------
-      // SAÍDAS
-      // ------------------------------------------------------
 
       ...outputs.map(
         s => ({
@@ -489,10 +461,6 @@ async function loadFromSupabase() {
       ),
 
 
-      // ------------------------------------------------------
-      // PERDAS
-      // ------------------------------------------------------
-
       ...losses.map(
         p => ({
 
@@ -528,7 +496,9 @@ async function loadFromSupabase() {
                 r.name ===
                 p.motivo
             )?.id ||
+
             p.motivo ||
+
             null,
 
           note:
@@ -549,25 +519,13 @@ async function loadFromSupabase() {
     ],
 
 
-    // --------------------------------------------------------
-    // PRESENÇA
-    // --------------------------------------------------------
-
     attendance: {},
 
-
-    // --------------------------------------------------------
-    // MOTIVOS
-    // --------------------------------------------------------
 
     reasons
 
   };
 
-
-  // ==========================================================
-  // ORGANIZAR PRESENÇA
-  // ==========================================================
 
   attendanceRows.forEach(
     row => {
@@ -611,24 +569,16 @@ async function loadFromSupabase() {
 }
 
 
-// ============================================================
-// SALVAR
-// ============================================================
-//
-// O BANCO OFICIAL É O SUPABASE.
-// Não usamos localStorage para substituir os dados do servidor.
-// ============================================================
-
 function save() {
+
+  // Compatibilidade com a estrutura antiga.
+  // O banco oficial agora é o Supabase;
+  // não usamos localStorage para dados.
 
   return true;
 
 }
 
-
-// ============================================================
-// RECARREGAR DO SUPABASE
-// ============================================================
 
 async function reloadFromSupabase(
   showToast = false
@@ -652,10 +602,6 @@ async function reloadFromSupabase(
 }
 
 
-// ============================================================
-// USUÁRIO ATUAL
-// ============================================================
-
 function getCurrentUserId() {
 
   if (
@@ -675,7 +621,16 @@ function getCurrentUserId() {
 
 
 // ============================================================
-// CADASTRAR PESSOA
+// FIM DA PARTE 1
+// ============================================================
+
+// ============================================================
+// PARTE 2/5 - ORIGINAL
+// ============================================================
+
+
+// ============================================================
+// 4.1 CADASTROS E MOVIMENTAÇÕES
 // ============================================================
 
 async function insertPerson(
@@ -705,21 +660,12 @@ async function insertPerson(
       .single();
 
 
-  if (error) {
-
-    throw error;
-
-  }
-
+  if (error) throw error;
 
   return data;
 
 }
 
-
-// ============================================================
-// CADASTRAR ALIMENTO
-// ============================================================
 
 async function insertFood(
   name
@@ -744,21 +690,12 @@ async function insertFood(
       .single();
 
 
-  if (error) {
-
-    throw error;
-
-  }
-
+  if (error) throw error;
 
   return data;
 
 }
 
-
-// ============================================================
-// CADASTRAR ORIGEM
-// ============================================================
 
 async function insertOrigin(
   name
@@ -783,12 +720,7 @@ async function insertOrigin(
       .single();
 
 
-  if (error) {
-
-    throw error;
-
-  }
-
+  if (error) throw error;
 
   return data;
 
@@ -796,7 +728,7 @@ async function insertOrigin(
 
 
 // ============================================================
-// CADASTRAR ENTRADA
+// ENTRADA
 // ============================================================
 
 async function insertEntry({
@@ -827,6 +759,9 @@ async function insertEntry({
   };
 
 
+  // Mantém observação somente
+  // se o banco possuir essa coluna.
+
   if (note) {
 
     row.observacao =
@@ -843,12 +778,17 @@ async function insertEntry({
       .single();
 
 
+  // Se a tabela não possuir observacao,
+  // repete sem ela.
+
   if (
+
     result.error &&
     note &&
     /observacao|column/i.test(
       result.error.message || ""
     )
+
   ) {
 
     delete row.observacao;
@@ -877,7 +817,7 @@ async function insertEntry({
 
 
 // ============================================================
-// CADASTRAR MOVIMENTAÇÃO
+// SAÍDA / PERDA
 // ============================================================
 
 async function insertMovement({
@@ -937,12 +877,7 @@ async function insertMovement({
         .single();
 
 
-    if (error) {
-
-      throw error;
-
-    }
-
+    if (error) throw error;
 
     return data;
 
@@ -1006,11 +941,13 @@ async function insertMovement({
 
 
   if (
+
     result.error &&
     note &&
     /observacao|column/i.test(
       result.error.message || ""
     )
+
   ) {
 
     delete row.observacao;
@@ -1039,7 +976,7 @@ async function insertMovement({
 
 
 // ============================================================
-// EXCLUIR PESSOA
+// EXCLUSÕES
 // ============================================================
 
 async function deletePerson(
@@ -1062,18 +999,10 @@ async function deletePerson(
       );
 
 
-  if (error) {
-
-    throw error;
-
-  }
+  if (error) throw error;
 
 }
 
-
-// ============================================================
-// EXCLUIR ALIMENTO
-// ============================================================
 
 async function deleteFood(
   id
@@ -1095,18 +1024,10 @@ async function deleteFood(
       );
 
 
-  if (error) {
-
-    throw error;
-
-  }
+  if (error) throw error;
 
 }
 
-
-// ============================================================
-// EXCLUIR ORIGEM
-// ============================================================
 
 async function deleteOrigin(
   id
@@ -1128,18 +1049,10 @@ async function deleteOrigin(
       );
 
 
-  if (error) {
-
-    throw error;
-
-  }
+  if (error) throw error;
 
 }
 
-
-// ============================================================
-// MOTIVOS — SOMENTE LOCAL
-// ============================================================
 
 async function deleteReasonLocalOnly(
   id
@@ -1156,10 +1069,6 @@ async function deleteReasonLocalOnly(
 
 }
 
-
-// ============================================================
-// EXCLUIR ENTRADA
-// ============================================================
 
 async function deleteEntry(
   id
@@ -1181,18 +1090,10 @@ async function deleteEntry(
       );
 
 
-  if (error) {
-
-    throw error;
-
-  }
+  if (error) throw error;
 
 }
 
-
-// ============================================================
-// EXCLUIR MOVIMENTAÇÃO
-// ============================================================
 
 async function deleteMovement(
   id
@@ -1235,11 +1136,7 @@ async function deleteMovement(
       );
 
 
-  if (error) {
-
-    throw error;
-
-  }
+  if (error) throw error;
 
 }
 
@@ -1363,7 +1260,7 @@ async function setAttendance(
 
 
 // ============================================================
-// EXCLUIR CADASTRO
+// DELETE CADASTRO
 // ============================================================
 
 async function deleteCadastro(
@@ -1516,11 +1413,7 @@ function toast(msg) {
     );
 
 
-  if (!el) {
-
-    return;
-
-  }
+  if (!el) return;
 
 
   el.textContent =
@@ -1553,8 +1446,563 @@ function toast(msg) {
 
 
 // ============================================================
-// FIM DA PARTE 1
+// 5. TELA DE LOGIN
 // ============================================================
+
+function createLoginScreen() {
+
+  if (
+    document.getElementById(
+      "loginScreen"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "loginStyle";
+
+
+  style.textContent = `
+
+    #loginScreen{
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:
+        linear-gradient(
+          135deg,
+          #0b3a63 0%,
+          #075486 55%,
+          #0b3a63 100%
+        );
+    }
+
+    .login-box{
+      width:min(420px,100%);
+      background:#fff;
+      border-radius:20px;
+      padding:30px;
+      box-shadow:0 20px 60px rgba(0,0,0,.28);
+    }
+
+    .login-logo{
+      text-align:center;
+      margin-bottom:18px;
+    }
+
+    .login-logo img{
+      width:150px;
+      max-width:70%;
+      height:auto;
+    }
+
+    .login-title{
+      text-align:center;
+      color:#0b3a63;
+      font-size:27px;
+      font-weight:900;
+      margin:5px 0;
+    }
+
+    .login-subtitle{
+      text-align:center;
+      color:#667085;
+      font-size:14px;
+      margin-bottom:25px;
+    }
+
+    .login-box label{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin-bottom:14px;
+      font-size:13px;
+      font-weight:800;
+      color:#344054;
+    }
+
+    .login-box input{
+      width:100%;
+      padding:13px;
+      border:1px solid #d9e1e8;
+      border-radius:10px;
+      font-size:15px;
+      outline:none;
+      box-sizing:border-box;
+    }
+
+    .login-box input:focus{
+      border-color:#1467a8;
+      box-shadow:0 0 0 3px rgba(20,103,168,.12);
+    }
+
+    .login-button{
+      width:100%;
+      padding:13px;
+      margin-top:8px;
+      border:0;
+      border-radius:10px;
+      background:#0b3a63;
+      color:#fff;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+
+    .login-button:hover{
+      filter:brightness(1.08);
+    }
+
+    .login-button:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+
+    .login-error{
+      display:none;
+      margin-top:14px;
+      padding:11px;
+      border-radius:9px;
+      background:#fdeceb;
+      color:#b42318;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .login-error.show{
+      display:block;
+    }
+
+    .login-loading{
+      text-align:center;
+      color:#667085;
+      font-size:13px;
+      margin-top:12px;
+    }
+
+    .user-bar{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-left:auto;
+    }
+
+    .user-email{
+      font-size:12px;
+      opacity:.9;
+    }
+
+    .logout-btn{
+      border:0;
+      border-radius:8px;
+      padding:7px 10px;
+      cursor:pointer;
+      font-weight:800;
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+
+// ============================================================
+// FIM DA PARTE 2
+// ============================================================
+
+// ============================================================
+// CONTINUAÇÃO DA PARTE 3/5
+// ============================================================
+
+  // A tela de login é criada acima.
+  // O formulário chama loginUser().
+  // Não alterar essa estrutura.
+
+}
+
+
+// ============================================================
+// LOGIN
+// ============================================================
+
+async function loginUser(e) {
+
+  e.preventDefault();
+
+
+  const email =
+    document
+      .getElementById(
+        "loginEmail"
+      )
+      .value
+      .trim();
+
+
+  const password =
+    document
+      .getElementById(
+        "loginPassword"
+      )
+      .value;
+
+
+  const button =
+    document.getElementById(
+      "loginButton"
+    );
+
+
+  const error =
+    document.getElementById(
+      "loginError"
+    );
+
+
+  const loading =
+    document.getElementById(
+      "loginLoading"
+    );
+
+
+  error.classList.remove(
+    "show"
+  );
+
+
+  error.textContent =
+    "";
+
+
+  button.disabled =
+    true;
+
+
+  button.textContent =
+    "Entrando...";
+
+
+  loading.textContent =
+    "Autenticando...";
+
+
+  try {
+
+    const {
+      data,
+      error: authError
+    } =
+      await supabaseClient
+        .auth
+        .signInWithPassword({
+
+          email,
+
+          password
+
+        });
+
+
+    if (authError) {
+
+      throw authError;
+
+    }
+
+
+    currentUser =
+      data.user;
+
+
+    document
+      .getElementById(
+        "loginScreen"
+      )
+      .remove();
+
+
+    initApp();
+
+
+  } catch (err) {
+
+    console.error(
+      err
+    );
+
+
+    error.textContent =
+      traduzirErroLogin(
+        err
+      );
+
+
+    error.classList.add(
+      "show"
+    );
+
+
+    button.disabled =
+      false;
+
+
+    button.textContent =
+      "🔐 Entrar";
+
+
+    loading.textContent =
+      "";
+
+  }
+
+}
+
+
+// ============================================================
+// TRADUZIR ERROS DE LOGIN
+// ============================================================
+
+function traduzirErroLogin(
+  err
+) {
+
+  const msg =
+    String(
+      err?.message || ""
+    ).toLowerCase();
+
+
+  if (
+    msg.includes(
+      "invalid login credentials"
+    )
+  ) {
+
+    return (
+      "E-mail ou senha incorretos."
+    );
+
+  }
+
+
+  if (
+    msg.includes(
+      "email not confirmed"
+    )
+  ) {
+
+    return (
+      "Este e-mail ainda não foi confirmado."
+    );
+
+  }
+
+
+  if (
+    msg.includes(
+      "too many requests"
+    )
+  ) {
+
+    return (
+      "Muitas tentativas. Aguarde um pouco e tente novamente."
+    );
+
+  }
+
+
+  if (!msg) {
+
+    return (
+      "Não foi possível realizar o login."
+    );
+
+  }
+
+
+  return err.message;
+
+}
+
+
+// ============================================================
+// 6. CONTROLE DO USUÁRIO LOGADO
+// ============================================================
+
+function addUserBar() {
+
+  const header =
+    document.querySelector(
+      ".ace-header-v6"
+    );
+
+
+  if (
+    !header ||
+    !currentUser
+  ) {
+
+    return;
+
+  }
+
+
+  if (
+    document.getElementById(
+      "userBar"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const bar =
+    document.createElement(
+      "div"
+    );
+
+
+  bar.id =
+    "userBar";
+
+
+  bar.className =
+    "user-bar";
+
+
+  bar.innerHTML = `
+
+    <span class="user-email">
+
+      ${esc(
+        currentUser.email
+      )}
+
+    </span>
+
+
+    <button
+
+      id="logoutBtn"
+
+      class="logout-btn"
+
+      type="button"
+
+    >
+
+      Sair
+
+    </button>
+
+  `;
+
+
+  header.appendChild(
+    bar
+  );
+
+
+  document
+    .getElementById(
+      "logoutBtn"
+    )
+    .addEventListener(
+
+      "click",
+
+      async () => {
+
+        try {
+
+          await supabaseClient
+            .auth
+            .signOut();
+
+
+        } catch (error) {
+
+          console.error(
+            "Erro ao sair:",
+            error
+          );
+
+        }
+
+      }
+
+    );
+
+}
+
+
+// ============================================================
+// FIM DA PARTE 3/5
+// ============================================================
+
+// ============================================================
+// PARTE 4/5 - ORIGINAL
+// ============================================================
+
+
+// ============================================================
+// LOGOUT
+// ============================================================
+
+async function logoutUser() {
+
+  const ok =
+    confirm(
+      "Deseja sair do sistema?"
+    );
+
+
+  if (!ok) return;
+
+
+  const { error } =
+    await supabaseClient
+      .auth
+      .signOut();
+
+
+  if (error) {
+
+    console.error(
+      error
+    );
+
+    toast(
+      "Não foi possível sair."
+    );
+
+    return;
+
+  }
+
+
+  location.reload();
+
+}
+
 
 // ============================================================
 // 7. SELECTS
@@ -1567,7 +2015,10 @@ function populateSelect(
 ) {
 
   const el =
-    document.getElementById(id);
+    document.getElementById(
+      id
+    );
+
 
   if (!el) return;
 
@@ -1587,10 +2038,6 @@ function populateSelect(
 }
 
 
-// ============================================================
-// DATAS
-// ============================================================
-
 function setDates() {
 
   [
@@ -1598,11 +2045,15 @@ function setDates() {
     "movementDate",
     "dashboardDate",
     "attendanceDate"
+
   ].forEach(
     id => {
 
       const e =
-        document.getElementById(id);
+        document.getElementById(
+          id
+        );
+
 
       if (e) {
 
@@ -1619,6 +2070,7 @@ function setDates() {
     document.getElementById(
       "reportStart"
     );
+
 
   const end =
     document.getElementById(
@@ -1643,10 +2095,6 @@ function setDates() {
 
 }
 
-
-// ============================================================
-// ATUALIZAR SELECTS
-// ============================================================
 
 function refreshSelects() {
 
@@ -1714,16 +2162,9 @@ function calcStock() {
   const stock = {};
 
 
-  // ----------------------------------------------------------
-  // CRIA A ESTRUTURA DO ESTOQUE
-  // ----------------------------------------------------------
-
   db.origins.forEach(
-    o => {
-
-      stock[o.id] = {};
-
-    }
+    o =>
+      stock[o.id] = {}
   );
 
 
@@ -1745,10 +2186,6 @@ function calcStock() {
     }
   );
 
-
-  // ----------------------------------------------------------
-  // SOMA ENTRADAS
-  // ----------------------------------------------------------
 
   db.entries.forEach(
     entry => {
@@ -1781,10 +2218,6 @@ function calcStock() {
     }
   );
 
-
-  // ----------------------------------------------------------
-  // SUBTRAI SAÍDAS E PERDAS
-  // ----------------------------------------------------------
 
   db.movements.forEach(
     movement => {
@@ -1830,17 +2263,11 @@ function calcStock() {
 function renderDashboard() {
 
   const date =
-
     document.getElementById(
       "dashboardDate"
     )?.value ||
-
     isoToday();
 
-
-  // ----------------------------------------------------------
-  // DATA EXIBIDA
-  // ----------------------------------------------------------
 
   const todayLabel =
     document.getElementById(
@@ -1856,12 +2283,7 @@ function renderDashboard() {
   }
 
 
-  // ----------------------------------------------------------
-  // TOTAL DE ENTRADAS DO DIA
-  // ----------------------------------------------------------
-
   const ent =
-
     db.entries
 
       .filter(
@@ -1880,12 +2302,7 @@ function renderDashboard() {
       );
 
 
-  // ----------------------------------------------------------
-  // TOTAL DE SAÍDAS DO DIA
-  // ----------------------------------------------------------
-
   const sai =
-
     db.movements
 
       .filter(
@@ -1905,12 +2322,7 @@ function renderDashboard() {
       );
 
 
-  // ----------------------------------------------------------
-  // TOTAL DE PERDAS DO DIA
-  // ----------------------------------------------------------
-
   const per =
-
     db.movements
 
       .filter(
@@ -1930,17 +2342,14 @@ function renderDashboard() {
       );
 
 
-  // ----------------------------------------------------------
-  // ESTOQUE ATUAL
-  // ----------------------------------------------------------
-
   const st =
     calcStock();
 
 
   const estoque =
-
-    Object.values(st)
+    Object.values(
+      st
+    )
 
       .reduce(
         (a, o) =>
@@ -1948,7 +2357,6 @@ function renderDashboard() {
           a +
 
           Object.values(o)
-
             .reduce(
               (x, v) =>
                 x +
@@ -1961,24 +2369,15 @@ function renderDashboard() {
       );
 
 
-  // ----------------------------------------------------------
-  // PRESENÇA
-  // ----------------------------------------------------------
-
   const pres =
-
     (
-      db.attendance[date] ||
-      []
+      db.attendance[
+        date
+      ] || []
     )
-
       .filter(Boolean)
       .length;
 
-
-  // ----------------------------------------------------------
-  // ATUALIZAR KPIs
-  // ----------------------------------------------------------
 
   const ids = [
 
@@ -2030,10 +2429,6 @@ function renderDashboard() {
   );
 
 
-  // ==========================================================
-  // RESUMO POR ORIGEM
-  // ==========================================================
-
   const originSummary =
     document.getElementById(
       "originSummary"
@@ -2052,7 +2447,9 @@ function renderDashboard() {
             const total =
 
               Object.values(
-                st[o.id] || {}
+                st[
+                  o.id
+                ] || {}
               )
 
                 .reduce(
@@ -2096,10 +2493,6 @@ function renderDashboard() {
   }
 
 
-  // ==========================================================
-  // MOVIMENTAÇÕES RECENTES
-  // ==========================================================
-
   const recent =
     document.getElementById(
       "recentMovements"
@@ -2109,10 +2502,6 @@ function renderDashboard() {
   if (recent) {
 
     const all = [
-
-      // ------------------------------------------------------
-      // ENTRADAS
-      // ------------------------------------------------------
 
       ...db.entries.map(
         x => ({
@@ -2131,10 +2520,6 @@ function renderDashboard() {
         })
       ),
 
-
-      // ------------------------------------------------------
-      // SAÍDAS / PERDAS
-      // ------------------------------------------------------
 
       ...db.movements.map(
         x => ({
@@ -2161,17 +2546,14 @@ function renderDashboard() {
 
       .sort(
         (a, b) =>
-
           (
             b.createdAt ||
             ""
           )
-
             .localeCompare(
               a.createdAt ||
               ""
             )
-
       )
 
       .slice(
@@ -2185,7 +2567,6 @@ function renderDashboard() {
       all.length
 
         ? all
-
             .map(
               x => `
 
@@ -2233,7 +2614,6 @@ function renderDashboard() {
 
               `
             )
-
             .join("")
 
         : `
@@ -2256,16 +2636,13 @@ function renderDashboard() {
 function renderEntries() {
 
   const date =
-
     document.getElementById(
       "entryDate"
     )?.value ||
-
     isoToday();
 
 
   const arr =
-
     db.entries
 
       .filter(
@@ -2275,21 +2652,13 @@ function renderEntries() {
 
       .sort(
         (a, b) =>
-
-          (
-            b.createdAt ||
-            ""
+          b.createdAt.localeCompare(
+            a.createdAt
           )
-
-            .localeCompare(
-              a.createdAt ||
-              ""
-            )
       );
 
 
   const total =
-
     arr.reduce(
       (s, x) =>
         s +
@@ -2338,6 +2707,7 @@ function renderEntries() {
               fmtDate(
                 x.date
               )
+
           ],
 
           [
@@ -2350,6 +2720,7 @@ function renderEntries() {
                   x.originId
                 )
               )
+
           ],
 
           [
@@ -2362,6 +2733,7 @@ function renderEntries() {
                   x.foodId
                 )
               )
+
           ],
 
           [
@@ -2371,6 +2743,7 @@ function renderEntries() {
               fmt(
                 x.qty
               )
+
           ],
 
           [
@@ -2378,9 +2751,9 @@ function renderEntries() {
 
             x =>
               esc(
-                x.note ||
-                ""
+                x.note || ""
               )
+
           ]
 
         ],
@@ -2404,23 +2777,13 @@ function renderEntries() {
 function renderMovements() {
 
   const arr =
-
     db.movements
-
       .slice()
-
       .sort(
         (a, b) =>
-
-          (
-            b.createdAt ||
-            ""
+          b.createdAt.localeCompare(
+            a.createdAt
           )
-
-            .localeCompare(
-              a.createdAt ||
-              ""
-            )
       );
 
 
@@ -2430,11 +2793,7 @@ function renderMovements() {
     );
 
 
-  if (!el) {
-
-    return;
-
-  }
+  if (!el) return;
 
 
   el.innerHTML =
@@ -2452,6 +2811,7 @@ function renderMovements() {
             fmtDate(
               x.date
             )
+
         ],
 
         [
@@ -2472,6 +2832,7 @@ function renderMovements() {
               }
 
             </span>`
+
         ],
 
         [
@@ -2484,6 +2845,7 @@ function renderMovements() {
                 x.originId
               )
             )
+
         ],
 
         [
@@ -2496,6 +2858,7 @@ function renderMovements() {
                 x.foodId
               )
             )
+
         ],
 
         [
@@ -2505,6 +2868,7 @@ function renderMovements() {
             fmt(
               x.qty
             )
+
         ],
 
         [
@@ -2517,6 +2881,7 @@ function renderMovements() {
                 x.reasonId
               )
             )
+
         ],
 
         [
@@ -2524,9 +2889,9 @@ function renderMovements() {
 
           x =>
             esc(
-              x.note ||
-              ""
+              x.note || ""
             )
+
         ]
 
       ],
@@ -2542,1347 +2907,13 @@ function renderMovements() {
 
 
 // ============================================================
-// 12. TABELA
-// ============================================================
-
-function table(
-  arr,
-  cols,
-  remove
-) {
-
-  if (!arr.length) {
-
-    return `
-
-      <div class="empty">
-        Nenhum registro encontrado.
-      </div>
-
-    `;
-
-  }
-
-
-  return `
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-
-            ${
-              cols
-                .map(
-                  c =>
-                    `<th>${c[0]}</th>`
-                )
-                .join("")
-            }
-
-            <th>Ação</th>
-
-          </tr>
-
-        </thead>
-
-
-        <tbody>
-
-          ${
-            arr
-              .map(
-                x => `
-
-                  <tr>
-
-                    ${
-                      cols
-                        .map(
-                          c =>
-                            `<td>${c[1](x)}</td>`
-                        )
-                        .join("")
-                    }
-
-                    <td>
-
-                      <button
-
-                        class="btn danger-btn"
-
-                        data-remove="${x.id}"
-
-                      >
-
-                        Excluir
-
-                      </button>
-
-                    </td>
-
-                  </tr>
-
-                `
-              )
-              .join("")
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-  `;
-
-}
-
-
-// ============================================================
-// EXCLUIR ENTRADA
-// ============================================================
-
-async function removeEntry(
-  id
-) {
-
-  if (
-    !confirm(
-      "Excluir esta entrada?"
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  try {
-
-    await deleteEntry(
-      id
-    );
-
-
-    await reloadFromSupabase();
-
-
-    toast(
-      "Entrada excluída."
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      error
-    );
-
-
-    toast(
-      "Não foi possível excluir a entrada."
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// EXCLUIR MOVIMENTAÇÃO
-// ============================================================
-
-async function removeMovement(
-  id
-) {
-
-  if (
-    !confirm(
-      "Excluir esta movimentação?"
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  try {
-
-    await deleteMovement(
-      id
-    );
-
-
-    await reloadFromSupabase();
-
-
-    toast(
-      "Movimentação excluída."
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      error
-    );
-
-
-    toast(
-      "Não foi possível excluir a movimentação."
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// FIM DA PARTE 2
+// FIM DA PARTE 4/5
 // ============================================================
 
 // ============================================================
-// 13. PRESENÇA
+// PARTE 5/5 - FINAL ORIGINAL
 // ============================================================
 
-function renderAttendance() {
-
-  const date =
-    document.getElementById(
-      "attendanceDate"
-    )?.value || isoToday();
-
-
-  const q =
-    (
-      document.getElementById(
-        "attendanceSearch"
-      )?.value || ""
-    ).toLowerCase();
-
-
-  const set =
-    new Set(
-      db.attendance[date] || []
-    );
-
-
-  const people =
-    db.people.filter(
-      p =>
-        (
-          p.name +
-          " " +
-          p.registration
-        )
-          .toLowerCase()
-          .includes(q)
-    );
-
-
-  const count =
-    document.getElementById(
-      "attendanceCount"
-    );
-
-
-  if (count) {
-
-    count.textContent =
-      `${set.size} presentes`;
-
-  }
-
-
-  const list =
-    document.getElementById(
-      "attendanceList"
-    );
-
-
-  if (!list) {
-
-    return;
-
-  }
-
-
-  list.innerHTML =
-
-    people.length
-
-      ? people
-          .map(
-            p => `
-
-              <div class="attendance-row">
-
-                <div>
-
-                  <div class="person-name">
-                    ${esc(p.name)}
-                  </div>
-
-                  <div class="person-reg">
-                    Matrícula:
-                    ${esc(p.registration)}
-                  </div>
-
-                </div>
-
-
-                <label class="switch">
-
-                  <input
-
-                    type="checkbox"
-
-                    data-person="${p.id}"
-
-                    ${
-                      set.has(p.id)
-                        ? "checked"
-                        : ""
-                    }
-
-                  >
-
-                  <span class="slider"></span>
-
-                </label>
-
-              </div>
-
-            `
-          )
-          .join("")
-
-      : `
-
-          <div class="empty">
-            Nenhuma pessoa cadastrada/encontrada.
-          </div>
-
-        `;
-
-
-  document
-    .querySelectorAll(
-      "[data-person]"
-    )
-    .forEach(
-      el => {
-
-        el.addEventListener(
-          "change",
-          async e => {
-
-            const personId =
-              e.target.dataset.person;
-
-
-            const present =
-              e.target.checked;
-
-
-            e.target.disabled =
-              true;
-
-
-            try {
-
-              await setAttendance(
-                date,
-                personId,
-                present
-              );
-
-
-              await reloadFromSupabase();
-
-
-              toast(
-
-                present
-
-                  ? "Presença registrada."
-
-                  : "Presença removida."
-
-              );
-
-
-            } catch (error) {
-
-              console.error(
-                error
-              );
-
-
-              e.target.checked =
-                !present;
-
-
-              toast(
-                "Não foi possível atualizar a presença."
-              );
-
-
-            } finally {
-
-              e.target.disabled =
-                false;
-
-            }
-
-          }
-        );
-
-      }
-    );
-
-}
-
-
-// ============================================================
-// 14. ESTOQUE
-// ============================================================
-
-function renderStock() {
-
-  const st =
-    calcStock();
-
-
-  const cards =
-    document.getElementById(
-      "stockCards"
-    );
-
-
-  if (cards) {
-
-    cards.innerHTML =
-
-      db.origins
-        .map(
-          o => {
-
-            const total =
-              Object.values(
-                st[o.id] || {}
-              )
-                .reduce(
-                  (a, v) =>
-                    a + Number(v),
-                  0
-                );
-
-
-            return `
-
-              <div class="panel">
-
-                <h3>
-                  📍 ${esc(o.name)}
-                </h3>
-
-                <div class="origin-value">
-                  ${fmt(total)} itens
-                </div>
-
-              </div>
-
-            `;
-
-          }
-        )
-        .join("");
-
-  }
-
-
-  const rows =
-
-    db.foods
-
-      .map(
-        food => {
-
-          const vals =
-
-            db.origins.map(
-              origin =>
-
-                Number(
-                  st[
-                    origin.id
-                  ]?.[
-                    food.id
-                  ] || 0
-                )
-
-            );
-
-
-          const total =
-            vals.reduce(
-              (a, v) =>
-                a + v,
-              0
-            );
-
-
-          return `
-
-            <tr>
-
-              <td>
-                ${esc(food.name)}
-              </td>
-
-
-              ${
-                vals
-                  .map(
-                    v =>
-                      `<td>${fmt(v)}</td>`
-                  )
-                  .join("")
-              }
-
-
-              <td>
-
-                <b>
-                  ${fmt(total)}
-                </b>
-
-              </td>
-
-            </tr>
-
-          `;
-
-        }
-      )
-      .join("");
-
-
-  const tableEl =
-    document.getElementById(
-      "stockTable"
-    );
-
-
-  if (tableEl) {
-
-    tableEl.innerHTML = `
-
-      <div class="table-wrap">
-
-        <table>
-
-          <thead>
-
-            <tr>
-
-              <th>
-                Alimento
-              </th>
-
-
-              ${
-                db.origins
-                  .map(
-                    o =>
-                      `<th>${esc(o.name)}</th>`
-                  )
-                  .join("")
-              }
-
-
-              <th>
-                Total
-              </th>
-
-            </tr>
-
-          </thead>
-
-
-          <tbody>
-
-            ${rows}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-    `;
-
-  }
-
-}
-
-
-// ============================================================
-// 15. RELATÓRIO
-// ============================================================
-
-function renderReport() {
-
-  const start =
-    document.getElementById(
-      "reportStart"
-    )?.value || "";
-
-
-  const end =
-    document.getElementById(
-      "reportEnd"
-    )?.value || "";
-
-
-  const origin =
-    document.getElementById(
-      "reportOrigin"
-    )?.value || "";
-
-
-  const entries =
-    db.entries.filter(
-      x =>
-
-        (!start ||
-          x.date >= start) &&
-
-        (!end ||
-          x.date <= end) &&
-
-        (!origin ||
-          x.originId === origin)
-
-    );
-
-
-  const mov =
-    db.movements.filter(
-      x =>
-
-        (!start ||
-          x.date >= start) &&
-
-        (!end ||
-          x.date <= end) &&
-
-        (!origin ||
-          x.originId === origin)
-
-    );
-
-
-  const presentDates =
-    Object.entries(
-      db.attendance
-    ).filter(
-      ([d]) =>
-
-        (!start ||
-          d >= start) &&
-
-        (!end ||
-          d <= end)
-
-    );
-
-
-  const html = `
-
-    <div class="cards">
-
-
-      <div class="card">
-
-        <span>
-          Entradas
-        </span>
-
-        <strong>
-
-          ${fmt(
-
-            entries.reduce(
-              (s, x) =>
-                s +
-                Number(x.qty),
-
-              0
-            )
-
-          )}
-
-        </strong>
-
-      </div>
-
-
-      <div class="card">
-
-        <span>
-          Saídas
-        </span>
-
-        <strong>
-
-          ${fmt(
-
-            mov
-
-              .filter(
-                x =>
-                  x.type ===
-                  "saida"
-              )
-
-              .reduce(
-                (s, x) =>
-                  s +
-                  Number(x.qty),
-
-                0
-              )
-
-          )}
-
-        </strong>
-
-      </div>
-
-
-      <div class="card danger">
-
-        <span>
-          Perdas
-        </span>
-
-        <strong>
-
-          ${fmt(
-
-            mov
-
-              .filter(
-                x =>
-                  x.type ===
-                  "perda"
-              )
-
-              .reduce(
-                (s, x) =>
-                  s +
-                  Number(x.qty),
-
-                0
-              )
-
-          )}
-
-        </strong>
-
-      </div>
-
-
-      <div class="card">
-
-        <span>
-          Dias com presença
-        </span>
-
-        <strong>
-
-          ${presentDates.length}
-
-        </strong>
-
-      </div>
-
-
-    </div>
-
-
-    <h3>
-      Entradas
-    </h3>
-
-
-    ${
-      entries.length
-
-        ? table(
-
-            entries,
-
-            [
-
-              [
-                "Data",
-
-                x =>
-                  fmtDate(
-                    x.date
-                  )
-
-              ],
-
-              [
-                "Origem",
-
-                x =>
-                  esc(
-                    getName(
-                      db.origins,
-                      x.originId
-                    )
-                  )
-
-              ],
-
-              [
-                "Alimento",
-
-                x =>
-                  esc(
-                    getName(
-                      db.foods,
-                      x.foodId
-                    )
-                  )
-
-              ],
-
-              [
-                "Qtd",
-
-                x =>
-                  fmt(
-                    x.qty
-                  )
-
-              ],
-
-              [
-                "Obs.",
-
-                x =>
-                  esc(
-                    x.note || ""
-                  )
-
-              ]
-
-            ],
-
-            () => {}
-
-          )
-
-        : `
-
-            <div class="empty">
-              Sem entradas no período.
-            </div>
-
-          `
-
-    }
-
-
-    <h3>
-      Saídas e perdas
-    </h3>
-
-
-    ${
-      mov.length
-
-        ? table(
-
-            mov,
-
-            [
-
-              [
-                "Data",
-
-                x =>
-                  fmtDate(
-                    x.date
-                  )
-
-              ],
-
-              [
-                "Tipo",
-
-                x =>
-                  esc(
-
-                    x.type ===
-                    "perda"
-
-                      ? "Perda"
-
-                      : "Saída"
-
-                  )
-
-              ],
-
-              [
-                "Origem",
-
-                x =>
-                  esc(
-                    getName(
-                      db.origins,
-                      x.originId
-                    )
-                  )
-
-              ],
-
-              [
-                "Alimento",
-
-                x =>
-                  esc(
-                    getName(
-                      db.foods,
-                      x.foodId
-                    )
-                  )
-
-              ],
-
-              [
-                "Qtd",
-
-                x =>
-                  fmt(
-                    x.qty
-                  )
-
-              ],
-
-              [
-                "Motivo",
-
-                x =>
-                  esc(
-                    getName(
-                      db.reasons,
-                      x.reasonId
-                    )
-                  )
-
-              ]
-
-            ],
-
-            () => {}
-
-          )
-
-        : `
-
-            <div class="empty">
-              Sem movimentações no período.
-            </div>
-
-          `
-
-    }
-
-  `;
-
-
-  const result =
-    document.getElementById(
-      "reportResult"
-    );
-
-
-  if (result) {
-
-    result.innerHTML =
-      html;
-
-  }
-
-}
-
-
-// ============================================================
-// 16. CADASTROS
-// ============================================================
-
-function renderCadastros() {
-
-  const people =
-    document.getElementById(
-      "peopleTable"
-    );
-
-
-  if (people) {
-
-    people.innerHTML = `
-
-      <div class="mini-list">
-
-        ${
-          db.people
-            .map(
-              p => `
-
-                <div class="mini-row">
-
-                  <span>
-
-                    <b>
-                      ${esc(p.name)}
-                    </b>
-
-                    <br>
-
-                    <small>
-                      ${esc(
-                        p.registration
-                      )}
-                    </small>
-
-                  </span>
-
-
-                  <button
-
-                    class="btn danger-btn"
-
-                    data-del-person="${p.id}"
-
-                  >
-
-                    Excluir
-
-                  </button>
-
-                </div>
-
-              `
-            )
-            .join("")
-
-          ||
-
-          `
-
-            <div class="empty">
-              Nenhuma pessoa.
-            </div>
-
-          `
-
-        }
-
-      </div>
-
-    `;
-
-  }
-
-
-  const foods =
-    document.getElementById(
-      "foodsTable"
-    );
-
-
-  if (foods) {
-
-    foods.innerHTML = `
-
-      <div class="mini-list">
-
-        ${
-          db.foods
-            .map(
-              p => `
-
-                <div class="mini-row">
-
-                  <span>
-                    ${esc(p.name)}
-                  </span>
-
-
-                  <button
-
-                    class="btn danger-btn"
-
-                    data-del-food="${p.id}"
-
-                  >
-
-                    Excluir
-
-                  </button>
-
-                </div>
-
-              `
-            )
-            .join("")
-
-        }
-
-      </div>
-
-    `;
-
-  }
-
-
-  const origins =
-    document.getElementById(
-      "originsTable"
-    );
-
-
-  if (origins) {
-
-    origins.innerHTML = `
-
-      <div class="mini-list">
-
-        ${
-          db.origins
-            .map(
-              p => `
-
-                <div class="mini-row">
-
-                  <span>
-                    ${esc(p.name)}
-                  </span>
-
-
-                  <button
-
-                    class="btn danger-btn"
-
-                    data-del-origin="${p.id}"
-
-                  >
-
-                    Excluir
-
-                  </button>
-
-                </div>
-
-              `
-            )
-            .join("")
-
-        }
-
-      </div>
-
-    `;
-
-  }
-
-
-  const reasons =
-    document.getElementById(
-      "reasonsTable"
-    );
-
-
-  if (reasons) {
-
-    reasons.innerHTML = `
-
-      <div class="mini-list">
-
-        ${
-          db.reasons
-            .map(
-              p => `
-
-                <div class="mini-row">
-
-                  <span>
-                    ${esc(p.name)}
-                  </span>
-
-
-                  <button
-
-                    class="btn danger-btn"
-
-                    data-del-reason="${p.id}"
-
-                  >
-
-                    Excluir
-
-                  </button>
-
-                </div>
-
-              `
-            )
-            .join("")
-
-        }
-
-      </div>
-
-    `;
-
-  }
-
-
-  document
-    .querySelectorAll(
-      "[data-del-person]"
-    )
-    .forEach(
-      b =>
-
-        b.onclick =
-          () =>
-            delBy(
-              "people",
-              b.dataset.delPerson
-            )
-    );
-
-
-  document
-    .querySelectorAll(
-      "[data-del-food]"
-    )
-    .forEach(
-      b =>
-
-        b.onclick =
-          () =>
-            delBy(
-              "foods",
-              b.dataset.delFood
-            )
-    );
-
-
-  document
-    .querySelectorAll(
-      "[data-del-origin]"
-    )
-    .forEach(
-      b =>
-
-        b.onclick =
-          () =>
-            delBy(
-              "origins",
-              b.dataset.delOrigin
-            )
-    );
-
-
-  document
-    .querySelectorAll(
-      "[data-del-reason]"
-    )
-    .forEach(
-      b =>
-
-        b.onclick =
-          () =>
-            delBy(
-              "reasons",
-              b.dataset.delReason
-            )
-    );
-
-}
-
-
-// ============================================================
-// EXCLUIR CADASTRO
-// ============================================================
-
-async function delBy(
-  key,
-  id
-) {
-
-  if (
-    !confirm(
-      "Excluir cadastro? Registros históricos que já usam este item continuarão salvos."
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  try {
-
-    await deleteCadastro(
-      key,
-      id
-    );
-
-
-    await reloadFromSupabase();
-
-
-    toast(
-      "Cadastro excluído."
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      error
-    );
-
-
-    toast(
-      "Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados."
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// FIM DA PARTE 3/5
-// ============================================================
 
 // ============================================================
 // 17. CSV
@@ -3932,17 +2963,14 @@ function exportCSV() {
 
 
   db.entries
-
     .filter(
       x =>
         (!start || x.date >= start) &&
         (!end || x.date <= end) &&
         (!origin || x.originId === origin)
     )
-
     .forEach(
       x =>
-
         rows.push([
 
           x.date,
@@ -3966,22 +2994,18 @@ function exportCSV() {
           x.note || ""
 
         ])
-
     );
 
 
   db.movements
-
     .filter(
       x =>
         (!start || x.date >= start) &&
         (!end || x.date <= end) &&
         (!origin || x.originId === origin)
     )
-
     .forEach(
       x =>
-
         rows.push([
 
           x.date,
@@ -4010,7 +3034,6 @@ function exportCSV() {
           x.note || ""
 
         ])
-
     );
 
 
@@ -4041,11 +3064,8 @@ function exportCSV() {
 
 
   download(
-
     blob,
-
     `relatorio_${start || "inicio"}_${end || "fim"}.csv`
-
   );
 
 }
@@ -4076,14 +3096,11 @@ function download(
 
 
   setTimeout(
-
     () =>
       URL.revokeObjectURL(
         a.href
       ),
-
     1000
-
   );
 
 }
@@ -4100,13 +3117,9 @@ function nav() {
       ".tab,.home-card"
     )
     .forEach(
-
       b =>
-
         b.addEventListener(
-
           "click",
-
           () => {
 
             const page =
@@ -4118,18 +3131,12 @@ function nav() {
                 ".tab"
               )
               .forEach(
-
                 x =>
-
                   x.classList.toggle(
-
                     "active",
-
                     x.dataset.page ===
                     page
-
                   )
-
               );
 
 
@@ -4138,12 +3145,10 @@ function nav() {
                 ".page"
               )
               .forEach(
-
                 x =>
                   x.classList.remove(
                     "active"
                   )
-
               );
 
 
@@ -4171,9 +3176,7 @@ function nav() {
             });
 
           }
-
         )
-
     );
 
 
@@ -4219,11 +3222,6 @@ function nav() {
 // ============================================================
 
 function bindEvents() {
-
-
-  // ==========================================================
-  // ENTRADA
-  // ==========================================================
 
   const entryForm =
     document.getElementById(
@@ -4273,13 +3271,11 @@ function bindEvents() {
 
 
         if (
-
           !date ||
           !originId ||
           !foodId ||
           !Number.isFinite(qty) ||
           qty <= 0
-
         ) {
 
           toast(
@@ -4324,18 +3320,12 @@ function bindEvents() {
           e.target.reset();
 
 
-          const dateInput =
-            document.getElementById(
+          document
+            .getElementById(
               "entryDate"
-            );
-
-
-          if (dateInput) {
-
-            dateInput.value =
+            )
+            .value =
               isoToday();
-
-          }
 
 
           renderEntries();
@@ -4375,10 +3365,6 @@ function bindEvents() {
 
   }
 
-
-  // ==========================================================
-  // SAÍDA / PERDA
-  // ==========================================================
 
   const movementForm =
     document.getElementById(
@@ -4436,14 +3422,12 @@ function bindEvents() {
 
 
         if (
-
           !date ||
           !type ||
           !originId ||
           !foodId ||
           !Number.isFinite(qty) ||
           qty <= 0
-
         ) {
 
           toast(
@@ -4538,18 +3522,12 @@ function bindEvents() {
           e.target.reset();
 
 
-          const movementDate =
-            document.getElementById(
+          document
+            .getElementById(
               "movementDate"
-            );
-
-
-          if (movementDate) {
-
-            movementDate.value =
+            )
+            .value =
               isoToday();
-
-          }
 
 
           renderAll();
@@ -4595,10 +3573,6 @@ function bindEvents() {
 
   }
 
-
-  // ==========================================================
-  // DATAS
-  // ==========================================================
 
   const dashboardDate =
     document.getElementById(
@@ -4664,10 +3638,6 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // ATUALIZAR ESTOQUE
-  // ==========================================================
-
   const refreshStock =
     document.getElementById(
       "refreshStock"
@@ -4712,10 +3682,6 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // RELATÓRIO
-  // ==========================================================
-
   const generateReport =
     document.getElementById(
       "generateReport"
@@ -4747,10 +3713,6 @@ function bindEvents() {
 
   }
 
-
-  // ==========================================================
-  // CADASTRAR PESSOA
-  // ==========================================================
 
   const personForm =
     document.getElementById(
@@ -4840,10 +3802,6 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // CADASTRAR ALIMENTO
-  // ==========================================================
-
   const foodForm =
     document.getElementById(
       "foodForm"
@@ -4921,10 +3879,6 @@ function bindEvents() {
 
   }
 
-
-  // ==========================================================
-  // CADASTRAR ORIGEM
-  // ==========================================================
 
   const originForm =
     document.getElementById(
@@ -5004,9 +3958,8 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // MOTIVOS
-  // ==========================================================
+  // Motivos continuam sendo os quatro padrões
+  // do aplicativo.
 
   const reasonForm =
     document.getElementById(
@@ -5049,16 +4002,11 @@ function bindEvents() {
 
 
         if (
-
           db.reasons.some(
-
             r =>
-              r.name
-                .toLowerCase() ===
+              r.name.toLowerCase() ===
               name.toLowerCase()
-
           )
-
         ) {
 
           toast(
@@ -5072,7 +4020,8 @@ function bindEvents() {
 
         db.reasons.push({
 
-          id: name,
+          id:
+            name,
 
           name
 
@@ -5095,10 +4044,6 @@ function bindEvents() {
 
   }
 
-
-  // ==========================================================
-  // BACKUP
-  // ==========================================================
 
   const backupBtn =
     document.getElementById(
@@ -5144,10 +4089,6 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // RESTAURAR BACKUP
-  // ==========================================================
-
   const restoreFile =
     document.getElementById(
       "restoreFile"
@@ -5166,11 +4107,7 @@ function bindEvents() {
           e.target.files[0];
 
 
-        if (!file) {
-
-          return;
-
-        }
+        if (!file) return;
 
 
         try {
@@ -5225,10 +4162,6 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // ATUALIZAR DADOS
-  // ==========================================================
-
   const resetBtn =
     document.getElementById(
       "resetBtn"
@@ -5246,7 +4179,9 @@ function bindEvents() {
         if (
 
           !confirm(
+
             "Atualizar os dados deste aparelho com o conteúdo atual do Supabase?"
+
           )
 
         ) {
@@ -5311,10 +4246,6 @@ async function restoreCloudBackup(
     getCurrentUserId();
 
 
-  // ==========================================================
-  // PESSOAS
-  // ==========================================================
-
   if (
     Array.isArray(
       obj.people
@@ -5353,18 +4284,10 @@ async function restoreCloudBackup(
         );
 
 
-    if (error) {
-
-      throw error;
-
-    }
+    if (error) throw error;
 
   }
 
-
-  // ==========================================================
-  // ALIMENTOS
-  // ==========================================================
 
   if (
     Array.isArray(
@@ -5401,18 +4324,10 @@ async function restoreCloudBackup(
         );
 
 
-    if (error) {
-
-      throw error;
-
-    }
+    if (error) throw error;
 
   }
 
-
-  // ==========================================================
-  // ORIGENS
-  // ==========================================================
 
   if (
     Array.isArray(
@@ -5449,18 +4364,10 @@ async function restoreCloudBackup(
         );
 
 
-    if (error) {
-
-      throw error;
-
-    }
+    if (error) throw error;
 
   }
 
-
-  // ==========================================================
-  // ENTRADAS
-  // ==========================================================
 
   if (
     Array.isArray(
@@ -5508,29 +4415,19 @@ async function restoreCloudBackup(
         );
 
 
-    if (error) {
-
-      throw error;
-
-    }
+    if (error) throw error;
 
   }
 
 
-  // ==========================================================
-  // SAÍDAS
-  // ==========================================================
-
   const outputs =
-
     (
       obj.movements ||
       []
     )
       .filter(
         m =>
-          m.type ===
-          "saida"
+          m.type === "saida"
       );
 
 
@@ -5546,11 +4443,10 @@ async function restoreCloudBackup(
             m.rawId ||
             String(
               m.id
-            )
-              .replace(
-                /^saida-/,
-                ""
-              ) ||
+            ).replace(
+              /^saida-/,
+              ""
+            ) ||
             uid(),
 
           data_saida:
@@ -5587,29 +4483,19 @@ async function restoreCloudBackup(
         );
 
 
-    if (error) {
-
-      throw error;
-
-    }
+    if (error) throw error;
 
   }
 
 
-  // ==========================================================
-  // PERDAS
-  // ==========================================================
-
   const losses =
-
     (
       obj.movements ||
       []
     )
       .filter(
         m =>
-          m.type ===
-          "perda"
+          m.type === "perda"
       );
 
 
@@ -5625,11 +4511,10 @@ async function restoreCloudBackup(
             m.rawId ||
             String(
               m.id
-            )
-              .replace(
-                /^perda-/,
-                ""
-              ) ||
+            ).replace(
+              /^perda-/,
+              ""
+            ) ||
             uid(),
 
           data_perda:
@@ -5674,18 +4559,10 @@ async function restoreCloudBackup(
         );
 
 
-    if (error) {
-
-      throw error;
-
-    }
+    if (error) throw error;
 
   }
 
-
-  // ==========================================================
-  // PRESENÇA
-  // ==========================================================
 
   for (
     const [
@@ -5795,8 +4672,8 @@ function setupPWA() {
 
 
   if (
-    "serviceWorker"
-    in navigator
+    "serviceWorker" in
+    navigator
   ) {
 
     window.addEventListener(
@@ -5852,20 +4729,14 @@ function renderAll() {
 
 
 // ============================================================
-// FIM DA PARTE 4/5
-// ============================================================
-
-// ============================================================
 // 22. INICIALIZAÇÃO DO APLICATIVO
 // ============================================================
 
 async function initApp() {
 
-  if (appStarted) {
-
-    return;
-
-  }
+  if (
+    appStarted
+  ) return;
 
 
   appStarted =
@@ -5879,59 +4750,24 @@ async function initApp() {
 
   try {
 
-    // --------------------------------------------------------
-    // CARREGAR DADOS DO SUPABASE
-    // --------------------------------------------------------
-
     db =
       await loadFromSupabase();
 
 
-    // --------------------------------------------------------
-    // DATAS
-    // --------------------------------------------------------
-
     setDates();
 
-
-    // --------------------------------------------------------
-    // NAVEGAÇÃO
-    // --------------------------------------------------------
 
     nav();
 
 
-    // --------------------------------------------------------
-    // EVENTOS
-    // --------------------------------------------------------
-
     bindEvents();
 
-
-    // --------------------------------------------------------
-    // PWA
-    // --------------------------------------------------------
 
     setupPWA();
 
 
-    // --------------------------------------------------------
-    // BARRA DO USUÁRIO
-    // --------------------------------------------------------
+    addUserBar();
 
-    if (
-      typeof addUserBar ===
-      "function"
-    ) {
-
-      addUserBar();
-
-    }
-
-
-    // --------------------------------------------------------
-    // RENDERIZAÇÃO
-    // --------------------------------------------------------
 
     renderAll();
 
@@ -5975,25 +4811,10 @@ async function initApp() {
 
 async function startAuth() {
 
-  // ----------------------------------------------------------
-  // CRIAR TELA DE LOGIN
-  // ----------------------------------------------------------
-
-  if (
-    typeof createLoginScreen ===
-    "function"
-  ) {
-
-    createLoginScreen();
-
-  }
+  createLoginScreen();
 
 
   try {
-
-    // --------------------------------------------------------
-    // VERIFICAR SESSÃO EXISTENTE
-    // --------------------------------------------------------
 
     const {
       data,
@@ -6011,10 +4832,6 @@ async function startAuth() {
     }
 
 
-    // --------------------------------------------------------
-    // JÁ ESTÁ LOGADO
-    // --------------------------------------------------------
-
     if (
       data?.session?.user
     ) {
@@ -6023,35 +4840,23 @@ async function startAuth() {
         data.session.user;
 
 
-      const loginScreen =
-        document.getElementById(
+      document
+        .getElementById(
           "loginScreen"
-        );
+        )
+        ?.remove();
 
 
-      if (loginScreen) {
-
-        loginScreen.remove();
-
-      }
+      initApp();
 
 
-      await initApp();
-
+      return;
 
     }
 
-    // --------------------------------------------------------
-    // NÃO ESTÁ LOGADO
-    // --------------------------------------------------------
-    //
-    // Não fazemos nada aqui.
-    //
-    // A tela de login permanece aberta.
-    //
-    // O usuário poderá entrar normalmente.
-    //
-    // --------------------------------------------------------
+
+    // Não está logado.
+    // Mantém a tela de login aberta.
 
 
   } catch (err) {
@@ -6072,9 +4877,7 @@ async function startAuth() {
 
       error.textContent =
 
-        "Não foi possível conectar ao Supabase. " +
-
-        "Verifique a URL e a Publishable Key.";
+        "Não foi possível conectar ao Supabase. Verifique a URL e a Publishable Key.";
 
 
       error.classList.add(
@@ -6087,28 +4890,14 @@ async function startAuth() {
 
 
   // ==========================================================
-  // OUVIR ALTERAÇÕES DE AUTENTICAÇÃO
+  // MONITORA ALTERAÇÕES DE AUTENTICAÇÃO
   // ==========================================================
 
   supabaseClient
     .auth
     .onAuthStateChange(
 
-      async (
-        event,
-        session
-      ) => {
-
-
-        console.log(
-          "ACE AUTH:",
-          event
-        );
-
-
-        // ------------------------------------------------------
-        // LOGIN REALIZADO
-        // ------------------------------------------------------
+      (event, session) => {
 
         if (
 
@@ -6123,70 +4912,22 @@ async function startAuth() {
             session.user;
 
 
-          const loginScreen =
-            document.getElementById(
+          document
+            .getElementById(
               "loginScreen"
-            );
+            )
+            ?.remove();
 
 
-          if (loginScreen) {
-
-            loginScreen.remove();
-
-          }
-
-
-          await initApp();
+          initApp();
 
         }
 
 
-        // ------------------------------------------------------
-        // TOKEN ATUALIZADO
-        // ------------------------------------------------------
-
-        else if (
-
-          event ===
-          "TOKEN_REFRESHED"
-
-        ) {
-
-          if (
-            session?.user
-          ) {
-
-            currentUser =
-              session.user;
-
-          }
-
-        }
-
-
-        // ------------------------------------------------------
-        // LOGOUT
-        // ------------------------------------------------------
-
-        else if (
-
+        if (
           event ===
           "SIGNED_OUT"
-
         ) {
-
-          console.log(
-            "ACE: usuário saiu."
-          );
-
-
-          currentUser =
-            null;
-
-
-          appStarted =
-            false;
-
 
           location.reload();
 
@@ -6200,7 +4941,7 @@ async function startAuth() {
 
 
 // ============================================================
-// 24. INICIAR APLICAÇÃO
+// 24. INÍCIO
 // ============================================================
 
 startAuth();
