@@ -129,125 +129,227 @@ function saveLocalReasons() {
 
 
 async function loadFromSupabase() {
+
   if (!currentUser?.id) {
     throw new Error("Usuário não autenticado.");
   }
 
-  // ----------------------------------------------------------
-  // O Supabase pode rejeitar um JWT recém-criado por alguns
-  // segundos com "JWT issued at future". Isso é uma falha de
-  // sincronização de relógio entre Auth/PostgREST. Fazemos UMA
-  // renovação e uma nova tentativa antes de informar erro.
-  // ----------------------------------------------------------
-  async function carregarTabelas() {
-    return await Promise.all([
-      supabaseClient.from("Pessoas").select("*").order("nome"),
-      supabaseClient.from("Alimentos").select("*").order("nome"),
-      supabaseClient.from("origens").select("*").order("nome"),
-      supabaseClient.from("entradas").select("*").order("data_entrada", { ascending: false }),
-      supabaseClient.from("saídas").select("*").order("data_saida", { ascending: false }),
-      supabaseClient.from("perdas").select("*").order("data_perda", { ascending: false }),
-      supabaseClient.from("presença").select("*").order("data", { ascending: false })
-    ]);
-  }
+  // ==========================================================
+  // CARREGA OS DADOS DO SUPABASE
+  // ==========================================================
 
-  let results = await carregarTabelas();
+  const [
+    peopleResult,
+    foodsResult,
+    originsResult,
+    entriesResult,
+    outputsResult,
+    lossesResult,
+    attendanceResult
+  ] = await Promise.all([
 
-  let failed = [
-    ["Pessoas", results[0]],
-    ["Alimentos", results[1]],
-    ["origens", results[2]],
-    ["entradas", results[3]],
-    ["saídas", results[4]],
-    ["perdas", results[5]],
-    ["presença", results[6]]
-  ].find(([, r]) => r.error);
+    supabaseClient
+      .from("Pessoas")
+      .select("*")
+      .order("nome"),
 
-  // ----------------------------------------------------------
-  // RETENTATIVA ESPECÍFICA PARA JWT RECÉM-EMITIDO
-  // Não apaga nem altera nenhum dado existente.
-  // ----------------------------------------------------------
-  if (failed && String(failed[1]?.error?.message || "").toLowerCase().includes("jwt issued at future")) {
-    console.warn("ACE: JWT emitido no futuro. Renovando sessão e tentando novamente...");
+    supabaseClient
+      .from("Alimentos")
+      .select("*")
+      .order("nome"),
 
-    try {
-      await supabaseClient.auth.refreshSession();
-    } catch (refreshError) {
-      console.warn("ACE: não foi possível renovar a sessão:", refreshError);
-    }
+    supabaseClient
+      .from("origens")
+      .select("*")
+      .order("nome"),
 
-    // Pequena tolerância para diferença de relógio entre Auth e PostgREST.
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    supabaseClient
+      .from("entradas")
+      .select("*")
+      .order("data_entrada", {
+        ascending: false
+      }),
 
-    results = await carregarTabelas();
+    supabaseClient
+      .from("saídas")
+      .select("*")
+      .order("data_saida", {
+        ascending: false
+      }),
 
-    failed = [
-      ["Pessoas", results[0]],
-      ["Alimentos", results[1]],
-      ["origens", results[2]],
-      ["entradas", results[3]],
-      ["saídas", results[4]],
-      ["perdas", results[5]],
-      ["presença", results[6]]
-    ].find(([, r]) => r.error);
-  }
+    supabaseClient
+      .from("perdas")
+      .select("*")
+      .order("data_perda", {
+        ascending: false
+      }),
+
+    supabaseClient
+      .from("presença")
+      .select("*")
+      .order("data", {
+        ascending: false
+      })
+
+  ]);
+
+
+  // ==========================================================
+  // VERIFICA ERROS
+  // ==========================================================
+
+  const failed = [
+    ["Pessoas", peopleResult],
+    ["Alimentos", foodsResult],
+    ["origens", originsResult],
+    ["entradas", entriesResult],
+    ["saídas", outputsResult],
+    ["perdas", lossesResult],
+    ["presença", attendanceResult]
+  ].find(([, result]) => result.error);
+
 
   if (failed) {
+
     const err = failed[1].error;
+
+    const message =
+      err?.message ||
+      "erro desconhecido";
+
+
+    // --------------------------------------------------------
+    // CORREÇÃO DO ERRO:
+    // "JWT issued at future"
+    //
+    // O token antigo fica inválido quando o relógio/token
+    // fica adiantado. Limpamos SOMENTE a sessão local.
+    //
+    // IMPORTANTE:
+    // NÃO apagamos entradas, perdas, saídas, estoque,
+    // pessoas ou qualquer dado do Supabase.
+    // --------------------------------------------------------
+
+    if (
+      message
+        .toLowerCase()
+        .includes("jwt issued at future")
+    ) {
+
+      console.warn(
+        "ACE: JWT inválido por data futura. Limpando somente a sessão local."
+      );
+
+
+      try {
+
+        await supabaseClient.auth.signOut({
+          scope: "local"
+        });
+
+      } catch (signOutError) {
+
+        console.warn(
+          "ACE: não foi possível limpar a sessão local:",
+          signOutError
+        );
+
+      }
+
+
+      currentUser = null;
+
+
+      throw new Error(
+        "Sua sessão estava com um token inválido (JWT emitido no futuro). " +
+        "A sessão foi reiniciada. Entre novamente com seu e-mail e senha."
+      );
+
+    }
+
+
     throw new Error(
-      `Falha ao carregar a tabela ${failed[0]}: ${err?.message || "erro desconhecido"}`
+      `Falha ao carregar a tabela ${failed[0]}: ${message}`
     );
+
   }
 
-  const peopleResult = results[0];
-  const foodsResult = results[1];
-  const originsResult = results[2];
-  const entriesResult = results[3];
-  const outputsResult = results[4];
-  const lossesResult = results[5];
-  const attendanceResult = results[6];
 
-  const people = peopleResult.data || [];
-  const foods = foodsResult.data || [];
-  const origins = originsResult.data || [];
-  const entries = entriesResult.data || [];
-  const outputs = outputsResult.data || [];
-  const losses = lossesResult.data || [];
-  const attendanceRows = attendanceResult.data || [];
-  const reasons = loadLocalReasons();
+  // ==========================================================
+  // CONVERTE OS DADOS DO SUPABASE PARA A ESTRUTURA DO APP
+  // ==========================================================
 
-  // IMPORTANTE:
-  // Estas consultas NÃO filtram por usuario_id.
-  // Assim, qualquer usuário autenticado enxerga o mesmo
-  // estoque, entradas, saídas, perdas e cadastros compartilhados.
+  const people =
+    peopleResult.data || [];
+
+  const foods =
+    foodsResult.data || [];
+
+  const origins =
+    originsResult.data || [];
+
+  const entries =
+    entriesResult.data || [];
+
+  const outputs =
+    outputsResult.data || [];
+
+  const losses =
+    lossesResult.data || [];
+
+  const attendanceRows =
+    attendanceResult.data || [];
+
+  const reasons =
+    loadLocalReasons();
+
+
   const dbSupabase = {
-    people: people.map(p => ({
-      id: Number(p.id),
-      name: p.nome,
-      registration: p["matrícula"] ?? p.matricula ?? ""
-    })),
 
-    foods: foods.map(f => ({
-      id: Number(f.id),
-      name: f.nome
-    })),
+    people:
+      people.map(p => ({
+        id: Number(p.id),
+        name: p.nome,
+        registration:
+          p["matrícula"] ??
+          p.matricula ??
+          ""
+      })),
 
-    origins: origins.map(o => ({
-      id: Number(o.id),
-      name: o.nome
-    })),
 
-    entries: entries.map(e => ({
-      id: Number(e.id),
-      date: e.data_entrada,
-      foodId: Number(e.alimento_id),
-      qty: Number(e.quantidade || 0),
-      originId: Number(e.origem_id),
-      note: e.observacao || e.obs || "",
-      createdAt: e.created_at || `${e.data_entrada || isoToday()}T00:00:00Z`
-    })),
+    foods:
+      foods.map(f => ({
+        id: Number(f.id),
+        name: f.nome
+      })),
+
+
+    origins:
+      origins.map(o => ({
+        id: Number(o.id),
+        name: o.nome
+      })),
+
+
+    entries:
+      entries.map(e => ({
+        id: Number(e.id),
+        date: e.data_entrada,
+        foodId: Number(e.alimento_id),
+        qty: Number(e.quantidade || 0),
+        originId: Number(e.origem_id),
+        note:
+          e.observacao ||
+          e.obs ||
+          "",
+        createdAt:
+          e.created_at ||
+          `${e.data_entrada || isoToday()}T00:00:00Z`
+      })),
+
 
     movements: [
+
       ...outputs.map(s => ({
         id: `saida-${s.id}`,
         rawId: Number(s.id),
@@ -258,8 +360,13 @@ async function loadFromSupabase() {
         qty: Number(s.quantidade || 0),
         originId: Number(s.origem_id),
         reasonId: null,
-        note: s.destino || s.observacao || "",
-        createdAt: s.created_at || `${s.data_saida || isoToday()}T00:00:00Z`
+        note:
+          s.destino ||
+          s.observacao ||
+          "",
+        createdAt:
+          s.created_at ||
+          `${s.data_saida || isoToday()}T00:00:00Z`
       })),
 
       ...losses.map(p => ({
@@ -273,33 +380,77 @@ async function loadFromSupabase() {
         originId: Number(p.origem_id),
         reasonId:
           reasons.find(
-            r => r.name.toLowerCase() === String(p.motivo || "").toLowerCase()
-          )?.id || p.motivo || null,
-        note: p.observacao || p.obs || "",
-        createdAt: p.created_at || `${p.data_perda || isoToday()}T00:00:00Z`
+            r =>
+              r.name
+                .toLowerCase() ===
+              String(
+                p.motivo || ""
+              ).toLowerCase()
+          )?.id ||
+          p.motivo ||
+          null,
+        note:
+          p.observacao ||
+          p.obs ||
+          "",
+        createdAt:
+          p.created_at ||
+          `${p.data_perda || isoToday()}T00:00:00Z`
       }))
+
     ],
 
+
     attendance: {},
+
+
     reasons
+
   };
 
+
   attendanceRows.forEach(row => {
-    if (!dbSupabase.attendance[row.data]) {
-      dbSupabase.attendance[row.data] = [];
+
+    if (
+      !dbSupabase.attendance[row.data]
+    ) {
+
+      dbSupabase.attendance[row.data] =
+        [];
+
     }
 
-    if (row.present && row.pessoa_id != null) {
-      const id = Number(row.pessoa_id);
 
-      if (!dbSupabase.attendance[row.data].includes(id)) {
-        dbSupabase.attendance[row.data].push(id);
+    if (
+      row.present &&
+      row.pessoa_id != null
+    ) {
+
+      const id =
+        Number(row.pessoa_id);
+
+
+      if (
+        !dbSupabase
+          .attendance[row.data]
+          .includes(id)
+      ) {
+
+        dbSupabase
+          .attendance[row.data]
+          .push(id);
+
       }
+
     }
+
   });
 
+
   return dbSupabase;
+
 }
+
 
 function save() {
   // Compatibilidade com a estrutura antiga.
@@ -603,6 +754,57 @@ function createLoginScreen() {
       cursor:not-allowed;
     }
 
+
+    .hidden{
+      display:none !important;
+    }
+
+    .login-secondary-button{
+      width:100%;
+      padding:13px;
+      margin-top:10px;
+      border:1px solid #0b3a63;
+      border-radius:10px;
+      background:#fff;
+      color:#0b3a63;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+
+    .login-secondary-button:hover{
+      background:#f2f7fb;
+    }
+
+    .signup-success{
+      display:none;
+      margin-top:14px;
+      padding:14px;
+      border-radius:10px;
+      background:#ecfdf3;
+      color:#027a48;
+      font-size:13px;
+      font-weight:800;
+      line-height:1.5;
+    }
+
+    .signup-success.show{
+      display:block;
+    }
+
+    .signup-back{
+      width:100%;
+      padding:12px;
+      margin-top:10px;
+      border:0;
+      border-radius:10px;
+      background:#fff;
+      color:#0b3a63;
+      font-weight:900;
+      font-size:14px;
+      cursor:pointer;
+    }
+
     .login-error{
       display:none;
       margin-top:14px;
@@ -724,6 +926,14 @@ function createLoginScreen() {
           🔐 Entrar
         </button>
 
+        <button
+          id="createAccountButton"
+          class="login-secondary-button"
+          type="button"
+        >
+          📄 Criar minha conta
+        </button>
+
         <div
           id="loginError"
           class="login-error"
@@ -746,6 +956,416 @@ function createLoginScreen() {
   document
     .getElementById("loginForm")
     .addEventListener("submit", loginUser);
+
+  document
+    .getElementById("createAccountButton")
+    .addEventListener("click", createSignupScreen);
+
+}
+
+
+
+// ============================================================
+// 5.1 CRIAR CONTA
+// ============================================================
+
+function createSignupScreen() {
+
+  const loginScreen =
+    document.getElementById("loginScreen");
+
+  if (!loginScreen) {
+    return;
+  }
+
+
+  loginScreen.innerHTML = `
+
+    <div class="login-box">
+
+      <div class="login-logo">
+        <img src="ace-cesta.png" alt="ACE">
+      </div>
+
+      <div class="login-title">
+        📄 Criar minha conta
+      </div>
+
+      <div class="login-subtitle">
+        Cadastre seu acesso ao sistema
+      </div>
+
+
+      <form id="signupForm">
+
+        <label>
+          Nome
+          <input
+            id="signupName"
+            type="text"
+            placeholder="Digite seu nome"
+            autocomplete="name"
+            required
+          >
+        </label>
+
+
+        <label>
+          E-mail
+          <input
+            id="signupEmail"
+            type="email"
+            placeholder="Digite seu e-mail"
+            autocomplete="email"
+            required
+          >
+        </label>
+
+
+        <label>
+          Senha
+          <input
+            id="signupPassword"
+            type="password"
+            placeholder="Digite sua senha"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          >
+        </label>
+
+
+        <label>
+          Confirmar senha
+          <input
+            id="signupPasswordConfirm"
+            type="password"
+            placeholder="Confirme sua senha"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          >
+        </label>
+
+
+        <button
+          id="signupButton"
+          class="login-button"
+          type="submit"
+        >
+          📄 Criar conta
+        </button>
+
+
+        <button
+          id="signupBackButton"
+          class="signup-back"
+          type="button"
+        >
+          ← Voltar para o login
+        </button>
+
+
+        <div
+          id="signupError"
+          class="login-error"
+        ></div>
+
+
+        <div
+          id="signupSuccess"
+          class="signup-success"
+        ></div>
+
+
+        <div
+          id="signupLoading"
+          class="login-loading"
+        ></div>
+
+      </form>
+
+    </div>
+
+  `;
+
+
+  document
+    .getElementById("signupForm")
+    .addEventListener(
+      "submit",
+      signupUser
+    );
+
+
+  document
+    .getElementById("signupBackButton")
+    .addEventListener(
+      "click",
+      () => {
+
+        createLoginScreen();
+
+      }
+    );
+
+}
+
+
+async function signupUser(e) {
+
+  e.preventDefault();
+
+
+  const name =
+    document
+      .getElementById("signupName")
+      .value
+      .trim();
+
+
+  const email =
+    document
+      .getElementById("signupEmail")
+      .value
+      .trim();
+
+
+  const password =
+    document
+      .getElementById("signupPassword")
+      .value;
+
+
+  const confirmPassword =
+    document
+      .getElementById("signupPasswordConfirm")
+      .value;
+
+
+  const button =
+    document.getElementById(
+      "signupButton"
+    );
+
+
+  const error =
+    document.getElementById(
+      "signupError"
+    );
+
+
+  const success =
+    document.getElementById(
+      "signupSuccess"
+    );
+
+
+  const loading =
+    document.getElementById(
+      "signupLoading"
+    );
+
+
+  error.classList.remove("show");
+  error.textContent = "";
+
+  success.classList.remove("show");
+  success.textContent = "";
+
+  loading.textContent = "";
+
+
+  if (!name) {
+
+    error.textContent =
+      "Digite seu nome.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+
+  if (password.length < 6) {
+
+    error.textContent =
+      "A senha deve ter pelo menos 6 caracteres.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+
+  if (
+    password !==
+    confirmPassword
+  ) {
+
+    error.textContent =
+      "As senhas não conferem.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+
+  button.disabled = true;
+
+  button.textContent =
+    "Criando conta...";
+
+  loading.textContent =
+    "Registrando usuário...";
+
+
+  try {
+
+    const {
+      data,
+      error: authError
+    } =
+      await supabaseClient.auth.signUp({
+
+        email,
+
+        password,
+
+        options: {
+
+          data: {
+
+            nome: name
+
+          }
+
+        }
+
+      });
+
+
+    if (authError) {
+
+      throw authError;
+
+    }
+
+
+    // ========================================================
+    // CONTA CRIADA
+    //
+    // Não fazemos login automático.
+    // O usuário deve voltar para a tela de login.
+    // Isso também funciona quando "Confirm email" está ativo.
+    // ========================================================
+
+    success.innerHTML =
+      "✅ Conta criada com sucesso!<br><br>" +
+      "Clique em “Voltar para o login” e entre com seu e-mail e senha.";
+
+
+    success.classList.add("show");
+
+
+    button.classList.add("hidden");
+
+
+    loading.textContent = "";
+
+
+    // Desabilita os campos após o cadastro
+    // para evitar criação duplicada por acidente.
+
+    document
+      .getElementById("signupName")
+      .disabled = true;
+
+    document
+      .getElementById("signupEmail")
+      .disabled = true;
+
+    document
+      .getElementById("signupPassword")
+      .disabled = true;
+
+    document
+      .getElementById("signupPasswordConfirm")
+      .disabled = true;
+
+
+  } catch (err) {
+
+    console.error(
+      "ACE - ERRO AO CRIAR CONTA:",
+      err
+    );
+
+
+    const msg =
+      String(
+        err?.message ||
+        ""
+      ).toLowerCase();
+
+
+    if (
+      msg.includes(
+        "user already registered"
+      ) ||
+      msg.includes(
+        "already registered"
+      )
+    ) {
+
+      error.textContent =
+        "Este e-mail já possui uma conta.";
+
+    } else if (
+      msg.includes(
+        "password"
+      ) &&
+      msg.includes(
+        "weak"
+      )
+    ) {
+
+      error.textContent =
+        "A senha é muito fraca. Use pelo menos 6 caracteres.";
+
+    } else if (
+      msg.includes(
+        "invalid email"
+      )
+    ) {
+
+      error.textContent =
+        "Digite um e-mail válido.";
+
+    } else {
+
+      error.textContent =
+        err?.message ||
+        "Não foi possível criar a conta.";
+
+    }
+
+
+    error.classList.add("show");
+
+
+    button.disabled = false;
+
+    button.textContent =
+      "📄 Criar conta";
+
+    loading.textContent = "";
+
+  }
 
 }
 
