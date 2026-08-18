@@ -1029,8 +1029,7 @@ async function sendPasswordResetEmail() {
   try {
 
     const redirectTo =
-      window.location.origin +
-      window.location.pathname;
+      "https://aceacaodecesta.github.io/GEPE-controle-alimentos/";
 
     const { error: resetError } =
       await supabaseClient.auth
