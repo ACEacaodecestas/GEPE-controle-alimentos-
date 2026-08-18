@@ -128,7 +128,7 @@ function saveLocalReasons() {
 }
 
 
-async function loadFromSupabase() {
+async function loadFromSupabase(allowJwtRefresh = true) {
 
   if (!currentUser?.id) {
     throw new Error("Usuário não autenticado.");
@@ -237,9 +237,64 @@ async function loadFromSupabase() {
     ) {
 
       console.warn(
-        "ACE: JWT inválido por data futura. Limpando somente a sessão local."
+        "ACE: JWT emitido no futuro. Tentando renovar a sessão."
       );
 
+
+      // ------------------------------------------------------
+      // PRIMEIRA TENTATIVA:
+      // renovar o token sem apagar nenhum dado do sistema.
+      // ------------------------------------------------------
+
+      if (allowJwtRefresh) {
+
+        try {
+
+          const {
+            data: refreshData,
+            error: refreshError
+          } =
+            await supabaseClient.auth.refreshSession();
+
+
+          if (
+            !refreshError &&
+            refreshData?.session?.user
+          ) {
+
+            currentUser =
+              refreshData.session.user;
+
+
+            console.log(
+              "ACE: sessão renovada. Recarregando dados."
+            );
+
+
+            // Recarrega somente uma vez para evitar loop.
+            return await loadFromSupabase(
+              false
+            );
+
+          }
+
+        } catch (refreshError) {
+
+          console.warn(
+            "ACE: falha ao renovar JWT:",
+            refreshError
+          );
+
+        }
+
+      }
+
+
+      // ------------------------------------------------------
+      // SEGUNDA TENTATIVA:
+      // se o token continuar inválido, limpa SOMENTE a
+      // sessão local. Nenhum dado do Supabase é apagado.
+      // ------------------------------------------------------
 
       try {
 
@@ -262,7 +317,7 @@ async function loadFromSupabase() {
 
       throw new Error(
         "Sua sessão estava com um token inválido (JWT emitido no futuro). " +
-        "A sessão foi reiniciada. Entre novamente com seu e-mail e senha."
+        "A sessão local foi reiniciada. Entre novamente."
       );
 
     }
@@ -3847,9 +3902,74 @@ async function initApp() {
       error
     );
 
+
+    const message =
+      String(
+        error?.message ||
+        ""
+      );
+
+
+    // --------------------------------------------------------
+    // JWT inválido:
+    // não deixa o usuário preso no dashboard.
+    // O SIGNED_OUT também será tratado pelo listener.
+    // --------------------------------------------------------
+
+    if (
+      message
+        .toLowerCase()
+        .includes("jwt")
+    ) {
+
+      currentUser = null;
+
+
+      const oldLogin =
+        document.getElementById(
+          "loginScreen"
+        );
+
+
+      if (oldLogin) {
+
+        oldLogin.remove();
+
+      }
+
+
+      createLoginScreen();
+
+
+      const loginError =
+        document.getElementById(
+          "loginError"
+        );
+
+
+      if (loginError) {
+
+        loginError.textContent =
+          "Sua sessão expirou ou ficou inválida. Entre novamente com seu e-mail e senha.";
+
+        loginError.classList.add(
+          "show"
+        );
+
+      }
+
+
+      return;
+
+    }
+
+
     alert(
       "Não foi possível carregar os dados do sistema.\n\n" +
-      (error?.message || "Verifique a conexão com o Supabase.")
+      (
+        error?.message ||
+        "Verifique a conexão com o Supabase."
+      )
     );
 
   }
@@ -3866,6 +3986,61 @@ async function startAuth() {
   createLoginScreen();
 
 
+  // ==========================================================
+  // MONITORA ALTERAÇÕES DE AUTENTICAÇÃO
+  //
+  // Registrado ANTES de getSession() para que, se o token
+  // inválido for limpo durante initApp(), a tela de login
+  // volte imediatamente.
+  // ==========================================================
+
+  supabaseClient.auth.onAuthStateChange(
+    (event, session) => {
+
+      console.log(
+        "ACE AUTH:",
+        event
+      );
+
+
+      if (
+        event === "SIGNED_IN" &&
+        session?.user
+      ) {
+
+        currentUser =
+          session.user;
+
+
+        document
+          .getElementById(
+            "loginScreen"
+          )
+          ?.remove();
+
+
+        initApp();
+
+      }
+
+
+      if (
+        event === "SIGNED_OUT"
+      ) {
+
+        currentUser = null;
+
+        appStarted = false;
+
+
+        location.reload();
+
+      }
+
+    }
+  );
+
+
   try {
 
     const {
@@ -3876,7 +4051,9 @@ async function startAuth() {
 
 
     if (error) {
+
       throw error;
+
     }
 
 
@@ -3893,7 +4070,7 @@ async function startAuth() {
         ?.remove();
 
 
-      initApp();
+      await initApp();
 
       return;
 
@@ -3929,42 +4106,6 @@ async function startAuth() {
     }
 
   }
-
-
-  // Monitora alterações de autenticação
-
-  supabaseClient.auth.onAuthStateChange(
-    (event, session) => {
-
-      if (
-        event === "SIGNED_IN" &&
-        session?.user
-      ) {
-
-        currentUser =
-          session.user;
-
-        document
-          .getElementById(
-            "loginScreen"
-          )
-          ?.remove();
-
-        initApp();
-
-      }
-
-
-      if (
-        event === "SIGNED_OUT"
-      ) {
-
-        location.reload();
-
-      }
-
-    }
-  );
 
 }
 
