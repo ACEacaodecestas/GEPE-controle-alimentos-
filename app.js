@@ -3324,6 +3324,8 @@ function download(
 
 async function resetMovements() {
 
+  console.log("ACE: botão Zerar movimentações clicado.");
+
   const confirmation = confirm(
     "⚠️ ATENÇÃO!\n\n" +
     "Isso irá apagar TODAS as movimentações do sistema:\n\n" +
@@ -3426,6 +3428,9 @@ async function resetMovements() {
 
 }
 
+// Torna a função acessível pelo botão criado dinamicamente.
+window.resetMovements = resetMovements;
+
 
 // ============================================================
 // BOTÃO "ZERAR MOVIMENTAÇÕES" NO MENU
@@ -3483,17 +3488,28 @@ function setupResetMovementsButton() {
     white-space:nowrap;
   `;
 
-  button.addEventListener(
-    "click",
-    async event => {
+  // Usa onclick diretamente para garantir que o botão
+  // continue funcionando mesmo sendo criado dinamicamente.
+  button.onclick = async function (event) {
 
-      event.preventDefault();
-      event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
 
-      await resetMovements();
+    try {
+      await window.resetMovements();
+    } catch (error) {
+      console.error(
+        "ACE - ERRO NO BOTÃO ZERAR:",
+        error
+      );
 
+      alert(
+        "❌ Erro ao executar o botão Zerar movimentações:\n\n" +
+        (error?.message || "Erro desconhecido.")
+      );
     }
-  );
+
+  };
 
   const cadastrosButton =
     tabs.querySelector(
