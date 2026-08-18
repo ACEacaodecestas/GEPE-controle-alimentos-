@@ -1159,6 +1159,18 @@ function createSignupScreen() {
       "click",
       () => {
 
+        // O loginScreen já existe porque a tela de cadastro
+        // usa o mesmo elemento. Remove o cadastro e recria
+        // somente a tela de login.
+        const loginScreen =
+          document.getElementById(
+            "loginScreen"
+          );
+
+        if (loginScreen) {
+          loginScreen.remove();
+        }
+
         createLoginScreen();
 
       }
