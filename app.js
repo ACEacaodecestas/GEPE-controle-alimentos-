@@ -2598,6 +2598,16 @@ function renderReport() {
       "reportOrigin"
     )?.value || "";
 
+  // Identificação do usuário que está logado.
+  const reportUserName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+
+  const reportUserEmail =
+    currentUser?.email ||
+    "";
+
 
   const entries =
     db.entries.filter(
@@ -2628,6 +2638,14 @@ function renderReport() {
 
 
   const html = `
+
+    <div style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:#f2f7fb;border:1px solid #d9e6f0;">
+      <strong>👤 Usuário logado:</strong>
+      ${esc(reportUserName)}
+      ${reportUserEmail && reportUserName !== reportUserEmail
+        ? ` — ${esc(reportUserEmail)}`
+        : ""}
+    </div>
 
     <div class="cards">
 
@@ -3145,7 +3163,22 @@ function exportCSV() {
     )?.value || "";
 
 
+  const reportUserName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+
+  const reportUserEmail =
+    currentUser?.email ||
+    "";
+
   const rows = [
+    [
+      "Usuário logado",
+      reportUserName,
+      reportUserEmail
+    ],
+    [],
     [
       "Data",
       "Tipo",
@@ -3477,7 +3510,11 @@ function bindEvents() {
   if (entryDate) entryDate.addEventListener("change", renderEntries);
 
   const attendanceDate = document.getElementById("attendanceDate");
-  if (attendanceDate) attendanceDate.addEventListener("change", renderAttendance);
+  if (attendanceDate) {
+    // Atualiza imediatamente ao escolher uma nova data.
+    attendanceDate.addEventListener("change", renderAttendance);
+    attendanceDate.addEventListener("input", renderAttendance);
+  }
 
   const attendanceSearch = document.getElementById("attendanceSearch");
   if (attendanceSearch) attendanceSearch.addEventListener("input", renderAttendance);
