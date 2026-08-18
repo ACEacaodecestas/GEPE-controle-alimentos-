@@ -1,38 +1,31 @@
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
-// V7 + SUPABASE AUTH + BANCO COMPARTILHADO
+// V7 + SUPABASE AUTH
 // ============================================================
 
 // ============================================================
 // 1. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 
-const SUPABASE_URL =
-  "https://jblyzktbngvjqgvejgsa.supabase.co";
+const SUPABASE_URL = "https://jblyzktbngvjqgvejgsa.supabase.co";
 
-const SUPABASE_PUBLISHABLE_KEY =
-  "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
+// COLE AQUI A SUA SUPABASE PUBLISHABLE KEY
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
 
-const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
-  );
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
 
 
 // ============================================================
-// 2. CONFIGURAÇÕES
+// 2. BANCO LOCAL TEMPORÁRIO
 // ============================================================
 
-const KEY =
-  "controle_alimentos_v1";
+const KEY = "controle_alimentos_v1";
 
 const DEFAULT = {
-
-  origins: [
-    "Piedade",
-    "Água Fria"
-  ],
+  origins: ["Piedade", "Água Fria"],
 
   reasons: [
     "Gorgulho",
@@ -65,13 +58,11 @@ const DEFAULT = {
     ["Stefania Márcia Câmara Monteiro", "44134"],
     ["José Airton Martins Filho", "44051"],
     ["André Settinieri", "42705"]
-  ].map(
-    ([name, registration]) => ({
-      id: uid(),
-      name,
-      registration
-    })
-  )
+  ].map(([name, registration]) => ({
+    id: uid(),
+    name,
+    registration
+  }))
 };
 
 
@@ -90,1302 +81,1090 @@ let appStarted = false;
 // ============================================================
 
 function uid() {
-
-  if (
-    window.crypto &&
-    typeof window.crypto.randomUUID ===
-      "function"
-  ) {
-
-    return window.crypto.randomUUID();
-
-  }
-
-  return (
-    Date.now() +
-    "-" +
-    Math.random()
-      .toString(16)
-      .slice(2)
-  );
-
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : Date.now() + "-" + Math.random().toString(16).slice(2);
 }
 
 
 function isoToday() {
-
-  return new Date()
-    .toISOString()
-    .slice(0, 10);
-
+  return new Date().toISOString().slice(0, 10);
 }
-
-
-// ============================================================
-// ID NUMÉRICO
-// IMPORTANTE:
-// As tabelas do Supabase usam int8.
-// Portanto NÃO usamos UUID para os IDs das tabelas.
-// ============================================================
 
 let numericIdCounter = 0;
 
-
 function newNumericId() {
-
-  numericIdCounter =
-    (numericIdCounter + 1) %
-    1000;
-
-  return (
-    Date.now() * 1000 +
-    numericIdCounter
-  );
-
+  numericIdCounter = (numericIdCounter + 1) % 1000;
+  return Date.now() * 1000 + numericIdCounter;
 }
-
-
-// ============================================================
-// MOTIVOS
-// CONTINUAM LOCAIS COMO NA V7.
-// NÃO CRIAMOS TABELA MOTIVOS.
-// ============================================================
 
 function reasonsStorageKey() {
+  return `controle_alimentos_motivos_${currentUser?.id || "anon"}`;
+}
 
-  return (
-    "controle_alimentos_motivos_" +
-    (currentUser?.id || "anon")
+function loadLocalReasons() {
+  const defaults = DEFAULT.reasons.map(name => ({ id: name, name }));
+  try {
+    const raw = localStorage.getItem(reasonsStorageKey());
+    const saved = raw ? JSON.parse(raw) : [];
+    const names = new Map();
+    [...defaults, ...(Array.isArray(saved) ? saved : [])].forEach(r => {
+      const name = String(r?.name || "").trim();
+      if (name) names.set(name.toLowerCase(), { id: name, name });
+    });
+    return [...names.values()];
+  } catch (e) {
+    console.warn("Não foi possível carregar os motivos locais:", e);
+    return defaults;
+  }
+}
+
+function saveLocalReasons() {
+  try {
+    localStorage.setItem(reasonsStorageKey(), JSON.stringify(db?.reasons || []));
+  } catch (e) {
+    console.warn("Não foi possível salvar os motivos locais:", e);
+  }
+}
+
+
+async function loadFromSupabase() {
+  if (!currentUser?.id) throw new Error("Usuário não autenticado.");
+
+  const [peopleResult, foodsResult, originsResult, entriesResult, outputsResult, lossesResult, attendanceResult] = await Promise.all([
+    supabaseClient.from("Pessoas").select("*").order("nome"),
+    supabaseClient.from("Alimentos").select("*").order("nome"),
+    supabaseClient.from("origens").select("*").order("nome"),
+    supabaseClient.from("entradas").select("*").order("data_entrada", { ascending: false }),
+    supabaseClient.from("saídas").select("*").order("data_saida", { ascending: false }),
+    supabaseClient.from("perdas").select("*").order("data_perda", { ascending: false }),
+    supabaseClient.from("presença").select("*").order("data", { ascending: false })
+  ]);
+
+  const failed = [["Pessoas", peopleResult], ["Alimentos", foodsResult], ["origens", originsResult], ["entradas", entriesResult], ["saídas", outputsResult], ["perdas", lossesResult], ["presença", attendanceResult]].find(([, r]) => r.error);
+  if (failed) {
+    const err = failed[1].error;
+    throw new Error(`Falha ao carregar a tabela ${failed[0]}: ${err?.message || "erro desconhecido"}`);
+  }
+
+  const people = peopleResult.data || [];
+  const foods = foodsResult.data || [];
+  const origins = originsResult.data || [];
+  const entries = entriesResult.data || [];
+  const outputs = outputsResult.data || [];
+  const losses = lossesResult.data || [];
+  const attendanceRows = attendanceResult.data || [];
+  const reasons = loadLocalReasons();
+
+  const dbSupabase = {
+    people: people.map(p => ({ id: Number(p.id), name: p.nome, registration: p["matrícula"] ?? p.matricula ?? "" })),
+    foods: foods.map(f => ({ id: Number(f.id), name: f.nome })),
+    origins: origins.map(o => ({ id: Number(o.id), name: o.nome })),
+    entries: entries.map(e => ({
+      id: Number(e.id), date: e.data_entrada, foodId: Number(e.alimento_id), qty: Number(e.quantidade || 0), originId: Number(e.origem_id), note: e.observacao || e.obs || "", createdAt: e.created_at || `${e.data_entrada || isoToday()}T00:00:00Z`
+    })),
+    movements: [
+      ...outputs.map(s => ({
+        id: `saida-${s.id}`, rawId: Number(s.id), sourceTable: "saídas", date: s.data_saida, type: "saida", foodId: Number(s.alimento_id), qty: Number(s.quantidade || 0), originId: Number(s.origem_id), reasonId: null, note: s.destino || s.observacao || "", createdAt: s.created_at || `${s.data_saida || isoToday()}T00:00:00Z`
+      })),
+      ...losses.map(p => ({
+        id: `perda-${p.id}`, rawId: Number(p.id), sourceTable: "perdas", date: p.data_perda, type: "perda", foodId: Number(p.alimento_id), qty: Number(p.quantidade || 0), originId: Number(p.origem_id), reasonId: reasons.find(r => r.name.toLowerCase() === String(p.motivo || "").toLowerCase())?.id || p.motivo || null, note: p.observacao || p.obs || "", createdAt: p.created_at || `${p.data_perda || isoToday()}T00:00:00Z`
+      }))
+    ],
+    attendance: {},
+    reasons
+  };
+
+  attendanceRows.forEach(row => {
+    if (!dbSupabase.attendance[row.data]) dbSupabase.attendance[row.data] = [];
+    if (row.present && row.pessoa_id != null) {
+      const id = Number(row.pessoa_id);
+      if (!dbSupabase.attendance[row.data].includes(id)) dbSupabase.attendance[row.data].push(id);
+    }
+  });
+
+  return dbSupabase;
+}
+
+
+function save() {
+  // Compatibilidade com a estrutura antiga.
+  // O banco oficial agora é o Supabase; não usamos localStorage para dados.
+  return true;
+}
+
+
+async function reloadFromSupabase(showToast = false) {
+  db = await loadFromSupabase();
+  renderAll();
+  if (showToast) toast("Dados atualizados do Supabase.");
+}
+
+
+function getCurrentUserId() {
+  if (!currentUser?.id) {
+    throw new Error("Usuário não autenticado.");
+  }
+  return currentUser.id;
+}
+
+
+async function insertPerson(name, registration) {
+  const id = newNumericId();
+  const { error } = await supabaseClient.from("Pessoas").insert({ id, nome: name, "matrícula": registration, ativo: true, usuario_id: getCurrentUserId() });
+  if (error) throw error;
+  return id;
+}
+
+async function insertFood(name) {
+  const id = newNumericId();
+  const { error } = await supabaseClient.from("Alimentos").insert({ id, nome: name, unidade: "unidade", ativo: true, usuario_id: getCurrentUserId() });
+  if (error) throw error;
+  return id;
+}
+
+async function insertOrigin(name) {
+  const id = newNumericId();
+  const { error } = await supabaseClient.from("origens").insert({ id, nome: name, ativo: true, usuario_id: getCurrentUserId() });
+  if (error) throw error;
+  return id;
+}
+
+async function insertEntry({ date, originId, foodId, qty }) {
+  const { error } = await supabaseClient.from("entradas").insert({
+    id: newNumericId(), data_entrada: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), usuario_id: getCurrentUserId()
+  });
+  if (error) throw error;
+}
+
+async function insertMovement({ date, type, originId, foodId, qty, reasonId, note }) {
+  const userId = getCurrentUserId();
+  if (type === "saida") {
+    const { error } = await supabaseClient.from("saídas").insert({
+      id: newNumericId(), data_saida: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), destino: note || "", usuario_id: userId
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const reasonName = db.reasons.find(r => r.id === reasonId)?.name || reasonId || "Outro";
+  const { error } = await supabaseClient.from("perdas").insert({
+    id: newNumericId(), data_perda: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), motivo: reasonName, usuario_id: userId
+  });
+  if (error) throw error;
+}
+
+async function deletePerson(id) {
+  const { error } = await supabaseClient.from("Pessoas").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteFood(id) {
+  const { error } = await supabaseClient.from("Alimentos").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteOrigin(id) {
+  const { error } = await supabaseClient.from("origens").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteReasonLocalOnly(id) {
+  db.reasons = db.reasons.filter(x => x.id !== id);
+  saveLocalReasons();
+}
+
+async function deleteEntry(id) {
+  const { error } = await supabaseClient.from("entradas").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteMovement(id) {
+  const movement = db.movements.find(x => x.id === id);
+  if (!movement?.rawId || !movement.sourceTable) throw new Error("Não foi possível identificar a movimentação no Supabase.");
+  const { error } = await supabaseClient.from(movement.sourceTable).delete().eq("id", Number(movement.rawId));
+  if (error) throw error;
+}
+
+async function setAttendance(date, personId, present) {
+  const table = supabaseClient.from("presença");
+  const { data: existing, error: findError } = await table.select("id").eq("data", date).eq("pessoa_id", Number(personId)).limit(1);
+  if (findError) throw findError;
+
+  if (present) {
+    if (!existing?.length) {
+      const { error } = await table.insert({ id: newNumericId(), data: date, pessoa_id: Number(personId), present: true, usuario_id: getCurrentUserId() });
+      if (error) throw error;
+    }
+    return;
+  }
+
+  const { error } = await table.delete().eq("data", date).eq("pessoa_id", Number(personId));
+  if (error) throw error;
+}
+
+async function deleteCadastro(key, id) {
+  if (key === "people") return deletePerson(id);
+  if (key === "foods") return deleteFood(id);
+  if (key === "origins") return deleteOrigin(id);
+  if (key === "reasons") return deleteReasonLocalOnly(id);
+  throw new Error("Cadastro desconhecido.");
+}
+
+function esc(s) {
+
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
   );
 
 }
 
 
-function loadLocalReasons() {
+function fmt(n) {
 
-  const defaults =
-    DEFAULT.reasons.map(
-      name => ({
-        id: name,
-        name
-      })
-    );
+  return Number(n || 0).toLocaleString(
+    "pt-BR",
+    {
+      maximumFractionDigits: 2
+    }
+  );
+
+}
+
+
+function fmtDate(d) {
+
+  return d
+    ? new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
+    : "";
+
+}
+
+
+function getName(arr, id) {
+
+  return arr.find(x => x.id === id)?.name || "—";
+
+}
+
+
+function toast(msg) {
+
+  const el = document.getElementById("toast");
+
+  if (!el) return;
+
+  el.textContent = msg;
+
+  el.classList.add("show");
+
+  clearTimeout(window._toast);
+
+  window._toast = setTimeout(
+    () => el.classList.remove("show"),
+    2400
+  );
+
+}
+
+
+// ============================================================
+// 5. TELA DE LOGIN
+// ============================================================
+
+function createLoginScreen() {
+
+  if (document.getElementById("loginScreen")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "loginStyle";
+
+  style.textContent = `
+
+    #loginScreen{
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:
+        linear-gradient(
+          135deg,
+          #0b3a63 0%,
+          #075486 55%,
+          #0b3a63 100%
+        );
+    }
+
+    .login-box{
+      width:min(420px,100%);
+      background:#fff;
+      border-radius:20px;
+      padding:30px;
+      box-shadow:0 20px 60px rgba(0,0,0,.28);
+    }
+
+    .login-logo{
+      text-align:center;
+      margin-bottom:18px;
+    }
+
+    .login-logo img{
+      width:150px;
+      max-width:70%;
+      height:auto;
+    }
+
+    .login-title{
+      text-align:center;
+      color:#0b3a63;
+      font-size:27px;
+      font-weight:900;
+      margin:5px 0;
+    }
+
+    .login-subtitle{
+      text-align:center;
+      color:#667085;
+      font-size:14px;
+      margin-bottom:25px;
+    }
+
+    .login-box label{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin-bottom:14px;
+      font-size:13px;
+      font-weight:800;
+      color:#344054;
+    }
+
+    .login-box input{
+      width:100%;
+      padding:13px;
+      border:1px solid #d9e1e8;
+      border-radius:10px;
+      font-size:15px;
+      outline:none;
+      box-sizing:border-box;
+    }
+
+    .login-box input:focus{
+      border-color:#1467a8;
+      box-shadow:0 0 0 3px rgba(20,103,168,.12);
+    }
+
+    .login-button{
+      width:100%;
+      padding:13px;
+      margin-top:8px;
+      border:0;
+      border-radius:10px;
+      background:#0b3a63;
+      color:#fff;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+
+    .login-button:hover{
+      filter:brightness(1.08);
+    }
+
+    .login-button:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+
+    .login-error{
+      display:none;
+      margin-top:14px;
+      padding:11px;
+      border-radius:9px;
+      background:#fdeceb;
+      color:#b42318;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .login-error.show{
+      display:block;
+    }
+
+    .login-loading{
+      text-align:center;
+      color:#667085;
+      font-size:13px;
+      margin-top:12px;
+    }
+
+    .user-bar{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-left:auto;
+    }
+
+    .user-email{
+      font-size:12px;
+      opacity:.9;
+    }
+
+    .logout-btn{
+      border:1px solid rgba(255,255,255,.35);
+      background:rgba(255,255,255,.12);
+      color:#fff;
+      border-radius:8px;
+      padding:8px 11px;
+      cursor:pointer;
+      font-weight:800;
+    }
+
+    .logout-btn:hover{
+      background:rgba(255,255,255,.22);
+    }
+
+    @media(max-width:700px){
+
+      .login-box{
+        padding:24px 20px;
+      }
+
+      .login-title{
+        font-size:24px;
+      }
+
+      .user-email{
+        display:none;
+      }
+
+    }
+
+  `;
+
+  document.head.appendChild(style);
+
+
+  const login = document.createElement("div");
+
+  login.id = "loginScreen";
+
+  login.innerHTML = `
+
+    <div class="login-box">
+
+      <div class="login-logo">
+        <img src="ace-cesta.png" alt="ACE">
+      </div>
+
+      <div class="login-title">
+        ACE Ação de Cestas
+      </div>
+
+      <div class="login-subtitle">
+        Controle de Alimentos
+      </div>
+
+      <form id="loginForm">
+
+        <label>
+          E-mail
+          <input
+            id="loginEmail"
+            type="email"
+            placeholder="Digite seu e-mail"
+            autocomplete="username"
+            required
+          >
+        </label>
+
+        <label>
+          Senha
+          <input
+            id="loginPassword"
+            type="password"
+            placeholder="Digite sua senha"
+            autocomplete="current-password"
+            required
+          >
+        </label>
+
+        <button
+          id="loginButton"
+          class="login-button"
+          type="submit"
+        >
+          🔐 Entrar
+        </button>
+
+        <div
+          id="loginError"
+          class="login-error"
+        ></div>
+
+        <div
+          id="loginLoading"
+          class="login-loading"
+        ></div>
+
+      </form>
+
+    </div>
+
+  `;
+
+  document.body.appendChild(login);
+
+
+  document
+    .getElementById("loginForm")
+    .addEventListener("submit", loginUser);
+
+}
+
+
+async function loginUser(e) {
+
+  e.preventDefault();
+
+  const email =
+    document.getElementById("loginEmail").value.trim();
+
+  const password =
+    document.getElementById("loginPassword").value;
+
+  const button =
+    document.getElementById("loginButton");
+
+  const error =
+    document.getElementById("loginError");
+
+  const loading =
+    document.getElementById("loginLoading");
+
+
+  error.classList.remove("show");
+
+  error.textContent = "";
+
+  button.disabled = true;
+
+  button.textContent = "Entrando...";
+
+  loading.textContent = "Autenticando...";
 
 
   try {
 
-    const raw =
-      localStorage.getItem(
-        reasonsStorageKey()
-      );
+    const { data, error: authError } =
+      await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
 
 
-    const saved =
-      raw
-        ? JSON.parse(raw)
-        : [];
+    if (authError) {
+      throw authError;
+    }
 
 
-    const names =
-      new Map();
+    currentUser = data.user;
+
+    document
+      .getElementById("loginScreen")
+      .remove();
+
+    initApp();
+
+  } catch (err) {
+
+    console.error(err);
+
+    error.textContent =
+      traduzirErroLogin(err);
+
+    error.classList.add("show");
+
+    button.disabled = false;
+
+    button.textContent = "🔐 Entrar";
+
+    loading.textContent = "";
+
+  }
+
+}
 
 
-    [
-      ...defaults,
-      ...(Array.isArray(saved)
-        ? saved
-        : [])
-    ].forEach(r => {
+function traduzirErroLogin(err) {
 
-      const name =
-        String(
-          r?.name || ""
-        ).trim();
+  const msg = String(
+    err?.message || ""
+  ).toLowerCase();
 
 
-      if (name) {
+  if (
+    msg.includes("invalid login credentials")
+  ) {
+    return "E-mail ou senha incorretos.";
+  }
 
-        names.set(
-          name.toLowerCase(),
-          {
-            id: name,
-            name
-          }
-        );
 
-      }
+  if (
+    msg.includes("email not confirmed")
+  ) {
+    return "Este e-mail ainda não foi confirmado.";
+  }
+
+
+  if (
+    msg.includes("too many requests")
+  ) {
+    return "Muitas tentativas. Aguarde um pouco e tente novamente.";
+  }
+
+
+  if (!msg) {
+    return "Não foi possível realizar o login.";
+  }
+
+
+  return err.message;
+
+}
+
+
+// ============================================================
+// 6. CONTROLE DO USUÁRIO LOGADO
+// ============================================================
+
+function addUserBar() {
+
+  const header =
+    document.querySelector(".ace-header-v6");
+
+  if (!header || !currentUser) {
+    return;
+  }
+
+
+  if (document.getElementById("userBar")) {
+    return;
+  }
+
+
+  const bar = document.createElement("div");
+
+  bar.id = "userBar";
+
+  bar.className = "user-bar";
+
+
+  bar.innerHTML = `
+
+    <span class="user-email">
+      ${esc(currentUser.email)}
+    </span>
+
+    <button
+      id="logoutBtn"
+      class="logout-btn"
+      type="button"
+    >
+      🚪 Sair
+    </button>
+
+  `;
+
+
+  header.appendChild(bar);
+
+
+  document
+    .getElementById("logoutBtn")
+    .addEventListener(
+      "click",
+      logoutUser
+    );
+
+}
+
+
+async function logoutUser() {
+
+  const ok =
+    confirm("Deseja sair do sistema?");
+
+  if (!ok) return;
+
+
+  const { error } =
+    await supabaseClient.auth.signOut();
+
+
+  if (error) {
+
+    console.error(error);
+
+    toast("Não foi possível sair.");
+
+    return;
+
+  }
+
+
+  location.reload();
+
+}
+
+
+// ============================================================
+// 7. SELECTS
+// ============================================================
+
+function populateSelect(
+  id,
+  arr,
+  placeholder = "Selecione..."
+) {
+
+  const el =
+    document.getElementById(id);
+
+  if (!el) return;
+
+
+  el.innerHTML =
+    `<option value="">${placeholder}</option>` +
+    arr
+      .map(
+        x =>
+          `<option value="${x.id}">
+            ${esc(x.name)}
+          </option>`
+      )
+      .join("");
+
+}
+
+
+function setDates() {
+
+  [
+    "entryDate",
+    "movementDate",
+    "dashboardDate",
+    "attendanceDate"
+  ].forEach(id => {
+
+    const e =
+      document.getElementById(id);
+
+    if (e) {
+      e.value = isoToday();
+    }
+
+  });
+
+
+  const start =
+    document.getElementById("reportStart");
+
+  const end =
+    document.getElementById("reportEnd");
+
+
+  if (start) {
+    start.value = isoToday();
+  }
+
+
+  if (end) {
+    end.value = isoToday();
+  }
+
+}
+
+
+function refreshSelects() {
+
+  populateSelect(
+    "entryOrigin",
+    db.origins
+  );
+
+  populateSelect(
+    "movementOrigin",
+    db.origins
+  );
+
+  populateSelect(
+    "entryFood",
+    db.foods
+  );
+
+  populateSelect(
+    "movementFood",
+    db.foods
+  );
+
+  populateSelect(
+    "movementReason",
+    db.reasons
+  );
+
+
+  const reportOrigin =
+    document.getElementById(
+      "reportOrigin"
+    );
+
+
+  if (reportOrigin) {
+
+    reportOrigin.innerHTML =
+      '<option value="">Todas</option>' +
+      db.origins
+        .map(
+          x =>
+            `<option value="${x.id}">
+              ${esc(x.name)}
+            </option>`
+        )
+        .join("");
+
+  }
+
+}
+
+
+// ============================================================
+// 8. ESTOQUE
+// ============================================================
+
+function calcStock() {
+
+  const stock = {};
+
+  db.origins.forEach(
+    o => stock[o.id] = {}
+  );
+
+
+  db.foods.forEach(food => {
+
+    db.origins.forEach(origin => {
+
+      stock[origin.id][food.id] = 0;
 
     });
 
-
-    return [
-      ...names.values()
-    ];
+  });
 
 
-  } catch (error) {
+  db.entries.forEach(entry => {
 
-    console.warn(
-      "Erro ao carregar motivos:",
-      error
-    );
+    if (
+      stock[entry.originId] &&
+      stock[entry.originId][entry.foodId] != null
+    ) {
+
+      stock[entry.originId][entry.foodId] +=
+        Number(entry.qty);
+
+    }
+
+  });
 
 
-    return defaults;
+  db.movements.forEach(movement => {
 
-  }
+    if (
+      stock[movement.originId] &&
+      stock[movement.originId][movement.foodId] != null
+    ) {
+
+      stock[movement.originId][movement.foodId] -=
+        Number(movement.qty);
+
+    }
+
+  });
+
+
+  return stock;
 
 }
 
 
-function saveLocalReasons() {
+// ============================================================
+// 9. DASHBOARD
+// ============================================================
 
-  try {
+function renderDashboard() {
 
-    localStorage.setItem(
-      reasonsStorageKey(),
-      JSON.stringify(
-        db?.reasons || []
+  const date =
+    document.getElementById(
+      "dashboardDate"
+    )?.value || isoToday();
+
+
+  const todayLabel =
+    document.getElementById(
+      "todayLabel"
+    );
+
+  if (todayLabel) {
+    todayLabel.textContent =
+      fmtDate(date);
+  }
+
+
+  const ent =
+    db.entries
+      .filter(x => x.date === date)
+      .reduce(
+        (s, x) =>
+          s + Number(x.qty),
+        0
+      );
+
+
+  const sai =
+    db.movements
+      .filter(
+        x =>
+          x.date === date &&
+          x.type === "saida"
       )
-    );
+      .reduce(
+        (s, x) =>
+          s + Number(x.qty),
+        0
+      );
 
 
-  } catch (error) {
-
-    console.warn(
-      "Erro ao salvar motivos:",
-      error
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// 5. CARREGAR BANCO DO SUPABASE
-//
-// ATENÇÃO:
-// NÃO FILTRAMOS PELO usuario_id.
-//
-// O banco é compartilhado.
-// usuario_id serve para saber QUEM fez a operação.
-// ============================================================
-
-async function loadFromSupabase() {
-
-  if (!currentUser?.id) {
-
-    throw new Error(
-      "Usuário não autenticado."
-    );
-
-  }
+  const per =
+    db.movements
+      .filter(
+        x =>
+          x.date === date &&
+          x.type === "perda"
+      )
+      .reduce(
+        (s, x) =>
+          s + Number(x.qty),
+        0
+      );
 
 
-  const [
-    peopleResult,
-    foodsResult,
-    originsResult,
-    entriesResult,
-    outputsResult,
-    lossesResult,
-    attendanceResult
-  ] =
-    await Promise.all([
-
-      supabaseClient
-        .from("Pessoas")
-        .select("*")
-        .order("nome"),
+  const st = calcStock();
 
 
-      supabaseClient
-        .from("Alimentos")
-        .select("*")
-        .order("nome"),
+  const estoque =
+    Object.values(st)
+      .reduce(
+        (a, o) =>
+          a +
+          Object.values(o)
+            .reduce(
+              (x, v) =>
+                x + Number(v),
+              0
+            ),
+        0
+      );
 
 
-      supabaseClient
-        .from("origens")
-        .select("*")
-        .order("nome"),
+  const pres =
+    (db.attendance[date] || [])
+      .filter(Boolean)
+      .length;
 
 
-      supabaseClient
-        .from("entradas")
-        .select("*")
-        .order(
-          "data_entrada",
-          {
-            ascending: false
-          }
-        ),
-
-
-      supabaseClient
-        .from("saídas")
-        .select("*")
-        .order(
-          "data_saida",
-          {
-            ascending: false
-          }
-        ),
-
-
-      supabaseClient
-        .from("perdas")
-        .select("*")
-        .order(
-          "data_perda",
-          {
-            ascending: false
-          }
-        ),
-
-
-      supabaseClient
-        .from("presença")
-        .select("*")
-        .order(
-          "data",
-          {
-            ascending: false
-          }
-        )
-
-    ]);
-
-
-  const results = [
-
-    [
-      "Pessoas",
-      peopleResult
-    ],
-
-    [
-      "Alimentos",
-      foodsResult
-    ],
-
-    [
-      "origens",
-      originsResult
-    ],
-
-    [
-      "entradas",
-      entriesResult
-    ],
-
-    [
-      "saídas",
-      outputsResult
-    ],
-
-    [
-      "perdas",
-      lossesResult
-    ],
-
-    [
-      "presença",
-      attendanceResult
-    ]
-
+  const ids = [
+    ["kpiEntrada", ent],
+    ["kpiSaida", sai],
+    ["kpiPerda", per],
+    ["kpiEstoque", estoque],
+    ["kpiPresentes", pres]
   ];
 
 
-  const failed =
-    results.find(
-      ([, result]) =>
-        result.error
+  ids.forEach(([id, value]) => {
+
+    const el =
+      document.getElementById(id);
+
+    if (el) {
+      el.textContent = fmt(value);
+    }
+
+  });
+
+
+  const originSummary =
+    document.getElementById(
+      "originSummary"
     );
 
 
-  if (failed) {
-
-    const [
-      tableName,
-      result
-    ] = failed;
-
-
-    throw new Error(
-      `Erro ao carregar ${tableName}: ${
-        result.error.message
-      }`
-    );
-
-  }
-
-
-  const people =
-    peopleResult.data || [];
-
-
-  const foods =
-    foodsResult.data || [];
-
-
-  const origins =
-    originsResult.data || [];
-
-
-  const entries =
-    entriesResult.data || [];
-
-
-  const outputs =
-    outputsResult.data || [];
-
-
-  const losses =
-    lossesResult.data || [];
-
-
-  const attendanceRows =
-    attendanceResult.data || [];
-
-
-  const reasons =
-    loadLocalReasons();
-
-
-  // ==========================================================
-  // CONVERTER SUPABASE → FORMATO USADO PELO APP
-  // ==========================================================
-
-  const dbSupabase = {
-
-    people:
-      people.map(
-        p => ({
-
-          id: Number(p.id),
-
-          name:
-            p.nome,
-
-          registration:
-            p["matrícula"] ??
-            p.matricula ??
-            ""
-
-        })
-      ),
-
-
-    foods:
-      foods.map(
-        f => ({
-
-          id: Number(f.id),
-
-          name:
-            f.nome
-
-        })
-      ),
-
-
-    origins:
-      origins.map(
-        o => ({
-
-          id: Number(o.id),
-
-          name:
-            o.nome
-
-        })
-      ),
-
-
-    entries:
-      entries.map(
-        e => ({
-
-          id:
-            Number(e.id),
-
-          date:
-            e.data_entrada,
-
-          foodId:
-            Number(
-              e.alimento_id
-            ),
-
-          qty:
-            Number(
-              e.quantidade || 0
-            ),
-
-          originId:
-            Number(
-              e.origem_id
-            ),
-
-          note:
-            e.observacao ||
-            e.obs ||
-            "",
-
-          createdAt:
-            e.created_at ||
-            `${e.data_entrada || isoToday()}T00:00:00Z`
-
-        })
-      ),
-
-
-    movements: [
-
-      // ------------------------------------------------------
-      // SAÍDAS
-      // ------------------------------------------------------
-
-      ...outputs.map(
-        s => ({
-
-          id:
-            "saida-" +
-            s.id,
-
-          rawId:
-            Number(s.id),
-
-          sourceTable:
-            "saídas",
-
-          date:
-            s.data_saida,
-
-          type:
-            "saida",
-
-          foodId:
-            Number(
-              s.alimento_id
-            ),
-
-          qty:
-            Number(
-              s.quantidade || 0
-            ),
-
-          originId:
-            Number(
-              s.origem_id
-            ),
-
-          reasonId:
-            null,
-
-          note:
-            s.destino ||
-            s.observacao ||
-            "",
-
-          createdAt:
-            s.created_at ||
-            `${s.data_saida || isoToday()}T00:00:00Z`
-
-        })
-      ),
-
-
-      // ------------------------------------------------------
-      // PERDAS
-      // ------------------------------------------------------
-
-      ...losses.map(
-        p => ({
-
-          id:
-            "perda-" +
-            p.id,
-
-          rawId:
-            Number(p.id),
-
-          sourceTable:
-            "perdas",
-
-          date:
-            p.data_perda,
-
-          type:
-            "perda",
-
-          foodId:
-            Number(
-              p.alimento_id
-            ),
-
-          qty:
-            Number(
-              p.quantidade || 0
-            ),
-
-          originId:
-            Number(
-              p.origem_id
-            ),
-
-          reasonId:
-            reasons.find(
-              r =>
-                r.name
-                  .toLowerCase() ===
-                String(
-                  p.motivo || ""
-                ).toLowerCase()
-            )?.id ||
-
-            p.motivo ||
-
-            null,
-
-          note:
-            p.observacao ||
-            p.obs ||
-            "",
-
-          createdAt:
-            p.created_at ||
-            `${p.data_perda || isoToday()}T00:00:00Z`
-
-        })
-      )
-
-    ],
-
-
-    attendance: {},
-
-    reasons
-
-  };
-
-
-  // ==========================================================
-  // PRESENÇA
-  // ==========================================================
-
-  attendanceRows.forEach(
-    row => {
-
-      if (
-        !dbSupabase
-          .attendance[
-            row.data
-          ]
-      ) {
-
-        dbSupabase
-          .attendance[
-            row.data
-          ] = [];
-
-      }
-
-
-      if (
-        row.present &&
-        row.pessoa_id != null
-      ) {
-
-        const personId =
-          Number(
-            row.pessoa_id
-          );
-
-
-        if (
-          !dbSupabase
-            .attendance[
-              row.data
-            ]
-            .includes(
-              personId
-            )
-        ) {
-
-          dbSupabase
-            .attendance[
-              row.data
-            ]
-            .push(
-              personId
+  if (originSummary) {
+
+    originSummary.innerHTML =
+      db.origins
+        .map(o => {
+
+          const total =
+            Object.values(
+              st[o.id] || {}
+            ).reduce(
+              (a, v) =>
+                a + Number(v),
+              0
             );
 
-        }
 
-      }
+          return `
+            <div class="origin-box">
 
-    }
-  );
+              <div class="origin-title">
 
+                <span>
+                  📍 ${esc(o.name)}
+                </span>
 
-  return dbSupabase;
+                <span class="badge">
+                  ${fmt(total)}
+                </span>
 
-}
+              </div>
 
+              <div class="origin-value">
+                ${fmt(total)} itens
+              </div>
 
-// ============================================================
-// COMPATIBILIDADE
-// NÃO USAMOS localStorage COMO BANCO.
-// ============================================================
+            </div>
+          `;
 
-function save() {
-
-  return true;
-
-}
-
-
-// ============================================================
-// RECARREGAR DADOS
-// ============================================================
-
-async function reloadFromSupabase(
-  showToast = false
-) {
-
-  db =
-    await loadFromSupabase();
-
-
-  renderAll();
-
-
-  if (showToast) {
-
-    toast(
-      "Dados atualizados."
-    );
+        })
+        .join("");
 
   }
 
-}
-
-
-// ============================================================
-// USUÁRIO ATUAL
-// ============================================================
-
-function getCurrentUserId() {
-
-  if (!currentUser?.id) {
-
-    throw new Error(
-      "Usuário não autenticado."
-    );
-
-  }
-
-  return currentUser.id;
-
-}
-
-
-// ============================================================
-// CADASTRO DE PESSOA
-// ============================================================
-
-async function insertPerson(
-  name,
-  registration
-) {
-
-  const id =
-    newNumericId();
-
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("Pessoas")
-      .insert({
-
-        id,
-
-        nome:
-          name,
-
-        "matrícula":
-          registration,
-
-        ativo:
-          true,
-
-        usuario_id:
-          getCurrentUserId()
-
-      });
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-// ============================================================
-// CADASTRO DE ALIMENTO
-// ============================================================
-
-async function insertFood(
-  name
-) {
-
-  const id =
-    newNumericId();
-
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("Alimentos")
-      .insert({
-
-        id,
-
-        nome:
-          name,
-
-        unidade:
-          "unidade",
-
-        ativo:
-          true,
-
-        usuario_id:
-          getCurrentUserId()
-
-      });
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-// ============================================================
-// CADASTRO DE ORIGEM
-// ============================================================
-
-async function insertOrigin(
-  name
-) {
-
-  const id =
-    newNumericId();
-
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("origens")
-      .insert({
-
-        id,
-
-        nome:
-          name,
-
-        ativo:
-          true,
-
-        usuario_id:
-          getCurrentUserId()
-
-      });
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-// ============================================================
-// ENTRADA
-// ============================================================
-
-async function insertEntry({
-  date,
-  originId,
-  foodId,
-  qty
-}) {
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("entradas")
-      .insert({
-
-        id:
-          newNumericId(),
-
-        data_entrada:
-          date,
-
-        alimento_id:
-          Number(foodId),
-
-        quantidade:
-          Number(qty),
-
-        origem_id:
-          Number(originId),
-
-        usuario_id:
-          getCurrentUserId()
-
-      });
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-// ============================================================
-// SAÍDA / PERDA
-// ============================================================
-
-async function insertMovement({
-  date,
-  type,
-  originId,
-  foodId,
-  qty,
-  reasonId,
-  note
-}) {
-
-  const userId =
-    getCurrentUserId();
-
-
-  // ----------------------------------------------------------
-  // SAÍDA
-  // ----------------------------------------------------------
-
-  if (
-    type === "saida"
-  ) {
-
-    const {
-      error
-    } =
-      await supabaseClient
-        .from("saídas")
-        .insert({
-
-          id:
-            newNumericId(),
-
-          data_saida:
-            date,
-
-          alimento_id:
-            Number(foodId),
-
-          quantidade:
-            Number(qty),
-
-          origem_id:
-            Number(originId),
-
-          destino:
-            note || "",
-
-          usuario_id:
-            userId
-
-        });
-
-
-    if (error) {
-
-      throw error;
-
-    }
-
-
-    return;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // PERDA
-  // ----------------------------------------------------------
-
-  const reasonName =
-    db.reasons.find(
-      r =>
-        r.id === reasonId
-    )?.name ||
-
-    reasonId ||
-
-    "Outro";
-
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("perdas")
-      .insert({
-
-        id:
-          newNumericId(),
-
-        data_perda:
-          date,
-
-        alimento_id:
-          Number(foodId),
-
-        quantidade:
-          Number(qty),
-
-        origem_id:
-          Number(originId),
-
-        motivo:
-          reasonName,
-
-        usuario_id:
-          userId
-
-      });
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-// ============================================================
-// EXCLUSÕES
-// ============================================================
-
-async function deletePerson(
-  id
-) {
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("Pessoas")
-      .delete()
-      .eq(
-        "id",
-        Number(id)
-      );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-async function deleteFood(
-  id
-) {
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("Alimentos")
-      .delete()
-      .eq(
-        "id",
-        Number(id)
-      );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-async function deleteOrigin(
-  id
-) {
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("origens")
-      .delete()
-      .eq(
-        "id",
-        Number(id)
-      );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-async function deleteEntry(
-  id
-) {
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from("entradas")
-      .delete()
-      .eq(
-        "id",
-        Number(id)
-      );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-async function deleteMovement(
-  id
-) {
-
-  const movement =
-    db.movements.find(
-      x =>
-        x.id === id
-    );
-
-
-  if (
-    !movement?.rawId ||
-    !movement.sourceTable
-  ) {
-
-    throw new Error(
-      "Não foi possível identificar a movimentação."
-    );
-
-  }
-
-
-  const {
-    error
-  } =
-    await supabaseClient
-      .from(
-        movement.sourceTable
-      )
-      .delete()
-      .eq(
-        "id",
-        Number(
-          movement.rawId
-        )
-      );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-
-
-// ============================================================
-// MOTIVOS — SOMENTE LOCAL
-// ============================================================
-
-async function deleteReasonLocalOnly(
-  id
-) {
-
-  db.reasons =
-    db.reasons.filter(
-      x =>
-        x.id !== id
-    );
-
-
-  saveLocalReasons();
-
-}
-
-
-// ============================================================
-// PRESENÇA
-// ============================================================
-
-async function setAttendance(
-  date,
-  personId,
-  present
-) {
-
-  const table =
-    supabaseClient
-      .from("presença");
-
-
-  const {
-    data: existing,
-    error: findError
-  } =
-    await table
-      .select("id")
-      .eq(
-        "data",
-        date
-      )
-      .eq(
-        "pessoa_id",
-        Number(personId)
-      )
-      .limit(1);
-
-
-  if (findError) {
-
-    throw findError;
-
-  }
-
-
-  if (present) {
-
-    if (
-      !existing?.length
-    ) {
-
-      const {
-        error
-      } =
-        await table
-          .insert({
-
-            id:
-              newNumericId(),
-
-            data:
-              date,
-
-            pessoa_id:
-              Number(
-                personId
-              ),
-
-            present:
-              true,
-
-            usuario_id:
-              getCurrentUserId()
-
-          });
-
-
-      if (error) {
-
-        throw error;
-
-      }
-
-    }
-
-
-    return;
-
-  }
-
-
-  const {
-    error
-  } =
-    await table
-      .delete()
-      .eq(
-        "pessoa_id",
-        Number(personId)
-      )
-      .eq(
-        "data",
-        date
-      );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-}
-// ============================================================
-// PARTE 2/5
-// CONTINUAÇÃO DO ARQUIVO ORIGINAL
-// ============================================================
-
-
-// ============================================================
-// 9. DASHBOARD — CONTINUAÇÃO
-// ============================================================
 
   const recent =
     document.getElementById(
@@ -1397,123 +1176,78 @@ async function setAttendance(
 
     const all = [
 
-      ...db.entries.map(
-        x => ({
+      ...db.entries.map(x => ({
+        ...x,
+        kind: "Entrada",
+        sign: "+",
+        color: "green"
+      })),
 
-          ...x,
-
-          kind:
-            "Entrada",
-
-          sign:
-            "+",
-
-          color:
-            "green"
-
-        })
-      ),
-
-
-      ...db.movements.map(
-        x => ({
-
-          ...x,
-
-          kind:
-            x.type === "perda"
-              ? "Perda"
-              : "Saída",
-
-          sign:
-            "-",
-
-          color:
-            x.type === "perda"
-              ? "red"
-              : "blue"
-
-        })
-      )
+      ...db.movements.map(x => ({
+        ...x,
+        kind:
+          x.type === "perda"
+            ? "Perda"
+            : "Saída",
+        sign: "-",
+        color:
+          x.type === "perda"
+            ? "red"
+            : "blue"
+      }))
 
     ]
       .sort(
         (a, b) =>
-          (
-            b.createdAt ||
-            ""
-          ).localeCompare(
-            a.createdAt ||
-            ""
-          )
+          (b.createdAt || "")
+            .localeCompare(
+              a.createdAt || ""
+            )
       )
-      .slice(
-        0,
-        8
-      );
+      .slice(0, 8);
 
 
     recent.innerHTML =
-
       all.length
 
-        ? all
-            .map(
-              x => `
+        ? all.map(x => `
 
-                <div class="recent-item">
+            <div class="recent-item">
 
-                  <b>
+              <b>
+                ${x.sign}
+                ${fmt(x.qty)}
+                —
+                ${esc(
+                  getName(
+                    db.foods,
+                    x.foodId
+                  )
+                )}
+              </b>
 
-                    ${x.sign}
+              <small>
+                ${x.kind}
+                •
+                ${esc(
+                  getName(
+                    db.origins,
+                    x.originId
+                  )
+                )}
+                •
+                ${fmtDate(x.date)}
+              </small>
 
-                    ${fmt(x.qty)}
-
-                    —
-
-                    ${esc(
-                      getName(
-                        db.foods,
-                        x.foodId
-                      )
-                    )}
-
-                  </b>
-
-                  <small>
-
-                    ${x.kind}
-
-                    •
-
-                    ${esc(
-                      getName(
-                        db.origins,
-                        x.originId
-                      )
-                    )}
-
-                    •
-
-                    ${fmtDate(
-                      x.date
-                    )}
-
-                  </small>
-
-                </div>
-
-              `
-            )
-            .join("")
-
-        : `
-
-            <div class="empty">
-              Nenhum lançamento ainda.
             </div>
 
-          `;
+          `).join("")
+
+        : `
+          <div class="empty">
+            Nenhum lançamento ainda.
+          </div>
+        `;
 
   }
 
@@ -1529,24 +1263,18 @@ function renderEntries() {
   const date =
     document.getElementById(
       "entryDate"
-    )?.value ||
-    isoToday();
+    )?.value || isoToday();
 
 
   const arr =
     db.entries
       .filter(
-        x =>
-          x.date === date
+        x => x.date === date
       )
       .sort(
         (a, b) =>
-          (
-            b.createdAt ||
-            ""
-          ).localeCompare(
-            a.createdAt ||
-            ""
+          b.createdAt.localeCompare(
+            a.createdAt
           )
       );
 
@@ -1554,10 +1282,7 @@ function renderEntries() {
   const total =
     arr.reduce(
       (s, x) =>
-        s +
-        Number(
-          x.qty
-        ),
+        s + Number(x.qty),
       0
     );
 
@@ -1569,10 +1294,8 @@ function renderEntries() {
 
 
   if (totalEl) {
-
     totalEl.textContent =
       `Total: ${fmt(total)}`;
-
   }
 
 
@@ -1585,26 +1308,15 @@ function renderEntries() {
   if (tableEl) {
 
     tableEl.innerHTML =
-
       table(
-
         arr,
-
         [
-
           [
             "Data",
-
-            x =>
-              fmtDate(
-                x.date
-              )
-
+            x => fmtDate(x.date)
           ],
-
           [
             "Origem",
-
             x =>
               esc(
                 getName(
@@ -1612,12 +1324,9 @@ function renderEntries() {
                   x.originId
                 )
               )
-
           ],
-
           [
             "Alimento",
-
             x =>
               esc(
                 getName(
@@ -1625,37 +1334,17 @@ function renderEntries() {
                   x.foodId
                 )
               )
-
           ],
-
           [
             "Qtd",
-
-            x =>
-              fmt(
-                x.qty
-              )
-
+            x => fmt(x.qty)
           ],
-
           [
             "Obs.",
-
-            x =>
-              esc(
-                x.note ||
-                ""
-              )
-
+            x => esc(x.note || "")
           ]
-
         ],
-
-        x =>
-          removeEntry(
-            x.id
-          )
-
+        x => removeEntry(x.id)
       );
 
   }
@@ -1674,12 +1363,8 @@ function renderMovements() {
       .slice()
       .sort(
         (a, b) =>
-          (
-            b.createdAt ||
-            ""
-          ).localeCompare(
-            a.createdAt ||
-            ""
+          b.createdAt.localeCompare(
+            a.createdAt
           )
       );
 
@@ -1690,55 +1375,36 @@ function renderMovements() {
     );
 
 
-  if (!el) {
-
-    return;
-
-  }
+  if (!el) return;
 
 
   el.innerHTML =
-
     table(
-
       arr,
-
       [
-
         [
           "Data",
-
-          x =>
-            fmtDate(
-              x.date
-            )
-
+          x => fmtDate(x.date)
         ],
 
         [
           "Tipo",
-
           x =>
-
             `<span class="pill ${
               x.type === "perda"
                 ? "red"
                 : "blue"
             }">
-
               ${
                 x.type === "perda"
                   ? "Perda"
                   : "Saída"
               }
-
             </span>`
-
         ],
 
         [
           "Origem",
-
           x =>
             esc(
               getName(
@@ -1746,12 +1412,10 @@ function renderMovements() {
                 x.originId
               )
             )
-
         ],
 
         [
           "Alimento",
-
           x =>
             esc(
               getName(
@@ -1759,22 +1423,15 @@ function renderMovements() {
                 x.foodId
               )
             )
-
         ],
 
         [
           "Qtd",
-
-          x =>
-            fmt(
-              x.qty
-            )
-
+          x => fmt(x.qty)
         ],
 
         [
           "Motivo",
-
           x =>
             esc(
               getName(
@@ -1782,594 +1439,37 @@ function renderMovements() {
                 x.reasonId
               )
             )
-
         ],
 
         [
           "Obs.",
-
           x =>
-            esc(
-              x.note ||
-              ""
-            )
-
+            esc(x.note || "")
         ]
 
       ],
-
-      x =>
-        removeMovement(
-          x.id
-        )
-
+      x => removeMovement(x.id)
     );
 
 }
 
 
 // ============================================================
-// 12. ESTOQUE
-// ============================================================
-
-function renderStock() {
-
-  const st =
-    calcStock();
-
-
-  const el =
-    document.getElementById(
-      "stockTable"
-    );
-
-
-  if (!el) {
-
-    return;
-
-  }
-
-
-  const rows = [];
-
-
-  db.origins.forEach(
-    origin => {
-
-      db.foods.forEach(
-        food => {
-
-          const qty =
-            Number(
-              st[
-                Number(
-                  origin.id
-                )
-              ]?.[
-                Number(
-                  food.id
-                )
-              ] || 0
-            );
-
-
-          rows.push({
-
-            origin,
-            food,
-            qty
-
-          });
-
-        }
-      );
-
-    }
-  );
-
-
-  el.innerHTML =
-
-    table(
-
-      rows,
-
-      [
-
-        [
-          "Origem",
-
-          x =>
-            esc(
-              x.origin.name
-            )
-
-        ],
-
-        [
-          "Alimento",
-
-          x =>
-            esc(
-              x.food.name
-            )
-
-        ],
-
-        [
-          "Estoque",
-
-          x =>
-            fmt(
-              x.qty
-            )
-
-        ]
-
-      ]
-
-    );
-
-}
-
-
-// ============================================================
-// 13. PRESENÇA
-// ============================================================
-
-function renderAttendance() {
-
-  const date =
-    document.getElementById(
-      "attendanceDate"
-    )?.value ||
-    isoToday();
-
-
-  const search =
-    String(
-      document.getElementById(
-        "attendanceSearch"
-      )?.value ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
-
-  const presentIds =
-    new Set(
-      (
-        db.attendance[
-          date
-        ] || []
-      )
-        .map(
-          Number
-        )
-    );
-
-
-  const people =
-    db.people
-      .filter(
-        p => {
-
-          if (!search) {
-
-            return true;
-
-          }
-
-
-          return (
-
-            String(
-              p.name
-            )
-              .toLowerCase()
-              .includes(
-                search
-              ) ||
-
-            String(
-              p.registration
-            )
-              .toLowerCase()
-              .includes(
-                search
-              )
-
-          );
-
-        }
-      );
-
-
-  const el =
-    document.getElementById(
-      "attendanceTable"
-    );
-
-
-  if (!el) {
-
-    return;
-
-  }
-
-
-  el.innerHTML =
-
-    people.length
-
-      ? people
-          .map(
-            p => {
-
-              const id =
-                Number(
-                  p.id
-                );
-
-
-              const present =
-                presentIds.has(
-                  id
-                );
-
-
-              return `
-
-                <div class="attendance-row">
-
-                  <div>
-
-                    <strong>
-                      ${esc(
-                        p.name
-                      )}
-                    </strong>
-
-                    <small>
-                      Matrícula:
-                      ${esc(
-                        p.registration
-                      )}
-                    </small>
-
-                  </div>
-
-
-                  <button
-
-                    type="button"
-
-                    class="attendance-btn ${
-                      present
-                        ? "present"
-                        : ""
-                    }"
-
-                    data-person-id="${id}"
-
-                    data-present="${
-                      present
-                    }"
-
-                  >
-
-                    ${
-                      present
-                        ? "✓ Presente"
-                        : "Marcar presença"
-                    }
-
-                  </button>
-
-                </div>
-
-              `;
-
-            }
-          )
-          .join("")
-
-      : `
-
-          <div class="empty">
-
-            Nenhuma pessoa encontrada.
-
-          </div>
-
-        `;
-
-
-  el
-    .querySelectorAll(
-      ".attendance-btn"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-
-          "click",
-
-          async () => {
-
-            const personId =
-              Number(
-                button.dataset
-                  .personId
-              );
-
-
-            const isPresent =
-              button.dataset
-                .present ===
-              "true";
-
-
-            button.disabled =
-              true;
-
-
-            try {
-
-              await setAttendance(
-
-                date,
-
-                personId,
-
-                !isPresent
-
-              );
-
-
-              await reloadFromSupabase();
-
-
-              renderAttendance();
-
-
-              toast(
-
-                !isPresent
-
-                  ? "Presença registrada."
-
-                  : "Presença removida."
-
-              );
-
-
-            } catch (error) {
-
-              console.error(
-                error
-              );
-
-
-              toast(
-                "Não foi possível registrar a presença."
-              );
-
-
-            } finally {
-
-              button.disabled =
-                false;
-
-            }
-
-          }
-
-        );
-
-      }
-    );
-
-}
-
-
-// ============================================================
-// 14. CADASTROS
-// ============================================================
-
-function renderCadastros() {
-
-  const peopleEl =
-    document.getElementById(
-      "peopleTable"
-    );
-
-
-  if (peopleEl) {
-
-    peopleEl.innerHTML =
-
-      table(
-
-        db.people,
-
-        [
-
-          [
-            "Nome",
-
-            x =>
-              esc(
-                x.name
-              )
-
-          ],
-
-          [
-            "Matrícula",
-
-            x =>
-              esc(
-                x.registration
-              )
-
-          ]
-
-        ],
-
-        x =>
-          deleteCadastro(
-            "people",
-            x.id
-          )
-
-      );
-
-  }
-
-
-  const foodsEl =
-    document.getElementById(
-      "foodsTable"
-    );
-
-
-  if (foodsEl) {
-
-    foodsEl.innerHTML =
-
-      table(
-
-        db.foods,
-
-        [
-
-          [
-            "Alimento",
-
-            x =>
-              esc(
-                x.name
-              )
-
-          ]
-
-        ],
-
-        x =>
-          deleteCadastro(
-            "foods",
-            x.id
-          )
-
-      );
-
-  }
-
-
-  const originsEl =
-    document.getElementById(
-      "originsTable"
-    );
-
-
-  if (originsEl) {
-
-    originsEl.innerHTML =
-
-      table(
-
-        db.origins,
-
-        [
-
-          [
-            "Origem",
-
-            x =>
-              esc(
-                x.name
-              )
-
-          ]
-
-        ],
-
-        x =>
-          deleteCadastro(
-            "origins",
-            x.id
-          )
-
-      );
-
-  }
-
-
-  const reasonsEl =
-    document.getElementById(
-      "reasonsTable"
-    );
-
-
-  if (reasonsEl) {
-
-    reasonsEl.innerHTML =
-
-      table(
-
-        db.reasons,
-
-        [
-
-          [
-            "Motivo",
-
-            x =>
-              esc(
-                x.name
-              )
-
-          ]
-
-        ],
-
-        x =>
-          deleteCadastro(
-            "reasons",
-            x.id
-          )
-
-      );
-
-  }
-
-}
-
-
-// ============================================================
-// 15. TABELA
+// 12. TABELA
 // ============================================================
 
 function table(
-  rows,
-  columns,
-  removeFn
+  arr,
+  cols,
+  remove
 ) {
 
-  if (!rows?.length) {
+  if (!arr.length) {
 
     return `
-
       <div class="empty">
-
         Nenhum registro encontrado.
-
       </div>
-
     `;
 
   }
@@ -2385,74 +1485,46 @@ function table(
 
           <tr>
 
-            ${columns
+            ${cols
               .map(
                 c =>
                   `<th>${c[0]}</th>`
               )
               .join("")}
 
-            ${
-              removeFn
-                ? "<th>Ação</th>"
-                : ""
-            }
+            <th>Ação</th>
 
           </tr>
 
         </thead>
 
-
         <tbody>
 
-          ${rows
-            .map(
-              row => `
+          ${arr.map(x => `
 
-                <tr>
+            <tr>
 
-                  ${columns
-                    .map(
-                      c =>
-                        `<td>
-                          ${c[1](row)}
-                        </td>`
-                    )
-                    .join("")}
+              ${cols
+                .map(
+                  c =>
+                    `<td>${c[1](x)}</td>`
+                )
+                .join("")}
 
-                  ${
-                    removeFn
+              <td>
 
-                      ? `
+                <button
+                  class="btn danger-btn"
+                  data-remove="${x.id}"
+                >
+                  Excluir
+                </button>
 
-                        <td>
+              </td>
 
-                          <button
+            </tr>
 
-                            type="button"
-
-                            class="delete-btn"
-
-                            data-delete="true"
-
-                          >
-
-                            🗑️
-
-                          </button>
-
-                        </td>
-
-                      `
-
-                      : ""
-                  }
-
-                </tr>
-
-              `
-            )
-            .join("")}
+          `).join("")}
 
         </tbody>
 
@@ -2465,125 +1537,251 @@ function table(
 }
 
 
+async function removeEntry(id) {
+
+  if (!confirm("Excluir esta entrada?")) return;
+
+  try {
+    await deleteEntry(id);
+    await reloadFromSupabase();
+    toast("Entrada excluída.");
+  } catch (error) {
+    console.error(error);
+    toast("Não foi possível excluir a entrada.");
+  }
+
+}
+
+
+async function removeMovement(id) {
+
+  if (!confirm("Excluir esta movimentação?")) return;
+
+  try {
+    await deleteMovement(id);
+    await reloadFromSupabase();
+    toast("Movimentação excluída.");
+  } catch (error) {
+    console.error(error);
+    toast("Não foi possível excluir a movimentação.");
+  }
+
+}
+
+
 // ============================================================
-// FIM DA PARTE 2/5
+// 13. PRESENÇA
 // ============================================================
 
-// ============================================================
-// PARTE 3/5
-// ============================================================
+function renderAttendance() {
 
+  const date =
+    document.getElementById("attendanceDate")?.value || isoToday();
 
-// ============================================================
-// 20. NAVEGAÇÃO
-// ============================================================
+  const q =
+    (document.getElementById("attendanceSearch")?.value || "").toLowerCase();
 
-function nav() {
+  const set = new Set(db.attendance[date] || []);
 
-  document
-    .querySelectorAll(
-      ".tab,.home-card"
-    )
-    .forEach(
-      button => {
+  const people = db.people.filter(p =>
+    (p.name + " " + p.registration).toLowerCase().includes(q)
+  );
 
-        button.addEventListener(
-          "click",
-          () => {
+  const count = document.getElementById("attendanceCount");
+  if (count) count.textContent = `${set.size} presentes`;
 
-            const page =
-              button.dataset.page;
+  const list = document.getElementById("attendanceList");
+  if (!list) return;
 
+  list.innerHTML = people.length
+    ? people.map(p => `
+        <div class="attendance-row">
+          <div>
+            <div class="person-name">${esc(p.name)}</div>
+            <div class="person-reg">Matrícula: ${esc(p.registration)}</div>
+          </div>
+          <label class="switch">
+            <input
+              type="checkbox"
+              data-person="${p.id}"
+              ${set.has(p.id) ? "checked" : ""}
+            >
+            <span class="slider"></span>
+          </label>
+        </div>
+      `).join("")
+    : `<div class="empty">Nenhuma pessoa cadastrada/encontrada.</div>`;
 
-            document
-              .querySelectorAll(
-                ".tab"
-              )
-              .forEach(
-                tab =>
-                  tab.classList.toggle(
-                    "active",
-                    tab.dataset.page ===
-                      page
-                  )
-              );
+  document.querySelectorAll("[data-person]").forEach(el => {
+    el.addEventListener("change", async e => {
+      const personId = e.target.dataset.person;
+      const present = e.target.checked;
+      e.target.disabled = true;
 
-
-            document
-              .querySelectorAll(
-                ".page"
-              )
-              .forEach(
-                section =>
-                  section.classList.remove(
-                    "active"
-                  )
-              );
-
-
-            const target =
-              document.getElementById(
-                page
-              );
-
-
-            if (target) {
-
-              target.classList.add(
-                "active"
-              );
-
-            }
-
-
-            window.scrollTo({
-
-              top:
-                0,
-
-              behavior:
-                "smooth"
-
-            });
-
-          }
-        );
-
+      try {
+        await setAttendance(date, personId, present);
+        await reloadFromSupabase();
+        toast(present ? "Presença registrada." : "Presença removida.");
+      } catch (error) {
+        console.error(error);
+        e.target.checked = !present;
+        toast("Não foi possível atualizar a presença.");
+      } finally {
+        e.target.disabled = false;
       }
-    );
+    });
+  });
+
+}
 
 
-  const menu =
+// ============================================================
+// 14. ESTOQUE
+// ============================================================
+
+function renderStock() {
+
+  const st = calcStock();
+
+
+  const cards =
     document.getElementById(
-      "menuButton"
+      "stockCards"
     );
 
 
-  if (menu) {
+  if (cards) {
 
-    menu.addEventListener(
+    cards.innerHTML =
+      db.origins
+        .map(o => {
 
-      "click",
+          const total =
+            Object.values(
+              st[o.id] || {}
+            ).reduce(
+              (a, v) =>
+                a + Number(v),
+              0
+            );
 
-      () => {
 
-        const tabs =
-          document.querySelector(
-            ".ace-tabs"
+          return `
+
+            <div class="panel">
+
+              <h3>
+                📍 ${esc(o.name)}
+              </h3>
+
+              <div class="origin-value">
+                ${fmt(total)} itens
+              </div>
+
+            </div>
+
+          `;
+
+        })
+        .join("");
+
+  }
+
+
+  const rows =
+    db.foods
+      .map(food => {
+
+        const vals =
+          db.origins.map(
+            origin =>
+              Number(
+                st[origin.id]?.[
+                  food.id
+                ] || 0
+              )
           );
 
 
-        if (tabs) {
-
-          tabs.classList.toggle(
-            "menu-open"
+        const total =
+          vals.reduce(
+            (a, v) =>
+              a + v,
+            0
           );
 
-        }
 
-      }
+        return `
 
+          <tr>
+
+            <td>
+              ${esc(food.name)}
+            </td>
+
+            ${vals
+              .map(
+                v =>
+                  `<td>${fmt(v)}</td>`
+              )
+              .join("")}
+
+            <td>
+              <b>${fmt(total)}</b>
+            </td>
+
+          </tr>
+
+        `;
+
+      })
+      .join("");
+
+
+  const tableEl =
+    document.getElementById(
+      "stockTable"
     );
+
+
+  if (tableEl) {
+
+    tableEl.innerHTML = `
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Alimento</th>
+
+              ${db.origins
+                .map(
+                  o =>
+                    `<th>${esc(o.name)}</th>`
+                )
+                .join("")}
+
+              <th>Total</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${rows}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    `;
 
   }
 
@@ -2591,14 +1789,270 @@ function nav() {
 
 
 // ============================================================
-// 21. CADASTROS
+// 15. RELATÓRIO
+// ============================================================
+
+function renderReport() {
+
+  const start =
+    document.getElementById(
+      "reportStart"
+    )?.value || "";
+
+  const end =
+    document.getElementById(
+      "reportEnd"
+    )?.value || "";
+
+  const origin =
+    document.getElementById(
+      "reportOrigin"
+    )?.value || "";
+
+
+  const entries =
+    db.entries.filter(
+      x =>
+        (!start || x.date >= start) &&
+        (!end || x.date <= end) &&
+        (!origin || x.originId === origin)
+    );
+
+
+  const mov =
+    db.movements.filter(
+      x =>
+        (!start || x.date >= start) &&
+        (!end || x.date <= end) &&
+        (!origin || x.originId === origin)
+    );
+
+
+  const presentDates =
+    Object.entries(
+      db.attendance
+    ).filter(
+      ([d]) =>
+        (!start || d >= start) &&
+        (!end || d <= end)
+    );
+
+
+  const html = `
+
+    <div class="cards">
+
+      <div class="card">
+
+        <span>Entradas</span>
+
+        <strong>
+          ${fmt(
+            entries.reduce(
+              (s, x) =>
+                s + Number(x.qty),
+              0
+            )
+          )}
+        </strong>
+
+      </div>
+
+      <div class="card">
+
+        <span>Saídas</span>
+
+        <strong>
+          ${fmt(
+            mov
+              .filter(
+                x =>
+                  x.type === "saida"
+              )
+              .reduce(
+                (s, x) =>
+                  s + Number(x.qty),
+                0
+              )
+          )}
+        </strong>
+
+      </div>
+
+      <div class="card danger">
+
+        <span>Perdas</span>
+
+        <strong>
+          ${fmt(
+            mov
+              .filter(
+                x =>
+                  x.type === "perda"
+              )
+              .reduce(
+                (s, x) =>
+                  s + Number(x.qty),
+                0
+              )
+          )}
+        </strong>
+
+      </div>
+
+      <div class="card">
+
+        <span>Dias com presença</span>
+
+        <strong>
+          ${presentDates.length}
+        </strong>
+
+      </div>
+
+    </div>
+
+    <h3>Entradas</h3>
+
+    ${
+      entries.length
+
+        ? table(
+            entries,
+            [
+              [
+                "Data",
+                x => fmtDate(x.date)
+              ],
+              [
+                "Origem",
+                x =>
+                  esc(
+                    getName(
+                      db.origins,
+                      x.originId
+                    )
+                  )
+              ],
+              [
+                "Alimento",
+                x =>
+                  esc(
+                    getName(
+                      db.foods,
+                      x.foodId
+                    )
+                  )
+              ],
+              [
+                "Qtd",
+                x => fmt(x.qty)
+              ],
+              [
+                "Obs.",
+                x =>
+                  esc(
+                    x.note || ""
+                  )
+              ]
+            ],
+            () => {}
+          )
+
+        : `
+          <div class="empty">
+            Sem entradas no período.
+          </div>
+        `
+    }
+
+    <h3>Saídas e perdas</h3>
+
+    ${
+      mov.length
+
+        ? table(
+            mov,
+            [
+              [
+                "Data",
+                x => fmtDate(x.date)
+              ],
+              [
+                "Tipo",
+                x =>
+                  esc(
+                    x.type === "perda"
+                      ? "Perda"
+                      : "Saída"
+                  )
+              ],
+              [
+                "Origem",
+                x =>
+                  esc(
+                    getName(
+                      db.origins,
+                      x.originId
+                    )
+                  )
+              ],
+              [
+                "Alimento",
+                x =>
+                  esc(
+                    getName(
+                      db.foods,
+                      x.foodId
+                    )
+                  )
+              ],
+              [
+                "Qtd",
+                x => fmt(x.qty)
+              ],
+              [
+                "Motivo",
+                x =>
+                  esc(
+                    getName(
+                      db.reasons,
+                      x.reasonId
+                    )
+                  )
+              ]
+            ],
+            () => {}
+          )
+
+        : `
+          <div class="empty">
+            Sem movimentações no período.
+          </div>
+        `
+    }
+
+  `;
+
+
+  const result =
+    document.getElementById(
+      "reportResult"
+    );
+
+
+  if (result) {
+    result.innerHTML = html;
+  }
+
+}
+
+
+// ============================================================
+// 16. CADASTROS
 // ============================================================
 
 function renderCadastros() {
-
-  // ----------------------------------------------------------
-  // PESSOAS
-  // ----------------------------------------------------------
 
   const people =
     document.getElementById(
@@ -2613,64 +2067,44 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          db.people.length
+          db.people
+            .map(
+              p => `
 
-            ? db.people
-                .map(
-                  person => `
+                <div class="mini-row">
 
-                    <div class="mini-row">
+                  <span>
 
-                      <span>
+                    <b>
+                      ${esc(p.name)}
+                    </b>
 
-                        <b>
-                          ${esc(
-                            person.name
-                          )}
-                        </b>
+                    <br>
 
-                        <br>
+                    <small>
+                      ${esc(p.registration)}
+                    </small>
 
-                        <small>
+                  </span>
 
-                          Matrícula:
+                  <button
+                    class="btn danger-btn"
+                    data-del-person="${p.id}"
+                  >
+                    Excluir
+                  </button>
 
-                          ${esc(
-                            person.registration
-                          )}
+                </div>
 
-                        </small>
-
-                      </span>
-
-
-                      <button
-
-                        class="btn danger-btn"
-
-                        data-del-person="${person.id}"
-
-                      >
-
-                        Excluir
-
-                      </button>
-
-                    </div>
-
-                  `
-                )
-                .join("")
-
-            : `
-
-              <div class="empty">
-
-                Nenhuma pessoa cadastrada.
-
-              </div>
-
-            `
+              `
+            )
+            .join("")
+          ||
+          `
+            <div class="empty">
+              Nenhuma pessoa.
+            </div>
+          `
         }
 
       </div>
@@ -2679,10 +2113,6 @@ function renderCadastros() {
 
   }
 
-
-  // ----------------------------------------------------------
-  // ALIMENTOS
-  // ----------------------------------------------------------
 
   const foods =
     document.getElementById(
@@ -2697,50 +2127,28 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          db.foods.length
+          db.foods
+            .map(
+              p => `
 
-            ? db.foods
-                .map(
-                  food => `
+                <div class="mini-row">
 
-                    <div class="mini-row">
+                  <span>
+                    ${esc(p.name)}
+                  </span>
 
-                      <span>
+                  <button
+                    class="btn danger-btn"
+                    data-del-food="${p.id}"
+                  >
+                    Excluir
+                  </button>
 
-                        ${esc(
-                          food.name
-                        )}
+                </div>
 
-                      </span>
-
-
-                      <button
-
-                        class="btn danger-btn"
-
-                        data-del-food="${food.id}"
-
-                      >
-
-                        Excluir
-
-                      </button>
-
-                    </div>
-
-                  `
-                )
-                .join("")
-
-            : `
-
-              <div class="empty">
-
-                Nenhum alimento cadastrado.
-
-              </div>
-
-            `
+              `
+            )
+            .join("")
         }
 
       </div>
@@ -2749,10 +2157,6 @@ function renderCadastros() {
 
   }
 
-
-  // ----------------------------------------------------------
-  // ORIGENS
-  // ----------------------------------------------------------
 
   const origins =
     document.getElementById(
@@ -2767,50 +2171,28 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          db.origins.length
+          db.origins
+            .map(
+              p => `
 
-            ? db.origins
-                .map(
-                  origin => `
+                <div class="mini-row">
 
-                    <div class="mini-row">
+                  <span>
+                    ${esc(p.name)}
+                  </span>
 
-                      <span>
+                  <button
+                    class="btn danger-btn"
+                    data-del-origin="${p.id}"
+                  >
+                    Excluir
+                  </button>
 
-                        ${esc(
-                          origin.name
-                        )}
+                </div>
 
-                      </span>
-
-
-                      <button
-
-                        class="btn danger-btn"
-
-                        data-del-origin="${origin.id}"
-
-                      >
-
-                        Excluir
-
-                      </button>
-
-                    </div>
-
-                  `
-                )
-                .join("")
-
-            : `
-
-              <div class="empty">
-
-                Nenhuma origem cadastrada.
-
-              </div>
-
-            `
+              `
+            )
+            .join("")
         }
 
       </div>
@@ -2819,10 +2201,6 @@ function renderCadastros() {
 
   }
 
-
-  // ----------------------------------------------------------
-  // MOTIVOS
-  // ----------------------------------------------------------
 
   const reasons =
     document.getElementById(
@@ -2837,52 +2215,28 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          db.reasons.length
+          db.reasons
+            .map(
+              p => `
 
-            ? db.reasons
-                .map(
-                  reason => `
+                <div class="mini-row">
 
-                    <div class="mini-row">
+                  <span>
+                    ${esc(p.name)}
+                  </span>
 
-                      <span>
+                  <button
+                    class="btn danger-btn"
+                    data-del-reason="${p.id}"
+                  >
+                    Excluir
+                  </button>
 
-                        ${esc(
-                          reason.name
-                        )}
+                </div>
 
-                      </span>
-
-
-                      <button
-
-                        class="btn danger-btn"
-
-                        data-del-reason="${esc(
-                          reason.id
-                        )}"
-
-                      >
-
-                        Excluir
-
-                      </button>
-
-                    </div>
-
-                  `
-                )
-                .join("")
-
-            : `
-
-              <div class="empty">
-
-                Nenhum motivo cadastrado.
-
-              </div>
-
-            `
+              `
+            )
+            .join("")
         }
 
       </div>
@@ -2892,69 +2246,18 @@ function renderCadastros() {
   }
 
 
-  // ----------------------------------------------------------
-  // EVENTOS DE EXCLUSÃO
-  // ----------------------------------------------------------
-
   document
     .querySelectorAll(
       "[data-del-person]"
     )
     .forEach(
-      button => {
-
-        button.onclick =
-          async () => {
-
-            if (
-              !confirm(
-                "Excluir esta pessoa?"
-              )
-            ) {
-
-              return;
-
-            }
-
-
-            try {
-
-              await deletePerson(
-                button.dataset
-                  .delPerson
-              );
-
-
-              await reloadFromSupabase(
-                false
-              );
-
-
-              toast(
-                "Pessoa excluída."
-              );
-
-
-            } catch (error) {
-
-              console.error(
-                error
-              );
-
-
-              toast(
-                "Erro ao excluir pessoa: " +
-                (
-                  error?.message ||
-                  "erro desconhecido"
-                )
-              );
-
-            }
-
-          };
-
-      }
+      b =>
+        b.onclick =
+          () =>
+            delBy(
+              "people",
+              b.dataset.delPerson
+            )
     );
 
 
@@ -2963,60 +2266,13 @@ function renderCadastros() {
       "[data-del-food]"
     )
     .forEach(
-      button => {
-
-        button.onclick =
-          async () => {
-
-            if (
-              !confirm(
-                "Excluir este alimento?"
-              )
-            ) {
-
-              return;
-
-            }
-
-
-            try {
-
-              await deleteFood(
-                button.dataset
-                  .delFood
-              );
-
-
-              await reloadFromSupabase(
-                false
-              );
-
-
-              toast(
-                "Alimento excluído."
-              );
-
-
-            } catch (error) {
-
-              console.error(
-                error
-              );
-
-
-              toast(
-                "Erro ao excluir alimento: " +
-                (
-                  error?.message ||
-                  "erro desconhecido"
-                )
-              );
-
-            }
-
-          };
-
-      }
+      b =>
+        b.onclick =
+          () =>
+            delBy(
+              "foods",
+              b.dataset.delFood
+            )
     );
 
 
@@ -3025,60 +2281,13 @@ function renderCadastros() {
       "[data-del-origin]"
     )
     .forEach(
-      button => {
-
-        button.onclick =
-          async () => {
-
-            if (
-              !confirm(
-                "Excluir esta origem?"
-              )
-            ) {
-
-              return;
-
-            }
-
-
-            try {
-
-              await deleteOrigin(
-                button.dataset
-                  .delOrigin
-              );
-
-
-              await reloadFromSupabase(
-                false
-              );
-
-
-              toast(
-                "Origem excluída."
-              );
-
-
-            } catch (error) {
-
-              console.error(
-                error
-              );
-
-
-              toast(
-                "Erro ao excluir origem: " +
-                (
-                  error?.message ||
-                  "erro desconhecido"
-                )
-              );
-
-            }
-
-          };
-
-      }
+      b =>
+        b.onclick =
+          () =>
+            delBy(
+              "origins",
+              b.dataset.delOrigin
+            )
     );
 
 
@@ -3087,930 +2296,680 @@ function renderCadastros() {
       "[data-del-reason]"
     )
     .forEach(
-      button => {
-
-        button.onclick =
-          async () => {
-
-            if (
-              !confirm(
-                "Excluir este motivo?"
-              )
-            ) {
-
-              return;
-
-            }
-
-
-            try {
-
-              await deleteReasonLocalOnly(
-                button.dataset
-                  .delReason
-              );
-
-
-              renderCadastros();
-
-              refreshSelects();
-
-
-              toast(
-                "Motivo excluído."
-              );
-
-
-            } catch (error) {
-
-              console.error(
-                error
-              );
-
-
-              toast(
-                "Erro ao excluir motivo."
-              );
-
-            }
-
-          };
-
-      }
+      b =>
+        b.onclick =
+          () =>
+            delBy(
+              "reasons",
+              b.dataset.delReason
+            )
     );
 
 }
 
 
+async function delBy(key, id) {
+
+  if (!confirm("Excluir cadastro? Registros históricos que já usam este item continuarão salvos.")) {
+    return;
+  }
+
+  try {
+    await deleteCadastro(key, id);
+    await reloadFromSupabase();
+    toast("Cadastro excluído.");
+  } catch (error) {
+    console.error(error);
+    toast("Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados.");
+  }
+
+}
+
+
 // ============================================================
-// 22. EVENTOS DOS FORMULÁRIOS
+// 17. CSV
+// ============================================================
+
+function csvEscape(v) {
+
+  return `"${String(v ?? "")
+    .replace(/"/g, '""')}"`;
+
+}
+
+
+function exportCSV() {
+
+  const start =
+    document.getElementById(
+      "reportStart"
+    )?.value || "";
+
+  const end =
+    document.getElementById(
+      "reportEnd"
+    )?.value || "";
+
+  const origin =
+    document.getElementById(
+      "reportOrigin"
+    )?.value || "";
+
+
+  const rows = [
+    [
+      "Data",
+      "Tipo",
+      "Origem",
+      "Alimento",
+      "Quantidade",
+      "Motivo",
+      "Observação"
+    ]
+  ];
+
+
+  db.entries
+    .filter(
+      x =>
+        (!start || x.date >= start) &&
+        (!end || x.date <= end) &&
+        (!origin || x.originId === origin)
+    )
+    .forEach(
+      x =>
+        rows.push([
+          x.date,
+          "Entrada",
+          getName(
+            db.origins,
+            x.originId
+          ),
+          getName(
+            db.foods,
+            x.foodId
+          ),
+          x.qty,
+          "",
+          x.note || ""
+        ])
+    );
+
+
+  db.movements
+    .filter(
+      x =>
+        (!start || x.date >= start) &&
+        (!end || x.date <= end) &&
+        (!origin || x.originId === origin)
+    )
+    .forEach(
+      x =>
+        rows.push([
+          x.date,
+          x.type === "perda"
+            ? "Perda"
+            : "Saída",
+          getName(
+            db.origins,
+            x.originId
+          ),
+          getName(
+            db.foods,
+            x.foodId
+          ),
+          x.qty,
+          getName(
+            db.reasons,
+            x.reasonId
+          ),
+          x.note || ""
+        ])
+    );
+
+
+  const blob =
+    new Blob(
+      [
+        "\ufeff" +
+        rows
+          .map(
+            r =>
+              r
+                .map(csvEscape)
+                .join(";")
+          )
+          .join("\n")
+      ],
+      {
+        type:
+          "text/csv;charset=utf-8"
+      }
+    );
+
+
+  download(
+    blob,
+    `relatorio_${start || "inicio"}_${end || "fim"}.csv`
+  );
+
+}
+
+
+function download(
+  blob,
+  name
+) {
+
+  const a =
+    document.createElement(
+      "a"
+    );
+
+  a.href =
+    URL.createObjectURL(blob);
+
+  a.download = name;
+
+  a.click();
+
+  setTimeout(
+    () =>
+      URL.revokeObjectURL(
+        a.href
+      ),
+    1000
+  );
+
+}
+
+
+// ============================================================
+// 18. NAVEGAÇÃO
+// ============================================================
+
+function nav() {
+
+  document
+    .querySelectorAll(
+      ".tab,.home-card"
+    )
+    .forEach(
+      b =>
+        b.addEventListener(
+          "click",
+          () => {
+
+            const page =
+              b.dataset.page;
+
+
+            document
+              .querySelectorAll(
+                ".tab"
+              )
+              .forEach(
+                x =>
+                  x.classList.toggle(
+                    "active",
+                    x.dataset.page === page
+                  )
+              );
+
+
+            document
+              .querySelectorAll(
+                ".page"
+              )
+              .forEach(
+                x =>
+                  x.classList.remove(
+                    "active"
+                  )
+              );
+
+
+            const target =
+              document.getElementById(
+                page
+              );
+
+
+            if (target) {
+              target.classList.add(
+                "active"
+              );
+            }
+
+
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth"
+            });
+
+          }
+        )
+    );
+
+
+  const menu =
+    document.getElementById(
+      "menuButton"
+    );
+
+
+  if (menu) {
+
+    menu.addEventListener(
+      "click",
+      () => {
+
+        const tabs =
+          document.querySelector(
+            ".ace-tabs"
+          );
+
+
+        if (tabs) {
+          tabs.classList.toggle(
+            "menu-open"
+          );
+        }
+
+      }
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// 19. EVENTOS DO APLICATIVO
 // ============================================================
 
 function bindEvents() {
 
-  // ==========================================================
-  // ENTRADA
-  // ==========================================================
-
-  const entryForm =
-    document.getElementById(
-      "entryForm"
-    );
-
+  const entryForm = document.getElementById("entryForm");
 
   if (entryForm) {
+    entryForm.addEventListener("submit", async e => {
+      e.preventDefault();
 
-    entryForm.addEventListener(
+      const f = new FormData(e.target);
+      const date = f.get("date");
+      const originId = f.get("origin");
+      const foodId = f.get("foodId");
+      const qty = Number(f.get("qty"));
+      const note = String(f.get("note") || "").trim();
 
-      "submit",
-
-      async event => {
-
-        event.preventDefault();
-
-
-        const form =
-          new FormData(
-            event.target
-          );
-
-
-        const date =
-          String(
-            form.get("date") ||
-            ""
-          );
-
-
-        const originId =
-          Number(
-            form.get("origin")
-          );
-
-
-        const foodId =
-          Number(
-            form.get("foodId")
-          );
-
-
-        const qty =
-          Number(
-            form.get("qty")
-          );
-
-
-        const note =
-          String(
-            form.get("note") ||
-            ""
-          ).trim();
-
-
-        // ----------------------------------------------------
-        // VALIDAÇÃO
-        // ----------------------------------------------------
-
-        if (!date) {
-
-          toast(
-            "Informe a data."
-          );
-
-          return;
-
-        }
-
-
-        if (
-          !originId ||
-          !foodId
-        ) {
-
-          toast(
-            "Selecione a origem e o alimento."
-          );
-
-          return;
-
-        }
-
-
-        if (
-          !Number.isFinite(qty) ||
-          qty <= 0
-        ) {
-
-          toast(
-            "Informe uma quantidade válida."
-          );
-
-          return;
-
-        }
-
-
-        try {
-
-          await insertEntry({
-
-            date,
-
-            originId,
-
-            foodId,
-
-            qty
-
-          });
-
-
-          await reloadFromSupabase(
-            false
-          );
-
-
-          event.target.reset();
-
-
-          document.getElementById(
-            "entryDate"
-          ).value =
-            isoToday();
-
-
-          toast(
-            "Entrada registrada com sucesso."
-          );
-
-
-        } catch (error) {
-
-          console.error(
-            "ERRO ENTRADA:",
-            error
-          );
-
-
-          alert(
-
-            "Erro ao registrar entrada:\n\n" +
-
-            (
-              error?.message ||
-              JSON.stringify(
-                error
-              )
-            )
-
-          );
-
-        }
-
+      if (!date || !originId || !foodId || !Number.isFinite(qty) || qty <= 0) {
+        toast("Preencha os dados da entrada corretamente.");
+        return;
       }
 
-    );
+      const submit = e.target.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
 
+      try {
+        await insertEntry({ date, originId, foodId, qty, note });
+        await reloadFromSupabase();
+        e.target.reset();
+        document.getElementById("entryDate").value = isoToday();
+        renderEntries();
+        toast("Entrada registrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro na entrada: " + (error?.message || "verifique o Supabase."));
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
   }
 
 
-  // ==========================================================
-  // SAÍDA / PERDA
-  // ==========================================================
-
-  const movementForm =
-    document.getElementById(
-      "movementForm"
-    );
-
+  const movementForm = document.getElementById("movementForm");
 
   if (movementForm) {
-
-    movementForm.addEventListener(
-
-      "submit",
-
-      async event => {
-
-        event.preventDefault();
-
-
-        const form =
-          new FormData(
-            event.target
-          );
-
-
-        const date =
-          String(
-            form.get("date") ||
-            ""
-          );
-
-
-        const type =
-          String(
-            form.get("type") ||
-            "saida"
-          );
-
-
-        const originId =
-          Number(
-            form.get("origin")
-          );
-
-
-        const foodId =
-          Number(
-            form.get("foodId")
-          );
-
-
-        const qty =
-          Number(
-            form.get("qty")
-          );
-
-
-        const reasonId =
-          String(
-            form.get(
-              "reasonId"
-            ) ||
-            ""
-          );
-
-
-        const note =
-          String(
-            form.get("note") ||
-            ""
-          ).trim();
-
-
-        // ----------------------------------------------------
-        // VALIDAÇÕES
-        // ----------------------------------------------------
-
-        if (!date) {
-
-          toast(
-            "Informe a data."
-          );
-
-          return;
-
-        }
-
-
-        if (
-          !originId ||
-          !foodId
-        ) {
-
-          toast(
-            "Selecione a origem e o alimento."
-          );
-
-          return;
-
-        }
-
-
-        if (
-          !Number.isFinite(qty) ||
-          qty <= 0
-        ) {
-
-          toast(
-            "Informe uma quantidade válida."
-          );
-
-          return;
-
-        }
-
-
-        if (
-          type === "perda" &&
-          !reasonId
-        ) {
-
-          toast(
-            "Selecione o motivo da perda."
-          );
-
-          return;
-
-        }
-
-
-        // ----------------------------------------------------
-        // VERIFICAR ESTOQUE
-        // ----------------------------------------------------
-
-        const stock =
-          calcStock();
-
-
-        const available =
-          Number(
-            stock[
-              originId
-            ]?.[
-              foodId
-            ] || 0
-          );
-
-
-        if (
-          qty >
-          available
-        ) {
-
-          alert(
-
-            `Quantidade superior ao estoque disponível.\n\n` +
-
-            `Alimento: ${
-              getName(
-                db.foods,
-                foodId
-              )
-            }\n` +
-
-            `Origem: ${
-              getName(
-                db.origins,
-                originId
-              )
-            }\n` +
-
-            `Disponível: ${
-              fmt(
-                available
-              )
-            }`
-
-          );
-
-          return;
-
-        }
-
-
-        try {
-
-          await insertMovement({
-
-            date,
-
-            type,
-
-            originId,
-
-            foodId,
-
-            qty,
-
-            reasonId,
-
-            note
-
-          });
-
-
-          await reloadFromSupabase(
-            false
-          );
-
-
-          event.target.reset();
-
-
-          document.getElementById(
-            "movementDate"
-          ).value =
-            isoToday();
-
-
-          toast(
-
-            type === "perda"
-
-              ? "Perda registrada com sucesso."
-
-              : "Saída registrada com sucesso."
-
-          );
-
-
-        } catch (error) {
-
-          console.error(
-            "ERRO MOVIMENTAÇÃO:",
-            error
-          );
-
-
-          alert(
-
-            "Erro ao registrar movimentação:\n\n" +
-
-            (
-              error?.message ||
-              JSON.stringify(
-                error
-              )
-            )
-
-          );
-
-        }
-
+    movementForm.addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const f = new FormData(e.target);
+      const date = f.get("date");
+      const type = f.get("type");
+      const originId = f.get("origin");
+      const foodId = f.get("foodId");
+      const qty = Number(f.get("qty"));
+      const reasonId = f.get("reasonId");
+      const note = String(f.get("note") || "").trim();
+
+      if (!date || !type || !originId || !foodId || !Number.isFinite(qty) || qty <= 0) {
+        toast("Preencha os dados da movimentação corretamente.");
+        return;
       }
 
-    );
+      const st = calcStock();
+      const available = Number(st[originId]?.[foodId] || 0);
 
+      if (qty > available) {
+        toast(`Saldo insuficiente. Disponível em ${getName(db.origins, originId)}: ${fmt(available)}.`);
+        return;
+      }
+
+      if (type === "perda" && !reasonId) {
+        toast("Selecione o motivo da perda.");
+        return;
+      }
+
+      const submit = e.target.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+
+      try {
+        await insertMovement({ date, type, originId, foodId, qty, reasonId, note });
+        await reloadFromSupabase();
+        e.target.reset();
+        document.getElementById("movementDate").value = isoToday();
+        renderAll();
+        toast(type === "perda" ? "Perda registrada no Supabase." : "Saída registrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro na movimentação: " + (error?.message || "verifique o Supabase."));
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
   }
 
 
-  // ==========================================================
-  // DASHBOARD
-  // ==========================================================
+  const dashboardDate = document.getElementById("dashboardDate");
+  if (dashboardDate) dashboardDate.addEventListener("change", renderDashboard);
 
-  const dashboardDate =
-    document.getElementById(
-      "dashboardDate"
-    );
+  const entryDate = document.getElementById("entryDate");
+  if (entryDate) entryDate.addEventListener("change", renderEntries);
 
+  const attendanceDate = document.getElementById("attendanceDate");
+  if (attendanceDate) attendanceDate.addEventListener("change", renderAttendance);
 
-  if (dashboardDate) {
+  const attendanceSearch = document.getElementById("attendanceSearch");
+  if (attendanceSearch) attendanceSearch.addEventListener("input", renderAttendance);
 
-    dashboardDate.addEventListener(
-      "change",
-      renderDashboard
-    );
-
-  }
-
-
-  // ==========================================================
-  // DATA DAS ENTRADAS
-  // ==========================================================
-
-  const entryDate =
-    document.getElementById(
-      "entryDate"
-    );
-
-
-  if (entryDate) {
-
-    entryDate.addEventListener(
-      "change",
-      renderEntries
-    );
-
-  }
-
-
-  // ==========================================================
-  // DATA DA PRESENÇA
-  // ==========================================================
-
-  const attendanceDate =
-    document.getElementById(
-      "attendanceDate"
-    );
-
-
-  if (attendanceDate) {
-
-    attendanceDate.addEventListener(
-      "change",
-      renderAttendance
-    );
-
-  }
-
-
-  // ==========================================================
-  // BUSCA DE PESSOAS
-  // ==========================================================
-
-  const attendanceSearch =
-    document.getElementById(
-      "attendanceSearch"
-    );
-
-
-  if (attendanceSearch) {
-
-    attendanceSearch.addEventListener(
-      "input",
-      renderAttendance
-    );
-
-  }
-
-
-  // ==========================================================
-  // ATUALIZAR ESTOQUE
-  // ==========================================================
-
-  const refreshStock =
-    document.getElementById(
-      "refreshStock"
-    );
-
-
+  const refreshStock = document.getElementById("refreshStock");
   if (refreshStock) {
+    refreshStock.addEventListener("click", async () => {
+      try {
+        await reloadFromSupabase();
+        toast("Estoque atualizado.");
+      } catch (error) {
+        console.error(error);
+        toast("Não foi possível atualizar o estoque.");
+      }
+    });
+  }
 
-    refreshStock.addEventListener(
+  const generateReport = document.getElementById("generateReport");
+  if (generateReport) generateReport.addEventListener("click", renderReport);
 
-      "click",
-
-      async () => {
-
-        try {
-
-          await reloadFromSupabase(
-            true
-          );
-
-
-        } catch (error) {
-
-          console.error(
-            error
-          );
+  const exportCSVButton = document.getElementById("exportCSV");
+  if (exportCSVButton) exportCSVButton.addEventListener("click", exportCSV);
 
 
-          toast(
-            "Erro ao atualizar estoque."
-          );
+  const personForm = document.getElementById("personForm");
+  if (personForm) {
+    personForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
+      const registration = String(f.get("registration") || "").trim();
 
-        }
-
+      if (!name || !registration) {
+        toast("Informe nome e matrícula.");
+        return;
       }
 
-    );
-
+      try {
+        await insertPerson(name, registration);
+        await reloadFromSupabase();
+        e.target.reset();
+        toast("Pessoa cadastrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro ao cadastrar pessoa: " + (error?.message || "verifique o Supabase."));
+      }
+    });
   }
 
 
-  // ==========================================================
-  // RELATÓRIO
-  // ==========================================================
+  const foodForm = document.getElementById("foodForm");
+  if (foodForm) {
+    foodForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
 
-  const generateReport =
-    document.getElementById(
-      "generateReport"
-    );
+      if (!name) {
+        toast("Informe o nome do alimento.");
+        return;
+      }
 
-
-  if (generateReport) {
-
-    generateReport.addEventListener(
-      "click",
-      renderReport
-    );
-
+      try {
+        await insertFood(name);
+        await reloadFromSupabase();
+        e.target.reset();
+        toast("Alimento cadastrado no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro ao cadastrar alimento: " + (error?.message || "verifique o Supabase."));
+      }
+    });
   }
 
 
-  // ==========================================================
-  // CSV
-  // ==========================================================
+  const originForm = document.getElementById("originForm");
+  if (originForm) {
+    originForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
 
-  const exportCSVButton =
-    document.getElementById(
-      "exportCSV"
-    );
+      if (!name) {
+        toast("Informe o nome da origem.");
+        return;
+      }
 
-
-  if (exportCSVButton) {
-
-    exportCSVButton.addEventListener(
-      "click",
-      exportCSV
-    );
-
+      try {
+        await insertOrigin(name);
+        await reloadFromSupabase();
+        e.target.reset();
+        toast("Origem cadastrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro ao cadastrar origem: " + (error?.message || "verifique o Supabase."));
+      }
+    });
   }
 
-}
 
-// ============================================================
-// PARTE 4/5
-// ============================================================
+  // Motivos continuam sendo os quatro padrões do aplicativo.
+  // Não há tabela de motivos no esquema utilizado pelo app_corrigido.
+  const reasonForm = document.getElementById("reasonForm");
+  if (reasonForm) {
+    reasonForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
+
+      if (!name) {
+        toast("Informe o motivo.");
+        return;
+      }
+
+      if (db.reasons.some(r => r.name.toLowerCase() === name.toLowerCase())) {
+        toast("Esse motivo já existe.");
+        return;
+      }
+
+      db.reasons.push({ id: name, name });
+      saveLocalReasons();
+      e.target.reset();
+      renderAll();
+      toast("Motivo adicionado nesta sessão.");
+    });
+  }
 
 
-// ============================================================
-// 23. BACKUP
-// ============================================================
-
-function setupBackup() {
-
-  const backupBtn =
-    document.getElementById(
-      "backupBtn"
-    );
-
-
+  const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) {
-
-    backupBtn.addEventListener(
-
-      "click",
-
-      () => {
-
-        const backup = {
-
-          versao:
-            "ACE-SUPABASE-V1",
-
-          exportadoEm:
-            new Date()
-              .toISOString(),
-
-          usuario:
-            currentUser?.email ||
-            "",
-
-          dados:
-            db
-
-        };
-
-
-        const blob =
-          new Blob(
-
-            [
-              JSON.stringify(
-                backup,
-                null,
-                2
-              )
-            ],
-
-            {
-              type:
-                "application/json"
-            }
-
-          );
-
-
-        download(
-
-          blob,
-
-          `backup_ACE_${
-            isoToday()
-          }.json`
-
-        );
-
-
-        toast(
-          "Backup gerado."
-        );
-
-      }
-
-    );
-
+    backupBtn.addEventListener("click", () => {
+      download(
+        new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }),
+        `backup_controle_alimentos_${isoToday()}.json`
+      );
+    });
   }
 
 
-  // ----------------------------------------------------------
-  // RESTAURAÇÃO
-  // ----------------------------------------------------------
-
-  const restoreFile =
-    document.getElementById(
-      "restoreFile"
-    );
-
-
+  const restoreFile = document.getElementById("restoreFile");
   if (restoreFile) {
+    restoreFile.addEventListener("change", async e => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-    restoreFile.addEventListener(
-
-      "change",
-
-      async event => {
-
-        const file =
-          event.target.files?.[0];
-
-
-        if (!file) {
-
-          return;
-
-        }
-
-
-        try {
-
-          const text =
-            await file.text();
-
-
-          const backup =
-            JSON.parse(
-              text
-            );
-
-
-          if (
-            !backup ||
-            !backup.dados
-          ) {
-
-            throw new Error(
-              "Arquivo de backup inválido."
-            );
-
-          }
-
-
-          const ok =
-            confirm(
-
-              "O backup será apenas conferido. " +
-
-              "A restauração automática no Supabase está desativada para evitar duplicação de dados.\n\n" +
-
-              "Deseja apenas verificar o arquivo?"
-
-            );
-
-
-          if (ok) {
-
-            toast(
-              "Backup válido e conferido."
-            );
-
-          }
-
-
-        } catch (error) {
-
-          alert(
-
-            "Erro ao ler backup:\n\n" +
-
-            error.message
-
-          );
-
-        }
-
-
-        event.target.value =
-          "";
-
+      try {
+        const obj = JSON.parse(await file.text());
+        await restoreCloudBackup(obj);
+        await reloadFromSupabase();
+        toast("Backup restaurado no Supabase.");
+      } catch (error) {
+        console.error(error);
+        alert("Não foi possível restaurar este arquivo no Supabase.\n\n" + (error?.message || "Verifique o backup e as permissões."));
       }
 
-    );
-
+      e.target.value = "";
+    });
   }
 
 
-  // ----------------------------------------------------------
-  // RESET
-  // ----------------------------------------------------------
-
-  const resetBtn =
-    document.getElementById(
-      "resetBtn"
-    );
-
-
+  const resetBtn = document.getElementById("resetBtn");
   if (resetBtn) {
+    resetBtn.addEventListener("click", async () => {
+      if (!confirm("Atualizar os dados deste aparelho com o conteúdo atual do Supabase?")) return;
 
-    resetBtn.addEventListener(
-
-      "click",
-
-      async () => {
-
-        const ok =
-          confirm(
-
-            "Isso NÃO apagará os dados do Supabase.\n\n" +
-
-            "O sistema apenas será recarregado com os dados atuais do banco.\n\n" +
-
-            "Continuar?"
-
-          );
-
-
-        if (!ok) {
-
-          return;
-
-        }
-
-
-        try {
-
-          await reloadFromSupabase(
-            true
-          );
-
-
-        } catch (error) {
-
-          console.error(
-            error
-          );
-
-
-          alert(
-
-            "Erro ao recarregar:\n\n" +
-
-            error.message
-
-          );
-
-        }
-
+      try {
+        await reloadFromSupabase(true);
+      } catch (error) {
+        console.error(error);
+        toast("Não foi possível atualizar os dados.");
       }
-
-    );
-
+    });
   }
 
 }
 
 
+async function restoreCloudBackup(obj) {
+  if (!obj || !obj.foods || !obj.origins || !obj.entries) {
+    throw new Error("Arquivo de backup inválido.");
+  }
+
+  const userId = getCurrentUserId();
+
+  // O backup usa o mesmo formato interno que o aplicativo exibe.
+  if (Array.isArray(obj.people) && obj.people.length) {
+    const rows = obj.people.map(p => ({
+      id: Number.isSafeInteger(Number(p.id)) ? Number(p.id) : newNumericId(),
+      nome: p.name,
+      "matrícula": p.registration,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("Pessoas").upsert(rows);
+    if (error) throw error;
+  }
+
+  if (Array.isArray(obj.foods) && obj.foods.length) {
+    const rows = obj.foods.map(f => ({
+      id: Number.isSafeInteger(Number(f.id)) ? Number(f.id) : newNumericId(),
+      nome: f.name,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("Alimentos").upsert(rows);
+    if (error) throw error;
+  }
+
+  if (Array.isArray(obj.origins) && obj.origins.length) {
+    const rows = obj.origins.map(o => ({
+      id: Number.isSafeInteger(Number(o.id)) ? Number(o.id) : newNumericId(),
+      nome: o.name,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("origens").upsert(rows);
+    if (error) throw error;
+  }
+
+  if (Array.isArray(obj.entries) && obj.entries.length) {
+    const rows = obj.entries.map(e => ({
+      id: Number.isSafeInteger(Number(e.id)) ? Number(e.id) : newNumericId(),
+      data_entrada: e.date,
+      alimento_id: e.foodId,
+      quantidade: Number(e.qty || 0),
+      origem_id: e.originId,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("entradas").upsert(rows);
+    if (error) throw error;
+  }
+
+  const outputs = (obj.movements || []).filter(m => m.type === "saida");
+  if (outputs.length) {
+    const rows = outputs.map(m => ({
+      id: Number.isSafeInteger(Number(m.rawId)) ? Number(m.rawId) : newNumericId(),
+      data_saida: m.date,
+      alimento_id: m.foodId,
+      quantidade: Number(m.qty || 0),
+      origem_id: m.originId,
+      destino: m.note || "",
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("saídas").upsert(rows);
+    if (error) throw error;
+  }
+
+  const losses = (obj.movements || []).filter(m => m.type === "perda");
+  if (losses.length) {
+    const rows = losses.map(m => ({
+      id: Number.isSafeInteger(Number(m.rawId)) ? Number(m.rawId) : newNumericId(),
+      data_perda: m.date,
+      alimento_id: m.foodId,
+      quantidade: Number(m.qty || 0),
+      origem_id: m.originId,
+      motivo: db.reasons.find(r => r.id === m.reasonId)?.name || m.reasonId || "Outro",
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("perdas").upsert(rows);
+    if (error) throw error;
+  }
+
+  // Presença é restaurada sem depender de uma chave composta.
+  for (const [date, peopleIds] of Object.entries(obj.attendance || {})) {
+    for (const personId of peopleIds || []) {
+      await setAttendance(date, personId, true);
+    }
+  }
+}
+
+
 // ============================================================
-// 24. PWA
+// 20. PWA
 // ============================================================
 
 function setupPWA() {
 
   window.addEventListener(
-
     "beforeinstallprompt",
+    e => {
 
-    event => {
+      e.preventDefault();
 
-      event.preventDefault();
-
-
-      deferredPrompt =
-        event;
+      deferredPrompt = e;
 
 
       const button =
@@ -4020,15 +2979,12 @@ function setupPWA() {
 
 
       if (button) {
-
         button.classList.remove(
           "hidden"
         );
-
       }
 
     }
-
   );
 
 
@@ -4041,63 +2997,47 @@ function setupPWA() {
   if (installBtn) {
 
     installBtn.addEventListener(
-
       "click",
-
       async () => {
 
-        if (
-          !deferredPrompt
-        ) {
-
+        if (!deferredPrompt) {
           return;
-
         }
 
 
         deferredPrompt.prompt();
 
-
-        deferredPrompt =
-          null;
-
+        deferredPrompt = null;
 
         installBtn.classList.add(
           "hidden"
         );
 
       }
-
     );
 
   }
 
 
   if (
-    "serviceWorker" in
-    navigator
+    "serviceWorker" in navigator
   ) {
 
     window.addEventListener(
-
       "load",
-
       () => {
 
         navigator.serviceWorker
-          .register(
-            "sw.js"
-          )
+          .register("sw.js")
           .catch(
-            error =>
+            err =>
               console.warn(
                 "Service Worker:",
-                error
+                err
               )
           );
 
       }
-
     );
 
   }
@@ -4106,35 +3046,22 @@ function setupPWA() {
 
 
 // ============================================================
-// 25. RENDERIZAR TUDO
+// 21. RENDERIZAÇÃO GERAL
 // ============================================================
 
 function renderAll() {
 
-  if (!db) {
-
-    return;
-
-  }
-
-
   refreshSelects();
-
 
   renderDashboard();
 
-
   renderEntries();
-
 
   renderMovements();
 
-
   renderAttendance();
 
-
   renderStock();
-
 
   renderCadastros();
 
@@ -4142,499 +3069,53 @@ function renderAll() {
 
 
 // ============================================================
-// 26. INICIALIZAÇÃO DO APLICATIVO
+// 22. INICIALIZAÇÃO DO APLICATIVO
 // ============================================================
 
 async function initApp() {
 
-  if (appStarted) {
-
-    return;
-
-  }
-
-
-  appStarted =
-    true;
-
-
-  try {
-
-    console.log(
-      "ACE: carregando banco..."
-    );
-
-
-    db =
-      await loadFromSupabase();
-
-
-    console.log(
-      "ACE: banco carregado.",
-      db
-    );
-
-
-    setDates();
-
-
-    nav();
-
-
-    bindEvents();
-
-
-    setupBackup();
-
-
-    setupPWA();
-
-
-    addUserBar();
-
-
-    renderAll();
-
-
-    console.log(
-      "ACE: aplicativo iniciado com sucesso."
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "ERRO AO INICIAR:",
-      error
-    );
-
-
-    appStarted =
-      false;
-
-
-    alert(
-
-      "Erro ao carregar o sistema:\n\n" +
-
-      (
-        error?.message ||
-        JSON.stringify(
-          error
-        )
-      )
-
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// 27. AUTENTICAÇÃO
-// ============================================================
-
-async function startAuth() {
-
-  // ----------------------------------------------------------
-  // CRIA A TELA DE LOGIN
-  // ----------------------------------------------------------
-
-  createLoginScreen();
-
-
-  try {
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient
-        .auth
-        .getSession();
-
-
-    if (error) {
-
-      throw error;
-
-    }
-
-
-    // --------------------------------------------------------
-    // JÁ ESTÁ LOGADO
-    // --------------------------------------------------------
-
-    if (
-      data?.session?.user
-    ) {
-
-      currentUser =
-        data.session.user;
-
-
-      document
-        .getElementById(
-          "loginScreen"
-        )
-        ?.remove();
-
-
-      await initApp();
-
-
-      return;
-
-    }
-
-
-  } catch (error) {
-
-    console.error(
-      "Erro ao verificar sessão:",
-      error
-    );
-
-
-    const loginError =
-      document.getElementById(
-        "loginError"
-      );
-
-
-    if (loginError) {
-
-      loginError.textContent =
-
-        "Erro ao conectar ao Supabase: " +
-
-        (
-          error?.message ||
-          "erro desconhecido"
-        );
-
-
-      loginError.classList.add(
-        "show"
-      );
-
-    }
-
-  }
-
-
-  // ----------------------------------------------------------
-  // OUVIR ALTERAÇÕES DE LOGIN
-  // ----------------------------------------------------------
-
-  supabaseClient
-    .auth
-    .onAuthStateChange(
-
-      async (
-        event,
-        session
-      ) => {
-
-        console.log(
-          "AUTH:",
-          event
-        );
-
-
-        // ----------------------------------------------------
-        // LOGIN
-        // ----------------------------------------------------
-
-        if (
-
-          event ===
-            "SIGNED_IN" &&
-
-          session?.user
-
-        ) {
-
-          currentUser =
-            session.user;
-
-
-          document
-            .getElementById(
-              "loginScreen"
-            )
-            ?.remove();
-
-
-          await initApp();
-
-        }
-
-
-        // ----------------------------------------------------
-        // LOGOUT
-        // ----------------------------------------------------
-
-        if (
-          event ===
-          "SIGNED_OUT"
-        ) {
-
-          location.reload();
-
-        }
-
-      }
-
-    );
-
-}
-
-
-// ============================================================
-// 28. INICIAR
-// ============================================================
-
-startAuth();
-
-
-// ============================================================
-// FIM DA PARTE 4
-// ============================================================
-
-// ============================================================
-// 23. PWA
-// ============================================================
-
-function setupPWA() {
-
-  window.addEventListener(
-
-    "beforeinstallprompt",
-
-    event => {
-
-      event.preventDefault();
-
-
-      deferredPrompt =
-        event;
-
-
-      const button =
-        document.getElementById(
-          "installBtn"
-        );
-
-
-      if (button) {
-
-        button.classList.remove(
-          "hidden"
-        );
-
-      }
-
-    }
-
+  if (appStarted) return;
+  appStarted = true;
+
+  console.log(
+    "ACE Controle de Alimentos iniciado."
   );
 
 
-  const installBtn =
-    document.getElementById(
-      "installBtn"
-    );
-
-
-  if (installBtn) {
-
-    installBtn.addEventListener(
-
-      "click",
-
-      async () => {
-
-        if (
-          !deferredPrompt
-        ) {
-
-          return;
-
-        }
-
-
-        deferredPrompt.prompt();
-
-
-        deferredPrompt =
-          null;
-
-
-        installBtn.classList.add(
-          "hidden"
-        );
-
-      }
-
-    );
-
-  }
-
-
-  if (
-    "serviceWorker" in
-    navigator
-  ) {
-
-    window.addEventListener(
-
-      "load",
-
-      () => {
-
-        navigator.serviceWorker
-          .register(
-            "sw.js"
-          )
-          .catch(
-
-            error =>
-              console.warn(
-                "Service Worker:",
-                error
-              )
-
-          );
-
-      }
-
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// 25. RENDERIZAR TUDO
-// ============================================================
-
-function renderAll() {
-
-  if (!db) {
-
-    return;
-
-  }
-
-
-  refreshSelects();
-
-
-  renderDashboard();
-
-
-  renderEntries();
-
-
-  renderMovements();
-
-
-  renderAttendance();
-
-
-  renderStock();
-
-
-  renderCadastros();
-
-}
-
-
-// ============================================================
-// 26. INICIALIZAÇÃO DO APLICATIVO
-// ============================================================
-
-async function initApp() {
-
-  if (appStarted) {
-
-    return;
-
-  }
-
-
-  appStarted =
-    true;
-
-
   try {
 
-    console.log(
-      "ACE: carregando banco..."
-    );
-
-
-    db =
-      await loadFromSupabase();
-
-
-    console.log(
-      "ACE: banco carregado.",
-      db
-    );
+    db = await loadFromSupabase();
 
 
     setDates();
 
-
     nav();
-
 
     bindEvents();
 
-
-    setupBackup();
-
-
     setupPWA();
 
-
     addUserBar();
-
 
     renderAll();
 
 
     console.log(
-      "ACE: aplicativo iniciado com sucesso."
+      "Aplicativo carregado com sucesso."
     );
-
 
   } catch (error) {
 
+    appStarted = false;
+
     console.error(
-      "ERRO AO INICIAR:",
+      "Erro ao iniciar aplicativo:",
       error
     );
 
-
-    appStarted =
-      false;
-
-
     alert(
-
-      "Erro ao carregar o sistema:\n\n" +
-
-      (
-        error?.message ||
-        JSON.stringify(
-          error
-        )
-      )
-
+      "Não foi possível carregar os dados do sistema.\n\n" +
+      (error?.message || "Verifique a conexão com o Supabase.")
     );
 
   }
@@ -4643,7 +3124,7 @@ async function initApp() {
 
 
 // ============================================================
-// 27. AUTENTICAÇÃO
+// 23. VERIFICA LOGIN
 // ============================================================
 
 async function startAuth() {
@@ -4657,21 +3138,15 @@ async function startAuth() {
       data,
       error
     } =
-      await supabaseClient
-        .auth
-        .getSession();
+      await supabaseClient.auth.getSession();
 
 
     if (error) {
-
       throw error;
-
     }
 
 
-    if (
-      data?.session?.user
-    ) {
+    if (data?.session?.user) {
 
       currentUser =
         data.session.user;
@@ -4684,41 +3159,36 @@ async function startAuth() {
         ?.remove();
 
 
-      await initApp();
-
+      initApp();
 
       return;
 
     }
 
 
-  } catch (error) {
+    // Não está logado.
+    // Mantém a tela de login aberta.
+
+  } catch (err) {
 
     console.error(
       "Erro ao verificar sessão:",
-      error
+      err
     );
 
 
-    const loginError =
+    const error =
       document.getElementById(
         "loginError"
       );
 
 
-    if (loginError) {
+    if (error) {
 
-      loginError.textContent =
+      error.textContent =
+        "Não foi possível conectar ao Supabase. Verifique a URL e a Publishable Key.";
 
-        "Erro ao conectar ao Supabase: " +
-
-        (
-          error?.message ||
-          "erro desconhecido"
-        );
-
-
-      loginError.classList.add(
+      error.classList.add(
         "show"
       );
 
@@ -4727,73 +3197,46 @@ async function startAuth() {
   }
 
 
-  // ----------------------------------------------------------
-  // OUVIR ALTERAÇÕES DE LOGIN
-  // ----------------------------------------------------------
+  // Monitora alterações de autenticação
 
-  supabaseClient
-    .auth
-    .onAuthStateChange(
+  supabaseClient.auth.onAuthStateChange(
+    (event, session) => {
 
-      async (
-        event,
-        session
-      ) => {
+      if (
+        event === "SIGNED_IN" &&
+        session?.user
+      ) {
 
-        console.log(
-          "AUTH:",
-          event
-        );
+        currentUser =
+          session.user;
 
+        document
+          .getElementById(
+            "loginScreen"
+          )
+          ?.remove();
 
-        if (
-
-          event ===
-            "SIGNED_IN" &&
-
-          session?.user
-
-        ) {
-
-          currentUser =
-            session.user;
-
-
-          document
-            .getElementById(
-              "loginScreen"
-            )
-            ?.remove();
-
-
-          await initApp();
-
-        }
-
-
-        if (
-          event ===
-          "SIGNED_OUT"
-        ) {
-
-          location.reload();
-
-        }
+        initApp();
 
       }
 
-    );
+
+      if (
+        event === "SIGNED_OUT"
+      ) {
+
+        location.reload();
+
+      }
+
+    }
+  );
 
 }
 
 
 // ============================================================
-// 28. INICIAR
+// 24. INÍCIO
 // ============================================================
 
 startAuth();
-
-
-// ============================================================
-// FIM DO APP.JS
-// ============================================================
