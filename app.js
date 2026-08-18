@@ -1,44 +1,31 @@
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
-// PARTE 1 - CONFIGURAÇÃO + BANCO + SUPABASE
+// V7 + SUPABASE AUTH
 // ============================================================
-
 
 // ============================================================
 // 1. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 
-const SUPABASE_URL =
-  "https://jblyzktbngvjqgvejgsa.supabase.co";
-
+const SUPABASE_URL = "https://jblyzktbngvjqgvejgsa.supabase.co";
 
 // COLE AQUI A SUA SUPABASE PUBLISHABLE KEY
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
 
-const SUPABASE_PUBLISHABLE_KEY =
-  "sb_publishable_tLvr-LHX18qGGjGzkFVs6A_Alh83jMm";
-
-
-const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
-  );
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
 
 
 // ============================================================
 // 2. BANCO LOCAL TEMPORÁRIO
 // ============================================================
 
-const KEY =
-  "controle_alimentos_v1";
-
+const KEY = "controle_alimentos_v1";
 
 const DEFAULT = {
-
-  origins: [
-    "Piedade",
-    "Água Fria"
-  ],
+  origins: ["Piedade", "Água Fria"],
 
   reasons: [
     "Gorbulho",
@@ -65,48 +52,17 @@ const DEFAULT = {
   ],
 
   people: [
-    [
-      "Alexandre Gonçalves Tavares",
-      "43571"
-    ],
-
-    [
-      "Angelo Potrichi",
-      "43986"
-    ],
-
-    [
-      "Mariella Pompeu",
-      "43983"
-    ],
-
-    [
-      "Stefania Márcia Câmara Monteiro",
-      "44134"
-    ],
-
-    [
-      "José Airton Martins Filho",
-      "44051"
-    ],
-
-    [
-      "André Settinieri",
-      "42705"
-    ]
-
-  ].map(
-    ([name, registration]) => ({
-
-      id: uid(),
-
-      name,
-
-      registration
-
-    })
-  )
-
+    ["Alexandre Gonçalves Tavares", "43571"],
+    ["Angelo Potrichi", "43986"],
+    ["Mariella Pompeu", "43983"],
+    ["Stefania Márcia Câmara Monteiro", "44134"],
+    ["José Airton Martins Filho", "44051"],
+    ["André Settinieri", "42705"]
+  ].map(([name, registration]) => ({
+    id: uid(),
+    name,
+    registration
+  }))
 };
 
 
@@ -115,9 +71,7 @@ const DEFAULT = {
 // ============================================================
 
 let db = null;
-
 let deferredPrompt = null;
-
 let currentUser = null;
 
 
@@ -129,35 +83,23 @@ function uid() {
 
   return crypto.randomUUID
     ? crypto.randomUUID()
-    : Date.now() +
-      "-" +
-      Math.random()
-        .toString(16)
-        .slice(2);
+    : Date.now() + "-" + Math.random().toString(16).slice(2);
 
 }
 
 
 function isoToday() {
 
-  return new Date()
-    .toISOString()
-    .slice(0, 10);
+  return new Date().toISOString().slice(0, 10);
 
 }
 
-
-// ============================================================
-// CARREGAR BANCO LOCAL
-// ============================================================
 
 function load() {
 
   try {
 
-    const raw =
-      localStorage.getItem(KEY);
-
+    const raw = localStorage.getItem(KEY);
 
     if (raw) {
 
@@ -174,54 +116,28 @@ function load() {
 
   }
 
-
   return {
 
-    origins:
-      DEFAULT.origins.map(
-        x => ({
+    origins: DEFAULT.origins.map(x => ({
+      id: uid(),
+      name: x
+    })),
 
-          id: uid(),
+    reasons: DEFAULT.reasons.map(x => ({
+      id: uid(),
+      name: x
+    })),
 
-          name: x
+    foods: DEFAULT.foods.map(x => ({
+      id: uid(),
+      name: x
+    })),
 
-        })
-      ),
-
-
-    reasons:
-      DEFAULT.reasons.map(
-        x => ({
-
-          id: uid(),
-
-          name: x
-
-        })
-      ),
-
-
-    foods:
-      DEFAULT.foods.map(
-        x => ({
-
-          id: uid(),
-
-          name: x
-
-        })
-      ),
-
-
-    people:
-      DEFAULT.people,
-
+    people: DEFAULT.people,
 
     entries: [],
 
-
     movements: [],
-
 
     attendance: {}
 
@@ -230,32 +146,19 @@ function load() {
 }
 
 
-// ============================================================
-// SALVAR CACHE LOCAL
-// ============================================================
-//
-// IMPORTANTE:
-// O localStorage NÃO será mais usado como banco principal.
-// Ele serve somente como cache local.
-// O banco oficial é o SUPABASE.
-// ============================================================
-
 function save() {
 
   try {
 
     localStorage.setItem(
-
       KEY,
-
       JSON.stringify(db)
-
     );
 
   } catch (e) {
 
     console.error(
-      "Erro ao salvar cache local:",
+      "Erro ao salvar:",
       e
     );
 
@@ -265,22 +168,7 @@ function save() {
 
 
 // ============================================================
-// 4.1 CARREGAMENTO DO SUPABASE
-// ============================================================
-//
-// ATENÇÃO:
-//
-// NÃO FILTRAMOS POR currentUser.id.
-//
-// O estoque é COMPARTILHADO.
-//
-// Portanto:
-//
-// usuário A
-// usuário B
-// usuário C
-//
-// todos carregam os mesmos dados.
+// 4.1 CARREGAMENTO DOS DADOS DO SUPABASE
 // ============================================================
 
 async function loadFromSupabase() {
@@ -293,30 +181,25 @@ async function loadFromSupabase() {
 
   }
 
-
   console.log(
-    "ACE: carregando banco compartilhado do Supabase..."
+    "Carregando dados do Supabase..."
   );
 
 
   try {
 
-    // ========================================================
+    // ----------------------------------------------------------
     // PESSOAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: people,
       error: peopleError
-    } = await supabaseClient
-
-      .from("Pessoas")
-
-      .select("*")
-
-      .order(
-        "nome"
-      );
+    } =
+      await supabaseClient
+        .from("Pessoas")
+        .select("*")
+        .order("nome");
 
 
     if (peopleError) {
@@ -326,22 +209,18 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ALIMENTOS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: foods,
       error: foodsError
-    } = await supabaseClient
-
-      .from("Alimentos")
-
-      .select("*")
-
-      .order(
-        "nome"
-      );
+    } =
+      await supabaseClient
+        .from("Alimentos")
+        .select("*")
+        .order("nome");
 
 
     if (foodsError) {
@@ -351,22 +230,18 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ORIGENS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: origins,
       error: originsError
-    } = await supabaseClient
-
-      .from("origens")
-
-      .select("*")
-
-      .order(
-        "nome"
-      );
+    } =
+      await supabaseClient
+        .from("origens")
+        .select("*")
+        .order("nome");
 
 
     if (originsError) {
@@ -376,25 +251,23 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // ENTRADAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: entries,
       error: entriesError
-    } = await supabaseClient
-
-      .from("entradas")
-
-      .select("*")
-
-      .order(
-        "data_entrada",
-        {
-          ascending: false
-        }
-      );
+    } =
+      await supabaseClient
+        .from("entradas")
+        .select("*")
+        .order(
+          "data_entrada",
+          {
+            ascending: false
+          }
+        );
 
 
     if (entriesError) {
@@ -404,25 +277,23 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // SAÍDAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: outputs,
       error: outputsError
-    } = await supabaseClient
-
-      .from("saídas")
-
-      .select("*")
-
-      .order(
-        "data_saida",
-        {
-          ascending: false
-        }
-      );
+    } =
+      await supabaseClient
+        .from("saídas")
+        .select("*")
+        .order(
+          "data_saida",
+          {
+            ascending: false
+          }
+        );
 
 
     if (outputsError) {
@@ -432,25 +303,23 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // PERDAS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: losses,
       error: lossesError
-    } = await supabaseClient
-
-      .from("perdas")
-
-      .select("*")
-
-      .order(
-        "data_perda",
-        {
-          ascending: false
-        }
-      );
+    } =
+      await supabaseClient
+        .from("perdas")
+        .select("*")
+        .order(
+          "data_perda",
+          {
+            ascending: false
+          }
+        );
 
 
     if (lossesError) {
@@ -460,25 +329,23 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // PRESENÇA
-    // ========================================================
+    // ----------------------------------------------------------
 
     const {
       data: attendanceRows,
       error: attendanceError
-    } = await supabaseClient
-
-      .from("presença")
-
-      .select("*")
-
-      .order(
-        "data",
-        {
-          ascending: false
-        }
-      );
+    } =
+      await supabaseClient
+        .from("presença")
+        .select("*")
+        .order(
+          "data",
+          {
+            ascending: false
+          }
+        );
 
 
     if (attendanceError) {
@@ -488,283 +355,145 @@ async function loadFromSupabase() {
     }
 
 
-    // ========================================================
+    // ----------------------------------------------------------
     // MOTIVOS
-    // ========================================================
+    // ----------------------------------------------------------
 
     const reasons =
-      DEFAULT.reasons.map(
-        name => ({
-
-          id: name,
-
-          name
-
-        })
-      );
+      DEFAULT.reasons.map(name => ({
+        id: name,
+        name
+      }));
 
 
-    // ========================================================
-    // CONVERTER PARA O FORMATO DO APLICATIVO
-    // ========================================================
+    // ----------------------------------------------------------
+    // CONVERSÃO PARA O FORMATO DO APP
+    // ----------------------------------------------------------
 
     const dbSupabase = {
 
-
-      // ------------------------------------------------------
-      // PESSOAS
-      // ------------------------------------------------------
-
       people:
-        (people || [])
-          .map(
-            p => ({
+        (people || []).map(p => ({
+          id: p.id,
+          name: p.nome,
+          registration: p["matrícula"]
+        })),
 
-              id: p.id,
-
-              name: p.nome,
-
-              registration:
-                p["matrícula"]
-
-            })
-          ),
-
-
-      // ------------------------------------------------------
-      // ALIMENTOS
-      // ------------------------------------------------------
 
       foods:
-        (foods || [])
-          .map(
-            f => ({
+        (foods || []).map(f => ({
+          id: f.id,
+          name: f.nome
+        })),
 
-              id: f.id,
-
-              name: f.nome
-
-            })
-          ),
-
-
-      // ------------------------------------------------------
-      // ORIGENS
-      // ------------------------------------------------------
 
       origins:
-        (origins || [])
-          .map(
-            o => ({
+        (origins || []).map(o => ({
+          id: o.id,
+          name: o.nome
+        })),
 
-              id: o.id,
-
-              name: o.nome
-
-            })
-          ),
-
-
-      // ------------------------------------------------------
-      // ENTRADAS
-      // ------------------------------------------------------
 
       entries:
-        (entries || [])
-          .map(
-            e => ({
-
-              id: e.id,
-
-              date:
-                e.data_entrada,
-
-              foodId:
-                e.alimento_id,
-
-              qty:
-                Number(
-                  e.quantidade || 0
-                ),
-
-              originId:
-                e.origem_id,
-
-              note: "",
-
-              createdAt:
-                e.created_at ||
-                new Date()
-                  .toISOString()
-
-            })
+        (entries || []).map(e => ({
+          id: e.id,
+          date: e.data_entrada,
+          foodId: e.alimento_id,
+          qty: Number(
+            e.quantidade || 0
           ),
+          originId: e.origem_id,
+          note: "",
+          createdAt:
+            e.created_at ||
+            new Date().toISOString()
+        })),
 
-
-      // ------------------------------------------------------
-      // SAÍDAS + PERDAS
-      // ------------------------------------------------------
 
       movements: [
 
-        ...(outputs || [])
-          .map(
-            s => ({
-
-              id:
-                "saida-" +
-                s.id,
-
-              date:
-                s.data_saida,
-
-              type:
-                "saida",
-
-              foodId:
-                s.alimento_id,
-
-              qty:
-                Number(
-                  s.quantidade || 0
-                ),
-
-              originId:
-                s.origem_id,
-
-              reasonId:
-                null,
-
-              note:
-                s.destino || "",
-
-              createdAt:
-                s.created_at ||
-                new Date()
-                  .toISOString()
-
-            })
+        ...(outputs || []).map(s => ({
+          id: "saida-" + s.id,
+          date: s.data_saida,
+          type: "saida",
+          foodId: s.alimento_id,
+          qty: Number(
+            s.quantidade || 0
           ),
+          originId: s.origem_id,
+          reasonId: null,
+          note: s.destino || "",
+          createdAt:
+            s.created_at ||
+            new Date().toISOString()
+        })),
 
 
-        ...(losses || [])
-          .map(
-            p => ({
-
-              id:
-                "perda-" +
-                p.id,
-
-              date:
-                p.data_perda,
-
-              type:
-                "perda",
-
-              foodId:
-                p.alimento_id,
-
-              qty:
-                Number(
-                  p.quantidade || 0
-                ),
-
-              originId:
-                p.origem_id,
-
-              reasonId:
-                reasons.find(
-                  r =>
-                    r.name ===
-                    p.motivo
-                )?.id ||
-
-                p.motivo ||
-
-                null,
-
-              note: "",
-
-              createdAt:
-                p.created_at ||
-                new Date()
-                  .toISOString()
-
-            })
-          )
+        ...(losses || []).map(p => ({
+          id: "perda-" + p.id,
+          date: p.data_perda,
+          type: "perda",
+          foodId: p.alimento_id,
+          qty: Number(
+            p.quantidade || 0
+          ),
+          originId: p.origem_id,
+          reasonId:
+            reasons.find(
+              r => r.name === p.motivo
+            )?.id ||
+            p.motivo ||
+            null,
+          note: "",
+          createdAt:
+            p.created_at ||
+            new Date().toISOString()
+        }))
 
       ],
 
 
-      // ------------------------------------------------------
-      // PRESENÇA
-      // ------------------------------------------------------
-
       attendance: {},
-
-
-      // ------------------------------------------------------
-      // MOTIVOS
-      // ------------------------------------------------------
 
       reasons
 
     };
 
 
-    // ========================================================
-    // ORGANIZAR PRESENÇA
-    // ========================================================
+    // ----------------------------------------------------------
+    // ORGANIZAR PRESENÇA POR DATA
+    // ----------------------------------------------------------
 
     (attendanceRows || [])
-      .forEach(
-        row => {
+      .forEach(row => {
 
-          if (
-            !dbSupabase
-              .attendance[
-                row.data
-              ]
-          ) {
+        if (
+          !dbSupabase
+            .attendance[row.data]
+        ) {
 
-            dbSupabase
-              .attendance[
-                row.data
-              ] = [];
-
-          }
-
-
-          if (row.present) {
-
-            dbSupabase
-              .attendance[
-                row.data
-              ]
-              .push(
-                row.pessoa_id
-              );
-
-          }
+          dbSupabase
+            .attendance[row.data] = [];
 
         }
-      );
 
 
-    // ========================================================
-    // SALVAR CÓPIA LOCAL DO BANCO COMPARTILHADO
-    // ========================================================
+        if (row.present) {
 
-    db =
-      dbSupabase;
+          dbSupabase
+            .attendance[row.data]
+            .push(
+              row.pessoa_id
+            );
 
+        }
 
-    save();
+      });
 
 
     console.log(
-      "ACE: banco compartilhado carregado.",
-      db
+      "Dados carregados do Supabase:",
+      dbSupabase
     );
 
 
@@ -774,7 +503,7 @@ async function loadFromSupabase() {
   } catch (error) {
 
     console.error(
-      "ACE - ERRO AO CARREGAR SUPABASE:",
+      "Erro ao carregar dados do Supabase:",
       error
     );
 
@@ -786,7 +515,7 @@ async function loadFromSupabase() {
 
 
 // ============================================================
-// FUNÇÕES UTILITÁRIAS
+// 4.2 FUNÇÕES AUXILIARES
 // ============================================================
 
 function esc(s) {
@@ -794,28 +523,14 @@ function esc(s) {
   return String(
     s ?? ""
   ).replace(
-
     /[&<>"']/g,
-
     m => ({
-
-      "&":
-        "&amp;",
-
-      "<":
-        "&lt;",
-
-      ">":
-        "&gt;",
-
-      '"':
-        "&quot;",
-
-      "'":
-        "&#039;"
-
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
     }[m])
-
   );
 
 }
@@ -826,16 +541,10 @@ function fmt(n) {
   return Number(
     n || 0
   ).toLocaleString(
-
     "pt-BR",
-
     {
-
-      maximumFractionDigits:
-        2
-
+      maximumFractionDigits: 2
     }
-
   );
 
 }
@@ -844,43 +553,482 @@ function fmt(n) {
 function fmtDate(d) {
 
   return d
-
     ? new Date(
         d + "T12:00:00"
+      ).toLocaleDateString(
+        "pt-BR"
       )
-        .toLocaleDateString(
-          "pt-BR"
-        )
-
     : "";
 
 }
 
 
-function getName(
-  arr,
-  id
-) {
+function getName(arr, id) {
 
   return arr.find(
-    x =>
-      x.id === id
+    x => x.id === id
   )?.name || "—";
 
 }
 
 
-// ============================================================
-// FIM DA PARTE 1
-// ============================================================
+function toast(msg) {
+
+  const el =
+    document.getElementById(
+      "toast"
+    );
+
+  if (!el) {
+
+    return;
+
+  }
+
+
+  el.textContent = msg;
+
+  el.classList.add("show");
+
+  clearTimeout(
+    window._toast
+  );
+
+  window._toast =
+    setTimeout(
+      () =>
+        el.classList.remove(
+          "show"
+        ),
+      2400
+    );
+
+}
+
 
 // ============================================================
-// FIM DA PARTE 1/5
+// 5. TELA DE LOGIN
 // ============================================================
 
-// ============================================================
-// PARTE 2 - CADASTRO DE USUÁRIO + TRATAMENTO DE AUTENTICAÇÃO
-// ============================================================
+function createLoginScreen() {
+
+  if (
+    document.getElementById(
+      "loginScreen"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+  style.id =
+    "loginStyle";
+
+
+  style.textContent = `
+
+    #loginScreen{
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:
+        linear-gradient(
+          135deg,
+          #0b3a63 0%,
+          #075486 55%,
+          #0b3a63 100%
+        );
+    }
+
+    .login-box{
+      width:min(420px,100%);
+      background:#fff;
+      border-radius:20px;
+      padding:30px;
+      box-shadow:0 20px 60px rgba(0,0,0,.28);
+    }
+
+    .login-logo{
+      text-align:center;
+      margin-bottom:18px;
+    }
+
+    .login-logo img{
+      width:150px;
+      max-width:70%;
+      height:auto;
+    }
+
+    .login-title{
+      text-align:center;
+      color:#0b3a63;
+      font-size:27px;
+      font-weight:900;
+      margin:5px 0;
+    }
+
+    .login-subtitle{
+      text-align:center;
+      color:#667085;
+      font-size:14px;
+      margin-bottom:25px;
+    }
+
+    .login-box label{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin-bottom:14px;
+      font-size:13px;
+      font-weight:800;
+      color:#344054;
+    }
+
+    .login-box input{
+      width:100%;
+      padding:13px;
+      border:1px solid #d9e1e8;
+      border-radius:10px;
+      font-size:15px;
+      outline:none;
+      box-sizing:border-box;
+    }
+
+    .login-box input:focus{
+      border-color:#1467a8;
+      box-shadow:
+        0 0 0 3px
+        rgba(20,103,168,.12);
+    }
+
+    .login-button{
+      width:100%;
+      padding:13px;
+      margin-top:8px;
+      border:0;
+      border-radius:10px;
+      background:#0b3a63;
+      color:#fff;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+
+    .login-button:hover{
+      filter:brightness(1.08);
+    }
+
+    .login-button:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+
+    .login-error{
+      display:none;
+      margin-top:14px;
+      padding:11px;
+      border-radius:9px;
+      background:#fdeceb;
+      color:#b42318;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .login-error.show{
+      display:block;
+    }
+
+    .login-loading{
+      text-align:center;
+      color:#667085;
+      font-size:13px;
+      margin-top:12px;
+    }
+
+    .user-bar{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-left:auto;
+    }
+
+    .user-email{
+      font-size:12px;
+      opacity:.9;
+    }
+
+    .logout-btn{
+      border:1px solid rgba(255,255,255,.35);
+      background:rgba(255,255,255,.12);
+      color:#fff;
+      border-radius:8px;
+      padding:8px 11px;
+      cursor:pointer;
+      font-weight:800;
+    }
+
+    .logout-btn:hover{
+      background:rgba(255,255,255,.22);
+    }
+
+    @media(max-width:700px){
+
+      .login-box{
+        padding:24px 20px;
+      }
+
+      .login-title{
+        font-size:24px;
+      }
+
+      .user-email{
+        display:none;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+
+  const login =
+    document.createElement(
+      "div"
+    );
+
+  login.id =
+    "loginScreen";
+
+
+  login.innerHTML = `
+
+    <div class="login-box">
+
+      <div class="login-logo">
+        <img
+          src="ace-cesta.png"
+          alt="ACE"
+        >
+      </div>
+
+      <div class="login-title">
+        ACE Ação de Cestas
+      </div>
+
+      <div class="login-subtitle">
+        Controle de Alimentos
+      </div>
+
+      <form id="loginForm">
+
+        <label>
+          E-mail
+
+          <input
+            id="loginEmail"
+            type="email"
+            placeholder="Digite seu e-mail"
+            autocomplete="username"
+            required
+          >
+
+        </label>
+
+        <label>
+          Senha
+
+          <input
+            id="loginPassword"
+            type="password"
+            placeholder="Digite sua senha"
+            autocomplete="current-password"
+            required
+          >
+
+        </label>
+
+        <button
+          id="loginButton"
+          class="login-button"
+          type="submit"
+        >
+          🔐 Entrar
+        </button>
+
+        <div
+          id="loginError"
+          class="login-error"
+        ></div>
+
+        <div
+          id="loginLoading"
+          class="login-loading"
+        ></div>
+
+      </form>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    login
+  );
+
+
+  document
+    .getElementById(
+      "loginForm"
+    )
+    .addEventListener(
+      "submit",
+      loginUser
+    );
+
+}
+
+
+async function loginUser(e) {
+
+  e.preventDefault();
+
+
+  const email =
+    document
+      .getElementById(
+        "loginEmail"
+      )
+      .value
+      .trim();
+
+
+  const password =
+    document
+      .getElementById(
+        "loginPassword"
+      )
+      .value;
+
+
+  const button =
+    document.getElementById(
+      "loginButton"
+    );
+
+
+  const error =
+    document.getElementById(
+      "loginError"
+    );
+
+
+  const loading =
+    document.getElementById(
+      "loginLoading"
+    );
+
+
+  error.classList.remove(
+    "show"
+  );
+
+  error.textContent =
+    "";
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    "Entrando...";
+
+  loading.textContent =
+    "Autenticando...";
+
+
+  try {
+
+    const {
+      data,
+      error: authError
+    } =
+      await supabaseClient
+        .auth
+        .signInWithPassword({
+
+          email,
+
+          password
+
+        });
+
+
+    if (authError) {
+
+      throw authError;
+
+    }
+
+
+    currentUser =
+      data.user;
+
+
+    document
+      .getElementById(
+        "loginScreen"
+      )
+      .remove();
+
+
+    initApp();
+
+
+  } catch (err) {
+
+    console.error(
+      err
+    );
+
+
+    error.textContent =
+      traduzirErroLogin(
+        err
+      );
+
+      error.classList.add(
+      "show"
+    );
+
+    loading.textContent =
+      "";
+
+  } finally {
+
+    button.disabled =
+      false;
+
+    button.textContent =
+      "🔐 Entrar";
+
+  }
+
+}
 
 
 // ============================================================
@@ -891,9 +1039,7 @@ function traduzirErroLogin(error) {
 
   const message =
     String(
-      error?.message ||
-      error ||
-      ""
+      error?.message || ""
     ).toLowerCase();
 
 
@@ -903,9 +1049,7 @@ function traduzirErroLogin(error) {
     )
   ) {
 
-    return (
-      "E-mail ou senha incorretos."
-    );
+    return "E-mail ou senha incorretos.";
 
   }
 
@@ -930,9 +1074,7 @@ function traduzirErroLogin(error) {
     )
   ) {
 
-    return (
-      "Usuário não encontrado."
-    );
+    return "Usuário não encontrado.";
 
   }
 
@@ -944,33 +1086,8 @@ function traduzirErroLogin(error) {
   ) {
 
     return (
-      "Muitas tentativas. Aguarde alguns minutos e tente novamente."
-    );
-
-  }
-
-
-  if (
-    message.includes(
-      "jwt"
-    )
-  ) {
-
-    return (
-      "A sessão expirou. Atualize a página e tente novamente."
-    );
-
-  }
-
-
-  if (
-    message.includes(
-      "network"
-    )
-  ) {
-
-    return (
-      "Erro de conexão. Verifique a internet."
+      "Muitas tentativas. " +
+      "Aguarde alguns instantes e tente novamente."
     );
 
   }
@@ -978,8 +1095,596 @@ function traduzirErroLogin(error) {
 
   return (
     error?.message ||
-    "Não foi possível entrar no sistema."
+    "Não foi possível realizar o login."
   );
+
+}
+
+
+// ============================================================
+// TELA — CRIAR CONTA
+// ============================================================
+
+function createSignupScreen() {
+
+  const oldLogin =
+    document.getElementById(
+      "loginScreen"
+    );
+
+
+  if (oldLogin) {
+
+    oldLogin.remove();
+
+  }
+
+
+  const oldSignup =
+    document.getElementById(
+      "signupScreen"
+    );
+
+
+  if (oldSignup) {
+
+    oldSignup.remove();
+
+  }
+
+
+  const signup =
+    document.createElement(
+      "div"
+    );
+
+
+  signup.id =
+    "signupScreen";
+
+
+  signup.innerHTML = `
+
+    <div class="login-box">
+
+      <div class="login-logo">
+
+        <img
+          src="ace-cesta.png"
+          alt="ACE"
+        >
+
+      </div>
+
+
+      <div class="login-title">
+
+        📝 Criar minha conta
+
+      </div>
+
+
+      <div class="login-subtitle">
+
+        Cadastre seu acesso ao sistema
+
+      </div>
+
+
+      <form id="signupForm">
+
+
+        <label>
+
+          Nome
+
+          <input
+            id="signupName"
+            type="text"
+            placeholder="Nome completo"
+            autocomplete="name"
+            required
+          >
+
+        </label>
+
+
+        <label>
+
+          E-mail
+
+          <input
+            id="signupEmail"
+            type="email"
+            placeholder="seuemail@exemplo.com"
+            autocomplete="email"
+            required
+          >
+
+        </label>
+
+
+        <label>
+
+          Senha
+
+          <input
+            id="signupPassword"
+            type="password"
+            placeholder="Mínimo de 6 caracteres"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          >
+
+        </label>
+
+
+        <label>
+
+          Confirmar senha
+
+          <input
+            id="signupPasswordConfirm"
+            type="password"
+            placeholder="Digite a senha novamente"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          >
+
+        </label>
+
+
+        <button
+          id="signupButton"
+          class="login-button"
+          type="submit"
+        >
+
+          📝 Criar conta
+
+        </button>
+
+
+        <div
+          id="signupMessage"
+          class="login-error"
+        ></div>
+
+
+        <div
+          id="signupLoading"
+          class="login-loading"
+        ></div>
+
+
+        <button
+          id="backToLoginButton"
+          type="button"
+          style="
+            width:100%;
+            border:0;
+            background:transparent;
+            color:#0b3a63;
+            font-weight:900;
+            font-size:15px;
+            padding:16px 5px 0;
+            cursor:pointer;
+          "
+        >
+
+          ← Voltar para o login
+
+        </button>
+
+
+      </form>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    signup
+  );
+
+
+  document
+    .getElementById(
+      "signupForm"
+    )
+    .addEventListener(
+      "submit",
+      createAccount
+    );
+
+
+  document
+    .getElementById(
+      "backToLoginButton"
+    )
+    .addEventListener(
+      "click",
+      () => {
+
+        signup.remove();
+
+        createLoginScreen();
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// CRIAR CONTA NO SUPABASE
+// ============================================================
+
+async function createAccount(e) {
+
+  e.preventDefault();
+
+
+  const name =
+    document
+      .getElementById(
+        "signupName"
+      )
+      .value
+      .trim();
+
+
+  const email =
+    document
+      .getElementById(
+        "signupEmail"
+      )
+      .value
+      .trim()
+      .toLowerCase();
+
+
+  const password =
+    document
+      .getElementById(
+        "signupPassword"
+      )
+      .value;
+
+
+  const confirmPassword =
+    document
+      .getElementById(
+        "signupPasswordConfirm"
+      )
+      .value;
+
+
+  const button =
+    document.getElementById(
+      "signupButton"
+    );
+
+
+  const message =
+    document.getElementById(
+      "signupMessage"
+    );
+
+
+  const loading =
+    document.getElementById(
+      "signupLoading"
+    );
+
+
+  message.classList.remove(
+    "show"
+  );
+
+
+  message.textContent =
+    "";
+
+
+  // ----------------------------------------------------------
+  // VALIDAR SENHAS
+  // ----------------------------------------------------------
+
+  if (
+    password !==
+    confirmPassword
+  ) {
+
+    message.textContent =
+      "As senhas não são iguais.";
+
+    message.classList.add(
+      "show"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    password.length < 6
+  ) {
+
+    message.textContent =
+      "A senha precisa ter pelo menos 6 caracteres.";
+
+    message.classList.add(
+      "show"
+    );
+
+    return;
+
+  }
+
+
+  if (!name) {
+
+    message.textContent =
+      "Informe seu nome.";
+
+    message.classList.add(
+      "show"
+    );
+
+    return;
+
+  }
+
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    "Criando conta...";
+
+  loading.textContent =
+    "Criando seu acesso...";
+
+
+  try {
+
+    console.log(
+      "ACE: criando usuário:",
+      email
+    );
+
+
+    // --------------------------------------------------------
+    // CRIAR USUÁRIO
+    // --------------------------------------------------------
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .auth
+        .signUp({
+
+          email,
+
+          password,
+
+          options: {
+
+            data: {
+
+              nome: name,
+
+              nome_completo: name
+
+            }
+
+          }
+
+        });
+
+
+    if (error) {
+
+      throw error;
+
+    }
+
+
+    console.log(
+      "ACE: cadastro realizado.",
+      data
+    );
+
+
+    // --------------------------------------------------------
+    // IMPORTANTE
+    //
+    // NÃO ENTRAR AUTOMATICAMENTE NO SISTEMA.
+    //
+    // Se o Supabase estiver configurado para exigir
+    // confirmação de e-mail, session será null.
+    //
+    // Mesmo que o projeto permita login imediato,
+    // fazemos logout para manter o fluxo:
+    //
+    // CRIAR CONTA
+    //      ↓
+    // MENSAGEM DE SUCESSO
+    //      ↓
+    // VOLTAR PARA LOGIN
+    // --------------------------------------------------------
+
+    if (
+      data?.session
+    ) {
+
+      await supabaseClient
+        .auth
+        .signOut();
+
+    }
+
+
+    // --------------------------------------------------------
+    // MOSTRAR SUCESSO
+    // --------------------------------------------------------
+
+    loading.textContent =
+      "";
+
+
+    message.classList.remove(
+      "login-error"
+    );
+
+
+    message.classList.add(
+      "show"
+    );
+
+
+    message.style.background =
+      "#ecfdf3";
+
+
+    message.style.color =
+      "#027a48";
+
+
+    message.textContent =
+      "Conta criada com sucesso! " +
+      "Verifique seu e-mail para confirmar a conta e depois faça o login.";
+
+
+    // --------------------------------------------------------
+    // DESABILITAR BOTÃO
+    // --------------------------------------------------------
+
+    button.disabled =
+      true;
+
+
+    button.textContent =
+      "✓ Conta criada";
+
+
+    // --------------------------------------------------------
+    // AGUARDAR UM POUCO E VOLTAR PARA LOGIN
+    // --------------------------------------------------------
+
+    setTimeout(
+      () => {
+
+        const signupScreen =
+          document.getElementById(
+            "signupScreen"
+          );
+
+
+        if (signupScreen) {
+
+          signupScreen.remove();
+
+        }
+
+
+        createLoginScreen();
+
+
+        const loginEmail =
+          document.getElementById(
+            "loginEmail"
+          );
+
+
+        if (loginEmail) {
+
+          loginEmail.value =
+            email;
+
+          loginEmail.focus();
+
+        }
+
+
+        const loginError =
+          document.getElementById(
+            "loginError"
+          );
+
+
+        if (loginError) {
+
+          loginError.classList.remove(
+            "show"
+          );
+
+        }
+
+
+        const loginLoading =
+          document.getElementById(
+            "loginLoading"
+          );
+
+
+        if (loginLoading) {
+
+          loginLoading.textContent =
+            "Conta criada. Confirme seu e-mail e faça o login.";
+
+        }
+
+      },
+      2500
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO CRIAR CONTA:",
+      error
+    );
+
+
+    loading.textContent =
+      "";
+
+
+    message.style.background =
+      "#fdeceb";
+
+
+    message.style.color =
+      "#b42318";
+
+
+    message.classList.add(
+      "show"
+    );
+
+
+    message.textContent =
+      traduzirErroCadastro(
+        error
+      );
+
+
+    button.disabled =
+      false;
+
+    button.textContent =
+      "📝 Criar conta";
+
+  }
 
 }
 
@@ -988,33 +1693,19 @@ function traduzirErroLogin(error) {
 // TRADUZIR ERROS DE CADASTRO
 // ============================================================
 
-function traduzirErroCadastro(error) {
+function traduzirErroCadastro(
+  error
+) {
 
   const message =
     String(
-      error?.message ||
-      error ||
-      ""
+      error?.message || ""
     ).toLowerCase();
 
 
   if (
     message.includes(
       "user already registered"
-    )
-  ) {
-
-    return (
-      "Este e-mail já possui uma conta. " +
-      "Volte para o login."
-    );
-
-  }
-
-
-  if (
-    message.includes(
-      "already registered"
     )
   ) {
 
@@ -1032,7 +1723,7 @@ function traduzirErroCadastro(error) {
   ) {
 
     return (
-      "A senha é muito curta."
+      "A senha precisa ter pelo menos 6 caracteres."
     );
 
   }
@@ -1045,7 +1736,7 @@ function traduzirErroCadastro(error) {
   ) {
 
     return (
-      "Digite um e-mail válido."
+      "Informe um e-mail válido."
     );
 
   }
@@ -1053,26 +1744,12 @@ function traduzirErroCadastro(error) {
 
   if (
     message.includes(
-      "email rate limit exceeded"
+      "rate limit"
     )
   ) {
 
     return (
-      "Limite de envio de e-mails atingido. " +
-      "Aguarde alguns minutos e tente novamente."
-    );
-
-  }
-
-
-  if (
-    message.includes(
-      "signup is disabled"
-    )
-  ) {
-
-    return (
-      "O cadastro de novos usuários está desativado."
+      "Muitas tentativas. Aguarde alguns minutos e tente novamente."
     );
 
   }
@@ -1087,616 +1764,10 @@ function traduzirErroCadastro(error) {
 
 
 // ============================================================
-// CADASTRAR NOVO USUÁRIO
+// BOTÃO "CRIAR MINHA CONTA" NA TELA DE LOGIN
 // ============================================================
 
-async function registerUser(e) {
-
-  e.preventDefault();
-
-
-  // ----------------------------------------------------------
-  // PEGAR CAMPOS
-  // ----------------------------------------------------------
-
-  const name =
-    document
-      .getElementById(
-        "registerName"
-      )
-      .value
-      .trim();
-
-
-  const email =
-    document
-      .getElementById(
-        "registerEmail"
-      )
-      .value
-      .trim()
-      .toLowerCase();
-
-
-  const password =
-    document
-      .getElementById(
-        "registerPassword"
-      )
-      .value;
-
-
-  const confirmPassword =
-    document
-      .getElementById(
-        "registerPasswordConfirm"
-      )
-      .value;
-
-
-  const button =
-    document.getElementById(
-      "registerButton"
-    );
-
-
-  const error =
-    document.getElementById(
-      "loginError"
-    );
-
-
-  const success =
-    document.getElementById(
-      "loginSuccess"
-    );
-
-
-  const loading =
-    document.getElementById(
-      "loginLoading"
-    );
-
-
-  // ----------------------------------------------------------
-  // LIMPAR MENSAGENS
-  // ----------------------------------------------------------
-
-  clearAuthMessages();
-
-
-  // ----------------------------------------------------------
-  // VALIDAR NOME
-  // ----------------------------------------------------------
-
-  if (
-    !name
-  ) {
-
-    error.textContent =
-      "Digite seu nome.";
-
-
-    error.classList.add(
-      "show"
-    );
-
-
-    return;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // VALIDAR E-MAIL
-  // ----------------------------------------------------------
-
-  if (
-    !email ||
-    !email.includes("@")
-  ) {
-
-    error.textContent =
-      "Digite um e-mail válido.";
-
-
-    error.classList.add(
-      "show"
-    );
-
-
-    return;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // VALIDAR SENHA
-  // ----------------------------------------------------------
-
-  if (
-    password.length <
-    6
-  ) {
-
-    error.textContent =
-      "A senha deve ter pelo menos 6 caracteres.";
-
-
-    error.classList.add(
-      "show"
-    );
-
-
-    return;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // CONFIRMAR SENHA
-  // ----------------------------------------------------------
-
-  if (
-    password !==
-    confirmPassword
-  ) {
-
-    error.textContent =
-      "As senhas não são iguais.";
-
-
-    error.classList.add(
-      "show"
-    );
-
-
-    return;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // INDICAR QUE ESTAMOS CADASTRANDO
-  // ----------------------------------------------------------
-
-  registrationInProgress =
-    true;
-
-
-  button.disabled =
-    true;
-
-
-  button.textContent =
-    "Criando conta...";
-
-
-  loading.textContent =
-    "Criando sua conta...";
-
-
-  try {
-
-
-    console.log(
-      "ACE: criando usuário:",
-      email
-    );
-
-
-    // ========================================================
-    // CRIAR CONTA NO SUPABASE AUTH
-    // ========================================================
-
-    const {
-      data,
-      error: signUpError
-    } =
-      await supabaseClient
-        .auth
-        .signUp({
-
-          email:
-
-            email,
-
-          password:
-
-            password,
-
-          options: {
-
-            data: {
-
-              nome:
-                name,
-
-              nome_completo:
-                name
-
-            }
-
-          }
-
-        });
-
-
-    // --------------------------------------------------------
-    // VERIFICAR ERRO
-    // --------------------------------------------------------
-
-    if (
-      signUpError
-    ) {
-
-      throw signUpError;
-
-    }
-
-
-    console.log(
-      "ACE: cadastro realizado:",
-      data
-    );
-
-
-    // ========================================================
-    // IMPORTANTE
-    // ========================================================
-    //
-    // SE A CONFIRMAÇÃO DE E-MAIL ESTIVER ATIVADA NO SUPABASE,
-    // normalmente data.session será NULL.
-    //
-    // MAS SE ESTIVER DESATIVADA, O SUPABASE PODE DEVOLVER
-    // UMA SESSÃO AUTOMATICAMENTE.
-    //
-    // NÃO QUEREMOS ENTRAR NO SISTEMA AUTOMATICAMENTE.
-    //
-    // POR ISSO, SE EXISTIR SESSÃO, FAZEMOS LOGOUT.
-    //
-    // ========================================================
-
-    if (
-      data?.session
-    ) {
-
-      console.log(
-        "ACE: sessão criada automaticamente após cadastro."
-      );
-
-
-      try {
-
-        await supabaseClient
-          .auth
-          .signOut();
-
-      } catch (
-        signOutError
-      ) {
-
-        console.warn(
-          "ACE: não foi possível encerrar sessão automática:",
-          signOutError
-        );
-
-      }
-
-    }
-
-
-    // ========================================================
-    // MOSTRAR MENSAGEM DE SUCESSO
-    // ========================================================
-
-    success.textContent =
-      "Conta criada com sucesso! " +
-      "Verifique seu e-mail para confirmar a conta. " +
-      "Depois volte para o login.";
-
-
-    success.classList.add(
-      "show"
-    );
-
-
-    loading.textContent =
-      "";
-
-
-    // ========================================================
-    // LIMPAR SENHAS
-    // ========================================================
-
-    document
-      .getElementById(
-        "registerPassword"
-      )
-      .value =
-      "";
-
-
-    document
-      .getElementById(
-        "registerPasswordConfirm"
-      )
-      .value =
-      "";
-
-
-    // ========================================================
-    // GUARDAR E-MAIL NO LOGIN
-    // ========================================================
-
-    const loginEmail =
-      document.getElementById(
-        "loginEmail"
-      );
-
-
-    if (
-      loginEmail
-    ) {
-
-      loginEmail.value =
-        email;
-
-    }
-
-
-    // ========================================================
-    // VOLTAR PARA A TELA DE LOGIN
-    // ========================================================
-    //
-    // Não fazemos imediatamente.
-    //
-    // Primeiro deixamos a mensagem de sucesso aparecer.
-    // ========================================================
-
-    setTimeout(
-
-      () => {
-
-        registrationInProgress =
-          false;
-
-
-        showLoginView();
-
-
-        const newSuccess =
-          document.getElementById(
-            "loginSuccess"
-          );
-
-
-        if (
-          newSuccess
-        ) {
-
-          newSuccess.textContent =
-            "Conta criada com sucesso! " +
-            "Verifique seu e-mail para confirmar a conta.";
-
-          newSuccess.classList.add(
-            "show"
-          );
-
-        }
-
-
-        const emailField =
-          document.getElementById(
-            "loginEmail"
-          );
-
-
-        if (
-          emailField
-        ) {
-
-          emailField.value =
-            email;
-
-        }
-
-      },
-
-      100
-
-    );
-
-
-    // ========================================================
-    // NÃO ENTRAR NO SISTEMA
-    // ========================================================
-
-    return;
-
-
-  } catch (
-    err
-  ) {
-
-    console.error(
-      "ACE - ERRO AO CRIAR CONTA:",
-      err
-    );
-
-
-    registrationInProgress =
-      false;
-
-
-    error.textContent =
-      traduzirErroCadastro(
-        err
-      );
-
-
-    error.classList.add(
-      "show"
-    );
-
-
-    loading.textContent =
-      "";
-
-
-  } finally {
-
-    button.disabled =
-      false;
-
-
-    button.textContent =
-      "📝 Criar conta";
-
-  }
-
-}
-
-
-// ============================================================
-// VERIFICAR SE O USUÁRIO POSSUI UMA SESSÃO VÁLIDA
-// ============================================================
-
-async function getCurrentSession() {
-
-  try {
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient
-        .auth
-        .getSession();
-
-
-    if (
-      error
-    ) {
-
-      console.error(
-        "ACE - ERRO AO OBTER SESSÃO:",
-        error
-      );
-
-
-      return null;
-
-    }
-
-
-    return (
-      data?.session ||
-      null
-    );
-
-
-  } catch (
-    error
-  ) {
-
-    console.error(
-      "ACE - ERRO DE SESSÃO:",
-      error
-    );
-
-
-    return null;
-
-  }
-
-}
-
-
-// ============================================================
-// ATUALIZAR USUÁRIO ATUAL
-// ============================================================
-
-function setCurrentUserFromSession(
-  user
-) {
-
-  if (
-    !user
-  ) {
-
-    return;
-
-  }
-
-
-  try {
-
-    // --------------------------------------------------------
-    // GARANTIR QUE currentUser EXISTE
-    // --------------------------------------------------------
-
-    if (
-      typeof currentUser ===
-      "undefined" ||
-      currentUser === null
-    ) {
-
-      currentUser = {};
-
-    }
-
-
-    // --------------------------------------------------------
-    // DADOS DO USUÁRIO
-    // --------------------------------------------------------
-
-    currentUser.id =
-      user.id ||
-      null;
-
-
-    currentUser.email =
-      user.email ||
-      "";
-
-
-    currentUser.nome =
-      user.user_metadata?.nome ||
-      user.user_metadata?.nome_completo ||
-      user.email ||
-      "";
-
-
-    currentUser.user =
-      user;
-
-
-    console.log(
-      "ACE: usuário atual:",
-      currentUser
-    );
-
-
-  } catch (
-    error
-  ) {
-
-    console.error(
-      "ACE - ERRO AO ATUALIZAR USUÁRIO:",
-      error
-    );
-
-  }
-
-}
-
-
-// ============================================================
-// ESCONDER TELA DE LOGIN
-// ============================================================
-
-function removeLoginScreen() {
+function setupCreateAccountButton() {
 
   const loginScreen =
     document.getElementById(
@@ -1704,70 +1775,20 @@ function removeLoginScreen() {
     );
 
 
-  if (
-    loginScreen
-  ) {
-
-    loginScreen.remove();
-
-  }
-
-}
-
-
-// ============================================================
-// MOSTRAR TELA DE LOGIN
-// ============================================================
-
-function ensureLoginScreen() {
-
-  if (
-    !document.getElementById(
-      "loginScreen"
-    )
-  ) {
-
-    createLoginScreen();
-
-  }
-
-}
-
-
-// ============================================================
-// FIM DA PARTE 2/5
-// ============================================================
-
-// ============================================================
-// PARTE 3/5 - USUÁRIO + ESTOQUE + ENTRADAS + SAÍDAS + PRESENÇA
-// ============================================================
-
-
-// ============================================================
-// 6. BARRA DO USUÁRIO
-// ============================================================
-
-function addUserBar() {
-
-  const header =
-    document.querySelector(
-      ".ace-header-v6"
-    );
-
-
-  if (
-    !header ||
-    !currentUser
-  ) {
+  if (!loginScreen) {
 
     return;
 
   }
 
+
+  // ----------------------------------------------------------
+  // EVITA DUPLICAR O BOTÃO
+  // ----------------------------------------------------------
 
   if (
     document.getElementById(
-      "userBar"
+      "createAccountButton"
     )
   ) {
 
@@ -1776,206 +1797,229 @@ function addUserBar() {
   }
 
 
-  const bar =
-    document.createElement(
-      "div"
+  const form =
+    document.getElementById(
+      "loginForm"
     );
 
 
-  bar.id =
-    "userBar";
+  if (!form) {
+
+    return;
+
+  }
 
 
-  bar.className =
-    "user-bar";
+  const button =
+    document.createElement(
+      "button"
+    );
 
 
-  bar.innerHTML = `
+  button.id =
+    "createAccountButton";
 
-    <span class="user-email">
-      ${esc(
-        currentUser.email
-      )}
-    </span>
 
-    <button
-      id="logoutBtn"
-      class="logout-btn"
-      type="button"
-    >
-      🚪 Sair
-    </button>
+  button.type =
+    "button";
+
+
+  button.textContent =
+    "📝 Criar minha conta";
+
+
+  button.style.cssText = `
+
+    width:100%;
+
+    margin-top:10px;
+
+    padding:13px;
+
+    border:1px solid #0b3a63;
+
+    border-radius:10px;
+
+    background:#fff;
+
+    color:#0b3a63;
+
+    font-size:15px;
+
+    font-weight:900;
+
+    cursor:pointer;
 
   `;
 
 
-  header.appendChild(
-    bar
+  button.addEventListener(
+    "click",
+    createSignupScreen
   );
 
 
-  const logoutBtn =
-    document.getElementById(
-      "logoutBtn"
-    );
-
-
-  if (
-    logoutBtn
-  ) {
-
-    logoutBtn.addEventListener(
-      "click",
-      logoutUser
-    );
-
-  }
+  form.appendChild(
+    button
+  );
 
 }
 
 
 // ============================================================
-// SAIR DO SISTEMA
+// GARANTIR BOTÃO DE CADASTRO APÓS CRIAR LOGIN
 // ============================================================
 
-async function logoutUser() {
-
-  if (
-    !confirm(
-      "Deseja sair do sistema?"
-    )
-  ) {
-
-    return;
-
-  }
+const originalCreateLoginScreen =
+  createLoginScreen;
 
 
-  try {
+createLoginScreen =
+  function() {
 
-    const {
-      error
-    } =
-      await supabaseClient
-        .auth
-        .signOut();
+    originalCreateLoginScreen();
 
+    setupCreateAccountButton();
 
-    if (
-      error
-    ) {
-
-      throw error;
-
-    }
-
-
-    currentUser =
-      null;
-
-
-    location.reload();
-
-
-  } catch (
-    error
-  ) {
-
-    console.error(
-      "Erro ao sair:",
-      error
-    );
-
-
-    toast(
-      "Não foi possível sair do sistema."
-    );
-
-  }
-
-}
+  };
 
 
 // ============================================================
-// 7. PREENCHER SELECTS
+// FIM DA PARTE 2
 // ============================================================
 
-function populateSelect(
-  id,
-  arr,
-  placeholder =
-    "Selecione..."
-) {
-
-  const el =
-    document.getElementById(
-      id
-    );
-
-
-  if (
-    !el
-  ) {
-
-    return;
-
-  }
-
-
-  el.innerHTML =
-
-    `<option value="">
-      ${placeholder}
-    </option>` +
-
-    (arr || [])
-      .map(
-        x =>
-
-          `<option value="${x.id}">
-            ${esc(x.name)}
-          </option>`
-
-      )
-      .join("");
-
-}
+// ============================================================
+// PARTE 3/5 - EVENTOS + ENTRADAS + MOVIMENTAÇÕES
+// ============================================================
 
 
 // ============================================================
-// DATAS
+// 6. INICIALIZAR DATAS DOS FORMULÁRIOS
 // ============================================================
 
 function setDates() {
 
-  const dateFields = [
-
-    "entryDate",
-
-    "movementDate",
-
-    "dashboardDate",
-
-    "attendanceDate"
-
-  ];
+  const today =
+    isoToday();
 
 
-  dateFields.forEach(
-    id => {
+  const entryDate =
+    document.getElementById(
+      "entryDate"
+    );
 
-      const el =
-        document.getElementById(
-          id
-        );
+
+  if (entryDate) {
+
+    entryDate.value =
+      today;
+
+  }
+
+
+  const movementDate =
+    document.getElementById(
+      "movementDate"
+    );
+
+
+  if (movementDate) {
+
+    movementDate.value =
+      today;
+
+  }
+
+
+  const attendanceDate =
+    document.getElementById(
+      "attendanceDate"
+    );
+
+
+  if (attendanceDate) {
+
+    attendanceDate.value =
+      today;
+
+  }
+
+
+  const dashboardDate =
+    document.getElementById(
+      "dashboardDate"
+    );
+
+
+  if (dashboardDate) {
+
+    dashboardDate.value =
+      today;
+
+  }
+
+}
+
+
+// ============================================================
+// 7. ATUALIZAR SELECTS
+// ============================================================
+
+function refreshSelects() {
+
+  if (!db) {
+
+    return;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // ALIMENTOS
+  // ----------------------------------------------------------
+
+  const foodSelects =
+    document.querySelectorAll(
+      'select[name="foodId"]'
+    );
+
+
+  foodSelects.forEach(
+    select => {
+
+      const current =
+        select.value;
+
+
+      select.innerHTML =
+        '<option value="">Selecione...</option>' +
+
+
+        db.foods
+          .map(
+            food => `
+
+              <option
+                value="${esc(food.id)}"
+              >
+                ${esc(food.name)}
+              </option>
+
+            `
+          )
+          .join("");
 
 
       if (
-        el
+        current &&
+        db.foods.some(
+          f =>
+            f.id === current
+        )
       ) {
 
-        el.value =
-          isoToday();
+        select.value =
+          current;
 
       }
 
@@ -1983,130 +2027,106 @@ function setDates() {
   );
 
 
-  const start =
-    document.getElementById(
-      "reportStart"
-    );
-
-
-  const end =
-    document.getElementById(
-      "reportEnd"
-    );
-
-
-  if (
-    start
-  ) {
-
-    start.value =
-      isoToday();
-
-  }
-
-
-  if (
-    end
-  ) {
-
-    end.value =
-      isoToday();
-
-  }
-
-}
-
-
-// ============================================================
-// ATUALIZAR SELECTS
-// ============================================================
-
-function refreshSelects() {
-
-  if (
-    !db
-  ) {
-
-    return;
-
-  }
-
-
   // ----------------------------------------------------------
   // ORIGENS
   // ----------------------------------------------------------
 
-  populateSelect(
-    "entryOrigin",
-    db.origins
-  );
+  const originSelects =
+    document.querySelectorAll(
+      'select[name="origin"]'
+    );
 
 
-  populateSelect(
-    "movementOrigin",
-    db.origins
-  );
+  originSelects.forEach(
+    select => {
+
+      const current =
+        select.value;
 
 
-  // ----------------------------------------------------------
-  // ALIMENTOS
-  // ----------------------------------------------------------
-
-  populateSelect(
-    "entryFood",
-    db.foods
-  );
+      select.innerHTML =
+        '<option value="">Selecione...</option>' +
 
 
-  populateSelect(
-    "movementFood",
-    db.foods
+        db.origins
+          .map(
+            origin => `
+
+              <option
+                value="${esc(origin.id)}"
+              >
+                ${esc(origin.name)}
+              </option>
+
+            `
+          )
+          .join("");
+
+
+      if (
+        current &&
+        db.origins.some(
+          o =>
+            o.id === current
+        )
+      ) {
+
+        select.value =
+          current;
+
+      }
+
+    }
   );
 
 
   // ----------------------------------------------------------
   // MOTIVOS
   // ----------------------------------------------------------
-  //
-  // Mantemos os motivos existentes.
-  // Não criamos tabela nova para motivos.
-  //
-  // ----------------------------------------------------------
 
-  populateSelect(
-    "movementReason",
-    db.reasons
-  );
-
-
-  // ----------------------------------------------------------
-  // ORIGEM DO RELATÓRIO
-  // ----------------------------------------------------------
-
-  const reportOrigin =
+  const reasonSelect =
     document.getElementById(
-      "reportOrigin"
+      "movementReason"
     );
 
 
-  if (
-    reportOrigin
-  ) {
+  if (reasonSelect) {
 
-    reportOrigin.innerHTML =
+    const current =
+      reasonSelect.value;
 
-      '<option value="">Todas</option>' +
 
-      (db.origins || [])
+    reasonSelect.innerHTML =
+      '<option value="">Selecione...</option>' +
+
+
+      db.reasons
         .map(
-          x =>
+          reason => `
 
-            `<option value="${x.id}">
-              ${esc(x.name)}
-            </option>`
+            <option
+              value="${esc(reason.id)}"
+            >
+              ${esc(reason.name)}
+            </option>
 
+          `
         )
         .join("");
+
+
+    if (
+      current &&
+      db.reasons.some(
+        r =>
+          r.id === current
+      )
+    ) {
+
+      reasonSelect.value =
+        current;
+
+    }
 
   }
 
@@ -2114,7 +2134,7 @@ function refreshSelects() {
 
 
 // ============================================================
-// 8. CÁLCULO DO ESTOQUE
+// 8. CALCULAR ESTOQUE
 // ============================================================
 
 function calcStock() {
@@ -2123,118 +2143,129 @@ function calcStock() {
 
 
   // ----------------------------------------------------------
-  // CRIAR ESTRUTURA POR ORIGEM
+  // CRIAR ESTRUTURA
   // ----------------------------------------------------------
 
-  (db.origins || [])
-    .forEach(
-      origin => {
+  db.origins.forEach(
+    origin => {
+
+      stock[origin.id] =
+        {};
+
+      db.foods.forEach(
+        food => {
+
+          stock[
+            origin.id
+          ][
+            food.id
+          ] = 0;
+
+        }
+      );
+
+    }
+  );
+
+
+  // ----------------------------------------------------------
+  // ENTRADAS
+  // ----------------------------------------------------------
+
+  db.entries.forEach(
+    entry => {
+
+      if (
+        !stock[
+          entry.originId
+        ]
+      ) {
 
         stock[
-          origin.id
+          entry.originId
         ] = {};
 
       }
-    );
 
 
-  // ----------------------------------------------------------
-  // INICIAR TODOS OS ALIMENTOS COM ZERO
-  // ----------------------------------------------------------
+      if (
+        typeof stock[
+          entry.originId
+        ][
+          entry.foodId
+        ] !== "number"
+      ) {
 
-  (db.foods || [])
-    .forEach(
-      food => {
-
-        (db.origins || [])
-          .forEach(
-            origin => {
-
-              stock[
-                origin.id
-              ][
-                food.id
-              ] = 0;
-
-            }
-          );
+        stock[
+          entry.originId
+        ][
+          entry.foodId
+        ] = 0;
 
       }
-    );
+
+
+      stock[
+        entry.originId
+      ][
+        entry.foodId
+      ] +=
+        Number(
+          entry.qty || 0
+        );
+
+    }
+  );
 
 
   // ----------------------------------------------------------
-  // SOMAR ENTRADAS
+  // SAÍDAS E PERDAS
   // ----------------------------------------------------------
 
-  (db.entries || [])
-    .forEach(
-      entry => {
+  db.movements.forEach(
+    movement => {
 
-        if (
+      if (
+        !stock[
+          movement.originId
+        ]
+      ) {
 
-          stock[
-            entry.originId
-          ] &&
-
-          stock[
-            entry.originId
-          ][
-            entry.foodId
-          ] !== undefined
-
-        ) {
-
-          stock[
-            entry.originId
-          ][
-            entry.foodId
-          ] +=
-            Number(
-              entry.qty || 0
-            );
-
-        }
+        stock[
+          movement.originId
+        ] = {};
 
       }
-    );
 
 
-  // ----------------------------------------------------------
-  // DESCONTAR SAÍDAS E PERDAS
-  // ----------------------------------------------------------
+      if (
+        typeof stock[
+          movement.originId
+        ][
+          movement.foodId
+        ] !== "number"
+      ) {
 
-  (db.movements || [])
-    .forEach(
-      movement => {
-
-        if (
-
-          stock[
-            movement.originId
-          ] &&
-
-          stock[
-            movement.originId
-          ][
-            movement.foodId
-          ] !== undefined
-
-        ) {
-
-          stock[
-            movement.originId
-          ][
-            movement.foodId
-          ] -=
-            Number(
-              movement.qty || 0
-            );
-
-        }
+        stock[
+          movement.originId
+        ][
+          movement.foodId
+        ] = 0;
 
       }
-    );
+
+
+      stock[
+        movement.originId
+      ][
+        movement.foodId
+      ] -=
+        Number(
+          movement.qty || 0
+        );
+
+    }
+  );
 
 
   return stock;
@@ -2243,1236 +2274,1038 @@ function calcStock() {
 
 
 // ============================================================
-// 9. DASHBOARD / INÍCIO
+// 9. EVENTOS PRINCIPAIS
 // ============================================================
 
-function renderDashboard() {
+function bindEvents() {
 
-  if (
-    !db
-  ) {
-
-    return;
-
-  }
+  console.log(
+    "ACE: registrando eventos..."
+  );
 
 
-  const date =
+  // ==========================================================
+  // FORMULÁRIO DE ENTRADA
+  // ==========================================================
+
+  const entryForm =
     document.getElementById(
-      "dashboardDate"
-    )?.value ||
-    isoToday();
-
-
-  const todayLabel =
-    document.getElementById(
-      "todayLabel"
+      "entryForm"
     );
 
 
-  if (
-    todayLabel
-  ) {
+  if (entryForm) {
 
-    todayLabel.textContent =
-      fmtDate(
-        date
-      );
+    entryForm.addEventListener(
+      "submit",
+      async e => {
 
-  }
+        e.preventDefault();
 
 
-  // ----------------------------------------------------------
-  // ENTRADAS DO DIA
-  // ----------------------------------------------------------
-
-  const ent =
-    (db.entries || [])
-      .filter(
-        x =>
-          x.date === date
-      )
-      .reduce(
-        (
-          total,
-          x
-        ) =>
-          total +
-          Number(
-            x.qty || 0
-          ),
-        0
-      );
-
-
-  // ----------------------------------------------------------
-  // SAÍDAS DO DIA
-  // ----------------------------------------------------------
-
-  const sai =
-    (db.movements || [])
-      .filter(
-        x =>
-
-          x.date === date &&
-
-          x.type ===
-            "saida"
-
-      )
-      .reduce(
-        (
-          total,
-          x
-        ) =>
-          total +
-          Number(
-            x.qty || 0
-          ),
-        0
-      );
-
-
-  // ----------------------------------------------------------
-  // PERDAS DO DIA
-  // ----------------------------------------------------------
-
-  const per =
-    (db.movements || [])
-      .filter(
-        x =>
-
-          x.date === date &&
-
-          x.type ===
-            "perda"
-
-      )
-      .reduce(
-        (
-          total,
-          x
-        ) =>
-          total +
-          Number(
-            x.qty || 0
-          ),
-        0
-      );
-
-
-  // ----------------------------------------------------------
-  // ESTOQUE TOTAL
-  // ----------------------------------------------------------
-
-  const st =
-    calcStock();
-
-
-  const estoque =
-    Object.values(
-      st
-    )
-      .reduce(
-        (
-          total,
-          origem
-        ) =>
-
-          total +
-
-          Object.values(
-            origem
-          )
-            .reduce(
-              (
-                soma,
-                valor
-              ) =>
-
-                soma +
-                Number(
-                  valor || 0
-                ),
-
-              0
-
-            ),
-
-        0
-
-      );
-
-
-  // ----------------------------------------------------------
-  // PRESENTES
-  // ----------------------------------------------------------
-
-  const pres =
-    (
-      db.attendance[
-        date
-      ] || []
-    )
-      .filter(
-        Boolean
-      )
-      .length;
-
-
-  // ----------------------------------------------------------
-  // KPIs
-  // ----------------------------------------------------------
-
-  const cards = [
-
-    [
-      "kpiEntrada",
-      ent
-    ],
-
-    [
-      "kpiSaida",
-      sai
-    ],
-
-    [
-      "kpiPerda",
-      per
-    ],
-
-    [
-      "kpiEstoque",
-      estoque
-    ],
-
-    [
-      "kpiPresentes",
-      pres
-    ]
-
-  ];
-
-
-  cards.forEach(
-    ([id, value]) => {
-
-      const el =
-        document.getElementById(
-          id
-        );
-
-
-      if (
-        el
-      ) {
-
-        el.textContent =
-          fmt(
-            value
+        const f =
+          new FormData(
+            e.target
           );
 
-      }
 
-    }
-  );
+        const date =
+          f.get("date");
 
 
-  // ----------------------------------------------------------
-  // ESTOQUE POR ORIGEM
-  // ----------------------------------------------------------
+        const origin =
+          f.get("origin");
 
-  const originSummary =
-    document.getElementById(
-      "originSummary"
-    );
 
+        const food =
+          f.get("foodId");
 
-  if (
-    originSummary
-  ) {
 
-    originSummary.innerHTML =
+        const qty =
+          Number(
+            f.get("qty")
+          );
 
-      (db.origins || [])
-        .map(
-          origin => {
 
-            const total =
-              Object.values(
-                st[
-                  origin.id
-                ] || {}
-              )
-                .reduce(
-                  (
-                    soma,
-                    valor
-                  ) =>
+        if (
+          !date ||
+          !origin ||
+          !food ||
+          !qty ||
+          qty <= 0
+        ) {
 
-                    soma +
-                    Number(
-                      valor || 0
-                    ),
+          toast(
+            "Preencha todos os campos da entrada."
+          );
 
-                  0
-
-                );
-
-
-            return `
-
-              <div class="origin-box">
-
-                <div class="origin-title">
-
-                  <span>
-                    📍
-                    ${esc(
-                      origin.name
-                    )}
-                  </span>
-
-                  <span class="badge">
-                    ${fmt(total)}
-                  </span>
-
-                </div>
-
-                <div class="origin-value">
-                  ${fmt(total)} itens
-                </div>
-
-              </div>
-
-            `;
-
-          }
-        )
-        .join("");
-
-  }
-
-
-  // ----------------------------------------------------------
-  // ÚLTIMOS LANÇAMENTOS
-  // ----------------------------------------------------------
-
-  const recent =
-    document.getElementById(
-      "recentMovements"
-    );
-
-
-  if (
-    recent
-  ) {
-
-    const all = [
-
-      ...(db.entries || [])
-        .map(
-          x => ({
-
-            ...x,
-
-            kind:
-              "Entrada",
-
-            sign:
-              "+"
-
-          })
-        ),
-
-
-      ...(db.movements || [])
-        .map(
-          x => ({
-
-            ...x,
-
-            kind:
-              x.type ===
-              "perda"
-
-                ? "Perda"
-
-                : "Saída",
-
-            sign:
-              "-"
-
-          })
-        )
-
-    ];
-
-
-    all.sort(
-      (
-        a,
-        b
-      ) =>
-
-        (
-          b.createdAt ||
-          ""
-        ).localeCompare(
-          a.createdAt ||
-          ""
-        )
-
-    );
-
-
-    const last =
-      all.slice(
-        0,
-        8
-      );
-
-
-    recent.innerHTML =
-
-      last.length
-
-        ? last
-            .map(
-              x => `
-
-                <div class="recent-item">
-
-                  <b>
-
-                    ${x.sign}
-
-                    ${fmt(
-                      x.qty
-                    )}
-
-                    —
-
-                    ${esc(
-                      getName(
-                        db.foods,
-                        x.foodId
-                      )
-                    )}
-
-                  </b>
-
-                  <small>
-
-                    ${x.kind}
-
-                    •
-
-                    ${esc(
-                      getName(
-                        db.origins,
-                        x.originId
-                      )
-                    )}
-
-                    •
-
-                    ${fmtDate(
-                      x.date
-                    )}
-
-                  </small>
-
-                </div>
-
-              `
-            )
-            .join("")
-
-        : `
-
-            <div class="empty">
-              Nenhum lançamento ainda.
-            </div>
-
-          `;
-
-  }
-
-}
-
-
-// ============================================================
-// 10. ENTRADAS
-// ============================================================
-
-function renderEntries() {
-
-  if (
-    !db
-  ) {
-
-    return;
-
-  }
-
-
-  const date =
-    document.getElementById(
-      "entryDate"
-    )?.value ||
-    isoToday();
-
-
-  const arr =
-    (db.entries || [])
-      .filter(
-        x =>
-          x.date === date
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-
-          (
-            b.createdAt ||
-            ""
-          ).localeCompare(
-            a.createdAt ||
-            ""
-          )
-
-      );
-
-
-  const total =
-    arr.reduce(
-      (
-        soma,
-        x
-      ) =>
-
-        soma +
-        Number(
-          x.qty || 0
-        ),
-
-      0
-
-    );
-
-
-  const totalEl =
-    document.getElementById(
-      "entryDayTotal"
-    );
-
-
-  if (
-    totalEl
-  ) {
-
-    totalEl.textContent =
-      `Total: ${fmt(total)}`;
-
-  }
-
-
-  const tableEl =
-    document.getElementById(
-      "entriesTable"
-    );
-
-
-  if (
-    tableEl
-  ) {
-
-    tableEl.innerHTML =
-
-      table(
-
-        arr,
-
-        [
-
-          [
-            "Data",
-
-            x =>
-              fmtDate(
-                x.date
-              )
-
-          ],
-
-          [
-            "Origem",
-
-            x =>
-
-              esc(
-                getName(
-                  db.origins,
-                  x.originId
-                )
-              )
-
-          ],
-
-          [
-            "Alimento",
-
-            x =>
-
-              esc(
-                getName(
-                  db.foods,
-                  x.foodId
-                )
-              )
-
-          ],
-
-          [
-            "Qtd",
-
-            x =>
-              fmt(
-                x.qty
-              )
-
-          ],
-
-          [
-            "Obs.",
-
-            x =>
-              esc(
-                x.note ||
-                ""
-              )
-
-          ]
-
-        ],
-
-        x =>
-          removeEntry(
-            x.id
-          )
-
-      );
-
-  }
-
-}
-
-
-// ============================================================
-// EXCLUIR ENTRADA
-// ============================================================
-
-function removeEntry(
-  id
-) {
-
-  if (
-    !confirm(
-      "Excluir esta entrada?"
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  db.entries =
-    db.entries.filter(
-      x =>
-        x.id !== id
-    );
-
-
-  save();
-
-
-  renderAll();
-
-
-  toast(
-    "Entrada excluída."
-  );
-
-}
-
-
-// ============================================================
-// 11. MOVIMENTAÇÕES
-// ============================================================
-
-function renderMovements() {
-
-  if (
-    !db
-  ) {
-
-    return;
-
-  }
-
-
-  const arr =
-    (db.movements || [])
-      .slice()
-      .sort(
-        (
-          a,
-          b
-        ) =>
-
-          (
-            b.createdAt ||
-            ""
-          ).localeCompare(
-            a.createdAt ||
-            ""
-          )
-
-      );
-
-
-  const el =
-    document.getElementById(
-      "movementsTable"
-    );
-
-
-  if (
-    !el
-  ) {
-
-    return;
-
-  }
-
-
-  el.innerHTML =
-
-    table(
-
-      arr,
-
-      [
-
-        [
-          "Data",
-
-          x =>
-            fmtDate(
-              x.date
-            )
-
-        ],
-
-
-        [
-          "Tipo",
-
-          x => `
-
-            <span
-              class="pill ${
-                x.type ===
-                "perda"
-                  ? "red"
-                  : "blue"
-              }"
-            >
-
-              ${
-                x.type ===
-                "perda"
-
-                  ? "Perda"
-
-                  : "Saída"
-              }
-
-            </span>
-
-          `
-
-        ],
-
-
-        [
-          "Origem",
-
-          x =>
-            esc(
-              getName(
-                db.origins,
-                x.originId
-              )
-            )
-
-        ],
-
-
-        [
-          "Alimento",
-
-          x =>
-            esc(
-              getName(
-                db.foods,
-                x.foodId
-              )
-            )
-
-        ],
-
-
-        [
-          "Qtd",
-
-          x =>
-            fmt(
-              x.qty
-            )
-
-        ],
-
-
-        [
-          "Motivo",
-
-          x =>
-            esc(
-              getName(
-                db.reasons,
-                x.reasonId
-              )
-            )
-
-        ],
-
-
-        [
-          "Obs.",
-
-          x =>
-            esc(
-              x.note ||
-              ""
-            )
-
-        ]
-
-      ],
-
-      x =>
-        removeMovement(
-          x.id
-        )
-
-    );
-
-}
-
-
-// ============================================================
-// EXCLUIR MOVIMENTAÇÃO
-// ============================================================
-
-function removeMovement(
-  id
-) {
-
-  if (
-    !confirm(
-      "Excluir esta movimentação?"
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  db.movements =
-    db.movements.filter(
-      x =>
-        x.id !== id
-    );
-
-
-  save();
-
-
-  renderAll();
-
-
-  toast(
-    "Movimentação excluída."
-  );
-
-}
-
-
-// ============================================================
-// 12. TABELA
-// ============================================================
-
-function table(
-  arr,
-  cols,
-  remove
-) {
-
-  if (
-    !arr ||
-    !arr.length
-  ) {
-
-    return `
-
-      <div class="empty">
-        Nenhum registro encontrado.
-      </div>
-
-    `;
-
-  }
-
-
-  return `
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-
-            ${
-              cols
-                .map(
-                  c =>
-                    `<th>
-                      ${c[0]}
-                    </th>`
-                )
-                .join("")
-            }
-
-            <th>Ação</th>
-
-          </tr>
-
-        </thead>
-
-
-        <tbody>
-
-          ${
-            arr
-              .map(
-                x => `
-
-                  <tr>
-
-                    ${
-                      cols
-                        .map(
-                          c =>
-                            `<td>
-                              ${c[1](x)}
-                            </td>`
-                        )
-                        .join("")
-                    }
-
-                    <td>
-
-                      <button
-                        class="btn danger-btn"
-                        data-remove="${x.id}"
-                      >
-                        Excluir
-                      </button>
-
-                    </td>
-
-                  </tr>
-
-                `
-              )
-              .join("")
-          }
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-  `;
-
-}
-
-
-// ============================================================
-// 13. PRESENÇA
-// ============================================================
-
-function renderAttendance() {
-
-  if (
-    !db
-  ) {
-
-    return;
-
-  }
-
-
-  const date =
-    document.getElementById(
-      "attendanceDate"
-    )?.value ||
-    isoToday();
-
-
-  const search =
-    (
-      document.getElementById(
-        "attendanceSearch"
-      )?.value ||
-      ""
-    )
-      .toLowerCase()
-      .trim();
-
-
-  const set =
-    new Set(
-      db.attendance[
-        date
-      ] || []
-    );
-
-
-  const people =
-    (db.people || [])
-      .filter(
-        person => {
-
-          const text =
-
-            (
-              person.name ||
-              ""
-            ) +
-
-            " " +
-
-            (
-              person.registration ||
-              ""
-            );
-
-
-          return text
-            .toLowerCase()
-            .includes(
-              search
-            );
+          return;
 
         }
-      );
 
 
-  const count =
-    document.getElementById(
-      "attendanceCount"
-    );
+        // ------------------------------------------------------
+        // OBJETO LOCAL
+        // ------------------------------------------------------
+
+        const entry = {
+
+          id:
+            uid(),
+
+          date,
+
+          originId:
+            origin,
+
+          foodId:
+            food,
+
+          qty,
+
+          note:
+            f.get("note") || "",
+
+          createdAt:
+            new Date()
+              .toISOString()
+
+        };
 
 
-  if (
-    count
-  ) {
+        // ------------------------------------------------------
+        // SALVAR NO SUPABASE
+        // ------------------------------------------------------
 
-    count.textContent =
-      `${set.size} presentes`;
+        try {
 
-  }
+          const {
+            error
+          } =
+            await supabaseClient
+              .from("entradas")
+              .insert({
 
+                id:
+                  entry.id,
 
-  const list =
-    document.getElementById(
-      "attendanceList"
-    );
+                data_entrada:
+                  entry.date,
 
+                origem_id:
+                  entry.originId,
 
-  if (
-    !list
-  ) {
+                alimento_id:
+                  entry.foodId,
 
-    return;
+                quantidade:
+                  entry.qty,
 
-  }
+                usuario_id:
+                  currentUser.id
 
-
-  list.innerHTML =
-
-    people.length
-
-      ? people
-          .map(
-            person => `
-
-              <div
-                class="attendance-row"
-              >
-
-                <div>
-
-                  <div
-                    class="person-name"
-                  >
-                    ${esc(
-                      person.name
-                    )}
-                  </div>
-
-                  <div
-                    class="person-reg"
-                  >
-                    Matrícula:
-                    ${esc(
-                      person.registration
-                    )}
-                  </div>
-
-                </div>
+              });
 
 
-                <label
-                  class="switch"
-                >
+          if (error) {
 
-                  <input
-
-                    type="checkbox"
-
-                    data-person="${person.id}"
-
-                    ${
-                      set.has(
-                        person.id
-                      )
-                        ? "checked"
-                        : ""
-                    }
-
-                  >
-
-                  <span
-                    class="slider"
-                  ></span>
-
-                </label>
-
-              </div>
-
-            `
-          )
-          .join("")
-
-      : `
-
-          <div class="empty">
-            Nenhuma pessoa cadastrada/encontrada.
-          </div>
-
-        `;
-
-
-  // ----------------------------------------------------------
-  // MARCAR / DESMARCAR PRESENÇA
-  // ----------------------------------------------------------
-
-  document
-    .querySelectorAll(
-      "[data-person]"
-    )
-    .forEach(
-      checkbox => {
-
-        checkbox.addEventListener(
-          "change",
-          e => {
-
-            const attendance =
-              new Set(
-                db.attendance[
-                  date
-                ] || []
-              );
-
-
-            const personId =
-              e.target
-                .dataset
-                .person;
-
-
-            if (
-              e.target.checked
-            ) {
-
-              attendance.add(
-                personId
-              );
-
-            } else {
-
-              attendance.delete(
-                personId
-              );
-
-            }
-
-
-            db.attendance[
-              date
-            ] =
-              [
-                ...attendance
-              ];
-
-
-            save();
-
-
-            renderAttendance();
-
-
-            renderDashboard();
+            throw error;
 
           }
-        );
+
+
+          // ----------------------------------------------------
+          // ATUALIZAR BANCO LOCAL EM MEMÓRIA
+          // ----------------------------------------------------
+
+          db.entries.push(
+            entry
+          );
+
+
+          save();
+
+
+          e.target.reset();
+
+
+          const entryDate =
+            document.getElementById(
+              "entryDate"
+            );
+
+
+          if (entryDate) {
+
+            entryDate.value =
+              isoToday();
+
+          }
+
+
+          renderAll();
+
+
+          toast(
+            "Entrada registrada."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO REGISTRAR ENTRADA:",
+            error
+          );
+
+
+          toast(
+            "Erro ao registrar entrada."
+          );
+
+        }
 
       }
     );
 
-}
+  }
+
+
+  // ==========================================================
+  // FORMULÁRIO DE MOVIMENTAÇÃO
+  // ==========================================================
+
+  const movementForm =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (movementForm) {
+
+    movementForm.addEventListener(
+      "submit",
+      async e => {
+
+        e.preventDefault();
+
+
+        const f =
+          new FormData(
+            e.target
+          );
+
+
+        const origin =
+          f.get("origin");
+
+
+        const food =
+          f.get("foodId");
+
+
+        const qty =
+          Number(
+            f.get("qty")
+          );
+
+
+        const type =
+          f.get("type");
+
+
+        const date =
+          f.get("date");
+
+
+        const reasonId =
+          f.get("reasonId");
+
+
+        const note =
+          f.get("note") ||
+          "";
+
+
+        // ------------------------------------------------------
+        // VALIDAR
+        // ------------------------------------------------------
+
+        if (
+          !origin ||
+          !food ||
+          !qty ||
+          qty <= 0 ||
+          !type ||
+          !date
+        ) {
+
+          toast(
+            "Preencha todos os campos da movimentação."
+          );
+
+          return;
+
+        }
+
+
+        // ------------------------------------------------------
+        // VERIFICAR ESTOQUE
+        // ------------------------------------------------------
+
+        const st =
+          calcStock();
+
+
+        const available =
+          Number(
+            st[
+              origin
+            ]?.[
+              food
+            ] || 0
+          );
+
+
+        if (
+          qty >
+          available
+        ) {
+
+          toast(
+
+            `Saldo insuficiente. Disponível em ${
+              getName(
+                db.origins,
+                origin
+              )
+            }: ${fmt(
+              available
+            )}.`
+
+          );
+
+          return;
+
+        }
+
+
+        // ------------------------------------------------------
+        // OBJETO LOCAL
+        // ------------------------------------------------------
+
+        const movement = {
+
+          id:
+            uid(),
+
+          date,
+
+          type,
+
+          originId:
+            origin,
+
+          foodId:
+            food,
+
+          qty,
+
+          reasonId,
+
+          note,
+
+          createdAt:
+            new Date()
+              .toISOString()
+
+        };
+
+
+        try {
+
+          // ====================================================
+          // SAÍDA
+          // ====================================================
+
+          if (
+            type ===
+            "saida"
+          ) {
+
+            const {
+              error
+            } =
+              await supabaseClient
+                .from("saídas")
+                .insert({
+
+                  id:
+                    movement.id,
+
+                  data_saida:
+                    movement.date,
+
+                  origem_id:
+                    movement.originId,
+
+                  alimento_id:
+                    movement.foodId,
+
+                  quantidade:
+                    movement.qty,
+
+                  destino:
+                    movement.note,
+
+                  usuario_id:
+                    currentUser.id
+
+                });
+
+
+            if (error) {
+
+              throw error;
+
+            }
+
+          }
+
+
+          // ====================================================
+          // PERDA
+          // ====================================================
+
+          else if (
+            type ===
+            "perda"
+          ) {
+
+            const reasonName =
+              db.reasons.find(
+                r =>
+                  r.id ===
+                  reasonId
+              )?.name ||
+              reasonId ||
+              "Outro";
+
+
+            const {
+              error
+            } =
+              await supabaseClient
+                .from("perdas")
+                .insert({
+
+                  id:
+                    movement.id,
+
+                  data_perda:
+                    movement.date,
+
+                  origem_id:
+                    movement.originId,
+
+                  alimento_id:
+                    movement.foodId,
+
+                  quantidade:
+                    movement.qty,
+
+                  motivo:
+                    reasonName,
+
+                  usuario_id:
+                    currentUser.id
+
+                });
+
+
+            if (error) {
+
+              throw error;
+
+            }
+
+          }
+
+
+          // ====================================================
+          // ATUALIZAR MEMÓRIA
+          // ====================================================
+
+          db.movements.push(
+            movement
+          );
+
+
+          save();
+
+
+          e.target.reset();
+
+
+          const movementDate =
+            document.getElementById(
+              "movementDate"
+            );
+
+
+          if (movementDate) {
+
+            movementDate.value =
+              isoToday();
+
+          }
+
+
+          renderAll();
+
+
+          toast(
+            "Movimentação registrada."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO REGISTRAR MOVIMENTAÇÃO:",
+            error
+          );
+
+
+          toast(
+            "Erro ao registrar movimentação."
+          );
+
+        }
+
+      }
+    );
+
+  }
+
+
+  // ==========================================================
+  // DASHBOARD
+  // ==========================================================
+
+  const dashboardDate =
+    document.getElementById(
+      "dashboardDate"
+    );
+
+
+  if (dashboardDate) {
+
+    dashboardDate.addEventListener(
+      "change",
+      renderDashboard
+    );
+
+  }
+
+
+  // ==========================================================
+  // DATA DA ENTRADA
+  // ==========================================================
+
+  const entryDate =
+    document.getElementById(
+      "entryDate"
+    );
+
+
+  if (entryDate) {
+
+    entryDate.addEventListener(
+      "change",
+      renderEntries
+    );
+
+  }
+
+
+  // ==========================================================
+  // DATA DA PRESENÇA
+  // ==========================================================
+
+  const attendanceDate =
+    document.getElementById(
+      "attendanceDate"
+    );
+
+
+  if (attendanceDate) {
+
+    attendanceDate.addEventListener(
+      "change",
+      renderAttendance
+    );
+
+  }
+
+
+  // ==========================================================
+  // PESQUISA DE PRESENÇA
+  // ==========================================================
+
+  const attendanceSearch =
+    document.getElementById(
+      "attendanceSearch"
+    );
+
+
+  if (attendanceSearch) {
+
+    attendanceSearch.addEventListener(
+      "input",
+      renderAttendance
+    );
+
+  }
+
+
+  // ==========================================================
+  // ATUALIZAR ESTOQUE
+  // ==========================================================
+
+  const refreshStock =
+    document.getElementById(
+      "refreshStock"
+    );
+
+
+  if (refreshStock) {
+
+    refreshStock.addEventListener(
+      "click",
+      async () => {
+
+        try {
+
+          db =
+            await loadFromSupabase();
+
+
+          renderAll();
+
+
+          toast(
+            "Estoque atualizado."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            error
+          );
+
+
+          toast(
+            "Erro ao atualizar estoque."
+          );
+
+        }
+
+      }
+    );
+
+  }
+
+
+  // ==========================================================
+  // GERAR RELATÓRIO
+  // ==========================================================
+
+  const generateReport =
+    document.getElementById(
+      "generateReport"
+    );
+
+
+  if (generateReport) {
+
+    generateReport.addEventListener(
+      "click",
+      renderReport
+    );
+
+  }
+
+
+  // ==========================================================
+  // EXPORTAR CSV
+  // ==========================================================
+
+  const exportCSVButton =
+    document.getElementById(
+      "exportCSV"
+    );
+
+
+  if (exportCSVButton) {
+
+    exportCSVButton.addEventListener(
+      "click",
+      exportCSV
+    );
+
+  }
+
+
+  // ==========================================================
+  // CADASTRO DE PESSOAS
+  // ==========================================================
+
+  const personForm =
+    document.getElementById(
+      "personForm"
+    );
+
+
+  if (personForm) {
+
+    personForm.addEventListener(
+      "submit",
+      async e => {
+
+        e.preventDefault();
+
+
+        const f =
+          new FormData(
+            e.target
+          );
+
+
+        const person = {
+
+          id:
+            uid(),
+
+          name:
+            f.get("name")
+              .trim(),
+
+          registration:
+            f.get("registration")
+              .trim()
+
+        };
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabaseClient
+              .from("Pessoas")
+              .insert({
+
+                id:
+                  person.id,
+
+                nome:
+                  person.name,
+
+                "matrícula":
+                  person.registration,
+
+                usuario_id:
+                  currentUser.id
+
+              });
+
+
+          if (error) {
+
+            throw error;
+
+          }
+
+
+          db.people.push(
+            person
+          );
+
+
+          save();
+
+
+          e.target.reset();
+
+
+          renderAll();
+
+
+          toast(
+            "Pessoa cadastrada."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO CADASTRAR PESSOA:",
+            error
+          );
+
+
+          toast(
+            "Erro ao cadastrar pessoa."
+          );
+
+        }
+
+      }
+    );
+
+  }
+
+
+  // ==========================================================
+  // CADASTRO DE ALIMENTOS
+  // ==========================================================
+
+  const foodForm =
+    document.getElementById(
+      "foodForm"
+    );
+
+
+  if (foodForm) {
+
+    foodForm.addEventListener(
+      "submit",
+      async e => {
+
+        e.preventDefault();
+
+
+        const f =
+          new FormData(
+            e.target
+          );
+
+
+        const food = {
+
+          id:
+            uid(),
+
+          name:
+            f.get("name")
+              .trim()
+
+        };
+
+
+        if (!food.name) {
+
+          toast(
+            "Informe o nome do alimento."
+          );
+
+          return;
+
+        }
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabaseClient
+              .from("Alimentos")
+              .insert({
+
+                id:
+                  food.id,
+
+                nome:
+                  food.name,
+
+                usuario_id:
+                  currentUser.id
+
+              });
+
+
+          if (error) {
+
+            throw error;
+
+          }
+
+
+          db.foods.push(
+            food
+          );
+
+
+          save();
+
+
+          e.target.reset();
+
+
+          renderAll();
+
+
+          toast(
+            "Alimento cadastrado."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO CADASTRAR ALIMENTO:",
+            error
+          );
+
+
+          toast(
+            "Erro ao cadastrar alimento."
+          );
+
+        }
+
+      }
+    );
+
+  }
+
+
+  // ==========================================================
+  // CADASTRO DE ORIGENS
+  // ==========================================================
+
+  const originForm =
+    document.getElementById(
+      "originForm"
+    );
+
+
+  if (originForm) {
+
+    originForm.addEventListener(
+      "submit",
+      async e => {
+
+        e.preventDefault();
+
+
+        const f =
+          new FormData(
+            e.target
+          );
+
+
+        const origin = {
+
+          id:
+            uid(),
+
+          name:
+            f.get("name")
+              .trim()
+
+        };
+
+
+        if (!origin.name) {
+
+          toast(
+            "Informe o nome da origem."
+          );
+
+          return;
+
+        }
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabaseClient
+              .from("origens")
+              .insert({
+
+                id:
+                  origin.id,
+
+                nome:
+                  origin.name,
+
+                usuario_id:
+                  currentUser.id
+
+              });
+
+
+          if (error) {
+
+            throw error;
+
+          }
+
+
+          db.origins.push(
+            origin
+          );
+
+
+          save();
+
+
+          e.target.reset();
+
+
+          renderAll();
+
+
+          toast(
+            "Origem cadastrada."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO CADASTRAR ORIGEM:",
+            error
+          );
+
+
+          toast(
+            "Erro ao cadastrar origem."
+          );
+
+        }
+
+      }
+    );
+
+  }
+
+
+// ============================================================
+// FIM DA PARTE 3/5
+// ============================================================
+
+// ============================================================
+// PARTE 4/5 - ESTOQUE + RELATÓRIO + CADASTROS + NAVEGAÇÃO
+// ============================================================
 
 
 // ============================================================
@@ -3481,22 +3314,9 @@ function renderAttendance() {
 
 function renderStock() {
 
-  if (
-    !db
-  ) {
-
-    return;
-
-  }
-
-
   const st =
     calcStock();
 
-
-  // ----------------------------------------------------------
-  // CARDS POR ORIGEM
-  // ----------------------------------------------------------
 
   const cards =
     document.getElementById(
@@ -3504,144 +3324,93 @@ function renderStock() {
     );
 
 
-  if (
-    cards
-  ) {
+  if (cards) {
 
     cards.innerHTML =
-
-      (db.origins || [])
-        .map(
-          origin => {
-
-            const total =
-              Object.values(
-                st[
-                  origin.id
-                ] || {}
-              )
-                .reduce(
-                  (
-                    soma,
-                    valor
-                  ) =>
-
-                    soma +
-                    Number(
-                      valor || 0
-                    ),
-
-                  0
-
-                );
-
-
-            return `
-
-              <div
-                class="panel"
-              >
-
-                <h3>
-                  📍
-                  ${esc(
-                    origin.name
-                  )}
-                </h3>
-
-                <div
-                  class="origin-value"
-                >
-                  ${fmt(total)}
-                  itens
-                </div>
-
-              </div>
-
-            `;
-
-          }
-        )
-        .join("");
-
-  }
-
-
-  // ----------------------------------------------------------
-  // CONSOLIDADO
-  // ----------------------------------------------------------
-
-  const rows =
-
-    (db.foods || [])
-      .map(
-        food => {
-
-          const values =
-
-            (db.origins || [])
-              .map(
-                origin =>
-
-                  Number(
-                    st[
-                      origin.id
-                    ]?.[
-                      food.id
-                    ] || 0
-                  )
-              );
-
+      db.origins
+        .map(o => {
 
           const total =
-            values.reduce(
-              (
-                soma,
-                valor
-              ) =>
-                soma +
-                valor,
-
+            Object.values(
+              st[o.id] || {}
+            ).reduce(
+              (a, v) =>
+                a + Number(v),
               0
-
             );
 
 
           return `
 
-            <tr>
+            <div class="panel">
 
-              <td>
-                ${esc(
-                  food.name
-                )}
-              </td>
+              <h3>
+                📍 ${esc(o.name)}
+              </h3>
 
+              <div class="origin-value">
+                ${fmt(total)} itens
+              </div>
 
-              ${
-                values
-                  .map(
-                    value =>
-                      `<td>
-                        ${fmt(value)}
-                      </td>`
-                  )
-                  .join("")
-              }
-
-
-              <td>
-                <b>
-                  ${fmt(total)}
-                </b>
-              </td>
-
-            </tr>
+            </div>
 
           `;
 
-        }
-      )
+        })
+        .join("");
+
+  }
+
+
+  const rows =
+    db.foods
+      .map(food => {
+
+        const vals =
+          db.origins.map(
+            origin =>
+              Number(
+                st[origin.id]?.[
+                  food.id
+                ] || 0
+              )
+          );
+
+
+        const total =
+          vals.reduce(
+            (a, v) =>
+              a + v,
+            0
+          );
+
+
+        return `
+
+          <tr>
+
+            <td>
+              ${esc(food.name)}
+            </td>
+
+            ${vals
+              .map(
+                v =>
+                  `<td>${fmt(v)}</td>`
+              )
+              .join("")}
+
+            <td>
+              <b>
+                ${fmt(total)}
+              </b>
+            </td>
+
+          </tr>
+
+        `;
+
+      })
       .join("");
 
 
@@ -3651,15 +3420,11 @@ function renderStock() {
     );
 
 
-  if (
-    tableEl
-  ) {
+  if (tableEl) {
 
     tableEl.innerHTML = `
 
-      <div
-        class="table-wrap"
-      >
+      <div class="table-wrap">
 
         <table>
 
@@ -3671,20 +3436,12 @@ function renderStock() {
                 Alimento
               </th>
 
-
-              ${
-                (db.origins || [])
-                  .map(
-                    origin =>
-                      `<th>
-                        ${esc(
-                          origin.name
-                        )}
-                      </th>`
-                  )
-                  .join("")
-              }
-
+              ${db.origins
+                .map(
+                  o =>
+                    `<th>${esc(o.name)}</th>`
+                )
+                .join("")}
 
               <th>
                 Total
@@ -3693,7 +3450,6 @@ function renderStock() {
             </tr>
 
           </thead>
-
 
           <tbody>
 
@@ -3713,26 +3469,356 @@ function renderStock() {
 
 
 // ============================================================
-// FIM DA PARTE 3/5
+// 15. RELATÓRIO
 // ============================================================
 
-// ============================================================
-// PARTE 4/5 - CADASTROS + BACKUP + NAVEGAÇÃO + EVENTOS
-// ============================================================
+function renderReport() {
+
+  const start =
+    document.getElementById(
+      "reportStart"
+    )?.value || "";
+
+
+  const end =
+    document.getElementById(
+      "reportEnd"
+    )?.value || "";
+
+
+  const origin =
+    document.getElementById(
+      "reportOrigin"
+    )?.value || "";
+
+
+  const entries =
+    db.entries.filter(
+      x =>
+        (!start ||
+          x.date >= start) &&
+
+        (!end ||
+          x.date <= end) &&
+
+        (!origin ||
+          x.originId === origin)
+    );
+
+
+  const mov =
+    db.movements.filter(
+      x =>
+        (!start ||
+          x.date >= start) &&
+
+        (!end ||
+          x.date <= end) &&
+
+        (!origin ||
+          x.originId === origin)
+    );
+
+
+  const presentDates =
+    Object.entries(
+      db.attendance
+    ).filter(
+      ([d]) =>
+        (!start ||
+          d >= start) &&
+
+        (!end ||
+          d <= end)
+    );
+
+
+  const html = `
+
+    <div class="cards">
+
+      <div class="card">
+
+        <span>
+          Entradas
+        </span>
+
+        <strong>
+
+          ${fmt(
+            entries.reduce(
+              (s, x) =>
+                s + Number(x.qty),
+              0
+            )
+          )}
+
+        </strong>
+
+      </div>
+
+
+      <div class="card">
+
+        <span>
+          Saídas
+        </span>
+
+        <strong>
+
+          ${fmt(
+            mov
+              .filter(
+                x =>
+                  x.type ===
+                  "saida"
+              )
+              .reduce(
+                (s, x) =>
+                  s + Number(x.qty),
+                0
+              )
+          )}
+
+        </strong>
+
+      </div>
+
+
+      <div class="card danger">
+
+        <span>
+          Perdas
+        </span>
+
+        <strong>
+
+          ${fmt(
+            mov
+              .filter(
+                x =>
+                  x.type ===
+                  "perda"
+              )
+              .reduce(
+                (s, x) =>
+                  s + Number(x.qty),
+                0
+              )
+          )}
+
+        </strong>
+
+      </div>
+
+
+      <div class="card">
+
+        <span>
+          Dias com presença
+        </span>
+
+        <strong>
+          ${presentDates.length}
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <h3>
+      Entradas
+    </h3>
+
+
+    ${
+      entries.length
+
+        ? table(
+
+            entries,
+
+            [
+
+              [
+                "Data",
+                x =>
+                  fmtDate(
+                    x.date
+                  )
+              ],
+
+              [
+                "Origem",
+                x =>
+                  esc(
+                    getName(
+                      db.origins,
+                      x.originId
+                    )
+                  )
+              ],
+
+              [
+                "Alimento",
+                x =>
+                  esc(
+                    getName(
+                      db.foods,
+                      x.foodId
+                    )
+                  )
+              ],
+
+              [
+                "Qtd",
+                x =>
+                  fmt(
+                    x.qty
+                  )
+              ],
+
+              [
+                "Obs.",
+                x =>
+                  esc(
+                    x.note ||
+                    ""
+                  )
+              ]
+
+            ],
+
+            () => {}
+
+          )
+
+        : `
+
+          <div class="empty">
+            Sem entradas no período.
+          </div>
+
+        `
+
+    }
+
+
+    <h3>
+      Saídas e perdas
+    </h3>
+
+
+    ${
+      mov.length
+
+        ? table(
+
+            mov,
+
+            [
+
+              [
+                "Data",
+                x =>
+                  fmtDate(
+                    x.date
+                  )
+              ],
+
+              [
+                "Tipo",
+                x =>
+                  esc(
+                    x.type ===
+                    "perda"
+                      ? "Perda"
+                      : "Saída"
+                  )
+              ],
+
+              [
+                "Origem",
+                x =>
+                  esc(
+                    getName(
+                      db.origins,
+                      x.originId
+                    )
+                  )
+              ],
+
+              [
+                "Alimento",
+                x =>
+                  esc(
+                    getName(
+                      db.foods,
+                      x.foodId
+                    )
+                  )
+              ],
+
+              [
+                "Qtd",
+                x =>
+                  fmt(
+                    x.qty
+                  )
+              ],
+
+              [
+                "Motivo",
+                x =>
+                  esc(
+                    getName(
+                      db.reasons,
+                      x.reasonId
+                    )
+                  )
+              ]
+
+            ],
+
+            () => {}
+
+          )
+
+        : `
+
+          <div class="empty">
+            Sem movimentações no período.
+          </div>
+
+        `
+
+    }
+
+  `;
+
+
+  const result =
+    document.getElementById(
+      "reportResult"
+    );
+
+
+  if (result) {
+
+    result.innerHTML =
+      html;
+
+  }
+
+}
 
 
 // ============================================================
-// 15. CADASTROS
+// 16. CADASTROS
 // ============================================================
 
 function renderCadastros() {
-
-  if (!db) return;
-
-
-  // ==========================================================
-  // PESSOAS
-  // ==========================================================
 
   const people =
     document.getElementById(
@@ -3747,7 +3833,7 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          (db.people || [])
+          db.people
             .map(
               p => `
 
@@ -3762,7 +3848,9 @@ function renderCadastros() {
                     <br>
 
                     <small>
-                      ${esc(p.registration)}
+                      ${esc(
+                        p.registration
+                      )}
                     </small>
 
                   </span>
@@ -3771,9 +3859,10 @@ function renderCadastros() {
                   <button
                     class="btn danger-btn"
                     data-del-person="${p.id}"
-                    type="button"
                   >
+
                     Excluir
+
                   </button>
 
                 </div>
@@ -3785,10 +3874,13 @@ function renderCadastros() {
           ||
 
           `
+
             <div class="empty">
               Nenhuma pessoa.
             </div>
+
           `
+
         }
 
       </div>
@@ -3797,10 +3889,6 @@ function renderCadastros() {
 
   }
 
-
-  // ==========================================================
-  // ALIMENTOS
-  // ==========================================================
 
   const foods =
     document.getElementById(
@@ -3815,23 +3903,24 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          (db.foods || [])
+          db.foods
             .map(
-              food => `
+              p => `
 
                 <div class="mini-row">
 
                   <span>
-                    ${esc(food.name)}
+                    ${esc(p.name)}
                   </span>
 
 
                   <button
                     class="btn danger-btn"
-                    data-del-food="${food.id}"
-                    type="button"
+                    data-del-food="${p.id}"
                   >
+
                     Excluir
+
                   </button>
 
                 </div>
@@ -3839,6 +3928,7 @@ function renderCadastros() {
               `
             )
             .join("")
+
         }
 
       </div>
@@ -3847,10 +3937,6 @@ function renderCadastros() {
 
   }
 
-
-  // ==========================================================
-  // ORIGENS
-  // ==========================================================
 
   const origins =
     document.getElementById(
@@ -3865,23 +3951,24 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          (db.origins || [])
+          db.origins
             .map(
-              origin => `
+              p => `
 
                 <div class="mini-row">
 
                   <span>
-                    ${esc(origin.name)}
+                    ${esc(p.name)}
                   </span>
 
 
                   <button
                     class="btn danger-btn"
-                    data-del-origin="${origin.id}"
-                    type="button"
+                    data-del-origin="${p.id}"
                   >
+
                     Excluir
+
                   </button>
 
                 </div>
@@ -3889,6 +3976,7 @@ function renderCadastros() {
               `
             )
             .join("")
+
         }
 
       </div>
@@ -3897,10 +3985,6 @@ function renderCadastros() {
 
   }
 
-
-  // ==========================================================
-  // MOTIVOS
-  // ==========================================================
 
   const reasons =
     document.getElementById(
@@ -3915,23 +3999,24 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          (db.reasons || [])
+          db.reasons
             .map(
-              reason => `
+              p => `
 
                 <div class="mini-row">
 
                   <span>
-                    ${esc(reason.name)}
+                    ${esc(p.name)}
                   </span>
 
 
                   <button
                     class="btn danger-btn"
-                    data-del-reason="${reason.id}"
-                    type="button"
+                    data-del-reason="${p.id}"
                   >
+
                     Excluir
+
                   </button>
 
                 </div>
@@ -3939,6 +4024,7 @@ function renderCadastros() {
               `
             )
             .join("")
+
         }
 
       </div>
@@ -3948,26 +4034,19 @@ function renderCadastros() {
   }
 
 
-  // ==========================================================
-  // BOTÕES DE EXCLUSÃO
-  // ==========================================================
-
   document
     .querySelectorAll(
       "[data-del-person]"
     )
     .forEach(
-      button => {
+      b =>
 
-        button.onclick =
+        b.onclick =
           () =>
-
             delBy(
               "people",
-              button.dataset.delPerson
-            );
-
-      }
+              b.dataset.delPerson
+            )
     );
 
 
@@ -3976,17 +4055,14 @@ function renderCadastros() {
       "[data-del-food]"
     )
     .forEach(
-      button => {
+      b =>
 
-        button.onclick =
+        b.onclick =
           () =>
-
             delBy(
               "foods",
-              button.dataset.delFood
-            );
-
-      }
+              b.dataset.delFood
+            )
     );
 
 
@@ -3995,17 +4071,14 @@ function renderCadastros() {
       "[data-del-origin]"
     )
     .forEach(
-      button => {
+      b =>
 
-        button.onclick =
+        b.onclick =
           () =>
-
             delBy(
               "origins",
-              button.dataset.delOrigin
-            );
-
-      }
+              b.dataset.delOrigin
+            )
     );
 
 
@@ -4014,25 +4087,18 @@ function renderCadastros() {
       "[data-del-reason]"
     )
     .forEach(
-      button => {
+      b =>
 
-        button.onclick =
+        b.onclick =
           () =>
-
             delBy(
               "reasons",
-              button.dataset.delReason
-            );
-
-      }
+              b.dataset.delReason
+            )
     );
 
 }
 
-
-// ============================================================
-// EXCLUIR CADASTRO
-// ============================================================
 
 function delBy(
   key,
@@ -4050,19 +4116,10 @@ function delBy(
   }
 
 
-  if (
-    !db[key]
-  ) {
-
-    return;
-
-  }
-
-
   db[key] =
     db[key].filter(
-      item =>
-        item.id !== id
+      x =>
+        x.id !== id
     );
 
 
@@ -4080,15 +4137,13 @@ function delBy(
 
 
 // ============================================================
-// 16. CSV
+// 17. CSV
 // ============================================================
 
-function csvEscape(
-  value
-) {
+function csvEscape(v) {
 
   return `"${String(
-    value ?? ""
+    v ?? ""
   ).replace(
     /"/g,
     '""'
@@ -4097,14 +4152,7 @@ function csvEscape(
 }
 
 
-// ============================================================
-// EXPORTAR RELATÓRIO CSV
-// ============================================================
-
 function exportCSV() {
-
-  if (!db) return;
-
 
   const start =
     document.getElementById(
@@ -4139,14 +4187,9 @@ function exportCSV() {
   ];
 
 
-  // ----------------------------------------------------------
-  // ENTRADAS
-  // ----------------------------------------------------------
-
-  (db.entries || [])
+  db.entries
     .filter(
       x =>
-
         (!start ||
           x.date >= start) &&
 
@@ -4155,10 +4198,9 @@ function exportCSV() {
 
         (!origin ||
           x.originId === origin)
-
     )
     .forEach(
-      x => {
+      x =>
 
         rows.push([
 
@@ -4182,20 +4224,14 @@ function exportCSV() {
 
           x.note || ""
 
-        ]);
+        ])
 
-      }
     );
 
 
-  // ----------------------------------------------------------
-  // SAÍDAS E PERDAS
-  // ----------------------------------------------------------
-
-  (db.movements || [])
+  db.movements
     .filter(
       x =>
-
         (!start ||
           x.date >= start) &&
 
@@ -4204,10 +4240,9 @@ function exportCSV() {
 
         (!origin ||
           x.originId === origin)
-
     )
     .forEach(
-      x => {
+      x =>
 
         rows.push([
 
@@ -4236,15 +4271,10 @@ function exportCSV() {
 
           x.note || ""
 
-        ]);
+        ])
 
-      }
     );
 
-
-  // ----------------------------------------------------------
-  // CRIAR ARQUIVO
-  // ----------------------------------------------------------
 
   const blob =
     new Blob(
@@ -4255,14 +4285,12 @@ function exportCSV() {
 
         rows
           .map(
-            row =>
-
-              row
+            r =>
+              r
                 .map(
                   csvEscape
                 )
                 .join(";")
-
           )
           .join("\n")
 
@@ -4277,31 +4305,24 @@ function exportCSV() {
 
 
   download(
+
     blob,
+
     `relatorio_${
       start || "inicio"
     }_${
       end || "fim"
     }.csv`
+
   );
 
 }
 
 
-// ============================================================
-// FUNÇÃO DE DOWNLOAD
-// ============================================================
-
 function download(
   blob,
   name
 ) {
-
-  const url =
-    URL.createObjectURL(
-      blob
-    );
-
 
   const a =
     document.createElement(
@@ -4310,36 +4331,23 @@ function download(
 
 
   a.href =
-    url;
+    URL.createObjectURL(
+      blob
+    );
 
 
   a.download =
     name;
 
 
-  a.style.display =
-    "none";
-
-
-  document.body.appendChild(
-    a
-  );
-
-
   a.click();
 
 
-  a.remove();
-
-
   setTimeout(
-    () => {
-
+    () =>
       URL.revokeObjectURL(
-        url
-      );
-
-    },
+        a.href
+      ),
     1000
   );
 
@@ -4347,224 +4355,81 @@ function download(
 
 
 // ============================================================
-// 17. NAVEGAÇÃO
-// ============================================================
-//
-// IMPORTANTE:
-// Esta versão não remove nem recria os menus.
-// Apenas conecta os elementos que já existem no HTML.
-//
+// 18. NAVEGAÇÃO
 // ============================================================
 
 function nav() {
 
-  // ----------------------------------------------------------
-  // ABAS E CARDS
-  // ----------------------------------------------------------
+  document
+    .querySelectorAll(
+      ".tab,.home-card"
+    )
+    .forEach(
+      b =>
 
-  const buttons =
-    document.querySelectorAll(
-      ".tab, .home-card"
+        b.addEventListener(
+          "click",
+          () => {
+
+            const page =
+              b.dataset.page;
+
+
+            document
+              .querySelectorAll(
+                ".tab"
+              )
+              .forEach(
+                x =>
+                  x.classList.toggle(
+                    "active",
+                    x.dataset.page ===
+                      page
+                  )
+              );
+
+
+            document
+              .querySelectorAll(
+                ".page"
+              )
+              .forEach(
+                x =>
+                  x.classList.remove(
+                    "active"
+                  )
+              );
+
+
+            const target =
+              document.getElementById(
+                page
+              );
+
+
+            if (target) {
+
+              target.classList.add(
+                "active"
+              );
+
+            }
+
+
+            window.scrollTo({
+
+              top: 0,
+
+              behavior: "smooth"
+
+            });
+
+          }
+
+        )
+
     );
 
-
-  buttons.forEach(
-    button => {
-
-      // Evita adicionar o mesmo evento duas vezes
-
-      if (
-        button.dataset.navBound ===
-        "true"
-      ) {
-
-        return;
-
-      }
-
-
-      button.dataset.navBound =
-        "true";
-
-
-      button.addEventListener(
-        "click",
-        function () {
-
-          const page =
-            this.dataset.page;
-
-
-          if (
-            !page
-          ) {
-
-            return;
-
-          }
-
-
-          // -----------------------------------------------
-          // ATIVAR ABA
-          // -----------------------------------------------
-
-          document
-            .querySelectorAll(
-              ".tab"
-            )
-            .forEach(
-              tab => {
-
-                tab.classList.toggle(
-                  "active",
-                  tab.dataset.page ===
-                    page
-                );
-
-              }
-            );
-
-
-          // -----------------------------------------------
-          // ESCONDER PÁGINAS
-          // -----------------------------------------------
-
-          document
-            .querySelectorAll(
-              ".page"
-            )
-            .forEach(
-              section => {
-
-                section.classList.remove(
-                  "active"
-                );
-
-              }
-            );
-
-
-          // -----------------------------------------------
-          // MOSTRAR PÁGINA
-          // -----------------------------------------------
-
-          const target =
-            document.getElementById(
-              page
-            );
-
-
-          if (
-            target
-          ) {
-
-            target.classList.add(
-              "active"
-            );
-
-          }
-
-
-          // -----------------------------------------------
-          // FECHAR MENU MOBILE
-          // -----------------------------------------------
-
-          const tabs =
-            document.querySelector(
-              ".ace-tabs"
-            );
-
-
-          if (
-            tabs
-          ) {
-
-            tabs.classList.remove(
-              "menu-open"
-            );
-
-          }
-
-
-          window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-          });
-
-
-          // -----------------------------------------------
-          // ATUALIZAR CONTEÚDO
-          // -----------------------------------------------
-
-          if (
-            page ===
-            "dashboard"
-          ) {
-
-            renderDashboard();
-
-          }
-
-
-          if (
-            page ===
-            "entries"
-          ) {
-
-            renderEntries();
-
-          }
-
-
-          if (
-            page ===
-            "movements"
-          ) {
-
-            renderMovements();
-
-          }
-
-
-          if (
-            page ===
-            "attendance"
-          ) {
-
-            renderAttendance();
-
-          }
-
-
-          if (
-            page ===
-            "stock"
-          ) {
-
-            renderStock();
-
-          }
-
-
-          if (
-            page ===
-            "cadastros"
-          ) {
-
-            renderCadastros();
-
-          }
-
-        }
-      );
-
-    }
-  );
-
-
-  // ----------------------------------------------------------
-  // BOTÃO MENU MOBILE
-  // ----------------------------------------------------------
 
   const menu =
     document.getElementById(
@@ -4572,25 +4437,11 @@ function nav() {
     );
 
 
-  if (
-    menu &&
-    menu.dataset.menuBound !==
-      "true"
-  ) {
-
-    menu.dataset.menuBound =
-      "true";
-
+  if (menu) {
 
     menu.addEventListener(
       "click",
-      function (event) {
-
-        event.preventDefault();
-
-
-        event.stopPropagation();
-
+      () => {
 
         const tabs =
           document.querySelector(
@@ -4598,9 +4449,7 @@ function nav() {
           );
 
 
-        if (
-          tabs
-        ) {
+        if (tabs) {
 
           tabs.classList.toggle(
             "menu-open"
@@ -4617,14 +4466,10 @@ function nav() {
 
 
 // ============================================================
-// 18. EVENTOS DO APLICATIVO
+// 19. EVENTOS DO APLICATIVO
 // ============================================================
 
 function bindEvents() {
-
-  // ==========================================================
-  // ENTRADA
-  // ==========================================================
 
   const entryForm =
     document.getElementById(
@@ -4632,88 +4477,43 @@ function bindEvents() {
     );
 
 
-  if (
-    entryForm &&
-    entryForm.dataset.bound !==
-      "true"
-  ) {
-
-    entryForm.dataset.bound =
-      "true";
-
+  if (entryForm) {
 
     entryForm.addEventListener(
       "submit",
-      async function (event) {
+      e => {
 
-        event.preventDefault();
+        e.preventDefault();
 
 
-        const form =
+        const f =
           new FormData(
-            event.target
+            e.target
           );
 
-
-        const date =
-          form.get("date");
-
-
-        const originId =
-          form.get("origin");
-
-
-        const foodId =
-          form.get("foodId");
-
-
-        const qty =
-          Number(
-            form.get("qty")
-          );
-
-
-        const note =
-          form.get("note") ||
-          "";
-
-
-        if (
-          !date ||
-          !originId ||
-          !foodId ||
-          !qty ||
-          qty <= 0
-        ) {
-
-          toast(
-            "Preencha todos os campos obrigatórios."
-          );
-
-
-          return;
-
-        }
-
-
-        // ----------------------------------------------------
-        // MODO LOCAL
-        // ----------------------------------------------------
 
         db.entries.push({
 
           id:
             uid(),
 
-          date,
+          date:
+            f.get("date"),
 
-          originId,
+          originId:
+            f.get("origin"),
 
-          foodId,
+          foodId:
+            f.get("foodId"),
 
-          qty,
+          qty:
+            Number(
+              f.get("qty")
+            ),
 
-          note,
+          note:
+            f.get("note") ||
+            "",
 
           createdAt:
             new Date()
@@ -4725,23 +4525,13 @@ function bindEvents() {
         save();
 
 
-        event.target.reset();
+        e.target.reset();
 
 
-        const dateInput =
-          document.getElementById(
-            "entryDate"
-          );
-
-
-        if (
-          dateInput
-        ) {
-
-          dateInput.value =
-            isoToday();
-
-        }
+        document.getElementById(
+          "entryDate"
+        ).value =
+          isoToday();
 
 
         renderAll();
@@ -4757,104 +4547,49 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // MOVIMENTAÇÃO
-  // ==========================================================
-
   const movementForm =
     document.getElementById(
       "movementForm"
     );
 
 
-  if (
-    movementForm &&
-    movementForm.dataset.bound !==
-      "true"
-  ) {
-
-    movementForm.dataset.bound =
-      "true";
-
+  if (movementForm) {
 
     movementForm.addEventListener(
       "submit",
-      async function (event) {
+      e => {
 
-        event.preventDefault();
+        e.preventDefault();
 
 
-        const form =
+        const f =
           new FormData(
-            event.target
+            e.target
           );
 
 
-        const date =
-          form.get("date");
+        const origin =
+          f.get("origin");
 
 
-        const type =
-          form.get("type");
-
-
-        const originId =
-          form.get("origin");
-
-
-        const foodId =
-          form.get("foodId");
+        const food =
+          f.get("foodId");
 
 
         const qty =
           Number(
-            form.get("qty")
+            f.get("qty")
           );
 
 
-        const reasonId =
-          form.get("reasonId");
-
-
-        const note =
-          form.get("note") ||
-          "";
-
-
-        if (
-          !date ||
-          !type ||
-          !originId ||
-          !foodId ||
-          !qty ||
-          qty <= 0
-        ) {
-
-          toast(
-            "Preencha todos os campos obrigatórios."
-          );
-
-
-          return;
-
-        }
-
-
-        // ----------------------------------------------------
-        // VERIFICAR ESTOQUE
-        // ----------------------------------------------------
-
-        const stock =
+        const st =
           calcStock();
 
 
         const available =
           Number(
-            stock[
-              originId
-            ]?.[
-              foodId
-            ] || 0
+            st[origin]?.[food] ||
+            0
           );
 
 
@@ -4864,14 +4599,16 @@ function bindEvents() {
         ) {
 
           toast(
+
             `Saldo insuficiente. Disponível em ${
               getName(
                 db.origins,
-                originId
+                origin
               )
             }: ${fmt(
               available
             )}.`
+
           );
 
 
@@ -4880,30 +4617,32 @@ function bindEvents() {
         }
 
 
-        // ----------------------------------------------------
-        // REGISTRAR MOVIMENTAÇÃO
-        // ----------------------------------------------------
-
         db.movements.push({
 
           id:
             uid(),
 
-          date,
+          date:
+            f.get("date"),
 
-          type,
+          type:
+            f.get("type"),
 
-          originId,
+          originId:
+            origin,
 
-          foodId,
+          foodId:
+            food,
 
-          qty,
+          qty:
+            qty,
 
           reasonId:
-            reasonId ||
-            null,
+            f.get("reasonId"),
 
-          note,
+          note:
+            f.get("note") ||
+            "",
 
           createdAt:
             new Date()
@@ -4915,23 +4654,13 @@ function bindEvents() {
         save();
 
 
-        event.target.reset();
+        e.target.reset();
 
 
-        const movementDate =
-          document.getElementById(
-            "movementDate"
-          );
-
-
-        if (
-          movementDate
-        ) {
-
-          movementDate.value =
-            isoToday();
-
-        }
+        document.getElementById(
+          "movementDate"
+        ).value =
+          isoToday();
 
 
         renderAll();
@@ -4947,25 +4676,13 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // DATA DO DASHBOARD
-  // ==========================================================
-
   const dashboardDate =
     document.getElementById(
       "dashboardDate"
     );
 
 
-  if (
-    dashboardDate &&
-    dashboardDate.dataset.bound !==
-      "true"
-  ) {
-
-    dashboardDate.dataset.bound =
-      "true";
-
+  if (dashboardDate) {
 
     dashboardDate.addEventListener(
       "change",
@@ -4975,25 +4692,13 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // DATA DAS ENTRADAS
-  // ==========================================================
-
   const entryDate =
     document.getElementById(
       "entryDate"
     );
 
 
-  if (
-    entryDate &&
-    entryDate.dataset.bound !==
-      "true"
-  ) {
-
-    entryDate.dataset.bound =
-      "true";
-
+  if (entryDate) {
 
     entryDate.addEventListener(
       "change",
@@ -5003,25 +4708,13 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // DATA DA PRESENÇA
-  // ==========================================================
-
   const attendanceDate =
     document.getElementById(
       "attendanceDate"
     );
 
 
-  if (
-    attendanceDate &&
-    attendanceDate.dataset.bound !==
-      "true"
-  ) {
-
-    attendanceDate.dataset.bound =
-      "true";
-
+  if (attendanceDate) {
 
     attendanceDate.addEventListener(
       "change",
@@ -5031,25 +4724,13 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // PESQUISA DE PRESENÇA
-  // ==========================================================
-
   const attendanceSearch =
     document.getElementById(
       "attendanceSearch"
     );
 
 
-  if (
-    attendanceSearch &&
-    attendanceSearch.dataset.bound !==
-      "true"
-  ) {
-
-    attendanceSearch.dataset.bound =
-      "true";
-
+  if (attendanceSearch) {
 
     attendanceSearch.addEventListener(
       "input",
@@ -5059,32 +4740,19 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // ATUALIZAR ESTOQUE
-  // ==========================================================
-
   const refreshStock =
     document.getElementById(
       "refreshStock"
     );
 
 
-  if (
-    refreshStock &&
-    refreshStock.dataset.bound !==
-      "true"
-  ) {
-
-    refreshStock.dataset.bound =
-      "true";
-
+  if (refreshStock) {
 
     refreshStock.addEventListener(
       "click",
-      function () {
+      () => {
 
         renderStock();
-
 
         toast(
           "Estoque atualizado."
@@ -5096,48 +4764,21 @@ function bindEvents() {
   }
 
 
-  // ==========================================================
-  // GERAR RELATÓRIO
-  // ==========================================================
-
   const generateReport =
     document.getElementById(
       "generateReport"
     );
 
 
-  if (
-    generateReport &&
-    generateReport.dataset.bound !==
-      "true"
-  ) {
-
-    generateReport.dataset.bound =
-      "true";
-
+  if (generateReport) {
 
     generateReport.addEventListener(
       "click",
-      function () {
-
-        if (
-          typeof renderReport ===
-          "function"
-        ) {
-
-          renderReport();
-
-        }
-
-      }
+      renderReport
     );
 
   }
 
-
-  // ==========================================================
-  // EXPORTAR CSV
-  // ==========================================================
 
   const exportCSVButton =
     document.getElementById(
@@ -5145,15 +4786,7 @@ function bindEvents() {
     );
 
 
-  if (
-    exportCSVButton &&
-    exportCSVButton.dataset.bound !==
-      "true"
-  ) {
-
-    exportCSVButton.dataset.bound =
-      "true";
-
+  if (exportCSVButton) {
 
     exportCSVButton.addEventListener(
       "click",
@@ -5164,7 +4797,7 @@ function bindEvents() {
 
 
   // ==========================================================
-  // CADASTRO DE PESSOA
+  // PESSOAS
   // ==========================================================
 
   const personForm =
@@ -5173,56 +4806,19 @@ function bindEvents() {
     );
 
 
-  if (
-    personForm &&
-    personForm.dataset.bound !==
-      "true"
-  ) {
-
-    personForm.dataset.bound =
-      "true";
-
+  if (personForm) {
 
     personForm.addEventListener(
       "submit",
-      function (event) {
+      e => {
 
-        event.preventDefault();
+        e.preventDefault();
 
 
-        const form =
+        const f =
           new FormData(
-            event.target
+            e.target
           );
-
-
-        const name =
-          String(
-            form.get("name") ||
-            ""
-          ).trim();
-
-
-        const registration =
-          String(
-            form.get("registration") ||
-            ""
-          ).trim();
-
-
-        if (
-          !name ||
-          !registration
-        ) {
-
-          toast(
-            "Informe nome e matrícula."
-          );
-
-
-          return;
-
-        }
 
 
         db.people.push({
@@ -5230,9 +4826,13 @@ function bindEvents() {
           id:
             uid(),
 
-          name,
+          name:
+            f.get("name")
+              .trim(),
 
-          registration
+          registration:
+            f.get("registration")
+              .trim()
 
         });
 
@@ -5240,7 +4840,7 @@ function bindEvents() {
         save();
 
 
-        event.target.reset();
+        e.target.reset();
 
 
         renderAll();
@@ -5257,7 +4857,7 @@ function bindEvents() {
 
 
   // ==========================================================
-  // CADASTRO DE ALIMENTO
+  // ALIMENTOS
   // ==========================================================
 
   const foodForm =
@@ -5266,48 +4866,19 @@ function bindEvents() {
     );
 
 
-  if (
-    foodForm &&
-    foodForm.dataset.bound !==
-      "true"
-  ) {
-
-    foodForm.dataset.bound =
-      "true";
-
+  if (foodForm) {
 
     foodForm.addEventListener(
       "submit",
-      function (event) {
+      e => {
 
-        event.preventDefault();
+        e.preventDefault();
 
 
-        const form =
+        const f =
           new FormData(
-            event.target
+            e.target
           );
-
-
-        const name =
-          String(
-            form.get("name") ||
-            ""
-          ).trim();
-
-
-        if (
-          !name
-        ) {
-
-          toast(
-            "Informe o nome do alimento."
-          );
-
-
-          return;
-
-        }
 
 
         db.foods.push({
@@ -5315,7 +4886,9 @@ function bindEvents() {
           id:
             uid(),
 
-          name
+          name:
+            f.get("name")
+              .trim()
 
         });
 
@@ -5323,7 +4896,7 @@ function bindEvents() {
         save();
 
 
-        event.target.reset();
+        e.target.reset();
 
 
         renderAll();
@@ -5340,7 +4913,7 @@ function bindEvents() {
 
 
   // ==========================================================
-  // CADASTRO DE ORIGEM
+  // ORIGENS
   // ==========================================================
 
   const originForm =
@@ -5349,48 +4922,19 @@ function bindEvents() {
     );
 
 
-  if (
-    originForm &&
-    originForm.dataset.bound !==
-      "true"
-  ) {
-
-    originForm.dataset.bound =
-      "true";
-
+  if (originForm) {
 
     originForm.addEventListener(
       "submit",
-      function (event) {
+      e => {
 
-        event.preventDefault();
+        e.preventDefault();
 
 
-        const form =
+        const f =
           new FormData(
-            event.target
+            e.target
           );
-
-
-        const name =
-          String(
-            form.get("name") ||
-            ""
-          ).trim();
-
-
-        if (
-          !name
-        ) {
-
-          toast(
-            "Informe o nome da origem."
-          );
-
-
-          return;
-
-        }
 
 
         db.origins.push({
@@ -5398,7 +4942,9 @@ function bindEvents() {
           id:
             uid(),
 
-          name
+          name:
+            f.get("name")
+              .trim()
 
         });
 
@@ -5406,7 +4952,7 @@ function bindEvents() {
         save();
 
 
-        event.target.reset();
+        e.target.reset();
 
 
         renderAll();
@@ -5423,7 +4969,7 @@ function bindEvents() {
 
 
   // ==========================================================
-  // CADASTRO DE MOTIVO
+  // MOTIVOS
   // ==========================================================
 
   const reasonForm =
@@ -5432,48 +4978,19 @@ function bindEvents() {
     );
 
 
-  if (
-    reasonForm &&
-    reasonForm.dataset.bound !==
-      "true"
-  ) {
-
-    reasonForm.dataset.bound =
-      "true";
-
+  if (reasonForm) {
 
     reasonForm.addEventListener(
       "submit",
-      function (event) {
+      e => {
 
-        event.preventDefault();
+        e.preventDefault();
 
 
-        const form =
+        const f =
           new FormData(
-            event.target
+            e.target
           );
-
-
-        const name =
-          String(
-            form.get("name") ||
-            ""
-          ).trim();
-
-
-        if (
-          !name
-        ) {
-
-          toast(
-            "Informe o motivo."
-          );
-
-
-          return;
-
-        }
 
 
         db.reasons.push({
@@ -5481,7 +4998,9 @@ function bindEvents() {
           id:
             uid(),
 
-          name
+          name:
+            f.get("name")
+              .trim()
 
         });
 
@@ -5489,7 +5008,7 @@ function bindEvents() {
         save();
 
 
-        event.target.reset();
+        e.target.reset();
 
 
         renderAll();
@@ -5515,21 +5034,13 @@ function bindEvents() {
     );
 
 
-  if (
-    backupBtn &&
-    backupBtn.dataset.bound !==
-      "true"
-  ) {
-
-    backupBtn.dataset.bound =
-      "true";
-
+  if (backupBtn) {
 
     backupBtn.addEventListener(
       "click",
-      function () {
+      () =>
+        download(
 
-        const blob =
           new Blob(
 
             [
@@ -5545,15 +5056,12 @@ function bindEvents() {
                 "application/json"
             }
 
-          );
+          ),
 
-
-        download(
-          blob,
           `backup_controle_alimentos_${isoToday()}.json`
-        );
 
-      }
+        )
+
     );
 
   }
@@ -5569,28 +5077,17 @@ function bindEvents() {
     );
 
 
-  if (
-    restoreFile &&
-    restoreFile.dataset.bound !==
-      "true"
-  ) {
-
-    restoreFile.dataset.bound =
-      "true";
-
+  if (restoreFile) {
 
     restoreFile.addEventListener(
       "change",
-      async function (event) {
+      async e => {
 
         const file =
-          event.target
-            .files?.[0];
+          e.target.files[0];
 
 
-        if (
-          !file
-        ) {
+        if (!file) {
 
           return;
 
@@ -5611,8 +5108,8 @@ function bindEvents() {
             !obj.entries
           ) {
 
-            throw new Error(
-              "Arquivo inválido."
+            throw Error(
+              "Arquivo inválido"
             );
 
           }
@@ -5620,46 +5117,6 @@ function bindEvents() {
 
           db =
             obj;
-
-
-          // Garantir estruturas antigas
-
-          db.people =
-            db.people || [];
-
-
-          db.foods =
-            db.foods || [];
-
-
-          db.origins =
-            db.origins || [];
-
-
-          db.reasons =
-            db.reasons ||
-            DEFAULT.reasons.map(
-              name => ({
-
-                id:
-                  uid(),
-
-                name
-
-              })
-            );
-
-
-          db.entries =
-            db.entries || [];
-
-
-          db.movements =
-            db.movements || [];
-
-
-          db.attendance =
-            db.attendance || {};
 
 
           save();
@@ -5673,13 +5130,10 @@ function bindEvents() {
           );
 
 
-        } catch (
-          error
-        ) {
+        } catch (err) {
 
           console.error(
-            "Erro ao restaurar backup:",
-            error
+            err
           );
 
 
@@ -5690,7 +5144,7 @@ function bindEvents() {
         }
 
 
-        event.target.value =
+        e.target.value =
           "";
 
       }
@@ -5700,7 +5154,7 @@ function bindEvents() {
 
 
   // ==========================================================
-  // RESETAR DADOS LOCAIS
+  // RESET
   // ==========================================================
 
   const resetBtn =
@@ -5709,19 +5163,11 @@ function bindEvents() {
     );
 
 
-  if (
-    resetBtn &&
-    resetBtn.dataset.bound !==
-      "true"
-  ) {
-
-    resetBtn.dataset.bound =
-      "true";
-
+  if (resetBtn) {
 
     resetBtn.addEventListener(
       "click",
-      function () {
+      () => {
 
         if (
           !confirm(
@@ -5762,26 +5208,78 @@ function bindEvents() {
 
 
 // ============================================================
-// FIM DA PARTE 4/5
-// ============================================================
-
-// ============================================================
-// PARTE 5/5 - INICIALIZAÇÃO + AUTENTICAÇÃO
-// ============================================================
-
-
-// ============================================================
-// 19. CONFIGURAR PWA
+// 20. PWA
 // ============================================================
 
 function setupPWA() {
 
-  // ----------------------------------------------------------
-  // SERVICE WORKER
-  // ----------------------------------------------------------
+  window.addEventListener(
+    "beforeinstallprompt",
+    e => {
+
+      e.preventDefault();
+
+      deferredPrompt =
+        e;
+
+
+      const button =
+        document.getElementById(
+          "installBtn"
+        );
+
+
+      if (button) {
+
+        button.classList.remove(
+          "hidden"
+        );
+
+      }
+
+    }
+  );
+
+
+  const installBtn =
+    document.getElementById(
+      "installBtn"
+    );
+
+
+  if (installBtn) {
+
+    installBtn.addEventListener(
+      "click",
+      async () => {
+
+        if (!deferredPrompt) {
+
+          return;
+
+        }
+
+
+        deferredPrompt.prompt();
+
+
+        deferredPrompt =
+          null;
+
+
+        installBtn.classList.add(
+          "hidden"
+        );
+
+      }
+    );
+
+  }
+
 
   if (
-    "serviceWorker" in navigator
+    "serviceWorker" in
+    navigator
   ) {
 
     window.addEventListener(
@@ -5793,25 +5291,12 @@ function setupPWA() {
           .register(
             "sw.js"
           )
-          .then(
-            registration => {
-
-              console.log(
-                "ACE: Service Worker registrado.",
-                registration
-              );
-
-            }
-          )
           .catch(
-            error => {
-
+            err =>
               console.warn(
-                "ACE: Service Worker não registrado:",
-                error
-              );
-
-            }
+                "Service Worker:",
+                err
+              )
           );
 
       }
@@ -5819,246 +5304,39 @@ function setupPWA() {
 
   }
 
-
-  // ----------------------------------------------------------
-  // INSTALAÇÃO PWA
-  // ----------------------------------------------------------
-
-  window.addEventListener(
-    "beforeinstallprompt",
-    event => {
-
-      event.preventDefault();
-
-      deferredPrompt =
-        event;
-
-      console.log(
-        "ACE: aplicativo disponível para instalação."
-      );
-
-    }
-  );
-
 }
 
 
 // ============================================================
-// 20. RENDERIZAÇÃO GERAL
+// 21. RENDERIZAÇÃO GERAL
 // ============================================================
 
 function renderAll() {
 
-  if (
-    !db
-  ) {
+  refreshSelects();
 
-    console.warn(
-      "ACE: renderAll chamado sem banco carregado."
-    );
+  renderDashboard();
 
-    return;
+  renderEntries();
 
-  }
+  renderMovements();
 
+  renderAttendance();
 
-  // ----------------------------------------------------------
-  // ATUALIZAR SELECTS
-  // ----------------------------------------------------------
+  renderStock();
 
-  if (
-    typeof refreshSelects ===
-    "function"
-  ) {
-
-    refreshSelects();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // DASHBOARD
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderDashboard ===
-    "function"
-  ) {
-
-    renderDashboard();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // ENTRADAS
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderEntries ===
-    "function"
-  ) {
-
-    renderEntries();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // MOVIMENTAÇÕES
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderMovements ===
-    "function"
-  ) {
-
-    renderMovements();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // PRESENÇA
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderAttendance ===
-    "function"
-  ) {
-
-    renderAttendance();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // ESTOQUE
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderStock ===
-    "function"
-  ) {
-
-    renderStock();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // CADASTROS
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderCadastros ===
-    "function"
-  ) {
-
-    renderCadastros();
-
-  }
-
-
-  // ----------------------------------------------------------
-  // RELATÓRIO
-  // ----------------------------------------------------------
-  //
-  // NÃO ALTERAMOS A LÓGICA DO RELATÓRIO.
-  //
-  // Apenas chamamos a função existente, caso ela exista.
-  //
-  // ----------------------------------------------------------
-
-  if (
-    typeof renderReport ===
-    "function"
-  ) {
-
-    renderReport();
-
-  }
+  renderCadastros();
 
 }
 
 
 // ============================================================
-// 21. BARRA DO USUÁRIO
+// FIM DA PARTE 4/5
 // ============================================================
 
-function updateUserBar() {
-
-  const bar =
-    document.getElementById(
-      "userBar"
-    );
-
-
-  if (
-    !bar
-  ) {
-
-    return;
-
-  }
-
-
-  if (
-    !currentUser
-  ) {
-
-    bar.innerHTML =
-      "";
-
-    return;
-
-  }
-
-
-  bar.innerHTML = `
-
-    <span class="user-email">
-
-      👤
-
-      ${esc(
-        currentUser.nome ||
-        currentUser.email ||
-        ""
-      )}
-
-    </span>
-
-
-    <button
-      id="logoutBtn"
-      class="logout-btn"
-      type="button"
-    >
-
-      🚪 Sair
-
-    </button>
-
-  `;
-
-
-  const logoutBtn =
-    document.getElementById(
-      "logoutBtn"
-    );
-
-
-  if (
-    logoutBtn
-  ) {
-
-    logoutBtn.onclick =
-      logoutUser;
-
-  }
-
-}
+// ============================================================
+// PARTE 5/5 - INICIALIZAÇÃO + AUTENTICAÇÃO
+// ============================================================
 
 
 // ============================================================
@@ -6067,23 +5345,6 @@ function updateUserBar() {
 
 async function initApp() {
 
-  // ----------------------------------------------------------
-  // EVITAR DUPLA INICIALIZAÇÃO
-  // ----------------------------------------------------------
-
-  if (
-    appStarted
-  ) {
-
-    console.log(
-      "ACE: aplicativo já iniciado."
-    );
-
-    return;
-
-  }
-
-
   console.log(
     "ACE Controle de Alimentos iniciado."
   );
@@ -6091,127 +5352,26 @@ async function initApp() {
 
   try {
 
-    // ========================================================
-    // CARREGAR BANCO DO SUPABASE
-    // ========================================================
-
-    // IMPORTANTE:
-    //
-    // NÃO usar:
-    //
-    //     db = load();
-    //
-    // O banco oficial deste aplicativo é o Supabase.
-    //
-    // loadFromSupabase() foi definida na Parte 1.
-    // ========================================================
-
     db =
       await loadFromSupabase();
 
 
-    console.log(
-      "ACE: banco carregado com sucesso."
-    );
+    setDates();
 
 
-    // ========================================================
-    // DATAS
-    // ========================================================
-
-    if (
-      typeof setDates ===
-      "function"
-    ) {
-
-      setDates();
-
-    }
+    nav();
 
 
-    // ========================================================
-    // NAVEGAÇÃO
-    // ========================================================
-
-    // Esta função precisa ser executada antes dos cliques
-    // dos menus.
-
-    if (
-      typeof nav ===
-      "function"
-    ) {
-
-      nav();
-
-    }
+    bindEvents();
 
 
-    // ========================================================
-    // EVENTOS
-    // ========================================================
-
-    if (
-      typeof bindEvents ===
-      "function"
-    ) {
-
-      bindEvents();
-
-    }
+    setupPWA();
 
 
-    // ========================================================
-    // PWA
-    // ========================================================
-
-    if (
-      typeof setupPWA ===
-      "function"
-    ) {
-
-      setupPWA();
-
-    }
+    addUserBar();
 
 
-    // ========================================================
-    // BARRA DO USUÁRIO
-    // ========================================================
-
-    if (
-      typeof addUserBar ===
-      "function"
-    ) {
-
-      addUserBar();
-
-    } else {
-
-      updateUserBar();
-
-    }
-
-
-    // ========================================================
-    // RENDERIZAR SISTEMA
-    // ========================================================
-
-    if (
-      typeof renderAll ===
-      "function"
-    ) {
-
-      renderAll();
-
-    }
-
-
-    // --------------------------------------------------------
-    // SÓ AGORA MARCA COMO INICIADO
-    // --------------------------------------------------------
-
-    appStarted =
-      true;
+    renderAll();
 
 
     console.log(
@@ -6219,17 +5379,7 @@ async function initApp() {
     );
 
 
-  } catch (
-    error
-  ) {
-
-    // --------------------------------------------------------
-    // SE FALHOU, PERMITE NOVA TENTATIVA
-    // --------------------------------------------------------
-
-    appStarted =
-      false;
-
+  } catch (error) {
 
     console.error(
       "Erro ao iniciar aplicativo:",
@@ -6238,14 +5388,11 @@ async function initApp() {
 
 
     alert(
-
       "Não foi possível carregar os dados do sistema.\n\n" +
-
       (
         error?.message ||
         "Verifique a conexão com o Supabase."
       )
-
     );
 
   }
@@ -6259,178 +5406,8 @@ async function initApp() {
 
 async function startAuth() {
 
-  console.log(
-    "ACE: verificando autenticação..."
-  );
-
-
-  // ==========================================================
-  // GARANTIR QUE A TELA DE LOGIN EXISTA
-  // ==========================================================
-
   createLoginScreen();
 
-
-  // ==========================================================
-  // OUVIR ALTERAÇÕES DE AUTENTICAÇÃO
-  // ==========================================================
-
-  // IMPORTANTE:
-  // O listener é registrado ANTES de consultar a sessão.
-  // Assim nenhum evento de login é perdido.
-
-  if (
-    !window.__aceAuthListenerRegistered
-  ) {
-
-    window.__aceAuthListenerRegistered =
-      true;
-
-
-    supabaseClient
-      .auth
-      .onAuthStateChange(
-        (
-          event,
-          session
-        ) => {
-
-          console.log(
-            "ACE AUTH:",
-            event
-          );
-
-
-          // ==================================================
-          // CADASTRO DE USUÁRIO
-          // ==================================================
-          //
-          // Se o Supabase criar automaticamente uma sessão
-          // durante o cadastro, NÃO devemos abrir o sistema.
-          //
-          // O registerUser() da Parte 2 controla esta variável.
-          //
-          // ==================================================
-
-          if (
-            event ===
-            "SIGNED_IN" &&
-            registrationInProgress
-          ) {
-
-            console.log(
-              "ACE: login automático do cadastro ignorado."
-            );
-
-
-            return;
-
-          }
-
-
-          // ==================================================
-          // LOGIN REAL
-          // ==================================================
-
-          if (
-            event ===
-            "SIGNED_IN" &&
-            session?.user
-          ) {
-
-            console.log(
-              "ACE: login realizado:",
-              session.user.email
-            );
-
-
-            currentUser =
-              session.user;
-
-
-            setCurrentUserFromSession(
-              session.user
-            );
-
-
-            removeLoginScreen();
-
-
-            // -----------------------------------------------
-            // INICIAR SISTEMA
-            // -----------------------------------------------
-
-            initApp();
-
-          }
-
-
-          // ==================================================
-          // TOKEN ATUALIZADO
-          // ==================================================
-
-          if (
-            event ===
-            "TOKEN_REFRESHED" &&
-            session?.user
-          ) {
-
-            currentUser =
-              session.user;
-
-
-            setCurrentUserFromSession(
-              session.user
-            );
-
-          }
-
-
-          // ==================================================
-          // LOGOUT
-          // ==================================================
-
-          if (
-            event ===
-            "SIGNED_OUT"
-          ) {
-
-            console.log(
-              "ACE: usuário desconectado."
-            );
-
-
-            currentUser =
-              null;
-
-
-            appStarted =
-              false;
-
-
-            // -----------------------------------------------
-            // SE FOR LOGOUT NORMAL
-            // -----------------------------------------------
-
-            if (
-              !registrationInProgress
-            ) {
-
-              location.reload();
-
-            }
-
-          }
-
-        }
-      );
-
-  }
-
-
-  // ==========================================================
-  // VERIFICAR SESSÃO EXISTENTE
-  // ==========================================================
 
   try {
 
@@ -6443,49 +5420,29 @@ async function startAuth() {
         .getSession();
 
 
-    if (
-      error
-    ) {
+    if (error) {
 
       throw error;
 
     }
 
 
-    // ========================================================
-    // EXISTE SESSÃO
-    // ========================================================
-
     if (
       data?.session?.user
     ) {
-
-      console.log(
-        "ACE: sessão existente encontrada."
-      );
-
 
       currentUser =
         data.session.user;
 
 
-      setCurrentUserFromSession(
-        data.session.user
-      );
+      document
+        .getElementById(
+          "loginScreen"
+        )
+        ?.remove();
 
 
-      // -----------------------------------------------
-      // REMOVER LOGIN
-      // -----------------------------------------------
-
-      removeLoginScreen();
-
-
-      // -----------------------------------------------
-      // INICIAR APLICATIVO
-      // -----------------------------------------------
-
-      await initApp();
+      initApp();
 
 
       return;
@@ -6493,43 +5450,32 @@ async function startAuth() {
     }
 
 
-    // ========================================================
-    // NÃO EXISTE SESSÃO
-    // ========================================================
+    // ----------------------------------------------------------
+    // NÃO ESTÁ LOGADO
+    // Mantém a tela de login aberta.
+    // ----------------------------------------------------------
 
-    console.log(
-      "ACE: nenhuma sessão encontrada."
-    );
-
-
-    // A tela de login permanece aberta.
-
-
-  } catch (
-    error
-  ) {
+  } catch (err) {
 
     console.error(
-      "ACE - ERRO AO VERIFICAR SESSÃO:",
-      error
+      "Erro ao verificar sessão:",
+      err
     );
 
 
-    const loginError =
+    const error =
       document.getElementById(
         "loginError"
       );
 
 
-    if (
-      loginError
-    ) {
+    if (error) {
 
-      loginError.textContent =
-        "Não foi possível conectar ao Supabase. Verifique a conexão e tente novamente.";
+      error.textContent =
+        "Não foi possível conectar ao Supabase. Verifique a URL e a Publishable Key.";
 
 
-      loginError.classList.add(
+      error.classList.add(
         "show"
       );
 
@@ -6537,16 +5483,69 @@ async function startAuth() {
 
   }
 
+
+  // ==========================================================
+  // MONITORA ALTERAÇÕES DE AUTENTICAÇÃO
+  // ==========================================================
+
+  supabaseClient
+    .auth
+    .onAuthStateChange(
+      (event, session) => {
+
+
+        // ------------------------------------------------------
+        // LOGIN REALIZADO
+        // ------------------------------------------------------
+
+        if (
+          event ===
+            "SIGNED_IN" &&
+          session?.user
+        ) {
+
+          currentUser =
+            session.user;
+
+
+          document
+            .getElementById(
+              "loginScreen"
+            )
+            ?.remove();
+
+
+          initApp();
+
+        }
+
+
+        // ------------------------------------------------------
+        // LOGOUT
+        // ------------------------------------------------------
+
+        if (
+          event ===
+          "SIGNED_OUT"
+        ) {
+
+          location.reload();
+
+        }
+
+      }
+    );
+
 }
 
 
 // ============================================================
-// 24. INICIAR
+// 24. INÍCIO DO APLICATIVO
 // ============================================================
 
 startAuth();
 
 
 // ============================================================
-// FIM DA PARTE 5/5
+// FIM DO APP
 // ============================================================
