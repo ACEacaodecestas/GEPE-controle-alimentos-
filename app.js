@@ -631,59 +631,6 @@ async function deleteCadastro(key, id) {
   throw new Error("Cadastro desconhecido.");
 }
 
-
-// ============================================================
-// ZERAR MOVIMENTAÇÕES
-// NÃO ALTERA PESSOAS, ALIMENTOS, ORIGENS OU USUÁRIOS
-// ============================================================
-
-async function resetMovements() {
-
-  const confirmation = window.prompt(
-    "ATENÇÃO!\n\n" +
-    "Esta operação apagará TODAS as entradas, saídas, perdas e registros de presença.\n\n" +
-    "Pessoas, alimentos, origens e usuários NÃO serão apagados.\n\n" +
-    "Para confirmar, digite: ZERAR"
-  );
-
-  if (confirmation !== "ZERAR") {
-    return;
-  }
-
-  try {
-
-    const operations = [
-      supabaseClient.from("entradas").delete().not("id", "is", null),
-      supabaseClient.from("saídas").delete().not("id", "is", null),
-      supabaseClient.from("perdas").delete().not("id", "is", null),
-      supabaseClient.from("presença").delete().not("id", "is", null)
-    ];
-
-    const results = await Promise.all(operations);
-
-    const failed = results.find(result => result.error);
-
-    if (failed?.error) {
-      throw failed.error;
-    }
-
-    await reloadFromSupabase();
-    renderAll();
-
-    toast("Movimentações zeradas com sucesso. Cadastros foram preservados.");
-
-  } catch (error) {
-
-    console.error("ACE - ERRO AO ZERAR MOVIMENTAÇÕES:", error);
-
-    toast(
-      "Não foi possível zerar as movimentações: " +
-      (error?.message || "verifique as permissões do Supabase.")
-    );
-
-  }
-}
-
 function esc(s) {
 
   return String(s ?? "").replace(
@@ -1212,15 +1159,16 @@ function createSignupScreen() {
       "click",
       () => {
 
-        // A tela de cadastro usa o mesmo elemento #loginScreen.
-        // Por isso precisamos remover o conteúdo atual antes de
-        // chamar createLoginScreen(); caso contrário a função
-        // encontra o elemento existente e retorna sem fazer nada.
-        const screen =
-          document.getElementById("loginScreen");
+        // O loginScreen já existe porque a tela de cadastro
+        // usa o mesmo elemento. Remove o cadastro e recria
+        // somente a tela de login.
+        const loginScreen =
+          document.getElementById(
+            "loginScreen"
+          );
 
-        if (screen) {
-          screen.remove();
+        if (loginScreen) {
+          loginScreen.remove();
         }
 
         createLoginScreen();
@@ -2662,6 +2610,16 @@ function renderReport() {
       "reportOrigin"
     )?.value || "";
 
+  // Identificação do usuário que está logado.
+  const reportUserName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+
+  const reportUserEmail =
+    currentUser?.email ||
+    "";
+
 
   const entries =
     db.entries.filter(
@@ -2692,6 +2650,14 @@ function renderReport() {
 
 
   const html = `
+
+    <div style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:#f2f7fb;border:1px solid #d9e6f0;">
+      <strong>👤 Usuário logado:</strong>
+      ${esc(reportUserName)}
+      ${reportUserEmail && reportUserName !== reportUserEmail
+        ? ` — ${esc(reportUserEmail)}`
+        : ""}
+    </div>
 
     <div class="cards">
 
@@ -3209,7 +3175,22 @@ function exportCSV() {
     )?.value || "";
 
 
+  const reportUserName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+
+  const reportUserEmail =
+    currentUser?.email ||
+    "";
+
   const rows = [
+    [
+      "Usuário logado",
+      reportUserName,
+      reportUserEmail
+    ],
+    [],
     [
       "Data",
       "Tipo",
@@ -3333,6 +3314,75 @@ function download(
       ),
     1000
   );
+
+}
+
+
+// ============================================================
+// BOTÃO "ZERAR MOVIMENTAÇÕES" NO MENU
+// ============================================================
+
+function setupResetMovementsButton() {
+
+  const tabs = document.querySelector(".tabs");
+
+  if (!tabs) {
+    return;
+  }
+
+  // Evita criar o botão mais de uma vez.
+  if (document.getElementById("resetMovementsButton")) {
+    return;
+  }
+
+  const button = document.createElement("button");
+
+  button.id = "resetMovementsButton";
+  button.type = "button";
+  button.className = "reset-btn";
+  button.textContent = "🗑️ Zerar movimentações";
+
+  button.style.cssText = [
+    "display:inline-flex",
+    "align-items:center",
+    "justify-content:center",
+    "flex:0 0 auto",
+    "visibility:visible",
+    "opacity:1",
+    "position:relative",
+    "z-index:20",
+    "margin-left:8px",
+    "padding:10px 14px",
+    "border-radius:8px",
+    "cursor:pointer",
+    "font-weight:800",
+    "color:#b42318",
+    "background:#fff1f0",
+    "border:1px solid #f0b8b4",
+    "white-space:nowrap"
+  ].join(";");
+
+  button.addEventListener("click", async (event) => {
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    await resetMovements();
+
+  });
+
+  // Coloca imediatamente depois do botão Cadastros.
+  const cadastrosButton =
+    tabs.querySelector('[data-page="cadastros"]');
+
+  if (cadastrosButton) {
+    cadastrosButton.insertAdjacentElement(
+      "afterend",
+      button
+    );
+  } else {
+    tabs.appendChild(button);
+  }
 
 }
 
@@ -3541,7 +3591,11 @@ function bindEvents() {
   if (entryDate) entryDate.addEventListener("change", renderEntries);
 
   const attendanceDate = document.getElementById("attendanceDate");
-  if (attendanceDate) attendanceDate.addEventListener("change", renderAttendance);
+  if (attendanceDate) {
+    // Atualiza imediatamente ao escolher uma nova data.
+    attendanceDate.addEventListener("change", renderAttendance);
+    attendanceDate.addEventListener("input", renderAttendance);
+  }
 
   const attendanceSearch = document.getElementById("attendanceSearch");
   if (attendanceSearch) attendanceSearch.addEventListener("input", renderAttendance);
@@ -3564,12 +3618,6 @@ function bindEvents() {
 
   const exportCSVButton = document.getElementById("exportCSV");
   if (exportCSVButton) exportCSVButton.addEventListener("click", exportCSV);
-
-
-  const resetMovementsButton = document.getElementById("resetMovementsButton");
-  if (resetMovementsButton) {
-    resetMovementsButton.addEventListener("click", resetMovements);
-  }
 
 
   const personForm = document.getElementById("personForm");
@@ -3949,6 +3997,9 @@ async function initApp() {
     setDates();
 
     nav();
+
+    // Cria o botão sem alterar os menus existentes.
+    setupResetMovementsButton();
 
     bindEvents();
 
