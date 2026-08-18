@@ -1647,7 +1647,7 @@ function showAceConfirm(message, title = "Atenção") {
         align-items: center;
         justify-content: center;
         padding: 20px;
-        background: rgba(0, 35, 70, .55);
+        background: rgba(0, 35, 70, .62);
         backdrop-filter: blur(3px);
       }
 
@@ -1658,7 +1658,7 @@ function showAceConfirm(message, title = "Atenção") {
         box-sizing: border-box;
         padding: 28px 30px 24px;
         border-radius: 18px;
-        background: #69a9e8;
+        background: #5da5e6;
         color: #fff;
         box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
         text-align: center;
@@ -2542,7 +2542,10 @@ function table(
 
 async function removeEntry(id) {
 
-  if (!confirm("Excluir esta entrada?")) return;
+  if (!(await showAceConfirm(
+      "Deseja excluir esta entrada?",
+      "Excluir entrada"
+    ))) return;
 
   try {
     await deleteEntry(id);
@@ -2558,7 +2561,10 @@ async function removeEntry(id) {
 
 async function removeMovement(id) {
 
-  if (!confirm("Excluir esta movimentação?")) return;
+  if (!(await showAceConfirm(
+      "Deseja excluir esta movimentação?",
+      "Excluir movimentação"
+    ))) return;
 
   try {
     await deleteMovement(id);
@@ -3331,9 +3337,12 @@ function renderCadastros() {
 
 async function delBy(key, id) {
 
-  if (!confirm("Excluir cadastro? Registros históricos que já usam este item continuarão salvos.")) {
-    return;
-  }
+  if (!(await showAceConfirm(
+      "Excluir cadastro? Registros históricos que já usam este item continuarão salvos.",
+      "Excluir cadastro"
+    ))) {
+      return;
+    }
 
   try {
     await deleteCadastro(key, id);
@@ -3715,9 +3724,10 @@ function setupResetMovementsButton() {
         error
       );
 
-      alert(
-        "❌ Erro ao executar o botão Zerar movimentações:\n\n" +
-        (error?.message || "Erro desconhecido.")
+      await showAceConfirm(
+        "Erro ao executar o botão Zerar movimentações:\n\n" +
+        (error?.message || "Erro desconhecido."),
+        "❌ Erro"
       );
     }
 
@@ -4107,7 +4117,11 @@ function bindEvents() {
         toast("Backup restaurado no Supabase.");
       } catch (error) {
         console.error(error);
-        alert("Não foi possível restaurar este arquivo no Supabase.\n\n" + (error?.message || "Verifique o backup e as permissões."));
+        await showAceConfirm(
+          "Não foi possível restaurar este arquivo no Supabase.\n\n" +
+          (error?.message || "Verifique o backup e as permissões."),
+          "❌ Erro"
+        );
       }
 
       e.target.value = "";
@@ -4118,7 +4132,10 @@ function bindEvents() {
   const resetBtn = document.getElementById("resetBtn");
   if (resetBtn) {
     resetBtn.addEventListener("click", async () => {
-      if (!confirm("Atualizar os dados deste aparelho com o conteúdo atual do Supabase?")) return;
+      if (!(await showAceConfirm(
+          "Atualizar os dados deste aparelho com o conteúdo atual do Supabase?",
+          "Atualizar dados"
+        ))) return;
 
       try {
         await reloadFromSupabase(true);
@@ -4444,12 +4461,13 @@ async function initApp() {
     }
 
 
-    alert(
+    await showAceConfirm(
       "Não foi possível carregar os dados do sistema.\n\n" +
       (
         error?.message ||
         "Verifique a conexão com o Supabase."
-      )
+      ),
+      "❌ Erro"
     );
 
   }
