@@ -1604,10 +1604,212 @@ function addUserBar() {
 }
 
 
+// ============================================================
+// MODAL PERSONALIZADO - CONFIRMAÇÕES
+// ============================================================
+
+function showAceConfirm(message, title = "Atenção") {
+
+  return new Promise(resolve => {
+
+    const old = document.getElementById("aceCustomModal");
+
+    if (old) {
+      old.remove();
+    }
+
+    const overlay = document.createElement("div");
+
+    overlay.id = "aceCustomModal";
+
+    overlay.innerHTML = `
+      <div class="ace-modal-box" role="dialog" aria-modal="true">
+        <div class="ace-modal-title">${esc(title)}</div>
+        <div class="ace-modal-message">${esc(message).replace(/\n/g, "<br>")}</div>
+
+        <div class="ace-modal-actions">
+          <button type="button" class="ace-modal-ok">OK</button>
+          <button type="button" class="ace-modal-cancel">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    const style = document.createElement("style");
+
+    style.id = "aceCustomModalStyle";
+
+    style.textContent = `
+      #aceCustomModal {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(0, 35, 70, .55);
+        backdrop-filter: blur(3px);
+      }
+
+      #aceCustomModal .ace-modal-box {
+        width: min(520px, calc(100vw - 40px));
+        max-height: calc(100vh - 40px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 28px 30px 24px;
+        border-radius: 18px;
+        background: #69a9e8;
+        color: #fff;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
+        text-align: center;
+        font-family: inherit;
+      }
+
+      #aceCustomModal .ace-modal-title {
+        margin-bottom: 18px;
+        font-size: 25px;
+        font-weight: 900;
+        color: #fff;
+      }
+
+      #aceCustomModal .ace-modal-message {
+        font-size: 17px;
+        line-height: 1.55;
+        text-align: left;
+        color: #fff;
+      }
+
+      #aceCustomModal .ace-modal-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      #aceCustomModal button {
+        min-width: 105px;
+        padding: 11px 20px;
+        border-radius: 9px;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      #aceCustomModal .ace-modal-ok {
+        border: 1px solid #0756a0;
+        background: #0756a0;
+        color: #fff;
+      }
+
+      #aceCustomModal .ace-modal-cancel {
+        border: 1px solid rgba(255,255,255,.9);
+        background: transparent;
+        color: #fff;
+      }
+    `;
+
+    document.head.appendChild(style);
+    document.body.appendChild(overlay);
+
+    const close = value => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay
+      .querySelector(".ace-modal-ok")
+      .onclick = () => close(true);
+
+    overlay
+      .querySelector(".ace-modal-cancel")
+      .onclick = () => close(false);
+
+  });
+
+}
+
+
+function showAceInput(message, title = "Confirmação") {
+
+  return new Promise(resolve => {
+
+    const old = document.getElementById("aceCustomModal");
+
+    if (old) old.remove();
+
+    const overlay = document.createElement("div");
+
+    overlay.id = "aceCustomModal";
+
+    overlay.innerHTML = `
+      <div class="ace-modal-box" role="dialog" aria-modal="true">
+        <div class="ace-modal-title">${esc(title)}</div>
+        <div class="ace-modal-message">${esc(message).replace(/\n/g, "<br>")}</div>
+
+        <input
+          id="aceModalInput"
+          type="text"
+          autocomplete="off"
+          style="
+            width:100%;
+            box-sizing:border-box;
+            margin-top:18px;
+            padding:12px;
+            border:1px solid rgba(255,255,255,.8);
+            border-radius:9px;
+            font-size:17px;
+            font-weight:700;
+            text-align:center;
+            outline:none;
+          "
+        >
+
+        <div class="ace-modal-actions">
+          <button type="button" class="ace-modal-ok">OK</button>
+          <button type="button" class="ace-modal-cancel">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector("#aceModalInput");
+
+    const close = value => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay.querySelector(".ace-modal-ok").onclick =
+      () => close(input.value);
+
+    overlay.querySelector(".ace-modal-cancel").onclick =
+      () => close(null);
+
+    input.focus();
+
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        close(input.value);
+      }
+
+      if (event.key === "Escape") {
+        close(null);
+      }
+    });
+
+  });
+
+}
+
+
 async function logoutUser() {
 
   const ok =
-    confirm("Deseja sair do sistema?");
+    await showAceConfirm(
+      "Deseja sair do sistema?",
+      "Sair do sistema"
+    );
 
   if (!ok) return;
 
@@ -3326,32 +3528,40 @@ async function resetMovements() {
 
   console.log("ACE: botão Zerar movimentações clicado.");
 
-  const confirmation = confirm(
-    "⚠️ ATENÇÃO!\n\n" +
-    "Isso irá apagar TODAS as movimentações do sistema:\n\n" +
-    "• Entradas\n" +
-    "• Saídas\n" +
-    "• Perdas\n" +
-    "• Presenças\n\n" +
-    "Os cadastros NÃO serão apagados:\n" +
-    "• Pessoas\n" +
-    "• Alimentos\n" +
-    "• Origens\n" +
-    "• Motivos\n" +
-    "• Usuários\n\n" +
-    "Deseja continuar?"
-  );
+  const confirmation =
+    await showAceConfirm(
+      "Isso irá apagar TODAS as movimentações do sistema:\n\n" +
+      "• Entradas\n" +
+      "• Saídas\n" +
+      "• Perdas\n" +
+      "• Presenças\n\n" +
+      "Os cadastros NÃO serão apagados:\n" +
+      "• Pessoas\n" +
+      "• Alimentos\n" +
+      "• Origens\n" +
+      "• Motivos\n" +
+      "• Usuários\n\n" +
+      "Deseja continuar?",
+      "⚠️ ATENÇÃO!"
+    );
 
   if (!confirmation) {
     return;
   }
 
-  const code = prompt(
-    'Para confirmar, digite exatamente: ZERAR'
-  );
+  const code =
+    await showAceInput(
+      "Para confirmar a operação, digite exatamente:\n\nZERAR",
+      "Confirmar zeramento"
+    );
 
   if (code !== "ZERAR") {
-    alert("Operação cancelada. A confirmação não foi validada.");
+
+    await showAceConfirm(
+      "Operação cancelada. A confirmação não foi validada.",
+      "Operação cancelada"
+    );
+
     return;
   }
 
@@ -3399,10 +3609,11 @@ async function resetMovements() {
       renderAll();
     }
 
-    alert(
-      "✅ Movimentações zeradas com sucesso!\n\n" +
+    await showAceConfirm(
+      "Movimentações zeradas com sucesso!\n\n" +
       "Entradas, saídas, perdas e presenças foram apagadas.\n" +
-      "Os cadastros e usuários foram preservados."
+      "Os cadastros e usuários foram preservados.",
+      "✅ Concluído"
     );
 
   } catch (error) {
@@ -3412,9 +3623,10 @@ async function resetMovements() {
       error
     );
 
-    alert(
-      "❌ Não foi possível zerar as movimentações.\n\n" +
-      (error?.message || "Erro desconhecido.")
+    await showAceConfirm(
+      "Não foi possível zerar as movimentações.\n\n" +
+      (error?.message || "Erro desconhecido."),
+      "❌ Erro"
     );
 
   } finally {
