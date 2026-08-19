@@ -6143,7 +6143,7 @@ async function generateSignedReportPDF() {
       "fixed";
 
     printHost.style.left =
-      "-100000px";
+      "0";
 
     printHost.style.top =
       "0";
@@ -6155,7 +6155,7 @@ async function generateSignedReportPDF() {
       "#ffffff";
 
     printHost.style.zIndex =
-      "-1";
+      "-9999";
 
     printHost.style.pointerEvents =
       "none";
@@ -6182,10 +6182,47 @@ async function generateSignedReportPDF() {
     element.style.color =
       "#111827";
 
+    element.style.margin =
+      "0";
+
+    element.style.marginLeft =
+      "0";
+
+    element.style.marginRight =
+      "0";
+
+    element.style.transform =
+      "none";
+
+    element.style.position =
+      "relative";
+
+    element.style.left =
+      "0";
+
+    element.style.right =
+      "auto";
+
 
     // ========================================================
     // AJUSTES DE LAYOUT PARA A4
     // ========================================================
+
+    // Remove deslocamentos herdados do layout da tela.
+    element
+      .querySelectorAll(
+        ".panel, .page, .content, .container, .table-wrap"
+      )
+      .forEach(node => {
+
+        node.style.marginLeft = "0";
+        node.style.marginRight = "0";
+        node.style.transform = "none";
+        node.style.left = "0";
+        node.style.right = "auto";
+
+      });
+
 
     // Cartões do resumo: em PDF ficam em 3 colunas,
     // evitando que a última coluna saia para fora da página.
@@ -6383,7 +6420,9 @@ async function generateSignedReportPDF() {
         logging: false,
         windowWidth: 794,
         scrollX: 0,
-        scrollY: 0
+        scrollY: 0,
+        x: 0,
+        y: 0
       },
 
       jsPDF: {
