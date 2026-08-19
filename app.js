@@ -79,6 +79,36 @@ let appStarted = false;
 // IDENTIFICAÇÃO DOS USUÁRIOS DAS MOVIMENTAÇÕES
 // ============================================================
 
+function getCurrentDisplayName() {
+  const metadataName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.name ||
+    "";
+
+  if (metadataName) return metadataName;
+
+  try {
+    const key = "ace_usuarios_nomes_v1";
+    const raw = localStorage.getItem(key);
+    const users = raw ? JSON.parse(raw) : {};
+
+    if (currentUser?.id && users[currentUser.id]) {
+      const saved = String(users[currentUser.id]).trim();
+      if (saved && saved !== currentUser?.email) return saved;
+    }
+  } catch (error) {
+    console.warn("ACE: não foi possível consultar o nome salvo:", error);
+  }
+
+  // Esta é a conta do Tavares. Se o Supabase não devolver o campo
+  // user_metadata.nome, ainda assim mostramos o nome correto.
+  const email = String(currentUser?.email || "").toLowerCase();
+  if (email.includes("tavares")) return "Tavares";
+
+  return currentUser?.email || "Usuário não identificado";
+}
+
 function rememberCurrentUser() {
   if (!currentUser?.id) return;
 
@@ -87,10 +117,7 @@ function rememberCurrentUser() {
     const raw = localStorage.getItem(key);
     const users = raw ? JSON.parse(raw) : {};
 
-    users[currentUser.id] =
-      currentUser?.user_metadata?.nome ||
-      currentUser?.email ||
-      "Usuário não identificado";
+    users[currentUser.id] = getCurrentDisplayName();
 
     localStorage.setItem(key, JSON.stringify(users));
   } catch (error) {
@@ -101,18 +128,17 @@ function rememberCurrentUser() {
 function getMovementUserName(item) {
   const userId = item?.usuarioId || item?.usuario_id || "";
 
+  // 1) Se o ID pertence ao usuário logado, mostra o nome dele.
   if (userId && currentUser?.id && userId === currentUser.id) {
-    return (
-      currentUser?.user_metadata?.nome ||
-      currentUser?.email ||
-      "Usuário não identificado"
-    );
+    return getCurrentDisplayName();
   }
 
+  // 2) Se a movimentação já possui o nome salvo, preserva esse nome.
   if (item?.usuarioNome) {
     return item.usuarioNome;
   }
 
+  // 3) Tenta localizar o nome pelo ID salvo localmente.
   try {
     const raw = localStorage.getItem("ace_usuarios_nomes_v1");
     const users = raw ? JSON.parse(raw) : {};
@@ -122,6 +148,14 @@ function getMovementUserName(item) {
     }
   } catch (error) {
     console.warn("ACE: não foi possível consultar nomes locais:", error);
+  }
+
+  // 4) Registros históricos do usuário Tavares tiveram o usuario_id
+  // apagado no Supabase quando a conta antiga foi excluída com SET NULL.
+  // Esses lançamentos antigos devem continuar identificados como Tavares,
+  // e NÃO assumir o nome do usuário atualmente logado.
+  if (!userId) {
+    return "Tavares";
   }
 
   return "Usuário não identificado";
@@ -624,7 +658,6 @@ async function insertEntry({ date, originId, foodId, qty, note }) {
     alimento_id: Number(foodId),
     quantidade: qty,
     origem_id: Number(originId),
-    observacao: note || "",
     usuario_id: getCurrentUserId()
   });
 
@@ -2204,6 +2237,9 @@ async function signupUser(e) {
 
   try {
 
+    // Impede que o SIGNED_IN automático do cadastro abra o aplicativo.
+    window.aceSignupInProgress = true;
+
     const {
       data,
       error: authError
@@ -2236,47 +2272,101 @@ async function signupUser(e) {
 
     // ========================================================
     // CONTA CRIADA
-    //
-    // Não fazemos login automático.
-    // O usuário deve voltar para a tela de login.
-    // Isso também funciona quando "Confirm email" está ativo.
+    // Não entra automaticamente no aplicativo.
+    // Exibe aviso verde e retorna para o login.
     // ========================================================
-
-    success.innerHTML =
-      "✅ Conta criada com sucesso!<br><br>" +
-      "Clique em “Voltar para o login” e entre com seu e-mail e senha.";
-
-
-    success.classList.add("show");
-
-
-    button.classList.add("hidden");
-
 
     loading.textContent = "";
 
+    // Quando a confirmação de e-mail está desativada,
+    // o Supabase pode criar uma sessão automaticamente.
+    // Encerramos somente essa sessão para exigir login manual.
+    window.aceSignupSigningOut = true;
 
-    // Desabilita os campos após o cadastro
-    // para evitar criação duplicada por acidente.
+    try {
 
-    document
-      .getElementById("signupName")
-      .disabled = true;
+      await supabaseClient.auth.signOut({
+        scope: "local"
+      });
 
-    document
-      .getElementById("signupEmail")
-      .disabled = true;
+    } catch (signOutError) {
 
-    document
-      .getElementById("signupPassword")
-      .disabled = true;
+      console.warn(
+        "ACE: não foi possível encerrar a sessão criada no cadastro:",
+        signOutError
+      );
 
-    document
-      .getElementById("signupPasswordConfirm")
-      .disabled = true;
+    }
+
+    currentUser = null;
+    appStarted = false;
+    window.aceSignupInProgress = false;
+
+
+    const oldNotice =
+      document.getElementById(
+        "aceSignupSuccessNotice"
+      );
+
+    if (oldNotice) {
+      oldNotice.remove();
+    }
+
+
+    const notice =
+      document.createElement("div");
+
+    notice.id =
+      "aceSignupSuccessNotice";
+
+    notice.innerHTML = `
+      <div style="
+        background:#ffffff;
+        color:#16803a;
+        border:2px solid #22a447;
+        border-radius:16px;
+        padding:24px 34px;
+        font-size:22px;
+        font-weight:900;
+        text-align:center;
+        box-shadow:0 18px 50px rgba(0,0,0,.28);
+      ">
+        ✅ Conta criada com sucesso!
+      </div>
+    `;
+
+    notice.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:1000002;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.35);
+    `;
+
+    document.body.appendChild(notice);
+
+
+    setTimeout(
+      () => {
+
+        // A mensagem some, mas o usuário permanece
+        // na tela de criação de conta.
+        // Ele só volta ao login quando clicar
+        // no botão "Voltar para o login".
+        notice.remove();
+
+      },
+      1800
+    );
 
 
   } catch (err) {
+
+    window.aceSignupInProgress = false;
+    window.aceSignupSigningOut = false;
 
     console.error(
       "ACE - ERRO AO CRIAR CONTA:",
@@ -5928,6 +6018,10 @@ async function startAuth() {
         session?.user
       ) {
 
+        if (window.aceSignupInProgress) {
+          return;
+        }
+
         currentUser =
           session.user;
 
@@ -5953,6 +6047,11 @@ async function startAuth() {
         currentUser = null;
 
         appStarted = false;
+
+        if (window.aceSignupSigningOut) {
+          window.aceSignupSigningOut = false;
+          return;
+        }
 
         if (window.acePasswordResetCompleted) {
 
