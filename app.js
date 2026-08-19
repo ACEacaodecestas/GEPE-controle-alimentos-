@@ -4536,17 +4536,239 @@ function renderReport() {
       x =>
         (!start || x.date >= start) &&
         (!end || x.date <= end) &&
-        (!origin || x.originId === origin)
+        (
+          !origin ||
+          Number(x.originId) ===
+          Number(origin)
+        )
     );
 
 
-  const mov =
+  const rawMov =
     db.movements.filter(
       x =>
         (!start || x.date >= start) &&
         (!end || x.date <= end) &&
-        (!origin || x.originId === origin)
+        (
+          !origin ||
+          Number(x.originId) ===
+          Number(origin)
+        )
     );
+
+
+  // ========================================================
+  // RELATÓRIO - MOVIMENTAÇÕES DE CESTA
+  //
+  // Agrupa somente movimentações geradas por cesta.
+  // Exemplo:
+  // Arroz 1 + Arroz 1, mesma cesta/usuário/dia/destino
+  // = Arroz 2 em uma única linha.
+  //
+  // Saídas e perdas manuais continuam separadas.
+  // ========================================================
+
+  const groupedBasketMovements =
+    new Map();
+
+  const normalMovements =
+    [];
+
+
+  rawMov.forEach(item => {
+
+    const isBasketMovement =
+      item.type === "saida" &&
+      String(
+        item.note || ""
+      ).startsWith("Cesta: ");
+
+
+    if (!isBasketMovement) {
+
+      normalMovements.push(item);
+      return;
+
+    }
+
+
+    const key =
+      [
+        item.date || "",
+        item.usuarioId || "",
+        item.type || "",
+        item.originId || "",
+        item.foodId || "",
+        item.reasonId || "",
+        item.note || ""
+      ].join("||");
+
+
+    if (
+      !groupedBasketMovements.has(
+        key
+      )
+    ) {
+
+      groupedBasketMovements.set(
+        key,
+        {
+          ...item,
+          qty:
+            Number(
+              item.qty || 0
+            )
+        }
+      );
+
+      return;
+    }
+
+
+    const current =
+      groupedBasketMovements.get(
+        key
+      );
+
+    current.qty +=
+      Number(
+        item.qty || 0
+      );
+
+
+    if (
+      String(
+        item.createdAt || ""
+      ) >
+      String(
+        current.createdAt || ""
+      )
+    ) {
+
+      current.createdAt =
+        item.createdAt;
+
+    }
+
+  });
+
+
+  const mov =
+    [
+      ...normalMovements,
+      ...groupedBasketMovements.values()
+    ]
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
+          )
+      );
+
+
+  // ========================================================
+  // RELATÓRIO - HISTÓRICO DE CESTAS
+  //
+  // Agrupa:
+  // mesma data + usuário + cesta + origem + destino
+  // + recebido por (quando Comunidade).
+  // ========================================================
+
+  const basketReportMap =
+    new Map();
+
+
+  (db.basketOutputs || [])
+    .filter(
+      row =>
+        (!start || row.date >= start) &&
+        (!end || row.date <= end) &&
+        (
+          !origin ||
+          Number(row.originId) ===
+          Number(origin)
+        )
+    )
+    .forEach(row => {
+
+      const key =
+        [
+          row.date || "",
+          row.usuarioId || "",
+          row.basketId || "",
+          row.originId || "",
+          row.destination || "",
+          normalizeAceText(
+            row.receivedBy || ""
+          )
+        ].join("||");
+
+
+      if (
+        !basketReportMap.has(key)
+      ) {
+
+        basketReportMap.set(
+          key,
+          {
+            ...row,
+            basketQty:
+              Number(
+                row.basketQty || 0
+              )
+          }
+        );
+
+        return;
+      }
+
+
+      const current =
+        basketReportMap.get(key);
+
+      current.basketQty +=
+        Number(
+          row.basketQty || 0
+        );
+
+
+      if (
+        String(
+          row.createdAt || ""
+        ) >
+        String(
+          current.createdAt || ""
+        )
+      ) {
+
+        current.createdAt =
+          row.createdAt;
+
+      }
+
+    });
+
+
+  const basketReportRows =
+    [...basketReportMap.values()]
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          ).localeCompare(
+            String(
+              a.createdAt ||
+              a.date ||
+              ""
+            )
+          )
+      );
 
 
   const presentDates =
@@ -4564,9 +4786,12 @@ function renderReport() {
     <div style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:#f2f7fb;border:1px solid #d9e6f0;">
       <strong>👤 Usuário logado:</strong>
       ${esc(reportUserName)}
-      ${reportUserEmail && reportUserName !== reportUserEmail
-        ? ` — ${esc(reportUserEmail)}`
-        : ""}
+      ${
+        reportUserEmail &&
+        reportUserName !== reportUserEmail
+          ? ` — ${esc(reportUserEmail)}`
+          : ""
+      }
     </div>
 
     <div class="cards">
@@ -4624,6 +4849,25 @@ function renderReport() {
                   s + Number(x.qty),
                 0
               )
+          )}
+        </strong>
+
+      </div>
+
+      <div class="card">
+
+        <span>Cestas</span>
+
+        <strong>
+          ${fmt(
+            basketReportRows.reduce(
+              (s, x) =>
+                s +
+                Number(
+                  x.basketQty || 0
+                ),
+              0
+            )
           )}
         </strong>
 
@@ -4761,21 +5005,90 @@ function renderReport() {
         `
     }
 
+    <h3>Histórico de saída de cestas</h3>
+
+    ${
+      basketReportRows.length
+
+        ? table(
+            basketReportRows,
+            [
+              [
+                "Data",
+                x =>
+                  fmtDate(
+                    x.date
+                  )
+              ],
+              [
+                "Cesta",
+                x =>
+                  esc(
+                    x.basketName ||
+                    "—"
+                  )
+              ],
+              [
+                "Destino",
+                x =>
+                  esc(
+                    x.destination ||
+                    "—"
+                  )
+              ],
+              [
+                "Quantidade",
+                x =>
+                  fmt(
+                    x.basketQty
+                  )
+              ],
+              [
+                "Usuário",
+                x =>
+                  esc(
+                    getMovementUserName({
+                      usuarioId:
+                        x.usuarioId,
+                      usuarioNome:
+                        x.usuarioNome
+                    })
+                  )
+              ],
+              [
+                "Recebido por",
+                x =>
+                  x.destination ===
+                    "Comunidade"
+                    ? esc(
+                        x.receivedBy ||
+                        "—"
+                      )
+                    : ""
+              ]
+            ],
+            null
+          )
+
+        : `
+          <div class="empty">
+            Sem saídas de cestas no período.
+          </div>
+        `
+    }
+
   `;
 
-
-  const result =
+  const reportOutput =
     document.getElementById(
-      "reportResult"
+      "reportOutput"
     );
 
-
-  if (result) {
-    result.innerHTML = html;
+  if (reportOutput) {
+    reportOutput.innerHTML = html;
   }
 
 }
-
 
 // ============================================================
 // 16. CADASTROS
@@ -9087,4 +9400,3 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
-
