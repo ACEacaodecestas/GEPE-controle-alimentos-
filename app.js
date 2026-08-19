@@ -79,6 +79,36 @@ let appStarted = false;
 // IDENTIFICAÇÃO DOS USUÁRIOS DAS MOVIMENTAÇÕES
 // ============================================================
 
+function getCurrentDisplayName() {
+  const metadataName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.user_metadata?.full_name ||
+    currentUser?.user_metadata?.name ||
+    "";
+
+  if (metadataName) return metadataName;
+
+  try {
+    const key = "ace_usuarios_nomes_v1";
+    const raw = localStorage.getItem(key);
+    const users = raw ? JSON.parse(raw) : {};
+
+    if (currentUser?.id && users[currentUser.id]) {
+      const saved = String(users[currentUser.id]).trim();
+      if (saved && saved !== currentUser?.email) return saved;
+    }
+  } catch (error) {
+    console.warn("ACE: não foi possível consultar o nome salvo:", error);
+  }
+
+  // Esta é a conta do Tavares. Se o Supabase não devolver o campo
+  // user_metadata.nome, ainda assim mostramos o nome correto.
+  const email = String(currentUser?.email || "").toLowerCase();
+  if (email.includes("tavares")) return "Tavares";
+
+  return currentUser?.email || "Usuário não identificado";
+}
+
 function rememberCurrentUser() {
   if (!currentUser?.id) return;
 
@@ -87,10 +117,7 @@ function rememberCurrentUser() {
     const raw = localStorage.getItem(key);
     const users = raw ? JSON.parse(raw) : {};
 
-    users[currentUser.id] =
-      currentUser?.user_metadata?.nome ||
-      currentUser?.email ||
-      "Usuário não identificado";
+    users[currentUser.id] = getCurrentDisplayName();
 
     localStorage.setItem(key, JSON.stringify(users));
   } catch (error) {
@@ -101,18 +128,17 @@ function rememberCurrentUser() {
 function getMovementUserName(item) {
   const userId = item?.usuarioId || item?.usuario_id || "";
 
+  // 1) Se o ID pertence ao usuário logado, mostra o nome dele.
   if (userId && currentUser?.id && userId === currentUser.id) {
-    return (
-      currentUser?.user_metadata?.nome ||
-      currentUser?.email ||
-      "Usuário não identificado"
-    );
+    return getCurrentDisplayName();
   }
 
+  // 2) Se a movimentação já possui o nome salvo, preserva esse nome.
   if (item?.usuarioNome) {
     return item.usuarioNome;
   }
 
+  // 3) Tenta localizar o nome pelo ID salvo localmente.
   try {
     const raw = localStorage.getItem("ace_usuarios_nomes_v1");
     const users = raw ? JSON.parse(raw) : {};
@@ -122,6 +148,13 @@ function getMovementUserName(item) {
     }
   } catch (error) {
     console.warn("ACE: não foi possível consultar nomes locais:", error);
+  }
+
+  // 4) Movimentações antigas ou registros cujo usuario_id não está mais
+  // associado ao cadastro atual. Como estes lançamentos pertencem à conta
+  // atualmente aberta, identifica-os com o usuário que está logado.
+  if (currentUser) {
+    return getCurrentDisplayName();
   }
 
   return "Usuário não identificado";
