@@ -5079,13 +5079,13 @@ function renderReport() {
 
   `;
 
-  const reportOutput =
+  const reportResult =
     document.getElementById(
-      "reportOutput"
+      "reportResult"
     );
 
-  if (reportOutput) {
-    reportOutput.innerHTML = html;
+  if (reportResult) {
+    reportResult.innerHTML = html;
   }
 
 }
