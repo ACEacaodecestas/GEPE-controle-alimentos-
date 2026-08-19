@@ -6149,7 +6149,7 @@ async function generateSignedReportPDF() {
       "0";
 
     printHost.style.width =
-      "1100px";
+      "794px";
 
     printHost.style.background =
       "#ffffff";
@@ -6168,10 +6168,10 @@ async function generateSignedReportPDF() {
 
 
     element.style.width =
-      "1060px";
+      "760px";
 
     element.style.maxWidth =
-      "1060px";
+      "760px";
 
     element.style.boxSizing =
       "border-box";
@@ -6183,10 +6183,58 @@ async function generateSignedReportPDF() {
       "#111827";
 
 
-    // Garante que tabelas e blocos tenham largura mensurável.
+    // ========================================================
+    // AJUSTES DE LAYOUT PARA A4
+    // ========================================================
+
+    // Cartões do resumo: em PDF ficam em 3 colunas,
+    // evitando que a última coluna saia para fora da página.
     element
       .querySelectorAll(
-        ".table-wrap, table"
+        ".cards"
+      )
+      .forEach(cards => {
+
+        cards.style.display =
+          "grid";
+
+        cards.style.gridTemplateColumns =
+          "repeat(3, minmax(0, 1fr))";
+
+        cards.style.gap =
+          "10px";
+
+        cards.style.width =
+          "100%";
+
+        cards.style.boxSizing =
+          "border-box";
+
+      });
+
+
+    element
+      .querySelectorAll(
+        ".card"
+      )
+      .forEach(card => {
+
+        card.style.minWidth =
+          "0";
+
+        card.style.width =
+          "auto";
+
+        card.style.boxSizing =
+          "border-box";
+
+      });
+
+
+    // Tabelas ocupam somente a largura disponível do A4.
+    element
+      .querySelectorAll(
+        ".table-wrap"
       )
       .forEach(node => {
 
@@ -6195,6 +6243,75 @@ async function generateSignedReportPDF() {
 
         node.style.maxWidth =
           "100%";
+
+        node.style.overflow =
+          "visible";
+
+        node.style.boxSizing =
+          "border-box";
+
+      });
+
+
+    element
+      .querySelectorAll(
+        "table"
+      )
+      .forEach(node => {
+
+        node.style.width =
+          "100%";
+
+        node.style.maxWidth =
+          "100%";
+
+        node.style.tableLayout =
+          "fixed";
+
+        node.style.borderCollapse =
+          "collapse";
+
+      });
+
+
+    // Quebra textos longos dentro das células em vez de cortar.
+    element
+      .querySelectorAll(
+        "th, td"
+      )
+      .forEach(cell => {
+
+        cell.style.whiteSpace =
+          "normal";
+
+        cell.style.wordBreak =
+          "break-word";
+
+        cell.style.overflowWrap =
+          "anywhere";
+
+        cell.style.fontSize =
+          "11px";
+
+        cell.style.padding =
+          "7px 6px";
+
+      });
+
+
+    // Evita qualquer conteúdo horizontal ultrapassando a página.
+    element
+      .querySelectorAll(
+        "*"
+      )
+      .forEach(node => {
+
+        node.style.maxWidth =
+          node.style.maxWidth ||
+          "100%";
+
+        node.style.boxSizing =
+          "border-box";
 
       });
 
@@ -6264,7 +6381,7 @@ async function generateSignedReportPDF() {
         backgroundColor:
           "#ffffff",
         logging: false,
-        windowWidth: 1200,
+        windowWidth: 794,
         scrollX: 0,
         scrollY: 0
       },
