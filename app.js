@@ -6460,6 +6460,69 @@ function ensureBasketStyles() {
       cursor:pointer;
     }
 
+    .ace-basket-history{
+      margin-top:28px;
+      padding-top:22px;
+      border-top:1px solid #e3eaf0;
+    }
+
+    .ace-basket-history-title{
+      margin:0 0 14px;
+      color:#0b3a63;
+      font-size:22px;
+      font-weight:900;
+    }
+
+    .ace-basket-history-list{
+      display:grid;
+      gap:12px;
+    }
+
+    .ace-basket-history-row{
+      display:grid;
+      grid-template-columns:90px 1fr auto;
+      gap:14px;
+      align-items:center;
+      padding:12px;
+      border:1px solid #dfe7ee;
+      border-radius:13px;
+      background:#fbfcfd;
+    }
+
+    .ace-basket-history-image{
+      width:90px;
+      height:90px;
+      object-fit:contain;
+      border-radius:10px;
+      background:transparent;
+    }
+
+    .ace-basket-history-main{
+      min-width:0;
+    }
+
+    .ace-basket-history-name{
+      color:#0b3a63;
+      font-size:17px;
+      font-weight:900;
+    }
+
+    .ace-basket-history-meta{
+      margin-top:4px;
+      color:#667085;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .ace-basket-history-qty{
+      min-width:90px;
+      text-align:right;
+      color:#0b3a63;
+      font-size:18px;
+      font-weight:900;
+    }
+
+
     .ace-basket-save-btn{
       border:1px solid #0b4b7a;
       background:#0b4b7a;
@@ -6736,8 +6799,8 @@ function renderBasketModule() {
                     </button>
 
                     <div class="ace-basket-note">
-                      O débito automático dos alimentos será
-                      conectado na próxima etapa.
+                      Ao registrar, os alimentos da cesta são
+                      debitados automaticamente do estoque de Água Fria.
                     </div>
 
                   </div>
@@ -6753,6 +6816,18 @@ function renderBasketModule() {
             </div>
           `
       }
+
+    </div>
+
+    <div class="ace-basket-history">
+
+      <h3 class="ace-basket-history-title">
+        📋 Histórico de saída de cestas
+      </h3>
+
+      <div class="ace-basket-history-list">
+        ${renderBasketHistoryRows()}
+      </div>
 
     </div>
 
@@ -6899,25 +6974,351 @@ function renderBasketModule() {
             return;
           }
 
-          await showAceConfirm(
-            "A interface da saída de cestas está pronta.\n\n" +
-            `Cesta: ${basket?.name || ""}\n` +
-            `Quantidade: ${qty}\n` +
-            `Origem: Água Fria\n` +
-            `Destino: ${destination}` +
-            (
-              destination === "Comunidade"
-                ? `\nRecebido por: ${receivedBy}`
-                : ""
-            ) +
-            "\n\nO débito automático do estoque será ligado na próxima etapa.",
-            "🧺 Saída por Cestas"
-          );
+          const confirmed =
+            await showAceConfirm(
+              `Confirmar saída de ${qty} cesta(s) ${basket?.name || ""}?\n\n` +
+              `Origem: Água Fria\n` +
+              `Destino: ${destination}` +
+              (
+                destination === "Comunidade"
+                  ? `\nRecebido por: ${receivedBy}`
+                  : ""
+              ),
+              "🧺 Confirmar saída"
+            );
+
+          // showAceConfirm do sistema pode não retornar boolean.
+          // Se não retornar false explicitamente, seguimos com o registro.
+          if (confirmed === false) {
+            return;
+          }
+
+          button.disabled = true;
+          const originalText = button.textContent;
+          button.textContent = "Registrando...";
+
+          try {
+
+            await registerBasketOutput({
+              basketId,
+              basketQty: qty,
+              destination,
+              receivedBy
+            });
+
+            db =
+              await loadFromSupabase();
+
+            renderAll();
+
+            toast(
+              `${qty} cesta(s) ${basket?.name || ""} registrada(s) com sucesso.`
+            );
+
+          } catch (error) {
+
+            console.error(
+              "ACE - ERRO NA SAÍDA DE CESTA:",
+              error
+            );
+
+            toast(
+              "Erro na saída da cesta: " +
+              (
+                error?.message ||
+                "verifique o Supabase."
+              )
+            );
+
+          } finally {
+
+            button.disabled = false;
+            button.textContent = originalText;
+
+          }
 
         }
       );
 
     });
+
+}
+
+
+function renderBasketHistoryRows() {
+
+  const rows =
+    (db?.basketOutputs || [])
+      .slice()
+      .sort((a, b) => {
+        const da = String(a.createdAt || a.date || "");
+        const dbb = String(b.createdAt || b.date || "");
+        return dbb.localeCompare(da);
+      })
+      .slice(0, 30);
+
+  if (!rows.length) {
+    return `
+      <div class="empty">
+        Nenhuma saída de cesta registrada.
+      </div>
+    `;
+  }
+
+  return rows.map(row => {
+
+    const userName =
+      getMovementUserName({
+        usuarioId: row.usuarioId,
+        usuarioNome: row.usuarioNome
+      });
+
+    const communityText =
+      row.destination === "Comunidade" &&
+      row.receivedBy
+        ? ` · Recebido por: ${esc(row.receivedBy)}`
+        : "";
+
+    return `
+      <div class="ace-basket-history-row">
+
+        <img
+          class="ace-basket-history-image"
+          src="${esc(row.basketImage || "")}"
+          alt="${esc(row.basketName || "Cesta")}"
+          onerror="this.style.visibility='hidden'"
+        >
+
+        <div class="ace-basket-history-main">
+
+          <div class="ace-basket-history-name">
+            🧺 ${esc(row.basketName || "Cesta")}
+          </div>
+
+          <div class="ace-basket-history-meta">
+            ${fmtDate(row.date)}
+            · Origem: Água Fria
+            · Destino: ${esc(row.destination || "—")}
+            ${communityText}
+            · 👤 ${esc(userName)}
+          </div>
+
+        </div>
+
+        <div class="ace-basket-history-qty">
+          ${fmt(row.basketQty)} cesta(s)
+        </div>
+
+      </div>
+    `;
+
+  }).join("");
+
+}
+
+
+async function registerBasketOutput({
+  basketId,
+  basketQty,
+  destination,
+  receivedBy
+}) {
+
+  const basket =
+    (db?.baskets || []).find(
+      x =>
+        Number(x.id) ===
+        Number(basketId)
+    );
+
+  if (!basket) {
+    throw new Error("Cesta não encontrada.");
+  }
+
+  const aguaFria =
+    getAguaFriaOrigin();
+
+  if (!aguaFria) {
+    throw new Error(
+      "A origem Água Fria não foi encontrada."
+    );
+  }
+
+  const items =
+    getBasketItems(basketId);
+
+  if (!items.length) {
+    throw new Error(
+      "A cesta não possui alimentos configurados."
+    );
+  }
+
+  const qtyCestas =
+    Number(basketQty);
+
+  if (
+    !Number.isInteger(qtyCestas) ||
+    qtyCestas <= 0
+  ) {
+    throw new Error(
+      "Quantidade de cestas inválida."
+    );
+  }
+
+  // Verifica o estoque de TODOS os alimentos antes de registrar.
+  const stock =
+    calcStock();
+
+  const shortages = [];
+
+  items.forEach(item => {
+
+    const required =
+      Number(item.qty) *
+      qtyCestas;
+
+    const available =
+      Number(
+        stock?.[aguaFria.id]?.[item.foodId] ||
+        stock?.[String(aguaFria.id)]?.[String(item.foodId)] ||
+        0
+      );
+
+    if (required > available) {
+      shortages.push({
+        foodName: item.foodName,
+        required,
+        available
+      });
+    }
+
+  });
+
+  if (shortages.length) {
+
+    const details =
+      shortages
+        .map(
+          x =>
+            `${x.foodName}: precisa ${fmt(x.required)}, disponível ${fmt(x.available)}`
+        )
+        .join(" | ");
+
+    throw new Error(
+      "Estoque insuficiente em Água Fria. " +
+      details
+    );
+
+  }
+
+  const userId =
+    getCurrentUserId();
+
+  const today =
+    isoToday();
+
+  const composition =
+    items.map(item => ({
+      alimento_id:
+        Number(item.foodId),
+      alimento:
+        item.foodName,
+      quantidade_por_cesta:
+        Number(item.qty),
+      quantidade_total:
+        Number(item.qty) *
+        qtyCestas
+    }));
+
+  // Primeiro grava o histórico da cesta.
+  const {
+    data: basketOutputData,
+    error: basketOutputError
+  } =
+    await supabaseClient
+      .from("cestas_saidas")
+      .insert({
+        cesta_id:
+          Number(basket.id),
+        cesta_nome:
+          basket.name,
+        cesta_imagem:
+          basket.image || "",
+        quantidade_cestas:
+          qtyCestas,
+        origem_id:
+          Number(aguaFria.id),
+        destino:
+          destination,
+        recebido_por:
+          destination === "Comunidade"
+            ? receivedBy
+            : null,
+        data_saida:
+          today,
+        usuario_id:
+          userId,
+        composicao:
+          composition
+      })
+      .select("id")
+      .single();
+
+  if (basketOutputError) {
+    throw basketOutputError;
+  }
+
+  // Depois cria as saídas dos alimentos, preservando o estoque atual.
+  const movementRows =
+    items.map(item => ({
+      id:
+        newNumericId(),
+      data_saida:
+        today,
+      alimento_id:
+        Number(item.foodId),
+      quantidade:
+        Number(item.qty) *
+        qtyCestas,
+      origem_id:
+        Number(aguaFria.id),
+      destino:
+        `Cesta: ${basket.name} | ${destination}` +
+        (
+          destination === "Comunidade" &&
+          receivedBy
+            ? ` | Recebido por: ${receivedBy}`
+            : ""
+        ),
+      motivo:
+        "Montagem de cesta",
+      usuario_id:
+        userId
+    }));
+
+  const {
+    error: movementsError
+  } =
+    await supabaseClient
+      .from("saídas")
+      .insert(movementRows);
+
+  if (movementsError) {
+
+    // Se as saídas dos alimentos falharem,
+    // remove o histórico da cesta para não deixar registro incompleto.
+    if (basketOutputData?.id) {
+      await supabaseClient
+        .from("cestas_saidas")
+        .delete()
+        .eq(
+          "id",
+          basketOutputData.id
+        );
+    }
+
+    throw movementsError;
+  }
 
 }
 
