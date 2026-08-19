@@ -657,7 +657,6 @@ async function insertEntry({ date, originId, foodId, qty, note }) {
     alimento_id: Number(foodId),
     quantidade: qty,
     origem_id: Number(originId),
-    observacao: note || "",
     usuario_id: getCurrentUserId()
   });
 
