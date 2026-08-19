@@ -6112,6 +6112,9 @@ async function generateSignedReportPDF() {
   }
 
 
+  let printHost = null;
+
+
   try {
 
     await ensureHtml2PdfLibrary();
@@ -6119,6 +6122,111 @@ async function generateSignedReportPDF() {
 
     const element =
       buildReportPdfElement();
+
+
+    // ========================================================
+    // CORREÇÃO DO PDF EM BRANCO
+    //
+    // O html2canvas pode gerar páginas vazias quando recebe
+    // um clone que nunca entrou no DOM. Colocamos o conteúdo
+    // temporariamente em um container REAL no documento,
+    // fora da área visível da tela, e só depois geramos o PDF.
+    // ========================================================
+
+    printHost =
+      document.createElement("div");
+
+    printHost.id =
+      "aceReportPdfHost";
+
+    printHost.style.position =
+      "fixed";
+
+    printHost.style.left =
+      "-100000px";
+
+    printHost.style.top =
+      "0";
+
+    printHost.style.width =
+      "1100px";
+
+    printHost.style.background =
+      "#ffffff";
+
+    printHost.style.zIndex =
+      "-1";
+
+    printHost.style.pointerEvents =
+      "none";
+
+    printHost.style.opacity =
+      "1";
+
+    printHost.style.display =
+      "block";
+
+
+    element.style.width =
+      "1060px";
+
+    element.style.maxWidth =
+      "1060px";
+
+    element.style.boxSizing =
+      "border-box";
+
+    element.style.background =
+      "#ffffff";
+
+    element.style.color =
+      "#111827";
+
+
+    // Garante que tabelas e blocos tenham largura mensurável.
+    element
+      .querySelectorAll(
+        ".table-wrap, table"
+      )
+      .forEach(node => {
+
+        node.style.width =
+          "100%";
+
+        node.style.maxWidth =
+          "100%";
+
+      });
+
+
+    printHost.appendChild(
+      element
+    );
+
+    document.body.appendChild(
+      printHost
+    );
+
+
+    // Aguarda o navegador calcular layout/fontes/imagens.
+    if (
+      document.fonts?.ready
+    ) {
+      try {
+        await document.fonts.ready;
+      } catch {}
+    }
+
+
+    await new Promise(
+      resolve =>
+        requestAnimationFrame(
+          () =>
+            requestAnimationFrame(
+              resolve
+            )
+        )
+    );
 
 
     const start =
@@ -6146,13 +6254,19 @@ async function generateSignedReportPDF() {
 
       image: {
         type: "jpeg",
-        quality: 0.96
+        quality: 0.98
       },
 
       html2canvas: {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
-        backgroundColor: "#ffffff"
+        allowTaint: false,
+        backgroundColor:
+          "#ffffff",
+        logging: false,
+        windowWidth: 1200,
+        scrollX: 0,
+        scrollY: 0
       },
 
       jsPDF: {
@@ -6165,13 +6279,16 @@ async function generateSignedReportPDF() {
         mode: [
           "css",
           "legacy"
+        ],
+        avoid: [
+          "tr",
+          ".ace-report-pdf-only-signature"
         ]
       }
 
     };
 
 
-    // Gera Blob para download/compartilhamento.
     const worker =
       window
         .html2pdf()
@@ -6188,6 +6305,17 @@ async function generateSignedReportPDF() {
 
     lastGeneratedReportPdfName =
       fileName;
+
+
+    if (
+      !lastGeneratedReportPdfBlob ||
+      lastGeneratedReportPdfBlob.size <
+        1000
+    ) {
+      throw new Error(
+        "O PDF foi gerado sem conteúdo."
+      );
+    }
 
 
     const url =
@@ -6249,6 +6377,10 @@ async function generateSignedReportPDF() {
 
   } finally {
 
+    if (printHost) {
+      printHost.remove();
+    }
+
     if (button) {
       button.disabled = false;
       button.textContent =
@@ -6258,7 +6390,6 @@ async function generateSignedReportPDF() {
   }
 
 }
-
 
 async function shareSignedReportPDF() {
 
