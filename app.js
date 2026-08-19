@@ -75,6 +75,58 @@ let deferredPrompt = null;
 let currentUser = null;
 let appStarted = false;
 
+// ============================================================
+// IDENTIFICAÇÃO DOS USUÁRIOS DAS MOVIMENTAÇÕES
+// ============================================================
+
+function rememberCurrentUser() {
+  if (!currentUser?.id) return;
+
+  try {
+    const key = "ace_usuarios_nomes_v1";
+    const raw = localStorage.getItem(key);
+    const users = raw ? JSON.parse(raw) : {};
+
+    users[currentUser.id] =
+      currentUser?.user_metadata?.nome ||
+      currentUser?.email ||
+      "Usuário não identificado";
+
+    localStorage.setItem(key, JSON.stringify(users));
+  } catch (error) {
+    console.warn("ACE: não foi possível guardar o nome do usuário:", error);
+  }
+}
+
+function getMovementUserName(item) {
+  const userId = item?.usuarioId || item?.usuario_id || "";
+
+  if (userId && currentUser?.id && userId === currentUser.id) {
+    return (
+      currentUser?.user_metadata?.nome ||
+      currentUser?.email ||
+      "Usuário não identificado"
+    );
+  }
+
+  if (item?.usuarioNome) {
+    return item.usuarioNome;
+  }
+
+  try {
+    const raw = localStorage.getItem("ace_usuarios_nomes_v1");
+    const users = raw ? JSON.parse(raw) : {};
+
+    if (userId && users[userId]) {
+      return users[userId];
+    }
+  } catch (error) {
+    console.warn("ACE: não foi possível consultar nomes locais:", error);
+  }
+
+  return "Usuário não identificado";
+}
+
 
 // ============================================================
 // 4. FUNÇÕES BÁSICAS
@@ -133,6 +185,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
   if (!currentUser?.id) {
     throw new Error("Usuário não autenticado.");
   }
+
+  rememberCurrentUser();
 
   // ==========================================================
   // CARREGA OS DADOS DO SUPABASE
@@ -265,6 +319,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
             currentUser =
               refreshData.session.user;
 
+            rememberCurrentUser();
+
 
             console.log(
               "ACE: sessão renovada. Recarregando dados."
@@ -393,6 +449,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         foodId: Number(e.alimento_id),
         qty: Number(e.quantidade || 0),
         originId: Number(e.origem_id),
+        usuarioId: e.usuario_id || null,
+        usuarioNome: e.usuario_nome || e.usuarioNome || null,
         note:
           e.observacao ||
           e.obs ||
@@ -414,6 +472,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         foodId: Number(s.alimento_id),
         qty: Number(s.quantidade || 0),
         originId: Number(s.origem_id),
+        usuarioId: s.usuario_id || null,
+        usuarioNome: s.usuario_nome || s.usuarioNome || null,
         reasonId: null,
         note:
           s.destino ||
@@ -433,6 +493,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         foodId: Number(p.alimento_id),
         qty: Number(p.quantidade || 0),
         originId: Number(p.origem_id),
+        usuarioId: p.usuario_id || null,
+        usuarioNome: p.usuario_nome || p.usuarioNome || null,
         reasonId:
           reasons.find(
             r =>
@@ -525,6 +587,9 @@ function getCurrentUserId() {
   if (!currentUser?.id) {
     throw new Error("Usuário não autenticado.");
   }
+
+  rememberCurrentUser();
+
   return currentUser.id;
 }
 
@@ -550,10 +615,19 @@ async function insertOrigin(name) {
   return id;
 }
 
-async function insertEntry({ date, originId, foodId, qty }) {
+async function insertEntry({ date, originId, foodId, qty, note }) {
+  rememberCurrentUser();
+
   const { error } = await supabaseClient.from("entradas").insert({
-    id: newNumericId(), data_entrada: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), usuario_id: getCurrentUserId()
+    id: newNumericId(),
+    data_entrada: date,
+    alimento_id: Number(foodId),
+    quantidade: qty,
+    origem_id: Number(originId),
+    observacao: note || "",
+    usuario_id: getCurrentUserId()
   });
+
   if (error) throw error;
 }
 
@@ -571,6 +645,75 @@ async function insertMovement({ date, type, originId, foodId, qty, reasonId, not
   const { error } = await supabaseClient.from("perdas").insert({
     id: newNumericId(), data_perda: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), motivo: reasonName, usuario_id: userId
   });
+  if (error) throw error;
+}
+
+async function updateEntry({ id, date, originId, foodId, qty, note }) {
+  const { error } = await supabaseClient
+    .from("entradas")
+    .update({
+      data_entrada: date,
+      alimento_id: Number(foodId),
+      quantidade: Number(qty),
+      origem_id: Number(originId),
+      observacao: note || ""
+    })
+    .eq("id", Number(id));
+
+  if (error) throw error;
+}
+
+async function updateMovement({ id, type, date, originId, foodId, qty, reasonId, note }) {
+  const movement = db.movements.find(x => x.id === id);
+
+  if (!movement?.rawId || !movement.sourceTable) {
+    throw new Error("Não foi possível identificar a movimentação no Supabase.");
+  }
+
+  if (
+    movement.sourceTable !==
+    (type === "saida" ? "saídas" : "perdas")
+  ) {
+    await deleteMovement(id);
+
+    await insertMovement({
+      date,
+      type,
+      originId,
+      foodId,
+      qty: Number(qty),
+      reasonId,
+      note
+    });
+
+    return;
+  }
+
+  const payload =
+    type === "saida"
+      ? {
+          data_saida: date,
+          alimento_id: Number(foodId),
+          quantidade: Number(qty),
+          origem_id: Number(originId),
+          destino: note || ""
+        }
+      : {
+          data_perda: date,
+          alimento_id: Number(foodId),
+          quantidade: Number(qty),
+          origem_id: Number(originId),
+          motivo:
+            db.reasons.find(r => r.id === reasonId)?.name ||
+            reasonId ||
+            "Outro"
+        };
+
+  const { error } = await supabaseClient
+    .from(movement.sourceTable)
+    .update(payload)
+    .eq("id", Number(movement.rawId));
+
   if (error) throw error;
 }
 
@@ -2943,7 +3086,6 @@ function renderDashboard() {
       "recentMovements"
     );
 
-
   if (recent) {
 
     const all = [
@@ -2978,25 +3120,57 @@ function renderDashboard() {
       )
       .slice(0, 8);
 
-
     recent.innerHTML =
       all.length
 
         ? all.map(x => `
 
-            <div class="recent-item">
+            <div
+              class="recent-item"
+              style="position:relative;"
+            >
 
-              <b>
-                ${x.sign}
-                ${fmt(x.qty)}
-                —
-                ${esc(
-                  getName(
-                    db.foods,
-                    x.foodId
-                  )
-                )}
-              </b>
+              <div
+                style="
+                  display:flex;
+                  align-items:center;
+                  justify-content:space-between;
+                  gap:10px;
+                "
+              >
+
+                <b>
+                  ${x.sign}
+                  ${fmt(x.qty)}
+                  —
+                  ${esc(
+                    getName(
+                      db.foods,
+                      x.foodId
+                    )
+                  )}
+                </b>
+
+                <button
+                  type="button"
+                  class="recent-edit-button"
+                  data-edit-recent="${esc(String(x.id))}"
+                  style="
+                    flex:0 0 auto;
+                    border:1px solid #0b3a63;
+                    background:#fff;
+                    color:#0b3a63;
+                    border-radius:7px;
+                    padding:5px 9px;
+                    font-size:12px;
+                    font-weight:900;
+                    cursor:pointer;
+                  "
+                >
+                  ✏️ Editar
+                </button>
+
+              </div>
 
               <small>
                 ${x.kind}
@@ -3009,6 +3183,8 @@ function renderDashboard() {
                 )}
                 •
                 ${fmtDate(x.date)}
+                •
+                👤 ${esc(getMovementUserName(x))}
               </small>
 
             </div>
@@ -3020,6 +3196,467 @@ function renderDashboard() {
             Nenhum lançamento ainda.
           </div>
         `;
+
+    document
+      .querySelectorAll("[data-edit-recent]")
+      .forEach(button => {
+
+        button.addEventListener(
+          "click",
+          () =>
+            openRecentEditModal(
+              button.dataset.editRecent
+            )
+        );
+
+      });
+
+  }
+
+}
+
+
+// ============================================================
+// EDITAR ÚLTIMO LANÇAMENTO
+// ============================================================
+
+function closeRecentEditModal() {
+  document.getElementById("aceRecentEditModal")?.remove();
+}
+
+function openRecentEditModal(id) {
+
+  closeRecentEditModal();
+
+  const item =
+    db.entries.find(x => String(x.id) === String(id)) ||
+    db.movements.find(x => String(x.id) === String(id));
+
+  if (!item) {
+    toast("Lançamento não encontrado.");
+    return;
+  }
+
+  const isEntry = db.entries.some(
+    x => String(x.id) === String(id)
+  );
+
+  const modal = document.createElement("div");
+
+  modal.id = "aceRecentEditModal";
+
+  modal.innerHTML = `
+
+    <div
+      style="
+        position:fixed;
+        inset:0;
+        z-index:1000001;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+        background:rgba(0,35,70,.62);
+        backdrop-filter:blur(3px);
+      "
+    >
+
+      <div
+        style="
+          width:min(500px,calc(100vw - 30px));
+          max-height:90vh;
+          overflow:auto;
+          box-sizing:border-box;
+          padding:24px;
+          border-radius:18px;
+          background:#fff;
+          color:#172b3a;
+          box-shadow:0 18px 50px rgba(0,0,0,.35);
+        "
+      >
+
+        <div
+          style="
+            text-align:center;
+            font-size:22px;
+            font-weight:900;
+            color:#0b3a63;
+            margin-bottom:18px;
+          "
+        >
+          ✏️ Editar lançamento
+        </div>
+
+        <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+          Data
+          <input
+            id="recentEditDate"
+            type="date"
+            value="${esc(item.date || isoToday())}"
+            style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+          >
+        </label>
+
+        ${
+          !isEntry
+            ? `
+              <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+                Tipo
+                <select
+                  id="recentEditType"
+                  style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+                >
+                  <option value="saida" ${item.type === "saida" ? "selected" : ""}>Saída</option>
+                  <option value="perda" ${item.type === "perda" ? "selected" : ""}>Perda</option>
+                </select>
+              </label>
+            `
+            : ""
+        }
+
+        <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+          Origem
+          <select
+            id="recentEditOrigin"
+            style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+          >
+            ${db.origins.map(o => `
+              <option value="${o.id}" ${Number(item.originId) === Number(o.id) ? "selected" : ""}>
+                ${esc(o.name)}
+              </option>
+            `).join("")}
+          </select>
+        </label>
+
+        <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+          Alimento
+          <select
+            id="recentEditFood"
+            style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+          >
+            ${db.foods.map(f => `
+              <option value="${f.id}" ${Number(item.foodId) === Number(f.id) ? "selected" : ""}>
+                ${esc(f.name)}
+              </option>
+            `).join("")}
+          </select>
+        </label>
+
+        <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+          Quantidade
+          <input
+            id="recentEditQty"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value="${esc(item.qty)}"
+            style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+          >
+        </label>
+
+        ${
+          !isEntry
+            ? `
+              <label
+                id="recentEditReasonWrap"
+                style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;"
+              >
+                Motivo
+                <select
+                  id="recentEditReason"
+                  style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+                >
+                  <option value="">Selecione...</option>
+                  ${db.reasons.map(r => `
+                    <option value="${esc(r.id)}" ${String(item.reasonId) === String(r.id) ? "selected" : ""}>
+                      ${esc(r.name)}
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+            `
+            : ""
+        }
+
+        <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+          ${isEntry ? "Observação" : "Observação / destino"}
+          <input
+            id="recentEditNote"
+            type="text"
+            value="${esc(item.note || "")}"
+            style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
+          >
+        </label>
+
+        <div
+          id="recentEditError"
+          style="
+            display:none;
+            margin-top:8px;
+            padding:10px;
+            border-radius:9px;
+            background:#fdeceb;
+            color:#b42318;
+            font-weight:800;
+            font-size:13px;
+          "
+        ></div>
+
+        <div
+          style="
+            display:flex;
+            justify-content:center;
+            gap:10px;
+            margin-top:18px;
+          "
+        >
+
+          <button
+            id="recentEditSave"
+            type="button"
+            style="
+              border:0;
+              border-radius:9px;
+              padding:12px 18px;
+              background:#0b3a63;
+              color:#fff;
+              font-weight:900;
+              cursor:pointer;
+            "
+          >
+            💾 Salvar
+          </button>
+
+          <button
+            id="recentEditCancel"
+            type="button"
+            style="
+              border:1px solid #0b3a63;
+              border-radius:9px;
+              padding:12px 18px;
+              background:#fff;
+              color:#0b3a63;
+              font-weight:900;
+              cursor:pointer;
+            "
+          >
+            Cancelar
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
+  document.body.appendChild(modal);
+
+  const typeSelect =
+    document.getElementById("recentEditType");
+
+  const reasonWrap =
+    document.getElementById("recentEditReasonWrap");
+
+  const updateReasonVisibility = () => {
+    if (!typeSelect || !reasonWrap) return;
+    reasonWrap.style.display =
+      typeSelect.value === "perda"
+        ? "flex"
+        : "none";
+  };
+
+  if (typeSelect) {
+    typeSelect.addEventListener(
+      "change",
+      updateReasonVisibility
+    );
+    updateReasonVisibility();
+  }
+
+  document
+    .getElementById("recentEditCancel")
+    .onclick =
+      closeRecentEditModal;
+
+  document
+    .getElementById("recentEditSave")
+    .onclick =
+      () =>
+        saveRecentEdit(
+          id,
+          isEntry
+        );
+
+}
+
+async function saveRecentEdit(id, isEntry) {
+
+  const error =
+    document.getElementById(
+      "recentEditError"
+    );
+
+  const button =
+    document.getElementById(
+      "recentEditSave"
+    );
+
+  const date =
+    document.getElementById(
+      "recentEditDate"
+    )?.value;
+
+  const originId =
+    document.getElementById(
+      "recentEditOrigin"
+    )?.value;
+
+  const foodId =
+    document.getElementById(
+      "recentEditFood"
+    )?.value;
+
+  const qty =
+    Number(
+      document.getElementById(
+        "recentEditQty"
+      )?.value
+    );
+
+  const note =
+    document.getElementById(
+      "recentEditNote"
+    )?.value
+      ?.trim() || "";
+
+  const type =
+    document.getElementById(
+      "recentEditType"
+    )?.value ||
+    "saida";
+
+  const reasonId =
+    document.getElementById(
+      "recentEditReason"
+    )?.value ||
+    "";
+
+  const original =
+    db.entries.find(
+      x => String(x.id) === String(id)
+    ) ||
+    db.movements.find(
+      x => String(x.id) === String(id)
+    );
+
+  if (!original) {
+    error.textContent =
+      "Lançamento não encontrado.";
+    error.style.display = "block";
+    return;
+  }
+
+  if (
+    !date ||
+    !originId ||
+    !foodId ||
+    !Number.isFinite(qty) ||
+    qty <= 0
+  ) {
+    error.textContent =
+      "Preencha data, origem, alimento e quantidade corretamente.";
+    error.style.display = "block";
+    return;
+  }
+
+  if (!isEntry && type === "perda" && !reasonId) {
+    error.textContent =
+      "Selecione o motivo da perda.";
+    error.style.display = "block";
+    return;
+  }
+
+  if (!isEntry) {
+    const st = calcStock();
+
+    if (
+      st[original.originId] &&
+      st[original.originId][original.foodId] != null
+    ) {
+      st[original.originId][original.foodId] +=
+        Number(original.qty || 0);
+    }
+
+    const available =
+      Number(
+        st[originId]?.[foodId] || 0
+      );
+
+    if (qty > available) {
+      error.textContent =
+        `Saldo insuficiente. Disponível para essa correção em ${getName(db.origins, originId)}: ${fmt(available)}.`;
+      error.style.display = "block";
+      return;
+    }
+  }
+
+  error.style.display = "none";
+  button.disabled = true;
+  button.textContent = "Salvando...";
+
+  try {
+
+    if (isEntry) {
+
+      await updateEntry({
+        id,
+        date,
+        originId,
+        foodId,
+        qty,
+        note
+      });
+
+    } else {
+
+      await updateMovement({
+        id,
+        type,
+        date,
+        originId,
+        foodId,
+        qty,
+        reasonId,
+        note
+      });
+
+    }
+
+    document
+      .getElementById("aceRecentEditModal")
+      ?.remove();
+
+    await reloadFromSupabase();
+
+    toast("Lançamento corrigido com sucesso.");
+
+  } catch (err) {
+
+    console.error(
+      "ACE - ERRO AO EDITAR LANÇAMENTO:",
+      err
+    );
+
+    error.textContent =
+      err?.message ||
+      "Não foi possível corrigir o lançamento.";
+
+    error.style.display = "block";
+
+    button.disabled = false;
+    button.textContent = "💾 Salvar";
 
   }
 
@@ -5295,6 +5932,8 @@ async function startAuth() {
         currentUser =
           session.user;
 
+        rememberCurrentUser();
+
 
         document
           .getElementById(
@@ -5362,6 +6001,8 @@ async function startAuth() {
 
       currentUser =
         data.session.user;
+
+      rememberCurrentUser();
 
 
       document
