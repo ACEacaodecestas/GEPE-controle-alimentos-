@@ -5077,6 +5077,60 @@ function renderReport() {
         `
     }
 
+    <div class="ace-report-signature-section">
+
+      <div class="ace-report-signature-title">
+        ✍️ Assinatura
+      </div>
+
+      <div class="ace-report-signature-help">
+        Assine com o dedo na tela do celular ou com o mouse no computador.
+      </div>
+
+      <div class="ace-report-signature-canvas-wrap">
+
+        <canvas
+          id="reportSignatureCanvas"
+        ></canvas>
+
+      </div>
+
+      <div class="ace-report-signature-name">
+        <strong>Responsável:</strong>
+        ${esc(getReportResponsibleName())}
+      </div>
+
+      <div class="ace-report-signature-actions">
+
+        <button
+          type="button"
+          id="clearReportSignature"
+          class="ace-report-clear-btn"
+        >
+          🧹 Limpar assinatura
+        </button>
+
+        <button
+          type="button"
+          id="generateReportPDF"
+          class="ace-report-pdf-btn"
+        >
+          📄 Gerar PDF do relatório
+        </button>
+
+        <button
+          type="button"
+          id="shareReportPDF"
+          class="ace-report-share-btn"
+          disabled
+        >
+          📤 Compartilhar PDF
+        </button>
+
+      </div>
+
+    </div>
+
   `;
 
   const reportResult =
@@ -5085,7 +5139,15 @@ function renderReport() {
     );
 
   if (reportResult) {
+
     reportResult.innerHTML = html;
+
+    reportSignatureHasInk = false;
+    lastGeneratedReportPdfBlob = null;
+    lastGeneratedReportPdfName = "";
+
+    setupReportSignatureCanvas();
+
   }
 
 }
@@ -5381,6 +5443,935 @@ function csvEscape(v) {
     .replace(/"/g, '""')}"`;
 
 }
+
+
+// ============================================================
+// ASSINATURA DO RELATÓRIO + PDF
+// ============================================================
+
+let reportSignatureHasInk = false;
+let lastGeneratedReportPdfBlob = null;
+let lastGeneratedReportPdfName = "";
+
+
+function ensureReportSignatureStyles() {
+
+  if (
+    document.getElementById(
+      "aceReportSignatureStyle"
+    )
+  ) {
+    return;
+  }
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "aceReportSignatureStyle";
+
+  style.textContent = `
+
+    .ace-report-signature-section{
+      margin-top:28px;
+      padding:20px;
+      border:1px solid #d9e4ec;
+      border-radius:14px;
+      background:#fbfcfd;
+    }
+
+    .ace-report-signature-title{
+      margin:0 0 8px;
+      color:#0b3a63;
+      font-size:20px;
+      font-weight:900;
+    }
+
+    .ace-report-signature-help{
+      margin-bottom:14px;
+      color:#667085;
+      font-size:13px;
+    }
+
+    .ace-report-signature-canvas-wrap{
+      position:relative;
+      width:100%;
+      height:190px;
+      overflow:hidden;
+      border:2px dashed #9db6c8;
+      border-radius:12px;
+      background:#fff;
+      touch-action:none;
+    }
+
+    #reportSignatureCanvas{
+      display:block;
+      width:100%;
+      height:100%;
+      cursor:crosshair;
+      touch-action:none;
+    }
+
+    .ace-report-signature-name{
+      margin-top:12px;
+      color:#344054;
+      font-size:14px;
+    }
+
+    .ace-report-signature-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:16px;
+    }
+
+    .ace-report-signature-actions button{
+      padding:11px 16px;
+      border-radius:10px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-report-clear-btn{
+      border:1px solid #b8c7d3;
+      background:#fff;
+      color:#344054;
+    }
+
+    .ace-report-pdf-btn{
+      border:1px solid #0b4b7a;
+      background:#0b4b7a;
+      color:#fff;
+    }
+
+    .ace-report-share-btn{
+      border:1px solid #1570ef;
+      background:#1570ef;
+      color:#fff;
+    }
+
+    .ace-report-share-btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+
+    .ace-report-pdf-only-signature{
+      margin-top:28px;
+      page-break-inside:avoid;
+      break-inside:avoid;
+    }
+
+    .ace-report-pdf-signature-line{
+      margin-top:10px;
+      color:#344054;
+      font-size:14px;
+    }
+
+    @media(max-width:700px){
+      .ace-report-signature-canvas-wrap{
+        height:160px;
+      }
+
+      .ace-report-signature-actions{
+        flex-direction:column;
+      }
+
+      .ace-report-signature-actions button{
+        width:100%;
+      }
+    }
+
+  `;
+
+  document.head.appendChild(style);
+
+}
+
+
+function getReportResponsibleName() {
+
+  return (
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado"
+  );
+
+}
+
+
+function getReportSignatureImage() {
+
+  const canvas =
+    document.getElementById(
+      "reportSignatureCanvas"
+    );
+
+  if (!canvas) {
+    return "";
+  }
+
+  return canvas.toDataURL(
+    "image/png"
+  );
+
+}
+
+
+function setupReportSignatureCanvas() {
+
+  ensureReportSignatureStyles();
+
+  const canvas =
+    document.getElementById(
+      "reportSignatureCanvas"
+    );
+
+  if (!canvas) {
+    return;
+  }
+
+
+  const resizeCanvas = () => {
+
+    const rect =
+      canvas.getBoundingClientRect();
+
+    if (
+      !rect.width ||
+      !rect.height
+    ) {
+      return;
+    }
+
+    const ratio =
+      window.devicePixelRatio ||
+      1;
+
+    const previous =
+      reportSignatureHasInk
+        ? canvas.toDataURL("image/png")
+        : null;
+
+    canvas.width =
+      Math.round(
+        rect.width * ratio
+      );
+
+    canvas.height =
+      Math.round(
+        rect.height * ratio
+      );
+
+    const ctx =
+      canvas.getContext("2d");
+
+    ctx.setTransform(
+      ratio,
+      0,
+      0,
+      ratio,
+      0,
+      0
+    );
+
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#111827";
+
+
+    if (previous) {
+
+      const img =
+        new Image();
+
+      img.onload = () => {
+
+        ctx.drawImage(
+          img,
+          0,
+          0,
+          rect.width,
+          rect.height
+        );
+
+      };
+
+      img.src = previous;
+
+    }
+
+  };
+
+
+  resizeCanvas();
+
+
+  let drawing = false;
+
+
+  const getPoint =
+    event => {
+
+      const rect =
+        canvas.getBoundingClientRect();
+
+      return {
+        x:
+          event.clientX -
+          rect.left,
+        y:
+          event.clientY -
+          rect.top
+      };
+
+    };
+
+
+  canvas.onpointerdown =
+    event => {
+
+      event.preventDefault();
+
+      drawing = true;
+
+      canvas.setPointerCapture?.(
+        event.pointerId
+      );
+
+      const ctx =
+        canvas.getContext("2d");
+
+      const p =
+        getPoint(event);
+
+      ctx.beginPath();
+      ctx.moveTo(
+        p.x,
+        p.y
+      );
+
+    };
+
+
+  canvas.onpointermove =
+    event => {
+
+      if (!drawing) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const ctx =
+        canvas.getContext("2d");
+
+      const p =
+        getPoint(event);
+
+      ctx.lineTo(
+        p.x,
+        p.y
+      );
+
+      ctx.stroke();
+
+      reportSignatureHasInk =
+        true;
+
+    };
+
+
+  const stopDrawing =
+    event => {
+
+      drawing = false;
+
+      try {
+        canvas.releasePointerCapture?.(
+          event.pointerId
+        );
+      } catch {}
+
+    };
+
+
+  canvas.onpointerup =
+    stopDrawing;
+
+  canvas.onpointercancel =
+    stopDrawing;
+
+  canvas.onpointerleave =
+    event => {
+      if (event.buttons === 0) {
+        stopDrawing(event);
+      }
+    };
+
+
+  const clearButton =
+    document.getElementById(
+      "clearReportSignature"
+    );
+
+  if (clearButton) {
+
+    clearButton.onclick = () => {
+
+      const ctx =
+        canvas.getContext("2d");
+
+      const rect =
+        canvas.getBoundingClientRect();
+
+      ctx.clearRect(
+        0,
+        0,
+        rect.width,
+        rect.height
+      );
+
+      reportSignatureHasInk =
+        false;
+
+      lastGeneratedReportPdfBlob =
+        null;
+
+      lastGeneratedReportPdfName =
+        "";
+
+      const shareButton =
+        document.getElementById(
+          "shareReportPDF"
+        );
+
+      if (shareButton) {
+        shareButton.disabled = true;
+      }
+
+    };
+
+  }
+
+
+  const pdfButton =
+    document.getElementById(
+      "generateReportPDF"
+    );
+
+  if (pdfButton) {
+
+    pdfButton.onclick =
+      generateSignedReportPDF;
+
+  }
+
+
+  const shareButton =
+    document.getElementById(
+      "shareReportPDF"
+    );
+
+  if (shareButton) {
+
+    shareButton.onclick =
+      shareSignedReportPDF;
+
+  }
+
+}
+
+
+function loadExternalScriptOnce(
+  src,
+  globalCheck
+) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      if (
+        typeof globalCheck === "function" &&
+        globalCheck()
+      ) {
+        resolve();
+        return;
+      }
+
+
+      const existing =
+        [...document.scripts]
+          .find(
+            script =>
+              script.src === src
+          );
+
+
+      if (existing) {
+
+        existing.addEventListener(
+          "load",
+          resolve,
+          {
+            once: true
+          }
+        );
+
+        existing.addEventListener(
+          "error",
+          () =>
+            reject(
+              new Error(
+                "Não foi possível carregar a biblioteca do PDF."
+              )
+            ),
+          {
+            once: true
+          }
+        );
+
+        return;
+      }
+
+
+      const script =
+        document.createElement("script");
+
+      script.src = src;
+      script.async = true;
+
+      script.onload = resolve;
+
+      script.onerror =
+        () =>
+          reject(
+            new Error(
+              "Não foi possível carregar a biblioteca do PDF."
+            )
+          );
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
+async function ensureHtml2PdfLibrary() {
+
+  await loadExternalScriptOnce(
+    "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js",
+    () =>
+      typeof window.html2pdf ===
+      "function"
+  );
+
+}
+
+
+function buildReportPdfElement() {
+
+  const reportResult =
+    document.getElementById(
+      "reportResult"
+    );
+
+  if (!reportResult) {
+    throw new Error(
+      "Relatório não encontrado."
+    );
+  }
+
+
+  const clone =
+    reportResult.cloneNode(
+      true
+    );
+
+
+  // Remove a área interativa de assinatura do clone.
+  clone
+    .querySelectorAll(
+      ".ace-report-signature-section"
+    )
+    .forEach(
+      element =>
+        element.remove()
+    );
+
+
+  const signatureImage =
+    getReportSignatureImage();
+
+
+  const signed =
+    document.createElement("div");
+
+  signed.className =
+    "ace-report-pdf-only-signature";
+
+  signed.innerHTML = `
+
+    <hr
+      style="
+        border:0;
+        border-top:1px solid #d9e4ec;
+        margin:24px 0 18px;
+      "
+    >
+
+    <div
+      style="
+        font-size:18px;
+        font-weight:900;
+        color:#0b3a63;
+        margin-bottom:10px;
+      "
+    >
+      Assinatura do responsável
+    </div>
+
+    <div
+      style="
+        width:100%;
+        height:130px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        border-bottom:1px solid #344054;
+        background:#fff;
+      "
+    >
+      <img
+        src="${signatureImage}"
+        alt="Assinatura"
+        style="
+          max-width:95%;
+          max-height:120px;
+          object-fit:contain;
+        "
+      >
+    </div>
+
+    <div class="ace-report-pdf-signature-line">
+      <strong>Nome:</strong>
+      ${esc(getReportResponsibleName())}
+    </div>
+
+    <div class="ace-report-pdf-signature-line">
+      <strong>Data:</strong>
+      ${fmtDate(isoToday())}
+    </div>
+
+  `;
+
+
+  clone.appendChild(
+    signed
+  );
+
+
+  // Melhora impressão em PDF.
+  clone.style.background = "#fff";
+  clone.style.padding = "20px";
+  clone.style.color = "#111827";
+
+
+  return clone;
+
+}
+
+
+async function generateSignedReportPDF() {
+
+  if (!reportSignatureHasInk) {
+
+    await showAceConfirm(
+      "Assine o relatório antes de gerar o PDF.",
+      "✍️ Assinatura obrigatória"
+    );
+
+    return;
+  }
+
+
+  const button =
+    document.getElementById(
+      "generateReportPDF"
+    );
+
+
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      "⏳ Gerando PDF...";
+  }
+
+
+  try {
+
+    await ensureHtml2PdfLibrary();
+
+
+    const element =
+      buildReportPdfElement();
+
+
+    const start =
+      document.getElementById(
+        "reportStart"
+      )?.value || "inicio";
+
+    const end =
+      document.getElementById(
+        "reportEnd"
+      )?.value || "fim";
+
+
+    const fileName =
+      `relatorio_${start}_${end}.pdf`;
+
+
+    const options = {
+
+      margin:
+        [8, 8, 8, 8],
+
+      filename:
+        fileName,
+
+      image: {
+        type: "jpeg",
+        quality: 0.96
+      },
+
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff"
+      },
+
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait"
+      },
+
+      pagebreak: {
+        mode: [
+          "css",
+          "legacy"
+        ]
+      }
+
+    };
+
+
+    // Gera Blob para download/compartilhamento.
+    const worker =
+      window
+        .html2pdf()
+        .set(options)
+        .from(element)
+        .toPdf();
+
+
+    lastGeneratedReportPdfBlob =
+      await worker.outputPdf(
+        "blob"
+      );
+
+
+    lastGeneratedReportPdfName =
+      fileName;
+
+
+    const url =
+      URL.createObjectURL(
+        lastGeneratedReportPdfBlob
+      );
+
+
+    const a =
+      document.createElement("a");
+
+    a.href = url;
+    a.download = fileName;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+
+    setTimeout(
+      () =>
+        URL.revokeObjectURL(
+          url
+        ),
+      2000
+    );
+
+
+    const shareButton =
+      document.getElementById(
+        "shareReportPDF"
+      );
+
+    if (shareButton) {
+      shareButton.disabled = false;
+    }
+
+
+    toast(
+      "PDF do relatório gerado com assinatura."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO GERAR PDF:",
+      error
+    );
+
+    await showAceConfirm(
+      "Não foi possível gerar o PDF.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro ao gerar PDF"
+    );
+
+  } finally {
+
+    if (button) {
+      button.disabled = false;
+      button.textContent =
+        "📄 Gerar PDF do relatório";
+    }
+
+  }
+
+}
+
+
+async function shareSignedReportPDF() {
+
+  if (
+    !lastGeneratedReportPdfBlob ||
+    !lastGeneratedReportPdfName
+  ) {
+
+    await showAceConfirm(
+      "Primeiro gere o PDF do relatório.",
+      "Compartilhar relatório"
+    );
+
+    return;
+  }
+
+
+  const file =
+    new File(
+      [
+        lastGeneratedReportPdfBlob
+      ],
+      lastGeneratedReportPdfName,
+      {
+        type: "application/pdf"
+      }
+    );
+
+
+  try {
+
+    if (
+      navigator.share &&
+      (
+        !navigator.canShare ||
+        navigator.canShare({
+          files: [file]
+        })
+      )
+    ) {
+
+      await navigator.share({
+        title:
+          "Relatório ACE",
+        text:
+          "Relatório ACE assinado.",
+        files:
+          [file]
+      });
+
+      return;
+    }
+
+
+    const url =
+      URL.createObjectURL(
+        lastGeneratedReportPdfBlob
+      );
+
+    const a =
+      document.createElement("a");
+
+    a.href = url;
+    a.download =
+      lastGeneratedReportPdfName;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(
+      () =>
+        URL.revokeObjectURL(
+          url
+        ),
+      2000
+    );
+
+
+    await showAceConfirm(
+      "Seu navegador não permite compartilhar o PDF diretamente.\n\n" +
+      "O arquivo foi baixado para você enviar pelo WhatsApp, e-mail ou outro aplicativo.",
+      "📤 Compartilhar relatório"
+    );
+
+
+  } catch (error) {
+
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      return;
+    }
+
+    console.error(
+      "ACE - ERRO AO COMPARTILHAR PDF:",
+      error
+    );
+
+    await showAceConfirm(
+      "Não foi possível compartilhar o PDF.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro ao compartilhar"
+    );
+
+  }
+
+}
+
 
 
 function exportCSV() {
