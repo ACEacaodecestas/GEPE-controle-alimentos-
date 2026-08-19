@@ -5833,6 +5833,1366 @@ async function restoreCloudBackup(obj) {
 }
 
 
+
+// ============================================================
+// 19.9 MÓDULO DE CESTAS - INTERFACE E EDIÇÃO
+// Nesta etapa:
+// - NÃO altera o formulário atual de Saída/Perda.
+// - Mostra as 3 cestas dentro da página de Saída/Perda.
+// - Origem é fixa: Água Fria.
+// - Destino: Messejana / Praia do Futuro / Comunidade.
+// - Comunidade exibe o campo "Nome da pessoa que recebeu".
+// - Permite editar a composição da cesta e salvar no Supabase.
+// - O botão "Registrar saída" fica preparado para a próxima etapa.
+// ============================================================
+
+function normalizeAceText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+
+function getAguaFriaOrigin() {
+  return (db?.origins || []).find(
+    origin =>
+      normalizeAceText(origin.name) ===
+      "agua fria"
+  ) || null;
+}
+
+
+function getBasketItems(basketId) {
+  return (db?.basketItems || [])
+    .filter(
+      item =>
+        Number(item.basketId) ===
+        Number(basketId)
+    )
+    .map(item => ({
+      ...item,
+      foodName:
+        getName(
+          db.foods,
+          Number(item.foodId)
+        )
+    }))
+    .sort(
+      (a, b) =>
+        String(a.foodName).localeCompare(
+          String(b.foodName),
+          "pt-BR"
+        )
+    );
+}
+
+
+function ensureBasketStyles() {
+
+  if (
+    document.getElementById(
+      "aceBasketModuleStyle"
+    )
+  ) {
+    return;
+  }
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "aceBasketModuleStyle";
+
+  style.textContent = `
+
+    #aceBasketModule{
+      margin-top:22px;
+      margin-bottom:22px;
+      padding:24px;
+      border:1px solid #d8e2ea;
+      border-radius:18px;
+      background:#fff;
+      box-shadow:0 8px 24px rgba(16,42,67,.06);
+    }
+
+    .ace-basket-module-title{
+      margin:0;
+      color:#0b3a63;
+      font-size:26px;
+      font-weight:900;
+    }
+
+    .ace-basket-module-subtitle{
+      margin:6px 0 18px;
+      color:#667085;
+      font-size:14px;
+    }
+
+    .ace-basket-fixed-origin{
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:20px;
+      padding:13px 15px;
+      border:1px solid #cfe0ed;
+      border-radius:12px;
+      background:#f4f9fd;
+      color:#17324d;
+    }
+
+    .ace-basket-fixed-origin strong{
+      color:#0b3a63;
+    }
+
+    .ace-basket-grid{
+      display:grid;
+      grid-template-columns:
+        repeat(3,minmax(0,1fr));
+      gap:18px;
+    }
+
+    .ace-basket-card{
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      overflow:hidden;
+      border:1px solid #d8e2ea;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 8px 20px rgba(16,42,67,.07);
+    }
+
+    .ace-basket-name{
+      padding:16px 16px 10px;
+      color:#0b3a63;
+      text-align:center;
+      font-size:20px;
+      font-weight:900;
+    }
+
+    .ace-basket-image-wrap{
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:260px;
+      margin:0 16px;
+      overflow:hidden;
+      border-radius:14px;
+      background:#f5f7fa;
+    }
+
+    .ace-basket-image{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      background:#fff;
+    }
+
+    .ace-basket-image-fallback{
+      display:none;
+      align-items:center;
+      justify-content:center;
+      width:100%;
+      height:100%;
+      padding:20px;
+      box-sizing:border-box;
+      text-align:center;
+      color:#667085;
+      font-weight:800;
+    }
+
+    .ace-basket-body{
+      display:flex;
+      flex:1;
+      flex-direction:column;
+      padding:16px;
+    }
+
+    .ace-basket-composition-title{
+      margin-bottom:8px;
+      color:#344054;
+      font-size:13px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+    }
+
+    .ace-basket-composition{
+      display:grid;
+      gap:7px;
+      margin-bottom:14px;
+    }
+
+    .ace-basket-composition-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:8px 10px;
+      border-radius:9px;
+      background:#f7f9fb;
+      color:#344054;
+      font-size:14px;
+    }
+
+    .ace-basket-composition-row b{
+      color:#0b3a63;
+    }
+
+    .ace-basket-edit{
+      width:100%;
+      margin-bottom:16px;
+      padding:10px 12px;
+      border:1px solid #0b4b7a;
+      border-radius:10px;
+      background:#fff;
+      color:#0b4b7a;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-fields{
+      display:grid;
+      gap:11px;
+      margin-top:auto;
+    }
+
+    .ace-basket-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      color:#344054;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .ace-basket-field input,
+    .ace-basket-field select{
+      width:100%;
+      box-sizing:border-box;
+      padding:11px 12px;
+      border:1px solid #d3dde5;
+      border-radius:10px;
+      background:#fff;
+      color:#172b3a;
+      font-size:15px;
+      outline:none;
+    }
+
+    .ace-basket-received{
+      display:none;
+    }
+
+    .ace-basket-received.show{
+      display:flex;
+    }
+
+    .ace-basket-register{
+      width:100%;
+      margin-top:13px;
+      padding:12px 14px;
+      border:0;
+      border-radius:10px;
+      background:#0b4b7a;
+      color:#fff;
+      font-size:15px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-register:hover{
+      filter:brightness(1.07);
+    }
+
+    .ace-basket-note{
+      margin-top:12px;
+      color:#667085;
+      font-size:12px;
+      line-height:1.45;
+      text-align:center;
+    }
+
+    #aceBasketEditModal{
+      position:fixed;
+      inset:0;
+      z-index:1000005;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.62);
+      backdrop-filter:blur(3px);
+    }
+
+    .ace-basket-edit-box{
+      width:min(650px,calc(100vw - 34px));
+      max-height:88vh;
+      overflow:auto;
+      box-sizing:border-box;
+      padding:24px;
+      border-radius:18px;
+      background:#fff;
+      color:#172b3a;
+      box-shadow:0 20px 60px rgba(0,0,0,.30);
+    }
+
+    .ace-basket-edit-title{
+      margin-bottom:18px;
+      color:#0b3a63;
+      text-align:center;
+      font-size:24px;
+      font-weight:900;
+    }
+
+    .ace-basket-edit-list{
+      display:grid;
+      gap:10px;
+    }
+
+    .ace-basket-edit-row{
+      display:grid;
+      grid-template-columns:1fr auto auto auto;
+      gap:8px;
+      align-items:center;
+      padding:10px;
+      border:1px solid #e0e7ee;
+      border-radius:10px;
+      background:#f8fafc;
+    }
+
+    .ace-basket-edit-food{
+      min-width:0;
+      font-weight:800;
+    }
+
+    .ace-basket-edit-qty{
+      min-width:36px;
+      text-align:center;
+      font-weight:900;
+      color:#0b3a63;
+    }
+
+    .ace-basket-small-btn{
+      width:34px;
+      height:34px;
+      border:1px solid #b8c7d3;
+      border-radius:8px;
+      background:#fff;
+      color:#0b3a63;
+      font-size:18px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-remove-btn{
+      width:34px;
+      height:34px;
+      border:1px solid #efb5b0;
+      border-radius:8px;
+      background:#fff3f2;
+      color:#b42318;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-add-row{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:10px;
+      margin-top:16px;
+    }
+
+    .ace-basket-add-row select{
+      min-width:0;
+      padding:11px;
+      border:1px solid #d3dde5;
+      border-radius:10px;
+      background:#fff;
+    }
+
+    .ace-basket-modal-actions{
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      margin-top:20px;
+    }
+
+    .ace-basket-modal-actions button{
+      min-width:120px;
+      padding:11px 15px;
+      border-radius:10px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-save-btn{
+      border:1px solid #0b4b7a;
+      background:#0b4b7a;
+      color:#fff;
+    }
+
+    .ace-basket-cancel-btn{
+      border:1px solid #0b4b7a;
+      background:#fff;
+      color:#0b4b7a;
+    }
+
+    @media(max-width:1050px){
+      .ace-basket-grid{
+        grid-template-columns:1fr 1fr;
+      }
+    }
+
+    @media(max-width:700px){
+      #aceBasketModule{
+        padding:16px;
+      }
+
+      .ace-basket-grid{
+        grid-template-columns:1fr;
+      }
+
+      .ace-basket-image-wrap{
+        height:230px;
+      }
+
+      .ace-basket-edit-row{
+        grid-template-columns:1fr auto auto auto;
+      }
+    }
+
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+function createBasketModuleContainer() {
+
+  let module =
+    document.getElementById(
+      "aceBasketModule"
+    );
+
+  if (module) {
+    return module;
+  }
+
+  const movementForm =
+    document.getElementById(
+      "movementForm"
+    );
+
+  if (!movementForm) {
+    return null;
+  }
+
+  module =
+    document.createElement("section");
+
+  module.id =
+    "aceBasketModule";
+
+  const movementsTable =
+    document.getElementById(
+      "movementsTable"
+    );
+
+  const movementsContainer =
+    movementsTable?.closest(
+      ".panel,.box,.section,.card"
+    );
+
+  const page =
+    movementForm.closest(".page") ||
+    movementForm.parentElement;
+
+  if (
+    page &&
+    movementsContainer &&
+    movementsContainer.parentElement === page
+  ) {
+    page.insertBefore(
+      module,
+      movementsContainer
+    );
+  } else {
+    const formContainer =
+      movementForm.closest(
+        ".panel,.box,.section,.card"
+      ) ||
+      movementForm;
+
+    formContainer.insertAdjacentElement(
+      "afterend",
+      module
+    );
+  }
+
+  return module;
+}
+
+
+function renderBasketModule() {
+
+  ensureBasketStyles();
+
+  const module =
+    createBasketModuleContainer();
+
+  if (!module) {
+    return;
+  }
+
+  const baskets =
+    (db?.baskets || [])
+      .filter(x => x.active !== false);
+
+  const aguaFria =
+    getAguaFriaOrigin();
+
+  module.innerHTML = `
+
+    <h2 class="ace-basket-module-title">
+      🧺 Saída por Cestas
+    </h2>
+
+    <div class="ace-basket-module-subtitle">
+      Escolha a cesta, informe o destino e a quantidade.
+      A origem do estoque é fixa em Água Fria.
+    </div>
+
+    <div class="ace-basket-fixed-origin">
+      <strong>📍 Origem do estoque:</strong>
+      <span>
+        ${aguaFria ? esc(aguaFria.name) : "Água Fria não encontrada"}
+      </span>
+    </div>
+
+    <div class="ace-basket-grid">
+
+      ${
+        baskets.length
+          ? baskets.map(basket => {
+
+              const items =
+                getBasketItems(
+                  basket.id
+                );
+
+              const composition =
+                items.length
+                  ? items.map(item => `
+                      <div class="ace-basket-composition-row">
+                        <span>${esc(item.foodName)}</span>
+                        <b>${fmt(item.qty)}</b>
+                      </div>
+                    `).join("")
+                  : `
+                    <div class="empty">
+                      Nenhum alimento configurado.
+                    </div>
+                  `;
+
+              return `
+
+                <article
+                  class="ace-basket-card"
+                  data-basket-card="${basket.id}"
+                >
+
+                  <div class="ace-basket-name">
+                    ${esc(basket.name)}
+                  </div>
+
+                  <div class="ace-basket-image-wrap">
+
+                    <img
+                      class="ace-basket-image"
+                      src="${esc(basket.image)}"
+                      alt="${esc(basket.name)}"
+                      onerror="
+                        this.style.display='none';
+                        this.nextElementSibling.style.display='flex';
+                      "
+                    >
+
+                    <div class="ace-basket-image-fallback">
+                      🧺 Imagem da cesta<br>
+                      ${esc(basket.image || "")}
+                    </div>
+
+                  </div>
+
+                  <div class="ace-basket-body">
+
+                    <div class="ace-basket-composition-title">
+                      Composição atual
+                    </div>
+
+                    <div class="ace-basket-composition">
+                      ${composition}
+                    </div>
+
+                    <button
+                      type="button"
+                      class="ace-basket-edit"
+                      data-edit-basket="${basket.id}"
+                    >
+                      ✏️ Editar cesta
+                    </button>
+
+                    <div class="ace-basket-fields">
+
+                      <label class="ace-basket-field">
+                        Destino
+                        <select
+                          data-basket-destination="${basket.id}"
+                        >
+                          <option value="">
+                            Selecione...
+                          </option>
+                          <option value="Messejana">
+                            Messejana
+                          </option>
+                          <option value="Praia do Futuro">
+                            Praia do Futuro
+                          </option>
+                          <option value="Comunidade">
+                            Comunidade
+                          </option>
+                        </select>
+                      </label>
+
+                      <label
+                        class="ace-basket-field ace-basket-received"
+                        data-basket-received-wrap="${basket.id}"
+                      >
+                        Nome da pessoa que recebeu
+                        <input
+                          type="text"
+                          data-basket-received="${basket.id}"
+                          placeholder="Digite o nome de quem recebeu"
+                        >
+                      </label>
+
+                      <label class="ace-basket-field">
+                        Quantidade de cestas
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value="1"
+                          data-basket-qty="${basket.id}"
+                        >
+                      </label>
+
+                    </div>
+
+                    <button
+                      type="button"
+                      class="ace-basket-register"
+                      data-register-basket="${basket.id}"
+                    >
+                      🧺 Registrar saída
+                    </button>
+
+                    <div class="ace-basket-note">
+                      O débito automático dos alimentos será
+                      conectado na próxima etapa.
+                    </div>
+
+                  </div>
+
+                </article>
+
+              `;
+
+            }).join("")
+          : `
+            <div class="empty">
+              Nenhuma cesta cadastrada no Supabase.
+            </div>
+          `
+      }
+
+    </div>
+
+  `;
+
+
+  module
+    .querySelectorAll(
+      "[data-basket-destination]"
+    )
+    .forEach(select => {
+
+      select.addEventListener(
+        "change",
+        () => {
+
+          const basketId =
+            select.dataset
+              .basketDestination;
+
+          const wrap =
+            module.querySelector(
+              `[data-basket-received-wrap="${basketId}"]`
+            );
+
+          const input =
+            module.querySelector(
+              `[data-basket-received="${basketId}"]`
+            );
+
+          const community =
+            select.value ===
+            "Comunidade";
+
+          if (wrap) {
+            wrap.classList.toggle(
+              "show",
+              community
+            );
+          }
+
+          if (
+            input &&
+            !community
+          ) {
+            input.value = "";
+          }
+
+        }
+      );
+
+    });
+
+
+  module
+    .querySelectorAll(
+      "[data-edit-basket]"
+    )
+    .forEach(button => {
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          openBasketEditModal(
+            Number(
+              button.dataset
+                .editBasket
+            )
+          );
+
+        }
+      );
+
+    });
+
+
+  module
+    .querySelectorAll(
+      "[data-register-basket]"
+    )
+    .forEach(button => {
+
+      button.addEventListener(
+        "click",
+        async () => {
+
+          const basketId =
+            Number(
+              button.dataset
+                .registerBasket
+            );
+
+          const basket =
+            (db.baskets || [])
+              .find(
+                x =>
+                  Number(x.id) ===
+                  basketId
+              );
+
+          const destination =
+            module.querySelector(
+              `[data-basket-destination="${basketId}"]`
+            )?.value || "";
+
+          const qty =
+            Number(
+              module.querySelector(
+                `[data-basket-qty="${basketId}"]`
+              )?.value || 0
+            );
+
+          const receivedBy =
+            module.querySelector(
+              `[data-basket-received="${basketId}"]`
+            )?.value
+              ?.trim() || "";
+
+          if (!destination) {
+            toast(
+              "Selecione o destino da cesta."
+            );
+            return;
+          }
+
+          if (
+            destination === "Comunidade" &&
+            !receivedBy
+          ) {
+            toast(
+              "Informe o nome da pessoa que recebeu a cesta."
+            );
+            return;
+          }
+
+          if (
+            !Number.isInteger(qty) ||
+            qty <= 0
+          ) {
+            toast(
+              "Informe uma quantidade válida de cestas."
+            );
+            return;
+          }
+
+          await showAceConfirm(
+            "A interface da saída de cestas está pronta.\n\n" +
+            `Cesta: ${basket?.name || ""}\n` +
+            `Quantidade: ${qty}\n` +
+            `Origem: Água Fria\n` +
+            `Destino: ${destination}` +
+            (
+              destination === "Comunidade"
+                ? `\nRecebido por: ${receivedBy}`
+                : ""
+            ) +
+            "\n\nO débito automático do estoque será ligado na próxima etapa.",
+            "🧺 Saída por Cestas"
+          );
+
+        }
+      );
+
+    });
+
+}
+
+
+function closeBasketEditModal() {
+
+  const modal =
+    document.getElementById(
+      "aceBasketEditModal"
+    );
+
+  if (modal) {
+    modal.remove();
+  }
+
+}
+
+
+function openBasketEditModal(basketId) {
+
+  closeBasketEditModal();
+
+  const basket =
+    (db?.baskets || []).find(
+      item =>
+        Number(item.id) ===
+        Number(basketId)
+    );
+
+  if (!basket) {
+    toast("Cesta não encontrada.");
+    return;
+  }
+
+  const sourceItems =
+    getBasketItems(basketId)
+      .map(item => ({
+        foodId:
+          Number(item.foodId),
+        qty:
+          Number(item.qty)
+      }));
+
+  let draftItems =
+    sourceItems.map(
+      item => ({ ...item })
+    );
+
+  const modal =
+    document.createElement("div");
+
+  modal.id =
+    "aceBasketEditModal";
+
+  modal.innerHTML = `
+    <div class="ace-basket-edit-box">
+
+      <div class="ace-basket-edit-title">
+        ✏️ Editar ${esc(basket.name)}
+      </div>
+
+      <div
+        id="aceBasketEditList"
+        class="ace-basket-edit-list"
+      ></div>
+
+      <div class="ace-basket-add-row">
+
+        <select id="aceBasketAddFood">
+          <option value="">
+            + Adicionar alimento...
+          </option>
+        </select>
+
+        <button
+          type="button"
+          id="aceBasketAddFoodButton"
+          class="ace-basket-save-btn"
+        >
+          Adicionar
+        </button>
+
+      </div>
+
+      <div class="ace-basket-modal-actions">
+
+        <button
+          type="button"
+          id="aceBasketSaveEdit"
+          class="ace-basket-save-btn"
+        >
+          💾 Salvar
+        </button>
+
+        <button
+          type="button"
+          id="aceBasketCancelEdit"
+          class="ace-basket-cancel-btn"
+        >
+          Cancelar
+        </button>
+
+      </div>
+
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+
+  const renderDraft = () => {
+
+    const list =
+      document.getElementById(
+        "aceBasketEditList"
+      );
+
+    if (!list) return;
+
+    list.innerHTML =
+      draftItems.length
+        ? draftItems
+            .sort(
+              (a, b) =>
+                getName(
+                  db.foods,
+                  a.foodId
+                ).localeCompare(
+                  getName(
+                    db.foods,
+                    b.foodId
+                  ),
+                  "pt-BR"
+                )
+            )
+            .map(item => `
+
+              <div
+                class="ace-basket-edit-row"
+                data-draft-food="${item.foodId}"
+              >
+
+                <div class="ace-basket-edit-food">
+                  ${esc(
+                    getName(
+                      db.foods,
+                      item.foodId
+                    )
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  class="ace-basket-small-btn"
+                  data-draft-minus="${item.foodId}"
+                >
+                  −
+                </button>
+
+                <div class="ace-basket-edit-qty">
+                  ${fmt(item.qty)}
+                </div>
+
+                <div style="display:flex;gap:6px;">
+
+                  <button
+                    type="button"
+                    class="ace-basket-small-btn"
+                    data-draft-plus="${item.foodId}"
+                  >
+                    +
+                  </button>
+
+                  <button
+                    type="button"
+                    class="ace-basket-remove-btn"
+                    data-draft-remove="${item.foodId}"
+                    title="Remover alimento"
+                  >
+                    ×
+                  </button>
+
+                </div>
+
+              </div>
+
+            `).join("")
+        : `
+          <div class="empty">
+            Nenhum alimento nesta cesta.
+          </div>
+        `;
+
+
+    list
+      .querySelectorAll(
+        "[data-draft-minus]"
+      )
+      .forEach(button => {
+
+        button.onclick = () => {
+
+          const foodId =
+            Number(
+              button.dataset
+                .draftMinus
+            );
+
+          const item =
+            draftItems.find(
+              x =>
+                Number(x.foodId) ===
+                foodId
+            );
+
+          if (!item) return;
+
+          item.qty =
+            Math.max(
+              1,
+              Number(item.qty) - 1
+            );
+
+          renderDraft();
+
+        };
+
+      });
+
+
+    list
+      .querySelectorAll(
+        "[data-draft-plus]"
+      )
+      .forEach(button => {
+
+        button.onclick = () => {
+
+          const foodId =
+            Number(
+              button.dataset
+                .draftPlus
+            );
+
+          const item =
+            draftItems.find(
+              x =>
+                Number(x.foodId) ===
+                foodId
+            );
+
+          if (!item) return;
+
+          item.qty =
+            Number(item.qty) + 1;
+
+          renderDraft();
+
+        };
+
+      });
+
+
+    list
+      .querySelectorAll(
+        "[data-draft-remove]"
+      )
+      .forEach(button => {
+
+        button.onclick = () => {
+
+          const foodId =
+            Number(
+              button.dataset
+                .draftRemove
+            );
+
+          draftItems =
+            draftItems.filter(
+              x =>
+                Number(x.foodId) !==
+                foodId
+            );
+
+          renderDraft();
+          refreshAddFoodSelect();
+
+        };
+
+      });
+
+  };
+
+
+  const refreshAddFoodSelect = () => {
+
+    const select =
+      document.getElementById(
+        "aceBasketAddFood"
+      );
+
+    if (!select) return;
+
+    const selected =
+      new Set(
+        draftItems.map(
+          item =>
+            Number(item.foodId)
+        )
+      );
+
+    const available =
+      (db.foods || [])
+        .filter(
+          food =>
+            !selected.has(
+              Number(food.id)
+            )
+        )
+        .slice()
+        .sort(
+          (a, b) =>
+            a.name.localeCompare(
+              b.name,
+              "pt-BR"
+            )
+        );
+
+    select.innerHTML =
+      `
+        <option value="">
+          + Adicionar alimento...
+        </option>
+      ` +
+      available
+        .map(
+          food => `
+            <option value="${food.id}">
+              ${esc(food.name)}
+            </option>
+          `
+        )
+        .join("");
+
+  };
+
+
+  renderDraft();
+  refreshAddFoodSelect();
+
+
+  document
+    .getElementById(
+      "aceBasketAddFoodButton"
+    )
+    .onclick = () => {
+
+      const select =
+        document.getElementById(
+          "aceBasketAddFood"
+        );
+
+      const foodId =
+        Number(select?.value || 0);
+
+      if (!foodId) {
+        toast(
+          "Selecione um alimento para adicionar."
+        );
+        return;
+      }
+
+      if (
+        draftItems.some(
+          x =>
+            Number(x.foodId) ===
+            foodId
+        )
+      ) {
+        toast(
+          "Esse alimento já faz parte da cesta."
+        );
+        return;
+      }
+
+      draftItems.push({
+        foodId,
+        qty: 1
+      });
+
+      renderDraft();
+      refreshAddFoodSelect();
+
+    };
+
+
+  document
+    .getElementById(
+      "aceBasketCancelEdit"
+    )
+    .onclick =
+      closeBasketEditModal;
+
+
+  document
+    .getElementById(
+      "aceBasketSaveEdit"
+    )
+    .onclick =
+      async () => {
+
+        const saveButton =
+          document.getElementById(
+            "aceBasketSaveEdit"
+          );
+
+        if (!draftItems.length) {
+          toast(
+            "A cesta precisa ter pelo menos um alimento."
+          );
+          return;
+        }
+
+        if (saveButton) {
+          saveButton.disabled = true;
+          saveButton.textContent =
+            "Salvando...";
+        }
+
+        try {
+
+          // Remove somente a composição desta cesta.
+          const {
+            error: deleteError
+          } =
+            await supabaseClient
+              .from("cestas_itens")
+              .delete()
+              .eq(
+                "cesta_id",
+                Number(basketId)
+              );
+
+          if (deleteError) {
+            throw deleteError;
+          }
+
+          const rows =
+            draftItems.map(
+              item => ({
+                cesta_id:
+                  Number(basketId),
+                alimento_id:
+                  Number(item.foodId),
+                quantidade:
+                  Number(item.qty)
+              })
+            );
+
+          const {
+            error: insertError
+          } =
+            await supabaseClient
+              .from("cestas_itens")
+              .insert(rows);
+
+          if (insertError) {
+            throw insertError;
+          }
+
+          db =
+            await loadFromSupabase();
+
+          closeBasketEditModal();
+
+          renderAll();
+
+          toast(
+            "Composição da cesta atualizada."
+          );
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO EDITAR CESTA:",
+            error
+          );
+
+          toast(
+            "Erro ao salvar a cesta: " +
+            (
+              error?.message ||
+              "verifique o Supabase."
+            )
+          );
+
+          if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent =
+              "💾 Salvar";
+          }
+
+        }
+
+      };
+
+}
+
+
 // ============================================================
 // 20. PWA
 // ============================================================
@@ -5934,6 +7294,8 @@ function renderAll() {
   renderEntries();
 
   renderMovements();
+
+  renderBasketModule();
 
   renderAttendance();
 
