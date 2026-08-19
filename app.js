@@ -233,7 +233,10 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     entriesResult,
     outputsResult,
     lossesResult,
-    attendanceResult
+    attendanceResult,
+    basketsResult,
+    basketItemsResult,
+    basketOutputsResult
   ] = await Promise.all([
 
     supabaseClient
@@ -277,6 +280,24 @@ async function loadFromSupabase(allowJwtRefresh = true) {
       .select("*")
       .order("data", {
         ascending: false
+      }),
+
+    supabaseClient
+      .from("cestas")
+      .select("*")
+      .eq("ativo", true)
+      .order("id"),
+
+    supabaseClient
+      .from("cestas_itens")
+      .select("*")
+      .order("cesta_id"),
+
+    supabaseClient
+      .from("cestas_saidas")
+      .select("*")
+      .order("data_saida", {
+        ascending: false
       })
 
   ]);
@@ -293,7 +314,10 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     ["entradas", entriesResult],
     ["saídas", outputsResult],
     ["perdas", lossesResult],
-    ["presença", attendanceResult]
+    ["presença", attendanceResult],
+    ["cestas", basketsResult],
+    ["cestas_itens", basketItemsResult],
+    ["cestas_saidas", basketOutputsResult]
   ].find(([, result]) => result.error);
 
 
@@ -445,6 +469,15 @@ async function loadFromSupabase(allowJwtRefresh = true) {
   const attendanceRows =
     attendanceResult.data || [];
 
+  const baskets =
+    basketsResult.data || [];
+
+  const basketItems =
+    basketItemsResult.data || [];
+
+  const basketOutputs =
+    basketOutputsResult.data || [];
+
   const reasons =
     loadLocalReasons();
 
@@ -564,6 +597,50 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
     attendance: {},
 
+    // ========================================================
+    // CESTAS
+    // ========================================================
+
+    baskets:
+      baskets.map(c => ({
+        id: Number(c.id),
+        name: c.nome,
+        image: c.imagem || "",
+        active: c.ativo !== false
+      })),
+
+    basketItems:
+      basketItems.map(ci => ({
+        id: Number(ci.id),
+        basketId: Number(ci.cesta_id),
+        foodId: Number(ci.alimento_id),
+        qty: Number(ci.quantidade || 0)
+      })),
+
+    basketOutputs:
+      basketOutputs.map(cs => ({
+        id: Number(cs.id),
+        basketId:
+          cs.cesta_id != null
+            ? Number(cs.cesta_id)
+            : null,
+        basketName: cs.cesta_nome || "",
+        basketImage: cs.cesta_imagem || "",
+        basketQty: Number(cs.quantidade_cestas || 0),
+        originId:
+          cs.origem_id != null
+            ? Number(cs.origem_id)
+            : null,
+        destination: cs.destino || "",
+        receivedBy: cs.recebido_por || "",
+        date: cs.data_saida,
+        usuarioId: cs.usuario_id || null,
+        composition:
+          cs.composicao || [],
+        createdAt:
+          cs.created_at ||
+          `${cs.data_saida || isoToday()}T00:00:00Z`
+      })),
 
     reasons
 
