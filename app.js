@@ -393,6 +393,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         foodId: Number(e.alimento_id),
         qty: Number(e.quantidade || 0),
         originId: Number(e.origem_id),
+        usuarioId: e.usuario_id || null,
         note:
           e.observacao ||
           e.obs ||
@@ -414,6 +415,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         foodId: Number(s.alimento_id),
         qty: Number(s.quantidade || 0),
         originId: Number(s.origem_id),
+        usuarioId: s.usuario_id || null,
         reasonId: null,
         note:
           s.destino ||
@@ -433,6 +435,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         foodId: Number(p.alimento_id),
         qty: Number(p.quantidade || 0),
         originId: Number(p.origem_id),
+        usuarioId: p.usuario_id || null,
         reasonId:
           reasons.find(
             r =>
@@ -526,6 +529,37 @@ function getCurrentUserId() {
     throw new Error("Usuário não autenticado.");
   }
   return currentUser.id;
+}
+
+function rememberCurrentUserName() {
+  if (!currentUser?.id) return;
+  const name =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+  try {
+    const map = JSON.parse(localStorage.getItem("ace_user_names") || "{}");
+    map[currentUser.id] = name;
+    localStorage.setItem("ace_user_names", JSON.stringify(map));
+  } catch (_) {}
+}
+
+function getMovementUserName(item) {
+  const id = item?.usuarioId;
+  if (!id) return "Usuário não identificado";
+
+  if (currentUser?.id === id) {
+    return currentUser?.user_metadata?.nome ||
+      currentUser?.email ||
+      "Usuário não identificado";
+  }
+
+  try {
+    const map = JSON.parse(localStorage.getItem("ace_user_names") || "{}");
+    return map[id] || "Usuário não identificado";
+  } catch (_) {
+    return "Usuário não identificado";
+  }
 }
 
 
@@ -696,6 +730,679 @@ function toast(msg) {
 
 
 // ============================================================
+// 4.9 RECUPERAÇÃO DE SENHA
+// ============================================================
+
+function closeAcePasswordModal() {
+
+  const modal =
+    document.getElementById("acePasswordModal");
+
+  if (modal) {
+    modal.remove();
+  }
+
+}
+
+
+function openForgotPasswordModal() {
+
+  closeAcePasswordModal();
+
+  const modal =
+    document.createElement("div");
+
+  modal.id =
+    "acePasswordModal";
+
+  modal.innerHTML = `
+
+    <div class="ace-password-box">
+
+      <div class="ace-password-title">
+        🔑 Esqueci minha senha
+      </div>
+
+      <div class="ace-password-subtitle">
+        Digite o e-mail cadastrado para receber o link de redefinição.
+      </div>
+
+      <label class="ace-password-label">
+        E-mail
+        <input
+          id="forgotPasswordEmail"
+          type="email"
+          placeholder="Digite seu e-mail"
+          autocomplete="email"
+        >
+      </label>
+
+      <div
+        id="forgotPasswordError"
+        class="ace-password-error"
+      ></div>
+
+      <div class="ace-password-actions">
+
+        <button
+          type="button"
+          id="forgotPasswordSend"
+          class="ace-password-primary"
+        >
+          📧 Enviar link
+        </button>
+
+        <button
+          type="button"
+          id="forgotPasswordCancel"
+          class="ace-password-secondary"
+        >
+          Cancelar
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+  document.body.appendChild(modal);
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "acePasswordModalStyle";
+
+  style.textContent = `
+
+    #acePasswordModal{
+      position:fixed;
+      inset:0;
+      z-index:1000000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.62);
+      backdrop-filter:blur(3px);
+    }
+
+    .ace-password-box{
+      width:min(470px,calc(100vw - 40px));
+      box-sizing:border-box;
+      padding:30px;
+      border-radius:18px;
+      background:#5da5e6;
+      color:#fff;
+      box-shadow:0 18px 50px rgba(0,0,0,.35);
+    }
+
+    .ace-password-title{
+      text-align:center;
+      font-size:25px;
+      font-weight:900;
+      margin-bottom:10px;
+      color:#fff;
+    }
+
+    .ace-password-subtitle{
+      text-align:center;
+      font-size:15px;
+      line-height:1.45;
+      margin-bottom:22px;
+      color:#fff;
+    }
+
+    .ace-password-label{
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+      font-size:14px;
+      font-weight:900;
+      color:#fff;
+    }
+
+    .ace-password-box input{
+      width:100%;
+      box-sizing:border-box;
+      padding:13px;
+      border:1px solid rgba(255,255,255,.85);
+      border-radius:10px;
+      background:#fff;
+      color:#172b3a;
+      font-size:16px;
+      outline:none;
+    }
+
+    .ace-password-box input:focus{
+      box-shadow:0 0 0 3px rgba(255,255,255,.28);
+    }
+
+    .ace-password-error{
+      display:none;
+      margin-top:12px;
+      padding:10px;
+      border-radius:9px;
+      background:#fff0f0;
+      color:#b42318;
+      font-weight:800;
+      font-size:13px;
+    }
+
+    .ace-password-error.show{
+      display:block;
+    }
+
+    .ace-password-actions{
+      display:flex;
+      justify-content:center;
+      gap:12px;
+      margin-top:24px;
+    }
+
+    .ace-password-actions button{
+      min-width:125px;
+      padding:12px 18px;
+      border-radius:9px;
+      font-size:15px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-password-primary{
+      border:1px solid #0756a0;
+      background:#0756a0;
+      color:#fff;
+    }
+
+    .ace-password-secondary{
+      border:1px solid rgba(255,255,255,.95);
+      background:transparent;
+      color:#fff;
+    }
+
+    .ace-password-primary:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+
+    .ace-reset-box{
+      width:min(470px,calc(100vw - 40px));
+      box-sizing:border-box;
+      padding:30px;
+      border-radius:18px;
+      background:#5da5e6;
+      color:#fff;
+      box-shadow:0 18px 50px rgba(0,0,0,.35);
+    }
+
+    .ace-reset-title{
+      text-align:center;
+      font-size:25px;
+      font-weight:900;
+      margin-bottom:10px;
+    }
+
+    .ace-reset-subtitle{
+      text-align:center;
+      font-size:15px;
+      line-height:1.45;
+      margin-bottom:22px;
+    }
+
+    .ace-reset-label{
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+      margin-bottom:14px;
+      font-size:14px;
+      font-weight:900;
+    }
+
+    .ace-reset-box input{
+      width:100%;
+      box-sizing:border-box;
+      padding:13px;
+      border:1px solid rgba(255,255,255,.85);
+      border-radius:10px;
+      background:#fff;
+      color:#172b3a;
+      font-size:16px;
+      outline:none;
+    }
+
+    .ace-reset-error{
+      display:none;
+      margin-top:8px;
+      padding:10px;
+      border-radius:9px;
+      background:#fff0f0;
+      color:#b42318;
+      font-weight:800;
+      font-size:13px;
+    }
+
+    .ace-reset-error.show{
+      display:block;
+    }
+
+    .ace-reset-button{
+      width:100%;
+      margin-top:10px;
+      padding:13px;
+      border:1px solid #0756a0;
+      border-radius:10px;
+      background:#0756a0;
+      color:#fff;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-reset-button:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+
+  `;
+
+  document.head.appendChild(style);
+
+  document
+    .getElementById("forgotPasswordCancel")
+    .onclick =
+      closeAcePasswordModal;
+
+  document
+    .getElementById("forgotPasswordSend")
+    .onclick =
+      sendPasswordResetEmail;
+
+  document
+    .getElementById("forgotPasswordEmail")
+    .focus();
+
+}
+
+
+async function sendPasswordResetEmail() {
+
+  const email =
+    document
+      .getElementById("forgotPasswordEmail")
+      ?.value
+      .trim();
+
+  const error =
+    document.getElementById(
+      "forgotPasswordError"
+    );
+
+  const button =
+    document.getElementById(
+      "forgotPasswordSend"
+    );
+
+  if (!email) {
+
+    error.textContent =
+      "Digite o e-mail cadastrado.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+  error.classList.remove("show");
+
+  button.disabled = true;
+  button.textContent = "Enviando...";
+
+  try {
+
+    const redirectTo =
+      "https://aceacaodecestas.github.io/GEPE-controle-alimentos-/";
+
+    const { error: resetError } =
+      await supabaseClient.auth
+        .resetPasswordForEmail(
+          email,
+          {
+            redirectTo
+          }
+        );
+
+    if (resetError) {
+      throw resetError;
+    }
+
+    closeAcePasswordModal();
+
+    await showAceConfirm(
+      "Enviamos um link para redefinir sua senha.\n\n" +
+      "Abra o e-mail e clique no link. " +
+      "Você voltará para o sistema para cadastrar a nova senha.",
+      "📧 E-mail enviado"
+    );
+
+  } catch (err) {
+
+    console.error(
+      "ACE - ERRO AO ENVIAR RECUPERAÇÃO:",
+      err
+    );
+
+    error.textContent =
+      err?.message ||
+      "Não foi possível enviar o link de redefinição.";
+
+    error.classList.add("show");
+
+    button.disabled = false;
+    button.textContent = "📧 Enviar link";
+
+  }
+
+}
+
+
+function showPasswordResetScreen() {
+
+  closeAcePasswordModal();
+
+  const oldLogin =
+    document.getElementById("loginScreen");
+
+  if (oldLogin) {
+    oldLogin.remove();
+  }
+
+  const modal =
+    document.createElement("div");
+
+  modal.id =
+    "acePasswordModal";
+
+  modal.innerHTML = `
+
+    <div class="ace-reset-box">
+
+      <div class="ace-reset-title">
+        🔐 Redefinir senha
+      </div>
+
+      <div class="ace-reset-subtitle">
+        Digite sua nova senha e confirme para salvar.
+      </div>
+
+      <label class="ace-reset-label">
+        Nova senha
+        <input
+          id="resetPassword"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Digite a nova senha"
+          minlength="6"
+        >
+      </label>
+
+      <label class="ace-reset-label">
+        Confirmar nova senha
+        <input
+          id="resetPasswordConfirm"
+          type="password"
+          autocomplete="new-password"
+          placeholder="Confirme a nova senha"
+          minlength="6"
+        >
+      </label>
+
+      <div
+        id="resetPasswordError"
+        class="ace-reset-error"
+      ></div>
+
+      <button
+        id="resetPasswordButton"
+        class="ace-reset-button"
+        type="button"
+      >
+        🔐 Salvar nova senha
+      </button>
+
+    </div>
+
+  `;
+
+  document.body.appendChild(modal);
+
+  if (!document.getElementById("acePasswordModalStyle")) {
+
+    const style =
+      document.createElement("style");
+
+    style.id =
+      "acePasswordModalStyle";
+
+    style.textContent = `
+
+      #acePasswordModal{
+        position:fixed;
+        inset:0;
+        z-index:1000000;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+        background:rgba(0,35,70,.62);
+        backdrop-filter:blur(3px);
+      }
+
+      .ace-reset-box{
+        width:min(470px,calc(100vw - 40px));
+        box-sizing:border-box;
+        padding:30px;
+        border-radius:18px;
+        background:#5da5e6;
+        color:#fff;
+        box-shadow:0 18px 50px rgba(0,0,0,.35);
+      }
+
+      .ace-reset-title{
+        text-align:center;
+        font-size:25px;
+        font-weight:900;
+        margin-bottom:10px;
+      }
+
+      .ace-reset-subtitle{
+        text-align:center;
+        font-size:15px;
+        line-height:1.45;
+        margin-bottom:22px;
+      }
+
+      .ace-reset-label{
+        display:flex;
+        flex-direction:column;
+        gap:7px;
+        margin-bottom:14px;
+        font-size:14px;
+        font-weight:900;
+      }
+
+      .ace-reset-box input{
+        width:100%;
+        box-sizing:border-box;
+        padding:13px;
+        border:1px solid rgba(255,255,255,.85);
+        border-radius:10px;
+        background:#fff;
+        color:#172b3a;
+        font-size:16px;
+        outline:none;
+      }
+
+      .ace-reset-error{
+        display:none;
+        margin-top:8px;
+        padding:10px;
+        border-radius:9px;
+        background:#fff0f0;
+        color:#b42318;
+        font-weight:800;
+        font-size:13px;
+      }
+
+      .ace-reset-error.show{
+        display:block;
+      }
+
+      .ace-reset-button{
+        width:100%;
+        margin-top:10px;
+        padding:13px;
+        border:1px solid #0756a0;
+        border-radius:10px;
+        background:#0756a0;
+        color:#fff;
+        font-size:16px;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+      .ace-reset-button:disabled{
+        opacity:.65;
+        cursor:not-allowed;
+      }
+
+    `;
+
+    document.head.appendChild(style);
+
+  }
+
+  document
+    .getElementById("resetPasswordButton")
+    .onclick =
+      updateRecoveredPassword;
+
+  document
+    .getElementById("resetPassword")
+    .focus();
+
+}
+
+
+async function updateRecoveredPassword() {
+
+  const password =
+    document
+      .getElementById("resetPassword")
+      .value;
+
+  const confirmPassword =
+    document
+      .getElementById("resetPasswordConfirm")
+      .value;
+
+  const error =
+    document.getElementById(
+      "resetPasswordError"
+    );
+
+  const button =
+    document.getElementById(
+      "resetPasswordButton"
+    );
+
+  error.classList.remove("show");
+  error.textContent = "";
+
+  if (password.length < 6) {
+
+    error.textContent =
+      "A senha deve ter pelo menos 6 caracteres.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+  if (password !== confirmPassword) {
+
+    error.textContent =
+      "As senhas não conferem.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+  button.disabled = true;
+  button.textContent = "Salvando...";
+
+  try {
+
+    const { error: updateError } =
+      await supabaseClient.auth
+        .updateUser({
+          password
+        });
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    window.acePasswordResetCompleted = true;
+    window.acePasswordRecoveryActive = false;
+
+    await supabaseClient.auth.signOut();
+
+    closeAcePasswordModal();
+
+    const oldLogin =
+      document.getElementById("loginScreen");
+
+    if (oldLogin) {
+      oldLogin.remove();
+    }
+
+    createLoginScreen();
+
+    await showAceConfirm(
+      "Sua senha foi redefinida com sucesso.\n\n" +
+      "Agora entre com seu e-mail e a nova senha.",
+      "✅ Senha alterada"
+    );
+
+  } catch (err) {
+
+    console.error(
+      "ACE - ERRO AO REDEFINIR SENHA:",
+      err
+    );
+
+    error.textContent =
+      err?.message ||
+      "Não foi possível redefinir sua senha.";
+
+    error.classList.add("show");
+
+    button.disabled = false;
+    button.textContent =
+      "🔐 Salvar nova senha";
+
+  }
+
+}
+
+
+// ============================================================
 // 5. TELA DE LOGIN
 // ============================================================
 
@@ -812,6 +1519,26 @@ function createLoginScreen() {
 
     .hidden{
       display:none !important;
+    }
+
+    .forgot-password-button{
+      display:block !important;
+      width:100%;
+      margin-top:12px;
+      padding:9px;
+      border:0;
+      background:transparent;
+      color:#0b3a63;
+      font-weight:900;
+      font-size:14px;
+      cursor:pointer;
+      text-align:center;
+      visibility:visible !important;
+      opacity:1 !important;
+    }
+
+    .forgot-password-button:hover{
+      text-decoration:underline;
     }
 
     .login-secondary-button{
@@ -982,6 +1709,14 @@ function createLoginScreen() {
         </button>
 
         <button
+          id="forgotPasswordButton"
+          class="forgot-password-button"
+          type="button"
+        >
+          🔑 Esqueci minha senha
+        </button>
+
+        <button
           id="createAccountButton"
           class="login-secondary-button"
           type="button"
@@ -1012,12 +1747,80 @@ function createLoginScreen() {
     .getElementById("loginForm")
     .addEventListener("submit", loginUser);
 
+  ensureForgotPasswordButton();
+
   document
     .getElementById("createAccountButton")
     .addEventListener("click", createSignupScreen);
 
 }
 
+
+
+// ============================================================
+// 5.0 GARANTE BOTÃO "ESQUECI MINHA SENHA"
+// ============================================================
+
+function ensureForgotPasswordButton() {
+
+  const loginForm =
+    document.getElementById("loginForm");
+
+  if (!loginForm) {
+    return;
+  }
+
+  let button =
+    document.getElementById("forgotPasswordButton");
+
+  if (!button) {
+
+    button =
+      document.createElement("button");
+
+    button.id =
+      "forgotPasswordButton";
+
+    button.className =
+      "forgot-password-button";
+
+    button.type =
+      "button";
+
+    button.textContent =
+      "🔑 Esqueci minha senha";
+
+    const createButton =
+      document.getElementById(
+        "createAccountButton"
+      );
+
+    if (createButton) {
+      loginForm.insertBefore(
+        button,
+        createButton
+      );
+    } else {
+      loginForm.appendChild(button);
+    }
+
+  }
+
+  // Evita adicionar vários listeners ao mesmo botão.
+  if (
+    button.dataset.aceForgotBound !== "1"
+  ) {
+
+    button.dataset.aceForgotBound = "1";
+
+    button.addEventListener(
+      "click",
+      openForgotPasswordModal
+    );
+
+  }
+
+}
 
 
 // ============================================================
@@ -1483,6 +2286,7 @@ async function loginUser(e) {
 
 
     currentUser = data.user;
+    rememberCurrentUserName();
 
     document
       .getElementById("loginScreen")
@@ -2215,7 +3019,7 @@ function renderDashboard() {
 
         ? all.map(x => `
 
-            <div class="recent-item">
+            <div class="recent-item" style="position:relative; padding-right:110px;">
 
               <b>
                 ${x.sign}
@@ -2240,7 +3044,18 @@ function renderDashboard() {
                 )}
                 •
                 ${fmtDate(x.date)}
+                •
+                ${esc(getMovementUserName(x))}
               </small>
+
+              <button
+                type="button"
+                class="recent-edit-btn"
+                data-edit-recent="${esc(String(x.id))}"
+                style="position:absolute; right:10px; top:50%; transform:translateY(-50%); border:1px solid #0b3a63; background:#fff; color:#0b3a63; border-radius:8px; padding:7px 10px; font-weight:800; cursor:pointer;"
+              >
+                ✏️ Editar
+              </button>
 
             </div>
 
@@ -2252,8 +3067,145 @@ function renderDashboard() {
           </div>
         `;
 
+    recent
+      .querySelectorAll("[data-edit-recent]")
+      .forEach(button => {
+        button.addEventListener("click", () => {
+          const id = button.getAttribute("data-edit-recent");
+          const item = all.find(x => String(x.id) === String(id));
+          if (item) openEditRecentMovement(item);
+        });
+      });
+
   }
 
+}
+
+
+// ============================================================
+// EDIÇÃO DOS ÚLTIMOS LANÇAMENTOS
+// ============================================================
+
+function closeEditRecentModal() {
+  document.getElementById("aceEditRecentModal")?.remove();
+}
+
+async function openEditRecentMovement(item) {
+  closeEditRecentModal();
+
+  const modal = document.createElement("div");
+  modal.id = "aceEditRecentModal";
+  modal.style.cssText = `
+    position:fixed; inset:0; z-index:1000001;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px; background:rgba(0,35,70,.62);
+    backdrop-filter:blur(3px);
+  `;
+
+  const title = item.kind === "Entrada" ? "✏️ Editar entrada" : "✏️ Editar lançamento";
+
+  modal.innerHTML = `
+    <div style="width:min(560px,calc(100vw - 40px)); max-height:calc(100vh - 40px); overflow:auto; box-sizing:border-box; padding:28px; border-radius:18px; background:#fff; color:#0b3a63; box-shadow:0 18px 50px rgba(0,0,0,.35);">
+      <div style="text-align:center;font-size:25px;font-weight:900;margin-bottom:22px;">${title}</div>
+
+      <label style="display:block;font-weight:800;margin-bottom:14px;">Data
+        <input id="editRecentDate" type="date" value="${esc(item.date || isoToday())}" style="width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #ccd6e0;border-radius:9px;font-size:16px;">
+      </label>
+
+      <label style="display:block;font-weight:800;margin-bottom:14px;">Origem
+        <select id="editRecentOrigin" style="width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #ccd6e0;border-radius:9px;font-size:16px;">
+          ${db.origins.map(o => `<option value="${o.id}" ${Number(o.id) === Number(item.originId) ? "selected" : ""}>${esc(o.name)}</option>`).join("")}
+        </select>
+      </label>
+
+      <label style="display:block;font-weight:800;margin-bottom:14px;">Alimento
+        <select id="editRecentFood" style="width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #ccd6e0;border-radius:9px;font-size:16px;">
+          ${db.foods.map(f => `<option value="${f.id}" ${Number(f.id) === Number(item.foodId) ? "selected" : ""}>${esc(f.name)}</option>`).join("")}
+        </select>
+      </label>
+
+      <label style="display:block;font-weight:800;margin-bottom:14px;">Quantidade
+        <input id="editRecentQty" type="number" min="0" step="any" value="${Number(item.qty) || 0}" style="width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #ccd6e0;border-radius:9px;font-size:16px;">
+      </label>
+
+      <div id="editRecentError" style="display:none;margin:12px 0;padding:12px;border-radius:9px;background:#fdeceb;color:#b42318;font-weight:700;"></div>
+
+      <div style="display:flex;justify-content:center;gap:12px;margin-top:22px;">
+        <button type="button" id="editRecentSave" style="border:0;background:#0b3a63;color:#fff;border-radius:9px;padding:12px 22px;font-weight:900;cursor:pointer;">💾 Salvar</button>
+        <button type="button" id="editRecentCancel" style="border:1px solid #0b3a63;background:#fff;color:#0b3a63;border-radius:9px;padding:12px 22px;font-weight:900;cursor:pointer;">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelector("#editRecentCancel").onclick = closeEditRecentModal;
+
+  modal.querySelector("#editRecentSave").onclick = async () => {
+    const errorEl = modal.querySelector("#editRecentError");
+    errorEl.style.display = "none";
+
+    const date = modal.querySelector("#editRecentDate").value;
+    const originId = Number(modal.querySelector("#editRecentOrigin").value);
+    const foodId = Number(modal.querySelector("#editRecentFood").value);
+    const qty = Number(modal.querySelector("#editRecentQty").value);
+
+    if (!date || !originId || !foodId || !Number.isFinite(qty) || qty < 0) {
+      errorEl.textContent = "Preencha os campos corretamente.";
+      errorEl.style.display = "block";
+      return;
+    }
+
+    try {
+      if (item.kind === "Entrada") {
+        const { error } = await supabaseClient
+          .from("entradas")
+          .update({
+            data_entrada: date,
+            alimento_id: foodId,
+            quantidade: qty,
+            origem_id: originId
+          })
+          .eq("id", Number(item.id));
+        if (error) throw error;
+      } else {
+        const tableName = item.type === "perda" ? "perdas" : "saídas";
+
+        // Não permite que uma edição crie estoque negativo.
+        const stock = calcStock();
+        const oldAvailable =
+          Number(stock[item.originId]?.[item.foodId] || 0) + Number(item.qty || 0);
+        const samePosition = Number(originId) === Number(item.originId) && Number(foodId) === Number(item.foodId);
+        const availableForNew = samePosition
+          ? oldAvailable
+          : Number(stock[originId]?.[foodId] || 0) + Number(item.qty || 0);
+
+        if (qty > availableForNew) {
+          errorEl.textContent = `Quantidade maior que o estoque disponível (${fmt(availableForNew)}).`;
+          errorEl.style.display = "block";
+          return;
+        }
+
+        const values = item.type === "perda"
+          ? { data_perda: date, alimento_id: foodId, quantidade: qty, origem_id: originId }
+          : { data_saida: date, alimento_id: foodId, quantidade: qty, origem_id: originId };
+
+        const { error } = await supabaseClient
+          .from(tableName)
+          .update(values)
+          .eq("id", Number(item.rawId));
+        if (error) throw error;
+      }
+
+      closeEditRecentModal();
+      await reloadFromSupabase();
+      toast("Lançamento atualizado com sucesso.");
+    } catch (error) {
+      console.error(error);
+      errorEl.textContent = error?.message || "Não foi possível atualizar o lançamento.";
+      errorEl.style.display = "block";
+    }
+  };
 }
 
 
@@ -4357,6 +5309,8 @@ function renderAll() {
 
 async function initApp() {
 
+  rememberCurrentUserName();
+
   if (appStarted) return;
   appStarted = true;
 
@@ -4483,6 +5437,10 @@ async function startAuth() {
 
   createLoginScreen();
 
+  // Garante o botão mesmo se uma versão anterior do HTML
+  // do login estiver em cache no navegador.
+  ensureForgotPasswordButton();
+
 
   // ==========================================================
   // MONITORA ALTERAÇÕES DE AUTENTICAÇÃO
@@ -4502,12 +5460,26 @@ async function startAuth() {
 
 
       if (
+        event === "PASSWORD_RECOVERY"
+      ) {
+
+        window.acePasswordRecoveryActive = true;
+
+        showPasswordResetScreen();
+
+        return;
+
+      }
+
+
+      if (
         event === "SIGNED_IN" &&
         session?.user
       ) {
 
         currentUser =
           session.user;
+        rememberCurrentUserName();
 
 
         document
@@ -4530,6 +5502,20 @@ async function startAuth() {
 
         appStarted = false;
 
+        if (window.acePasswordResetCompleted) {
+
+          window.acePasswordResetCompleted = false;
+
+          const loginScreen =
+            document.getElementById("loginScreen");
+
+          if (!loginScreen) {
+            createLoginScreen();
+          }
+
+          return;
+
+        }
 
         location.reload();
 
@@ -4555,10 +5541,14 @@ async function startAuth() {
     }
 
 
-    if (data?.session?.user) {
+    if (
+      data?.session?.user &&
+      !window.acePasswordRecoveryActive
+    ) {
 
       currentUser =
         data.session.user;
+      rememberCurrentUserName();
 
 
       document
@@ -4569,6 +5559,18 @@ async function startAuth() {
 
 
       await initApp();
+
+      return;
+
+    }
+
+
+    if (
+      data?.session?.user &&
+      window.acePasswordRecoveryActive
+    ) {
+
+      showPasswordResetScreen();
 
       return;
 
