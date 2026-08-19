@@ -5855,6 +5855,237 @@ function normalizeAceText(value) {
 }
 
 
+// ============================================================
+// IMAGENS DAS CESTAS
+// ============================================================
+
+function getBasketImagePath(basket) {
+
+  const name =
+    normalizeAceText(
+      basket?.name
+    );
+
+  if (name === "vinha de luz") {
+    return "cesta-vinha-de-luz.png";
+  }
+
+  if (name === "cesta do sopao") {
+    return "cesta-sopao.png";
+  }
+
+  if (name === "cesta dos funcionarios") {
+    return "cesta-funcionarios.png";
+  }
+
+  return basket?.image || "";
+}
+
+
+function makeBasketBlackBackgroundTransparent(img) {
+
+  if (
+    !img ||
+    img.dataset.aceTransparentDone === "1"
+  ) {
+    return;
+  }
+
+  img.dataset.aceTransparentDone = "1";
+
+  try {
+
+    const width = img.naturalWidth;
+    const height = img.naturalHeight;
+
+    if (!width || !height) {
+      return;
+    }
+
+    const canvas =
+      document.createElement("canvas");
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx =
+      canvas.getContext(
+        "2d",
+        {
+          willReadFrequently: true
+        }
+      );
+
+    if (!ctx) {
+      return;
+    }
+
+    ctx.drawImage(
+      img,
+      0,
+      0,
+      width,
+      height
+    );
+
+    const imageData =
+      ctx.getImageData(
+        0,
+        0,
+        width,
+        height
+      );
+
+    const data =
+      imageData.data;
+
+    const total =
+      width * height;
+
+    const visited =
+      new Uint8Array(total);
+
+    const queue =
+      new Int32Array(total);
+
+    let head = 0;
+    let tail = 0;
+
+    const isBackgroundBlack =
+      index => {
+
+        const p =
+          index * 4;
+
+        const r = data[p];
+        const g = data[p + 1];
+        const b = data[p + 2];
+        const a = data[p + 3];
+
+        return (
+          a > 0 &&
+          r <= 35 &&
+          g <= 35 &&
+          b <= 35
+        );
+
+      };
+
+
+    const add =
+      index => {
+
+        if (
+          index < 0 ||
+          index >= total ||
+          visited[index] ||
+          !isBackgroundBlack(index)
+        ) {
+          return;
+        }
+
+        visited[index] = 1;
+        queue[tail++] = index;
+
+      };
+
+
+    for (
+      let x = 0;
+      x < width;
+      x++
+    ) {
+
+      add(x);
+
+      add(
+        (height - 1) *
+        width +
+        x
+      );
+
+    }
+
+    for (
+      let y = 0;
+      y < height;
+      y++
+    ) {
+
+      add(
+        y * width
+      );
+
+      add(
+        y * width +
+        (width - 1)
+      );
+
+    }
+
+
+    while (
+      head < tail
+    ) {
+
+      const index =
+        queue[head++];
+
+      const x =
+        index % width;
+
+      const y =
+        Math.floor(
+          index / width
+        );
+
+      const p =
+        index * 4;
+
+      data[p + 3] = 0;
+
+      if (x > 0) {
+        add(index - 1);
+      }
+
+      if (x < width - 1) {
+        add(index + 1);
+      }
+
+      if (y > 0) {
+        add(index - width);
+      }
+
+      if (y < height - 1) {
+        add(index + width);
+      }
+
+    }
+
+
+    ctx.putImageData(
+      imageData,
+      0,
+      0
+    );
+
+    img.src =
+      canvas.toDataURL(
+        "image/png"
+      );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível tornar o fundo da cesta transparente:",
+      error
+    );
+
+  }
+
+}
+
+
 function getAguaFriaOrigin() {
   return (db?.origins || []).find(
     origin =>
@@ -5982,14 +6213,14 @@ function ensureBasketStyles() {
       margin:0 16px;
       overflow:hidden;
       border-radius:14px;
-      background:#f5f7fa;
+      background:transparent;
     }
 
     .ace-basket-image{
       width:100%;
       height:100%;
       object-fit:contain;
-      background:#fff;
+      background:transparent;
     }
 
     .ace-basket-image-fallback{
@@ -6413,8 +6644,11 @@ function renderBasketModule() {
 
                     <img
                       class="ace-basket-image"
-                      src="${esc(basket.image)}"
+                      src="${esc(getBasketImagePath(basket))}"
                       alt="${esc(basket.name)}"
+                      onload="
+                        makeBasketBlackBackgroundTransparent(this);
+                      "
                       onerror="
                         this.style.display='none';
                         this.nextElementSibling.style.display='flex';
@@ -6423,7 +6657,7 @@ function renderBasketModule() {
 
                     <div class="ace-basket-image-fallback">
                       🧺 Imagem da cesta<br>
-                      ${esc(basket.image || "")}
+                      ${esc(getBasketImagePath(basket))}
                     </div>
 
                   </div>
