@@ -3954,13 +3954,122 @@ function renderEntries() {
 
 function renderMovements() {
 
-  const arr =
+  const source =
     db.movements
       .slice()
       .sort(
         (a, b) =>
           b.createdAt.localeCompare(
             a.createdAt
+          )
+      );
+
+
+  // ========================================================
+  // AGRUPA SOMENTE AS MOVIMENTAÇÕES GERADAS POR CESTAS.
+  //
+  // Exemplo:
+  // 1 Cesta dos Funcionários + depois mais 1 cesta
+  // pelo mesmo usuário/destino no mesmo dia:
+  //
+  // Arroz 1 + Arroz 1 = Arroz 2
+  //
+  // Movimentações manuais de Saída/Perda continuam
+  // aparecendo exatamente como antes.
+  // ========================================================
+
+  const groupedBasket =
+    new Map();
+
+  const normalMovements =
+    [];
+
+
+  source.forEach(item => {
+
+    const isBasketMovement =
+      item.type === "saida" &&
+      String(
+        item.note || ""
+      ).startsWith("Cesta: ");
+
+
+    if (!isBasketMovement) {
+
+      normalMovements.push(item);
+      return;
+
+    }
+
+
+    const key =
+      [
+        item.date || "",
+        item.usuarioId || "",
+        item.type || "",
+        item.originId || "",
+        item.foodId || "",
+        item.reasonId || "",
+        item.note || ""
+      ].join("||");
+
+
+    if (!groupedBasket.has(key)) {
+
+      groupedBasket.set(
+        key,
+        {
+          ...item,
+          qty:
+            Number(
+              item.qty || 0
+            )
+        }
+      );
+
+      return;
+    }
+
+
+    const current =
+      groupedBasket.get(key);
+
+    current.qty +=
+      Number(
+        item.qty || 0
+      );
+
+
+    if (
+      String(
+        item.createdAt || ""
+      ) >
+      String(
+        current.createdAt || ""
+      )
+    ) {
+
+      current.createdAt =
+        item.createdAt;
+
+    }
+
+  });
+
+
+  const arr =
+    [
+      ...normalMovements,
+      ...groupedBasket.values()
+    ]
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
           )
       );
 
@@ -7069,44 +7178,172 @@ function renderBasketModule() {
 
 function renderBasketHistoryRows() {
 
-  const rows =
+  const sourceRows =
     (db?.basketOutputs || [])
       .slice()
       .sort((a, b) => {
-        const da = String(a.createdAt || a.date || "");
-        const dbb = String(b.createdAt || b.date || "");
+        const da =
+          String(
+            a.createdAt ||
+            a.date ||
+            ""
+          );
+
+        const dbb =
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          );
+
         return dbb.localeCompare(da);
+      });
+
+
+  // ========================================================
+  // AGRUPA SAÍDAS IGUAIS DA MESMA CESTA
+  //
+  // Incrementa quando forem iguais:
+  // - data
+  // - usuário
+  // - cesta
+  // - origem
+  // - destino
+  // - recebido por (quando Comunidade)
+  //
+  // Isso também consolida visualmente registros antigos
+  // que já haviam sido gravados separadamente.
+  // ========================================================
+
+  const groupedMap =
+    new Map();
+
+  sourceRows.forEach(row => {
+
+    const key =
+      [
+        row.date || "",
+        row.usuarioId || "",
+        row.basketId || "",
+        row.originId || "",
+        row.destination || "",
+        normalizeAceText(
+          row.receivedBy || ""
+        )
+      ].join("||");
+
+
+    if (!groupedMap.has(key)) {
+
+      groupedMap.set(
+        key,
+        {
+          ...row,
+          basketQty:
+            Number(
+              row.basketQty || 0
+            )
+        }
+      );
+
+      return;
+    }
+
+
+    const current =
+      groupedMap.get(key);
+
+    current.basketQty +=
+      Number(
+        row.basketQty || 0
+      );
+
+
+    if (
+      String(
+        row.createdAt || ""
+      ) >
+      String(
+        current.createdAt || ""
+      )
+    ) {
+
+      current.createdAt =
+        row.createdAt;
+
+    }
+
+  });
+
+
+  const rows =
+    [...groupedMap.values()]
+      .sort((a, b) => {
+
+        const da =
+          String(
+            a.createdAt ||
+            a.date ||
+            ""
+          );
+
+        const dbb =
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          );
+
+        return dbb.localeCompare(da);
+
       })
       .slice(0, 30);
 
+
   if (!rows.length) {
+
     return `
       <div class="empty">
         Nenhuma saída de cesta registrada.
       </div>
     `;
+
   }
+
 
   return rows.map(row => {
 
     const userName =
       getMovementUserName({
-        usuarioId: row.usuarioId,
-        usuarioNome: row.usuarioNome
+        usuarioId:
+          row.usuarioId,
+        usuarioNome:
+          row.usuarioNome
       });
 
+
     const communityText =
-      row.destination === "Comunidade" &&
+      row.destination ===
+        "Comunidade" &&
       row.receivedBy
         ? ` · Recebido por: ${esc(row.receivedBy)}`
         : "";
 
+
     return `
+
       <div class="ace-basket-history-row">
 
         <img
           class="ace-basket-history-image"
-          src="${esc(row.basketImage || "")}"
+          src="${esc(
+            getBasketImagePath({
+              name:
+                row.basketName,
+              image:
+                row.basketImage
+            })
+          )}"
           alt="${esc(row.basketName || "Cesta")}"
           onerror="this.style.visibility='hidden'"
         >
@@ -7132,12 +7369,12 @@ function renderBasketHistoryRows() {
         </div>
 
       </div>
+
     `;
 
   }).join("");
 
 }
-
 
 function showBasketStockError({
   basketName,
@@ -7456,94 +7693,456 @@ async function registerBasketOutput({
         qtyCestas
     }));
 
-  // Primeiro grava o histórico da cesta.
-  const {
-    data: basketOutputData,
-    error: basketOutputError
-  } =
-    await supabaseClient
-      .from("cestas_saidas")
-      .insert({
-        cesta_id:
-          Number(basket.id),
-        cesta_nome:
-          basket.name,
-        cesta_imagem:
-          basket.image || "",
-        quantidade_cestas:
-          qtyCestas,
-        origem_id:
-          Number(aguaFria.id),
-        destino:
-          destination,
-        recebido_por:
-          destination === "Comunidade"
-            ? receivedBy
-            : null,
-        data_saida:
-          today,
-        usuario_id:
-          userId,
-        composicao:
-          composition
-      })
-      .select("id")
-      .single();
+  // ========================================================
+  // HISTÓRICO DA CESTA
+  //
+  // Se o MESMO usuário registrar novamente a MESMA cesta,
+  // no MESMO dia, para o MESMO destino, incrementa a
+  // quantidade_cestas em vez de criar outra linha.
+  // ========================================================
 
-  if (basketOutputError) {
-    throw basketOutputError;
+  let basketHistoryQuery =
+    supabaseClient
+      .from("cestas_saidas")
+      .select(
+        "id, quantidade_cestas"
+      )
+      .eq(
+        "cesta_id",
+        Number(basket.id)
+      )
+      .eq(
+        "origem_id",
+        Number(aguaFria.id)
+      )
+      .eq(
+        "destino",
+        destination
+      )
+      .eq(
+        "data_saida",
+        today
+      )
+      .eq(
+        "usuario_id",
+        userId
+      );
+
+
+  if (
+    destination === "Comunidade"
+  ) {
+
+    basketHistoryQuery =
+      basketHistoryQuery.eq(
+        "recebido_por",
+        receivedBy
+      );
+
+  } else {
+
+    basketHistoryQuery =
+      basketHistoryQuery.is(
+        "recebido_por",
+        null
+      );
+
   }
 
-  // Depois cria as saídas dos alimentos, preservando o estoque atual.
-  const movementRows =
-    items.map(item => ({
-      id:
-        newNumericId(),
-      data_saida:
-        today,
-      alimento_id:
-        Number(item.foodId),
-      quantidade:
-        Number(item.qty) *
-        qtyCestas,
-      origem_id:
-        Number(aguaFria.id),
-      destino:
-        `Cesta: ${basket.name} | ${destination}` +
-        (
-          destination === "Comunidade" &&
-          receivedBy
-            ? ` | Recebido por: ${receivedBy}`
-            : ""
-        ),
-      motivo:
-        "Montagem de cesta",
-      usuario_id:
-        userId
-    }));
 
   const {
-    error: movementsError
+    data: existingBasketRows,
+    error: basketFindError
   } =
-    await supabaseClient
-      .from("saídas")
-      .insert(movementRows);
+    await basketHistoryQuery
+      .order(
+        "id",
+        {
+          ascending: true
+        }
+      );
 
-  if (movementsError) {
 
-    // Se as saídas dos alimentos falharem,
-    // remove o histórico da cesta para não deixar registro incompleto.
-    if (basketOutputData?.id) {
+  if (basketFindError) {
+    throw basketFindError;
+  }
+
+
+  let basketOutputData =
+    null;
+
+  let basketWasInserted =
+    false;
+
+  let basketPreviousQty =
+    0;
+
+
+  if (
+    existingBasketRows?.length
+  ) {
+
+    const mainBasketRow =
+      existingBasketRows[0];
+
+    basketPreviousQty =
+      existingBasketRows.reduce(
+        (sum, row) =>
+          sum +
+          Number(
+            row.quantidade_cestas ||
+            0
+          ),
+        0
+      );
+
+
+    const newBasketQty =
+      basketPreviousQty +
+      qtyCestas;
+
+
+    const {
+      error: basketUpdateError
+    } =
       await supabaseClient
         .from("cestas_saidas")
-        .delete()
+        .update({
+          quantidade_cestas:
+            newBasketQty,
+          cesta_nome:
+            basket.name,
+          cesta_imagem:
+            getBasketImagePath(
+              basket
+            ),
+          composicao:
+            composition
+        })
         .eq(
           "id",
-          basketOutputData.id
+          mainBasketRow.id
         );
+
+
+    if (basketUpdateError) {
+      throw basketUpdateError;
     }
 
+
+    // Remove duplicidades antigas do mesmo grupo,
+    // mantendo somente a primeira linha já incrementada.
+    const extraIds =
+      existingBasketRows
+        .slice(1)
+        .map(
+          row => row.id
+        );
+
+
+    if (extraIds.length) {
+
+      const {
+        error: basketDuplicatesError
+      } =
+        await supabaseClient
+          .from("cestas_saidas")
+          .delete()
+          .in(
+            "id",
+            extraIds
+          );
+
+
+      if (basketDuplicatesError) {
+        throw basketDuplicatesError;
+      }
+
+    }
+
+
+    basketOutputData = {
+      id:
+        mainBasketRow.id
+    };
+
+  } else {
+
+    const {
+      data: insertedBasket,
+      error: basketInsertError
+    } =
+      await supabaseClient
+        .from("cestas_saidas")
+        .insert({
+          cesta_id:
+            Number(basket.id),
+          cesta_nome:
+            basket.name,
+          cesta_imagem:
+            getBasketImagePath(
+              basket
+            ),
+          quantidade_cestas:
+            qtyCestas,
+          origem_id:
+            Number(aguaFria.id),
+          destino:
+            destination,
+          recebido_por:
+            destination ===
+              "Comunidade"
+              ? receivedBy
+              : null,
+          data_saida:
+            today,
+          usuario_id:
+            userId,
+          composicao:
+            composition
+        })
+        .select("id")
+        .single();
+
+
+    if (basketInsertError) {
+      throw basketInsertError;
+    }
+
+
+    basketOutputData =
+      insertedBasket;
+
+    basketWasInserted =
+      true;
+
+  }
+
+  // ========================================================
+  // MOVIMENTAÇÕES DOS ALIMENTOS
+  //
+  // Para cada alimento:
+  // se já existir uma movimentação da mesma cesta,
+  // usuário, dia e destino, INCREMENTA a quantidade.
+  // Não cria linhas repetidas.
+  // ========================================================
+
+  const movementNote =
+    `Cesta: ${basket.name} | ${destination}` +
+    (
+      destination === "Comunidade" &&
+      receivedBy
+        ? ` | Recebido por: ${receivedBy}`
+        : ""
+    );
+
+
+  try {
+
+    for (
+      const item of items
+    ) {
+
+      const qtyToAdd =
+        Number(item.qty) *
+        qtyCestas;
+
+
+      const {
+        data: existingMovementRows,
+        error: movementFindError
+      } =
+        await supabaseClient
+          .from("saídas")
+          .select(
+            "id, quantidade"
+          )
+          .eq(
+            "data_saida",
+            today
+          )
+          .eq(
+            "alimento_id",
+            Number(item.foodId)
+          )
+          .eq(
+            "origem_id",
+            Number(aguaFria.id)
+          )
+          .eq(
+            "usuario_id",
+            userId
+          )
+          .eq(
+            "destino",
+            movementNote
+          )
+          .eq(
+            "motivo",
+            "Montagem de cesta"
+          )
+          .order(
+            "id",
+            {
+              ascending: true
+            }
+          );
+
+
+      if (movementFindError) {
+        throw movementFindError;
+      }
+
+
+      if (
+        existingMovementRows?.length
+      ) {
+
+        const mainMovement =
+          existingMovementRows[0];
+
+
+        const existingQty =
+          existingMovementRows.reduce(
+            (sum, row) =>
+              sum +
+              Number(
+                row.quantidade ||
+                0
+              ),
+            0
+          );
+
+
+        const {
+          error: movementUpdateError
+        } =
+          await supabaseClient
+            .from("saídas")
+            .update({
+              quantidade:
+                existingQty +
+                qtyToAdd
+            })
+            .eq(
+              "id",
+              mainMovement.id
+            );
+
+
+        if (movementUpdateError) {
+          throw movementUpdateError;
+        }
+
+
+        // Limpa duplicidades antigas desse mesmo alimento/cesta.
+        const extraMovementIds =
+          existingMovementRows
+            .slice(1)
+            .map(
+              row => row.id
+            );
+
+
+        if (
+          extraMovementIds.length
+        ) {
+
+          const {
+            error: movementDuplicatesError
+          } =
+            await supabaseClient
+              .from("saídas")
+              .delete()
+              .in(
+                "id",
+                extraMovementIds
+              );
+
+
+          if (movementDuplicatesError) {
+            throw movementDuplicatesError;
+          }
+
+        }
+
+      } else {
+
+        const {
+          error: movementInsertError
+        } =
+          await supabaseClient
+            .from("saídas")
+            .insert({
+              id:
+                newNumericId(),
+              data_saida:
+                today,
+              alimento_id:
+                Number(item.foodId),
+              quantidade:
+                qtyToAdd,
+              origem_id:
+                Number(aguaFria.id),
+              destino:
+                movementNote,
+              motivo:
+                "Montagem de cesta",
+              usuario_id:
+                userId
+            });
+
+
+        if (movementInsertError) {
+          throw movementInsertError;
+        }
+
+      }
+
+    }
+
+  } catch (movementsError) {
+
+    // --------------------------------------------------------
+    // Tenta restaurar o histórico da cesta caso haja falha
+    // nas movimentações, evitando deixar a contagem da cesta
+    // maior sem o correspondente débito dos alimentos.
+    // --------------------------------------------------------
+
+    if (
+      basketOutputData?.id
+    ) {
+
+      if (basketWasInserted) {
+
+        await supabaseClient
+          .from("cestas_saidas")
+          .delete()
+          .eq(
+            "id",
+            basketOutputData.id
+          );
+
+      } else {
+
+        await supabaseClient
+          .from("cestas_saidas")
+          .update({
+            quantidade_cestas:
+              basketPreviousQty
+          })
+          .eq(
+            "id",
+            basketOutputData.id
+          );
+
+      }
+
+    }
+
+
     throw movementsError;
+
   }
 
 }
@@ -8488,3 +9087,4 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
+
