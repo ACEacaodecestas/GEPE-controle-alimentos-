@@ -7022,13 +7022,35 @@ function renderBasketModule() {
               error
             );
 
-            toast(
-              "Erro na saída da cesta: " +
-              (
-                error?.message ||
-                "verifique o Supabase."
-              )
-            );
+            if (
+              error?.code ===
+              "ACE_BASKET_STOCK_INSUFFICIENT"
+            ) {
+
+              showBasketStockError({
+                basketName:
+                  error.basketName ||
+                  basket?.name ||
+                  "",
+                basketQty:
+                  error.basketQty ||
+                  qty,
+                shortages:
+                  error.shortages ||
+                  []
+              });
+
+            } else {
+
+              toast(
+                "Erro na saída da cesta: " +
+                (
+                  error?.message ||
+                  "verifique o Supabase."
+                )
+              );
+
+            }
 
           } finally {
 
@@ -7117,6 +7139,204 @@ function renderBasketHistoryRows() {
 }
 
 
+function showBasketStockError({
+  basketName,
+  basketQty,
+  shortages
+}) {
+
+  const old =
+    document.getElementById(
+      "aceBasketStockErrorModal"
+    );
+
+  if (old) {
+    old.remove();
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceBasketStockErrorStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement("style");
+
+    style.id =
+      "aceBasketStockErrorStyle";
+
+    style.textContent = `
+
+      #aceBasketStockErrorModal{
+        position:fixed;
+        inset:0;
+        z-index:1000010;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+        background:rgba(18,24,40,.62);
+        backdrop-filter:blur(4px);
+      }
+
+      .ace-stock-error-box{
+        width:min(560px,calc(100vw - 34px));
+        max-height:86vh;
+        overflow:auto;
+        box-sizing:border-box;
+        padding:26px;
+        border:2px solid #d92d20;
+        border-radius:18px;
+        background:#fff;
+        box-shadow:0 22px 70px rgba(0,0,0,.32);
+      }
+
+      .ace-stock-error-title{
+        margin:0 0 10px;
+        text-align:center;
+        color:#b42318;
+        font-size:25px;
+        font-weight:900;
+      }
+
+      .ace-stock-error-text{
+        margin-bottom:18px;
+        color:#475467;
+        font-size:15px;
+        line-height:1.5;
+        text-align:center;
+      }
+
+      .ace-stock-error-list{
+        display:grid;
+        gap:9px;
+        margin:14px 0 22px;
+      }
+
+      .ace-stock-error-item{
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:12px;
+        align-items:center;
+        padding:11px 12px;
+        border:1px solid #f3b7b2;
+        border-radius:10px;
+        background:#fff4f3;
+      }
+
+      .ace-stock-error-food{
+        color:#912018;
+        font-weight:900;
+      }
+
+      .ace-stock-error-values{
+        color:#b42318;
+        font-size:13px;
+        font-weight:800;
+        text-align:right;
+      }
+
+      .ace-stock-error-ok{
+        display:block;
+        min-width:130px;
+        margin:0 auto;
+        padding:12px 22px;
+        border:0;
+        border-radius:10px;
+        background:#d92d20;
+        color:#fff;
+        font-size:16px;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+      .ace-stock-error-ok:hover{
+        filter:brightness(.96);
+      }
+
+    `;
+
+    document.head.appendChild(style);
+
+  }
+
+
+  const modal =
+    document.createElement("div");
+
+  modal.id =
+    "aceBasketStockErrorModal";
+
+  const itemsHtml =
+    (shortages || [])
+      .map(item => `
+
+        <div class="ace-stock-error-item">
+
+          <div class="ace-stock-error-food">
+            🔴 ${esc(item.foodName)}
+          </div>
+
+          <div class="ace-stock-error-values">
+            Necessário: ${fmt(item.required)}
+            &nbsp;|&nbsp;
+            Disponível: ${fmt(item.available)}
+          </div>
+
+        </div>
+
+      `)
+      .join("");
+
+
+  modal.innerHTML = `
+
+    <div class="ace-stock-error-box">
+
+      <div class="ace-stock-error-title">
+        ⚠️ Estoque insuficiente
+      </div>
+
+      <div class="ace-stock-error-text">
+        Não há alimentos suficientes no estoque de
+        <strong>Água Fria</strong> para montar
+        <strong>${fmt(basketQty)} cesta(s) ${esc(basketName || "")}</strong>.
+        <br><br>
+        Confira os itens em falta:
+      </div>
+
+      <div class="ace-stock-error-list">
+        ${itemsHtml}
+      </div>
+
+      <button
+        type="button"
+        id="aceBasketStockErrorOk"
+        class="ace-stock-error-ok"
+      >
+        OK
+      </button>
+
+    </div>
+
+  `;
+
+  document.body.appendChild(modal);
+
+
+  document
+    .getElementById(
+      "aceBasketStockErrorOk"
+    )
+    .onclick = () => {
+      modal.remove();
+    };
+
+}
+
+
 async function registerBasketOutput({
   basketId,
   basketQty,
@@ -7196,18 +7416,24 @@ async function registerBasketOutput({
 
   if (shortages.length) {
 
-    const details =
-      shortages
-        .map(
-          x =>
-            `${x.foodName}: precisa ${fmt(x.required)}, disponível ${fmt(x.available)}`
-        )
-        .join(" | ");
+    const error =
+      new Error(
+        "Estoque insuficiente em Água Fria."
+      );
 
-    throw new Error(
-      "Estoque insuficiente em Água Fria. " +
-      details
-    );
+    error.code =
+      "ACE_BASKET_STOCK_INSUFFICIENT";
+
+    error.shortages =
+      shortages;
+
+    error.basketName =
+      basket.name;
+
+    error.basketQty =
+      qtyCestas;
+
+    throw error;
 
   }
 
