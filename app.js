@@ -2236,6 +2236,9 @@ async function signupUser(e) {
 
   try {
 
+    // Impede que o SIGNED_IN automático do cadastro abra o aplicativo.
+    window.aceSignupInProgress = true;
+
     const {
       data,
       error: authError
@@ -2268,47 +2271,101 @@ async function signupUser(e) {
 
     // ========================================================
     // CONTA CRIADA
-    //
-    // Não fazemos login automático.
-    // O usuário deve voltar para a tela de login.
-    // Isso também funciona quando "Confirm email" está ativo.
+    // Não entra automaticamente no aplicativo.
+    // Exibe aviso verde e retorna para o login.
     // ========================================================
-
-    success.innerHTML =
-      "✅ Conta criada com sucesso!<br><br>" +
-      "Clique em “Voltar para o login” e entre com seu e-mail e senha.";
-
-
-    success.classList.add("show");
-
-
-    button.classList.add("hidden");
-
 
     loading.textContent = "";
 
+    // Quando a confirmação de e-mail está desativada,
+    // o Supabase pode criar uma sessão automaticamente.
+    // Encerramos somente essa sessão para exigir login manual.
+    window.aceSignupSigningOut = true;
 
-    // Desabilita os campos após o cadastro
-    // para evitar criação duplicada por acidente.
+    try {
 
-    document
-      .getElementById("signupName")
-      .disabled = true;
+      await supabaseClient.auth.signOut({
+        scope: "local"
+      });
 
-    document
-      .getElementById("signupEmail")
-      .disabled = true;
+    } catch (signOutError) {
 
-    document
-      .getElementById("signupPassword")
-      .disabled = true;
+      console.warn(
+        "ACE: não foi possível encerrar a sessão criada no cadastro:",
+        signOutError
+      );
 
-    document
-      .getElementById("signupPasswordConfirm")
-      .disabled = true;
+    }
+
+    currentUser = null;
+    appStarted = false;
+    window.aceSignupInProgress = false;
+
+
+    const oldNotice =
+      document.getElementById(
+        "aceSignupSuccessNotice"
+      );
+
+    if (oldNotice) {
+      oldNotice.remove();
+    }
+
+
+    const notice =
+      document.createElement("div");
+
+    notice.id =
+      "aceSignupSuccessNotice";
+
+    notice.innerHTML = `
+      <div style="
+        background:#ffffff;
+        color:#16803a;
+        border:2px solid #22a447;
+        border-radius:16px;
+        padding:24px 34px;
+        font-size:22px;
+        font-weight:900;
+        text-align:center;
+        box-shadow:0 18px 50px rgba(0,0,0,.28);
+      ">
+        ✅ Conta criada com sucesso!
+      </div>
+    `;
+
+    notice.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:1000002;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.35);
+    `;
+
+    document.body.appendChild(notice);
+
+
+    setTimeout(
+      () => {
+
+        // A mensagem some, mas o usuário permanece
+        // na tela de criação de conta.
+        // Ele só volta ao login quando clicar
+        // no botão "Voltar para o login".
+        notice.remove();
+
+      },
+      1800
+    );
 
 
   } catch (err) {
+
+    window.aceSignupInProgress = false;
+    window.aceSignupSigningOut = false;
 
     console.error(
       "ACE - ERRO AO CRIAR CONTA:",
@@ -5960,6 +6017,10 @@ async function startAuth() {
         session?.user
       ) {
 
+        if (window.aceSignupInProgress) {
+          return;
+        }
+
         currentUser =
           session.user;
 
@@ -5985,6 +6046,11 @@ async function startAuth() {
         currentUser = null;
 
         appStarted = false;
+
+        if (window.aceSignupSigningOut) {
+          window.aceSignupSigningOut = false;
+          return;
+        }
 
         if (window.acePasswordResetCompleted) {
 
