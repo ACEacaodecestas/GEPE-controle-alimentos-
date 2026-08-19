@@ -28,7 +28,7 @@ const DEFAULT = {
   origins: ["Piedade", "Água Fria"],
 
   reasons: [
-    "Gorbulho",
+    "Gorgulho",
     "Vencimento",
     "Avaria",
     "Outro"
@@ -73,6 +73,7 @@ const DEFAULT = {
 let db = null;
 let deferredPrompt = null;
 let currentUser = null;
+let appStarted = false;
 
 
 // ============================================================
@@ -90,287 +91,545 @@ function isoToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+let numericIdCounter = 0;
 
-function load() {
+function newNumericId() {
+  numericIdCounter = (numericIdCounter + 1) % 1000;
+  return Date.now() * 1000 + numericIdCounter;
+}
 
+function reasonsStorageKey() {
+  return `controle_alimentos_motivos_${currentUser?.id || "anon"}`;
+}
+
+function loadLocalReasons() {
+  const defaults = DEFAULT.reasons.map(name => ({ id: name, name }));
   try {
+    const raw = localStorage.getItem(reasonsStorageKey());
+    const saved = raw ? JSON.parse(raw) : [];
+    const names = new Map();
+    [...defaults, ...(Array.isArray(saved) ? saved : [])].forEach(r => {
+      const name = String(r?.name || "").trim();
+      if (name) names.set(name.toLowerCase(), { id: name, name });
+    });
+    return [...names.values()];
+  } catch (e) {
+    console.warn("Não foi possível carregar os motivos locais:", e);
+    return defaults;
+  }
+}
 
-    const raw = localStorage.getItem(KEY);
+function saveLocalReasons() {
+  try {
+    localStorage.setItem(reasonsStorageKey(), JSON.stringify(db?.reasons || []));
+  } catch (e) {
+    console.warn("Não foi possível salvar os motivos locais:", e);
+  }
+}
 
-    if (raw) {
-      return JSON.parse(raw);
+
+async function loadFromSupabase(allowJwtRefresh = true) {
+
+  if (!currentUser?.id) {
+    throw new Error("Usuário não autenticado.");
+  }
+
+  // ==========================================================
+  // CARREGA OS DADOS DO SUPABASE
+  // ==========================================================
+
+  const [
+    peopleResult,
+    foodsResult,
+    originsResult,
+    entriesResult,
+    outputsResult,
+    lossesResult,
+    attendanceResult
+  ] = await Promise.all([
+
+    supabaseClient
+      .from("Pessoas")
+      .select("*")
+      .order("nome"),
+
+    supabaseClient
+      .from("Alimentos")
+      .select("*")
+      .order("nome"),
+
+    supabaseClient
+      .from("origens")
+      .select("*")
+      .order("nome"),
+
+    supabaseClient
+      .from("entradas")
+      .select("*")
+      .order("data_entrada", {
+        ascending: false
+      }),
+
+    supabaseClient
+      .from("saídas")
+      .select("*")
+      .order("data_saida", {
+        ascending: false
+      }),
+
+    supabaseClient
+      .from("perdas")
+      .select("*")
+      .order("data_perda", {
+        ascending: false
+      }),
+
+    supabaseClient
+      .from("presença")
+      .select("*")
+      .order("data", {
+        ascending: false
+      })
+
+  ]);
+
+
+  // ==========================================================
+  // VERIFICA ERROS
+  // ==========================================================
+
+  const failed = [
+    ["Pessoas", peopleResult],
+    ["Alimentos", foodsResult],
+    ["origens", originsResult],
+    ["entradas", entriesResult],
+    ["saídas", outputsResult],
+    ["perdas", lossesResult],
+    ["presença", attendanceResult]
+  ].find(([, result]) => result.error);
+
+
+  if (failed) {
+
+    const err = failed[1].error;
+
+    const message =
+      err?.message ||
+      "erro desconhecido";
+
+
+    // --------------------------------------------------------
+    // CORREÇÃO DO ERRO:
+    // "JWT issued at future"
+    //
+    // O token antigo fica inválido quando o relógio/token
+    // fica adiantado. Limpamos SOMENTE a sessão local.
+    //
+    // IMPORTANTE:
+    // NÃO apagamos entradas, perdas, saídas, estoque,
+    // pessoas ou qualquer dado do Supabase.
+    // --------------------------------------------------------
+
+    if (
+      message
+        .toLowerCase()
+        .includes("jwt issued at future")
+    ) {
+
+      console.warn(
+        "ACE: JWT emitido no futuro. Tentando renovar a sessão."
+      );
+
+
+      // ------------------------------------------------------
+      // PRIMEIRA TENTATIVA:
+      // renovar o token sem apagar nenhum dado do sistema.
+      // ------------------------------------------------------
+
+      if (allowJwtRefresh) {
+
+        try {
+
+          const {
+            data: refreshData,
+            error: refreshError
+          } =
+            await supabaseClient.auth.refreshSession();
+
+
+          if (
+            !refreshError &&
+            refreshData?.session?.user
+          ) {
+
+            currentUser =
+              refreshData.session.user;
+
+
+            console.log(
+              "ACE: sessão renovada. Recarregando dados."
+            );
+
+
+            // Recarrega somente uma vez para evitar loop.
+            return await loadFromSupabase(
+              false
+            );
+
+          }
+
+        } catch (refreshError) {
+
+          console.warn(
+            "ACE: falha ao renovar JWT:",
+            refreshError
+          );
+
+        }
+
+      }
+
+
+      // ------------------------------------------------------
+      // SEGUNDA TENTATIVA:
+      // se o token continuar inválido, limpa SOMENTE a
+      // sessão local. Nenhum dado do Supabase é apagado.
+      // ------------------------------------------------------
+
+      try {
+
+        await supabaseClient.auth.signOut({
+          scope: "local"
+        });
+
+      } catch (signOutError) {
+
+        console.warn(
+          "ACE: não foi possível limpar a sessão local:",
+          signOutError
+        );
+
+      }
+
+
+      currentUser = null;
+
+
+      throw new Error(
+        "Sua sessão estava com um token inválido (JWT emitido no futuro). " +
+        "A sessão local foi reiniciada. Entre novamente."
+      );
+
     }
 
-  } catch (e) {
 
-    console.error("Erro ao carregar dados locais:", e);
+    throw new Error(
+      `Falha ao carregar a tabela ${failed[0]}: ${message}`
+    );
 
   }
 
-  return {
-    origins: DEFAULT.origins.map(x => ({
-      id: uid(),
-      name: x
-    })),
 
-    reasons: DEFAULT.reasons.map(x => ({
-      id: uid(),
-      name: x
-    })),
+  // ==========================================================
+  // CONVERTE OS DADOS DO SUPABASE PARA A ESTRUTURA DO APP
+  // ==========================================================
 
-    foods: DEFAULT.foods.map(x => ({
-      id: uid(),
-      name: x
-    })),
+  const people =
+    peopleResult.data || [];
 
-    people: DEFAULT.people,
+  const foods =
+    foodsResult.data || [];
 
-    entries: [],
+  const origins =
+    originsResult.data || [];
 
-    movements: [],
+  const entries =
+    entriesResult.data || [];
 
-    attendance: {}
+  const outputs =
+    outputsResult.data || [];
+
+  const losses =
+    lossesResult.data || [];
+
+  const attendanceRows =
+    attendanceResult.data || [];
+
+  const reasons =
+    loadLocalReasons();
+
+
+  const dbSupabase = {
+
+    people:
+      people.map(p => ({
+        id: Number(p.id),
+        name: p.nome,
+        registration:
+          p["matrícula"] ??
+          p.matricula ??
+          ""
+      })),
+
+
+    foods:
+      foods.map(f => ({
+        id: Number(f.id),
+        name: f.nome
+      })),
+
+
+    origins:
+      origins.map(o => ({
+        id: Number(o.id),
+        name: o.nome
+      })),
+
+
+    entries:
+      entries.map(e => ({
+        id: Number(e.id),
+        date: e.data_entrada,
+        foodId: Number(e.alimento_id),
+        qty: Number(e.quantidade || 0),
+        originId: Number(e.origem_id),
+        note:
+          e.observacao ||
+          e.obs ||
+          "",
+        createdAt:
+          e.created_at ||
+          `${e.data_entrada || isoToday()}T00:00:00Z`
+      })),
+
+
+    movements: [
+
+      ...outputs.map(s => ({
+        id: `saida-${s.id}`,
+        rawId: Number(s.id),
+        sourceTable: "saídas",
+        date: s.data_saida,
+        type: "saida",
+        foodId: Number(s.alimento_id),
+        qty: Number(s.quantidade || 0),
+        originId: Number(s.origem_id),
+        reasonId: null,
+        note:
+          s.destino ||
+          s.observacao ||
+          "",
+        createdAt:
+          s.created_at ||
+          `${s.data_saida || isoToday()}T00:00:00Z`
+      })),
+
+      ...losses.map(p => ({
+        id: `perda-${p.id}`,
+        rawId: Number(p.id),
+        sourceTable: "perdas",
+        date: p.data_perda,
+        type: "perda",
+        foodId: Number(p.alimento_id),
+        qty: Number(p.quantidade || 0),
+        originId: Number(p.origem_id),
+        reasonId:
+          reasons.find(
+            r =>
+              r.name
+                .toLowerCase() ===
+              String(
+                p.motivo || ""
+              ).toLowerCase()
+          )?.id ||
+          p.motivo ||
+          null,
+        note:
+          p.observacao ||
+          p.obs ||
+          "",
+        createdAt:
+          p.created_at ||
+          `${p.data_perda || isoToday()}T00:00:00Z`
+      }))
+
+    ],
+
+
+    attendance: {},
+
+
+    reasons
+
   };
+
+
+  attendanceRows.forEach(row => {
+
+    if (
+      !dbSupabase.attendance[row.data]
+    ) {
+
+      dbSupabase.attendance[row.data] =
+        [];
+
+    }
+
+
+    if (
+      row.present &&
+      row.pessoa_id != null
+    ) {
+
+      const id =
+        Number(row.pessoa_id);
+
+
+      if (
+        !dbSupabase
+          .attendance[row.data]
+          .includes(id)
+      ) {
+
+        dbSupabase
+          .attendance[row.data]
+          .push(id);
+
+      }
+
+    }
+
+  });
+
+
+  return dbSupabase;
+
 }
 
 
 function save() {
-
-  try {
-
-    localStorage.setItem(
-      KEY,
-      JSON.stringify(db)
-    );
-
-  } catch (e) {
-
-    console.error("Erro ao salvar:", e);
-
-  }
+  // Compatibilidade com a estrutura antiga.
+  // O banco oficial agora é o Supabase; não usamos localStorage para dados.
+  return true;
 }
 
 
-// ============================================================
-// 4.1 CARREGAMENTO DOS DADOS DO SUPABASE
-// ============================================================
+async function reloadFromSupabase(showToast = false) {
+  db = await loadFromSupabase();
+  renderAll();
+  if (showToast) toast("Dados atualizados do Supabase.");
+}
 
-async function loadFromSupabase() {
 
-  if (!currentUser) {
+function getCurrentUserId() {
+  if (!currentUser?.id) {
     throw new Error("Usuário não autenticado.");
   }
-
-  console.log("Carregando dados do Supabase...");
-
-  try {
-
-    // ----------------------------------------------------------
-    // PESSOAS
-    // ----------------------------------------------------------
-
-    const { data: people, error: peopleError } =
-      await supabaseClient
-        .from("Pessoas")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("nome");
-
-    if (peopleError) throw peopleError;
-
-
-    // ----------------------------------------------------------
-    // ALIMENTOS
-    // ----------------------------------------------------------
-
-    const { data: foods, error: foodsError } =
-      await supabaseClient
-        .from("Alimentos")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("nome");
-
-    if (foodsError) throw foodsError;
-
-
-    // ----------------------------------------------------------
-    // ORIGENS
-    // ----------------------------------------------------------
-
-    const { data: origins, error: originsError } =
-      await supabaseClient
-        .from("origens")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("nome");
-
-    if (originsError) throw originsError;
-
-
-    // ----------------------------------------------------------
-    // ENTRADAS
-    // ----------------------------------------------------------
-
-    const { data: entries, error: entriesError } =
-      await supabaseClient
-        .from("entradas")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("data_entrada", { ascending: false });
-
-    if (entriesError) throw entriesError;
-
-
-    // ----------------------------------------------------------
-    // SAÍDAS
-    // ----------------------------------------------------------
-
-    const { data: outputs, error: outputsError } =
-      await supabaseClient
-        .from("saídas")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("data_saida", { ascending: false });
-
-    if (outputsError) throw outputsError;
-
-
-    // ----------------------------------------------------------
-    // PERDAS
-    // ----------------------------------------------------------
-
-    const { data: losses, error: lossesError } =
-      await supabaseClient
-        .from("perdas")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("data_perda", { ascending: false });
-
-    if (lossesError) throw lossesError;
-
-
-    // ----------------------------------------------------------
-    // PRESENÇA
-    // ----------------------------------------------------------
-
-    const { data: attendanceRows, error: attendanceError } =
-      await supabaseClient
-        .from("presença")
-        .select("*")
-        .eq("usuario_id", currentUser.id)
-        .order("data", { ascending: false });
-
-    if (attendanceError) throw attendanceError;
-
-
-    // ----------------------------------------------------------
-    // MOTIVOS
-    // Não existe tabela de motivos no Supabase neste momento.
-    // Portanto, os motivos permanecem no cadastro local do app.
-    // ----------------------------------------------------------
-
-    const reasons = DEFAULT.reasons.map(name => ({
-      id: name,
-      name
-    }));
-
-
-    // ----------------------------------------------------------
-    // CONVERSÃO PARA O FORMATO QUE O APP JÁ UTILIZA
-    // ----------------------------------------------------------
-
-    const dbSupabase = {
-
-      people: (people || []).map(p => ({
-        id: p.id,
-        name: p.nome,
-        registration: p["matrícula"]
-      })),
-
-      foods: (foods || []).map(f => ({
-        id: f.id,
-        name: f.nome
-      })),
-
-      origins: (origins || []).map(o => ({
-        id: o.id,
-        name: o.nome
-      })),
-
-      entries: (entries || []).map(e => ({
-        id: e.id,
-        date: e.data_entrada,
-        foodId: e.alimento_id,
-        qty: Number(e.quantidade || 0),
-        originId: e.origem_id,
-        note: "",
-        createdAt: e.created_at || new Date().toISOString()
-      })),
-
-      movements: [
-
-        ...(outputs || []).map(s => ({
-          id: "saida-" + s.id,
-          date: s.data_saida,
-          type: "saida",
-          foodId: s.alimento_id,
-          qty: Number(s.quantidade || 0),
-          originId: s.origem_id,
-          reasonId: null,
-          note: s.destino || "",
-          createdAt: s.created_at || new Date().toISOString()
-        })),
-
-        ...(losses || []).map(p => ({
-          id: "perda-" + p.id,
-          date: p.data_perda,
-          type: "perda",
-          foodId: p.alimento_id,
-          qty: Number(p.quantidade || 0),
-          originId: p.origem_id,
-          reasonId: reasons.find(r => r.name === p.motivo)?.id || p.motivo || null,
-          note: "",
-          createdAt: p.created_at || new Date().toISOString()
-        }))
-
-      ],
-
-      attendance: {},
-
-      reasons
-    };
-
-
-    // ----------------------------------------------------------
-    // ORGANIZAR PRESENÇA POR DATA
-    // ----------------------------------------------------------
-
-    (attendanceRows || []).forEach(row => {
-
-      if (!dbSupabase.attendance[row.data]) {
-        dbSupabase.attendance[row.data] = [];
-      }
-
-      if (row.present) {
-        dbSupabase.attendance[row.data].push(row.pessoa_id);
-      }
-
-    });
-
-
-    console.log("Dados carregados do Supabase:", dbSupabase);
-
-    return dbSupabase;
-
-  } catch (error) {
-
-    console.error("Erro ao carregar dados do Supabase:", error);
-
-    throw error;
-  }
-
+  return currentUser.id;
 }
 
+
+async function insertPerson(name, registration) {
+  const id = newNumericId();
+  const { error } = await supabaseClient.from("Pessoas").insert({ id, nome: name, "matrícula": registration, ativo: true, usuario_id: getCurrentUserId() });
+  if (error) throw error;
+  return id;
+}
+
+async function insertFood(name) {
+  const id = newNumericId();
+  const { error } = await supabaseClient.from("Alimentos").insert({ id, nome: name, unidade: "unidade", ativo: true, usuario_id: getCurrentUserId() });
+  if (error) throw error;
+  return id;
+}
+
+async function insertOrigin(name) {
+  const id = newNumericId();
+  const { error } = await supabaseClient.from("origens").insert({ id, nome: name, ativo: true, usuario_id: getCurrentUserId() });
+  if (error) throw error;
+  return id;
+}
+
+async function insertEntry({ date, originId, foodId, qty }) {
+  const { error } = await supabaseClient.from("entradas").insert({
+    id: newNumericId(), data_entrada: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), usuario_id: getCurrentUserId()
+  });
+  if (error) throw error;
+}
+
+async function insertMovement({ date, type, originId, foodId, qty, reasonId, note }) {
+  const userId = getCurrentUserId();
+  if (type === "saida") {
+    const { error } = await supabaseClient.from("saídas").insert({
+      id: newNumericId(), data_saida: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), destino: note || "", usuario_id: userId
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const reasonName = db.reasons.find(r => r.id === reasonId)?.name || reasonId || "Outro";
+  const { error } = await supabaseClient.from("perdas").insert({
+    id: newNumericId(), data_perda: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), motivo: reasonName, usuario_id: userId
+  });
+  if (error) throw error;
+}
+
+async function deletePerson(id) {
+  const { error } = await supabaseClient.from("Pessoas").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteFood(id) {
+  const { error } = await supabaseClient.from("Alimentos").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteOrigin(id) {
+  const { error } = await supabaseClient.from("origens").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteReasonLocalOnly(id) {
+  db.reasons = db.reasons.filter(x => x.id !== id);
+  saveLocalReasons();
+}
+
+async function deleteEntry(id) {
+  const { error } = await supabaseClient.from("entradas").delete().eq("id", Number(id));
+  if (error) throw error;
+}
+
+async function deleteMovement(id) {
+  const movement = db.movements.find(x => x.id === id);
+  if (!movement?.rawId || !movement.sourceTable) throw new Error("Não foi possível identificar a movimentação no Supabase.");
+  const { error } = await supabaseClient.from(movement.sourceTable).delete().eq("id", Number(movement.rawId));
+  if (error) throw error;
+}
+
+async function setAttendance(date, personId, present) {
+  const table = supabaseClient.from("presença");
+  const { data: existing, error: findError } = await table.select("id").eq("data", date).eq("pessoa_id", Number(personId)).limit(1);
+  if (findError) throw findError;
+
+  if (present) {
+    if (!existing?.length) {
+      const { error } = await table.insert({ id: newNumericId(), data: date, pessoa_id: Number(personId), present: true, usuario_id: getCurrentUserId() });
+      if (error) throw error;
+    }
+    return;
+  }
+
+  const { error } = await table.delete().eq("data", date).eq("pessoa_id", Number(personId));
+  if (error) throw error;
+}
+
+async function deleteCadastro(key, id) {
+  if (key === "people") return deletePerson(id);
+  if (key === "foods") return deleteFood(id);
+  if (key === "origins") return deleteOrigin(id);
+  if (key === "reasons") return deleteReasonLocalOnly(id);
+  throw new Error("Cadastro desconhecido.");
+}
 
 function esc(s) {
 
@@ -550,6 +809,57 @@ function createLoginScreen() {
       cursor:not-allowed;
     }
 
+
+    .hidden{
+      display:none !important;
+    }
+
+    .login-secondary-button{
+      width:100%;
+      padding:13px;
+      margin-top:10px;
+      border:1px solid #0b3a63;
+      border-radius:10px;
+      background:#fff;
+      color:#0b3a63;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+
+    .login-secondary-button:hover{
+      background:#f2f7fb;
+    }
+
+    .signup-success{
+      display:none;
+      margin-top:14px;
+      padding:14px;
+      border-radius:10px;
+      background:#ecfdf3;
+      color:#027a48;
+      font-size:13px;
+      font-weight:800;
+      line-height:1.5;
+    }
+
+    .signup-success.show{
+      display:block;
+    }
+
+    .signup-back{
+      width:100%;
+      padding:12px;
+      margin-top:10px;
+      border:0;
+      border-radius:10px;
+      background:#fff;
+      color:#0b3a63;
+      font-weight:900;
+      font-size:14px;
+      cursor:pointer;
+    }
+
     .login-error{
       display:none;
       margin-top:14px;
@@ -671,6 +981,14 @@ function createLoginScreen() {
           🔐 Entrar
         </button>
 
+        <button
+          id="createAccountButton"
+          class="login-secondary-button"
+          type="button"
+        >
+          📄 Criar minha conta
+        </button>
+
         <div
           id="loginError"
           class="login-error"
@@ -693,6 +1011,428 @@ function createLoginScreen() {
   document
     .getElementById("loginForm")
     .addEventListener("submit", loginUser);
+
+  document
+    .getElementById("createAccountButton")
+    .addEventListener("click", createSignupScreen);
+
+}
+
+
+
+// ============================================================
+// 5.1 CRIAR CONTA
+// ============================================================
+
+function createSignupScreen() {
+
+  const loginScreen =
+    document.getElementById("loginScreen");
+
+  if (!loginScreen) {
+    return;
+  }
+
+
+  loginScreen.innerHTML = `
+
+    <div class="login-box">
+
+      <div class="login-logo">
+        <img src="ace-cesta.png" alt="ACE">
+      </div>
+
+      <div class="login-title">
+        📄 Criar minha conta
+      </div>
+
+      <div class="login-subtitle">
+        Cadastre seu acesso ao sistema
+      </div>
+
+
+      <form id="signupForm">
+
+        <label>
+          Nome
+          <input
+            id="signupName"
+            type="text"
+            placeholder="Digite seu nome"
+            autocomplete="name"
+            required
+          >
+        </label>
+
+
+        <label>
+          E-mail
+          <input
+            id="signupEmail"
+            type="email"
+            placeholder="Digite seu e-mail"
+            autocomplete="email"
+            required
+          >
+        </label>
+
+
+        <label>
+          Senha
+          <input
+            id="signupPassword"
+            type="password"
+            placeholder="Digite sua senha"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          >
+        </label>
+
+
+        <label>
+          Confirmar senha
+          <input
+            id="signupPasswordConfirm"
+            type="password"
+            placeholder="Confirme sua senha"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          >
+        </label>
+
+
+        <button
+          id="signupButton"
+          class="login-button"
+          type="submit"
+        >
+          📄 Criar conta
+        </button>
+
+
+        <button
+          id="signupBackButton"
+          class="signup-back"
+          type="button"
+        >
+          ← Voltar para o login
+        </button>
+
+
+        <div
+          id="signupError"
+          class="login-error"
+        ></div>
+
+
+        <div
+          id="signupSuccess"
+          class="signup-success"
+        ></div>
+
+
+        <div
+          id="signupLoading"
+          class="login-loading"
+        ></div>
+
+      </form>
+
+    </div>
+
+  `;
+
+
+  document
+    .getElementById("signupForm")
+    .addEventListener(
+      "submit",
+      signupUser
+    );
+
+
+  document
+    .getElementById("signupBackButton")
+    .addEventListener(
+      "click",
+      () => {
+
+        // O loginScreen já existe porque a tela de cadastro
+        // usa o mesmo elemento. Remove o cadastro e recria
+        // somente a tela de login.
+        const loginScreen =
+          document.getElementById(
+            "loginScreen"
+          );
+
+        if (loginScreen) {
+          loginScreen.remove();
+        }
+
+        createLoginScreen();
+
+      }
+    );
+
+}
+
+
+async function signupUser(e) {
+
+  e.preventDefault();
+
+
+  const name =
+    document
+      .getElementById("signupName")
+      .value
+      .trim();
+
+
+  const email =
+    document
+      .getElementById("signupEmail")
+      .value
+      .trim();
+
+
+  const password =
+    document
+      .getElementById("signupPassword")
+      .value;
+
+
+  const confirmPassword =
+    document
+      .getElementById("signupPasswordConfirm")
+      .value;
+
+
+  const button =
+    document.getElementById(
+      "signupButton"
+    );
+
+
+  const error =
+    document.getElementById(
+      "signupError"
+    );
+
+
+  const success =
+    document.getElementById(
+      "signupSuccess"
+    );
+
+
+  const loading =
+    document.getElementById(
+      "signupLoading"
+    );
+
+
+  error.classList.remove("show");
+  error.textContent = "";
+
+  success.classList.remove("show");
+  success.textContent = "";
+
+  loading.textContent = "";
+
+
+  if (!name) {
+
+    error.textContent =
+      "Digite seu nome.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+
+  if (password.length < 6) {
+
+    error.textContent =
+      "A senha deve ter pelo menos 6 caracteres.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+
+  if (
+    password !==
+    confirmPassword
+  ) {
+
+    error.textContent =
+      "As senhas não conferem.";
+
+    error.classList.add("show");
+
+    return;
+
+  }
+
+
+  button.disabled = true;
+
+  button.textContent =
+    "Criando conta...";
+
+  loading.textContent =
+    "Registrando usuário...";
+
+
+  try {
+
+    const {
+      data,
+      error: authError
+    } =
+      await supabaseClient.auth.signUp({
+
+        email,
+
+        password,
+
+        options: {
+
+          data: {
+
+            nome: name
+
+          }
+
+        }
+
+      });
+
+
+    if (authError) {
+
+      throw authError;
+
+    }
+
+
+    // ========================================================
+    // CONTA CRIADA
+    //
+    // Não fazemos login automático.
+    // O usuário deve voltar para a tela de login.
+    // Isso também funciona quando "Confirm email" está ativo.
+    // ========================================================
+
+    success.innerHTML =
+      "✅ Conta criada com sucesso!<br><br>" +
+      "Clique em “Voltar para o login” e entre com seu e-mail e senha.";
+
+
+    success.classList.add("show");
+
+
+    button.classList.add("hidden");
+
+
+    loading.textContent = "";
+
+
+    // Desabilita os campos após o cadastro
+    // para evitar criação duplicada por acidente.
+
+    document
+      .getElementById("signupName")
+      .disabled = true;
+
+    document
+      .getElementById("signupEmail")
+      .disabled = true;
+
+    document
+      .getElementById("signupPassword")
+      .disabled = true;
+
+    document
+      .getElementById("signupPasswordConfirm")
+      .disabled = true;
+
+
+  } catch (err) {
+
+    console.error(
+      "ACE - ERRO AO CRIAR CONTA:",
+      err
+    );
+
+
+    const msg =
+      String(
+        err?.message ||
+        ""
+      ).toLowerCase();
+
+
+    if (
+      msg.includes(
+        "user already registered"
+      ) ||
+      msg.includes(
+        "already registered"
+      )
+    ) {
+
+      error.textContent =
+        "Este e-mail já possui uma conta.";
+
+    } else if (
+      msg.includes(
+        "password"
+      ) &&
+      msg.includes(
+        "weak"
+      )
+    ) {
+
+      error.textContent =
+        "A senha é muito fraca. Use pelo menos 6 caracteres.";
+
+    } else if (
+      msg.includes(
+        "invalid email"
+      )
+    ) {
+
+      error.textContent =
+        "Digite um e-mail válido.";
+
+    } else {
+
+      error.textContent =
+        err?.message ||
+        "Não foi possível criar a conta.";
+
+    }
+
+
+    error.classList.add("show");
+
+
+    button.disabled = false;
+
+    button.textContent =
+      "📄 Criar conta";
+
+    loading.textContent = "";
+
+  }
 
 }
 
@@ -864,10 +1604,212 @@ function addUserBar() {
 }
 
 
+// ============================================================
+// MODAL PERSONALIZADO - CONFIRMAÇÕES
+// ============================================================
+
+function showAceConfirm(message, title = "Atenção") {
+
+  return new Promise(resolve => {
+
+    const old = document.getElementById("aceCustomModal");
+
+    if (old) {
+      old.remove();
+    }
+
+    const overlay = document.createElement("div");
+
+    overlay.id = "aceCustomModal";
+
+    overlay.innerHTML = `
+      <div class="ace-modal-box" role="dialog" aria-modal="true">
+        <div class="ace-modal-title">${esc(title)}</div>
+        <div class="ace-modal-message">${esc(message).replace(/\n/g, "<br>")}</div>
+
+        <div class="ace-modal-actions">
+          <button type="button" class="ace-modal-ok">OK</button>
+          <button type="button" class="ace-modal-cancel">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    const style = document.createElement("style");
+
+    style.id = "aceCustomModalStyle";
+
+    style.textContent = `
+      #aceCustomModal {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(0, 35, 70, .62);
+        backdrop-filter: blur(3px);
+      }
+
+      #aceCustomModal .ace-modal-box {
+        width: min(520px, calc(100vw - 40px));
+        max-height: calc(100vh - 40px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 28px 30px 24px;
+        border-radius: 18px;
+        background: #5da5e6;
+        color: #fff;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
+        text-align: center;
+        font-family: inherit;
+      }
+
+      #aceCustomModal .ace-modal-title {
+        margin-bottom: 18px;
+        font-size: 25px;
+        font-weight: 900;
+        color: #fff;
+      }
+
+      #aceCustomModal .ace-modal-message {
+        font-size: 17px;
+        line-height: 1.55;
+        text-align: left;
+        color: #fff;
+      }
+
+      #aceCustomModal .ace-modal-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      #aceCustomModal button {
+        min-width: 105px;
+        padding: 11px 20px;
+        border-radius: 9px;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      #aceCustomModal .ace-modal-ok {
+        border: 1px solid #0756a0;
+        background: #0756a0;
+        color: #fff;
+      }
+
+      #aceCustomModal .ace-modal-cancel {
+        border: 1px solid rgba(255,255,255,.9);
+        background: transparent;
+        color: #fff;
+      }
+    `;
+
+    document.head.appendChild(style);
+    document.body.appendChild(overlay);
+
+    const close = value => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay
+      .querySelector(".ace-modal-ok")
+      .onclick = () => close(true);
+
+    overlay
+      .querySelector(".ace-modal-cancel")
+      .onclick = () => close(false);
+
+  });
+
+}
+
+
+function showAceInput(message, title = "Confirmação") {
+
+  return new Promise(resolve => {
+
+    const old = document.getElementById("aceCustomModal");
+
+    if (old) old.remove();
+
+    const overlay = document.createElement("div");
+
+    overlay.id = "aceCustomModal";
+
+    overlay.innerHTML = `
+      <div class="ace-modal-box" role="dialog" aria-modal="true">
+        <div class="ace-modal-title">${esc(title)}</div>
+        <div class="ace-modal-message">${esc(message).replace(/\n/g, "<br>")}</div>
+
+        <input
+          id="aceModalInput"
+          type="text"
+          autocomplete="off"
+          style="
+            width:100%;
+            box-sizing:border-box;
+            margin-top:18px;
+            padding:12px;
+            border:1px solid rgba(255,255,255,.8);
+            border-radius:9px;
+            font-size:17px;
+            font-weight:700;
+            text-align:center;
+            outline:none;
+          "
+        >
+
+        <div class="ace-modal-actions">
+          <button type="button" class="ace-modal-ok">OK</button>
+          <button type="button" class="ace-modal-cancel">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector("#aceModalInput");
+
+    const close = value => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay.querySelector(".ace-modal-ok").onclick =
+      () => close(input.value);
+
+    overlay.querySelector(".ace-modal-cancel").onclick =
+      () => close(null);
+
+    input.focus();
+
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        close(input.value);
+      }
+
+      if (event.key === "Escape") {
+        close(null);
+      }
+    });
+
+  });
+
+}
+
+
 async function logoutUser() {
 
   const ok =
-    confirm("Deseja sair do sistema?");
+    await showAceConfirm(
+      "Deseja sair do sistema?",
+      "Sair do sistema"
+    );
 
   if (!ok) return;
 
@@ -1598,54 +2540,40 @@ function table(
 }
 
 
-function removeEntry(id) {
+async function removeEntry(id) {
 
-  if (
-    !confirm(
-      "Excluir esta entrada?"
-    )
-  ) return;
+  if (!(await showAceConfirm(
+      "Deseja excluir esta entrada?",
+      "Excluir entrada"
+    ))) return;
 
-
-  db.entries =
-    db.entries.filter(
-      x => x.id !== id
-    );
-
-
-  save();
-
-  renderAll();
-
-  toast(
-    "Entrada excluída."
-  );
+  try {
+    await deleteEntry(id);
+    await reloadFromSupabase();
+    toast("Entrada excluída.");
+  } catch (error) {
+    console.error(error);
+    toast("Não foi possível excluir a entrada.");
+  }
 
 }
 
 
-function removeMovement(id) {
+async function removeMovement(id) {
 
-  if (
-    !confirm(
-      "Excluir esta movimentação?"
-    )
-  ) return;
+  if (!(await showAceConfirm(
+      "Deseja excluir esta movimentação?",
+      "Excluir movimentação"
+    ))) return;
 
-
-  db.movements =
-    db.movements.filter(
-      x => x.id !== id
-    );
-
-
-  save();
-
-  renderAll();
-
-  toast(
-    "Movimentação excluída."
-  );
+  try {
+    await deleteMovement(id);
+    await reloadFromSupabase();
+    toast("Movimentação excluída.");
+  } catch (error) {
+    console.error(error);
+    toast("Não foi possível excluir a movimentação.");
+  }
 
 }
 
@@ -1657,155 +2585,61 @@ function removeMovement(id) {
 function renderAttendance() {
 
   const date =
-    document.getElementById(
-      "attendanceDate"
-    )?.value || isoToday();
-
+    document.getElementById("attendanceDate")?.value || isoToday();
 
   const q =
-    (
-      document.getElementById(
-        "attendanceSearch"
-      )?.value || ""
-    ).toLowerCase();
+    (document.getElementById("attendanceSearch")?.value || "").toLowerCase();
 
+  const set = new Set(db.attendance[date] || []);
 
-  const set =
-    new Set(
-      db.attendance[date] || []
-    );
+  const people = db.people.filter(p =>
+    (p.name + " " + p.registration).toLowerCase().includes(q)
+  );
 
+  const count = document.getElementById("attendanceCount");
+  if (count) count.textContent = `${set.size} presentes`;
 
-  const people =
-    db.people.filter(
-      p =>
-        (
-          p.name +
-          " " +
-          p.registration
-        )
-          .toLowerCase()
-          .includes(q)
-    );
-
-
-  const count =
-    document.getElementById(
-      "attendanceCount"
-    );
-
-
-  if (count) {
-    count.textContent =
-      `${set.size} presentes`;
-  }
-
-
-  const list =
-    document.getElementById(
-      "attendanceList"
-    );
-
-
+  const list = document.getElementById("attendanceList");
   if (!list) return;
 
-
-  list.innerHTML =
-    people.length
-
-      ? people
-          .map(
-            p => `
-
-              <div class="attendance-row">
-
-                <div>
-
-                  <div class="person-name">
-                    ${esc(p.name)}
-                  </div>
-
-                  <div class="person-reg">
-                    Matrícula:
-                    ${esc(p.registration)}
-                  </div>
-
-                </div>
-
-                <label class="switch">
-
-                  <input
-                    type="checkbox"
-                    data-person="${p.id}"
-                    ${
-                      set.has(p.id)
-                        ? "checked"
-                        : ""
-                    }
-                  >
-
-                  <span class="slider"></span>
-
-                </label>
-
-              </div>
-
-            `
-          )
-          .join("")
-
-      : `
-        <div class="empty">
-          Nenhuma pessoa cadastrada/encontrada.
+  list.innerHTML = people.length
+    ? people.map(p => `
+        <div class="attendance-row">
+          <div>
+            <div class="person-name">${esc(p.name)}</div>
+            <div class="person-reg">Matrícula: ${esc(p.registration)}</div>
+          </div>
+          <label class="switch">
+            <input
+              type="checkbox"
+              data-person="${p.id}"
+              ${set.has(p.id) ? "checked" : ""}
+            >
+            <span class="slider"></span>
+          </label>
         </div>
-      `;
+      `).join("")
+    : `<div class="empty">Nenhuma pessoa cadastrada/encontrada.</div>`;
 
+  document.querySelectorAll("[data-person]").forEach(el => {
+    el.addEventListener("change", async e => {
+      const personId = e.target.dataset.person;
+      const present = e.target.checked;
+      e.target.disabled = true;
 
-  document
-    .querySelectorAll(
-      "[data-person]"
-    )
-    .forEach(el => {
-
-      el.addEventListener(
-        "change",
-        e => {
-
-          const a =
-            new Set(
-              db.attendance[date] || []
-            );
-
-
-          if (e.target.checked) {
-
-            a.add(
-              e.target.dataset.person
-            );
-
-          } else {
-
-            a.delete(
-              e.target.dataset.person
-            );
-
-          }
-
-
-          db.attendance[date] =
-            [...a];
-
-
-          save();
-
-          renderAttendance();
-
-          renderDashboard();
-
-        }
-      );
-
+      try {
+        await setAttendance(date, personId, present);
+        await reloadFromSupabase();
+        toast(present ? "Presença registrada." : "Presença removida.");
+      } catch (error) {
+        console.error(error);
+        e.target.checked = !present;
+        toast("Não foi possível atualizar a presença.");
+      } finally {
+        e.target.disabled = false;
+      }
     });
+  });
 
 }
 
@@ -1984,6 +2818,16 @@ function renderReport() {
       "reportOrigin"
     )?.value || "";
 
+  // Identificação do usuário que está logado.
+  const reportUserName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+
+  const reportUserEmail =
+    currentUser?.email ||
+    "";
+
 
   const entries =
     db.entries.filter(
@@ -2014,6 +2858,14 @@ function renderReport() {
 
 
   const html = `
+
+    <div style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:#f2f7fb;border:1px solid #d9e6f0;">
+      <strong>👤 Usuário logado:</strong>
+      ${esc(reportUserName)}
+      ${reportUserEmail && reportUserName !== reportUserEmail
+        ? ` — ${esc(reportUserEmail)}`
+        : ""}
+    </div>
 
     <div class="cards">
 
@@ -2483,33 +3335,23 @@ function renderCadastros() {
 }
 
 
-function delBy(
-  key,
-  id
-) {
+async function delBy(key, id) {
 
-  if (
-    !confirm(
-      "Excluir cadastro? Registros históricos que já usam este item continuarão salvos."
-    )
-  ) {
-    return;
+  if (!(await showAceConfirm(
+      "Excluir cadastro? Registros históricos que já usam este item continuarão salvos.",
+      "Excluir cadastro"
+    ))) {
+      return;
+    }
+
+  try {
+    await deleteCadastro(key, id);
+    await reloadFromSupabase();
+    toast("Cadastro excluído.");
+  } catch (error) {
+    console.error(error);
+    toast("Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados.");
   }
-
-
-  db[key] =
-    db[key].filter(
-      x => x.id !== id
-    );
-
-
-  save();
-
-  renderAll();
-
-  toast(
-    "Cadastro excluído."
-  );
 
 }
 
@@ -2544,7 +3386,22 @@ function exportCSV() {
     )?.value || "";
 
 
+  const reportUserName =
+    currentUser?.user_metadata?.nome ||
+    currentUser?.email ||
+    "Usuário não identificado";
+
+  const reportUserEmail =
+    currentUser?.email ||
+    "";
+
   const rows = [
+    [
+      "Usuário logado",
+      reportUserName,
+      reportUserEmail
+    ],
+    [],
     [
       "Data",
       "Tipo",
@@ -2673,7 +3530,234 @@ function download(
 
 
 // ============================================================
+// ZERAR MOVIMENTAÇÕES
+// ============================================================
+
+async function resetMovements() {
+
+  console.log("ACE: botão Zerar movimentações clicado.");
+
+  const confirmation =
+    await showAceConfirm(
+      "Isso irá apagar TODAS as movimentações do sistema:\n\n" +
+      "• Entradas\n" +
+      "• Saídas\n" +
+      "• Perdas\n" +
+      "• Presenças\n\n" +
+      "Os cadastros NÃO serão apagados:\n" +
+      "• Pessoas\n" +
+      "• Alimentos\n" +
+      "• Origens\n" +
+      "• Motivos\n" +
+      "• Usuários\n\n" +
+      "Deseja continuar?",
+      "⚠️ ATENÇÃO!"
+    );
+
+  if (!confirmation) {
+    return;
+  }
+
+  const code =
+    await showAceInput(
+      "Para confirmar a operação, digite exatamente:\n\nZERAR",
+      "Confirmar zeramento"
+    );
+
+  if (code !== "ZERAR") {
+
+    await showAceConfirm(
+      "Operação cancelada. A confirmação não foi validada.",
+      "Operação cancelada"
+    );
+
+    return;
+  }
+
+  const button =
+    document.getElementById("resetMovementsButton");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "⏳ Zerando...";
+  }
+
+  try {
+
+    // IMPORTANTE:
+    // Não usamos usuário_id aqui porque o estoque é compartilhado
+    // entre os usuários do sistema. O objetivo é zerar o movimento
+    // geral, preservando todos os cadastros.
+
+    const tables = [
+      "entradas",
+      "saídas",
+      "perdas",
+      "presença"
+    ];
+
+    for (const tableName of tables) {
+
+      const { error } =
+        await supabaseClient
+          .from(tableName)
+          .delete()
+          .not("id", "is", null);
+
+      if (error) {
+        throw new Error(
+          `Falha ao zerar a tabela ${tableName}: ${error.message}`
+        );
+      }
+    }
+
+    // Recarrega os dados do Supabase.
+    await loadFromSupabase(false);
+
+    if (typeof renderAll === "function") {
+      renderAll();
+    }
+
+    await showAceConfirm(
+      "Movimentações zeradas com sucesso!\n\n" +
+      "Entradas, saídas, perdas e presenças foram apagadas.\n" +
+      "Os cadastros e usuários foram preservados.",
+      "✅ Concluído"
+    );
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO ZERAR MOVIMENTAÇÕES:",
+      error
+    );
+
+    await showAceConfirm(
+      "Não foi possível zerar as movimentações.\n\n" +
+      (error?.message || "Erro desconhecido."),
+      "❌ Erro"
+    );
+
+  } finally {
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = "🗑️ Zerar movimentações";
+    }
+
+  }
+
+}
+
+// Torna a função acessível pelo botão criado dinamicamente.
+window.resetMovements = resetMovements;
+
+
+// ============================================================
+// BOTÃO "ZERAR MOVIMENTAÇÕES" NO MENU
+// ============================================================
+
+function setupResetMovementsButton() {
+
+  const tabs =
+    document.querySelector(".tabs");
+
+  if (!tabs) {
+    console.warn(
+      "ACE: menu .tabs não encontrado."
+    );
+    return;
+  }
+
+  if (
+    document.getElementById(
+      "resetMovementsButton"
+    )
+  ) {
+    return;
+  }
+
+  const button =
+    document.createElement("button");
+
+  button.id =
+    "resetMovementsButton";
+
+  button.type =
+    "button";
+
+  button.textContent =
+    "🗑️ Zerar movimentações";
+
+  button.style.cssText = `
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex:0 0 auto;
+    visibility:visible;
+    opacity:1;
+    position:relative;
+    z-index:20;
+    margin-left:8px;
+    padding:10px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:800;
+    color:#b42318;
+    background:#fff1f0;
+    border:1px solid #f0b8b4;
+    white-space:nowrap;
+  `;
+
+  // Usa onclick diretamente para garantir que o botão
+  // continue funcionando mesmo sendo criado dinamicamente.
+  button.onclick = async function (event) {
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      await window.resetMovements();
+    } catch (error) {
+      console.error(
+        "ACE - ERRO NO BOTÃO ZERAR:",
+        error
+      );
+
+      await showAceConfirm(
+        "Erro ao executar o botão Zerar movimentações:\n\n" +
+        (error?.message || "Erro desconhecido."),
+        "❌ Erro"
+      );
+    }
+
+  };
+
+  const cadastrosButton =
+    tabs.querySelector(
+      '[data-page="cadastros"]'
+    );
+
+  if (cadastrosButton) {
+
+    cadastrosButton.insertAdjacentElement(
+      "afterend",
+      button
+    );
+
+  } else {
+
+    tabs.appendChild(button);
+
+  }
+
+}
+
+
+// ============================================================
 // 18. NAVEGAÇÃO
+// ============================================================
+
 // ============================================================
 
 function nav() {
@@ -2778,636 +3862,381 @@ function nav() {
 
 function bindEvents() {
 
-  const entryForm =
-    document.getElementById(
-      "entryForm"
-    );
-
+  const entryForm = document.getElementById("entryForm");
 
   if (entryForm) {
+    entryForm.addEventListener("submit", async e => {
+      e.preventDefault();
 
-    entryForm.addEventListener(
-      "submit",
-      e => {
+      const f = new FormData(e.target);
+      const date = f.get("date");
+      const originId = f.get("origin");
+      const foodId = f.get("foodId");
+      const qty = Number(f.get("qty"));
+      const note = String(f.get("note") || "").trim();
 
-        e.preventDefault();
-
-        const f =
-          new FormData(
-            e.target
-          );
-
-
-        db.entries.push({
-
-          id: uid(),
-
-          date:
-            f.get("date"),
-
-          originId:
-            f.get("origin"),
-
-          foodId:
-            f.get("foodId"),
-
-          qty:
-            Number(
-              f.get("qty")
-            ),
-
-          note:
-            f.get("note") || "",
-
-          createdAt:
-            new Date()
-              .toISOString()
-
-        });
-
-
-        save();
-
-        e.target.reset();
-
-        document.getElementById(
-          "entryDate"
-        ).value = isoToday();
-
-        renderAll();
-
-        toast(
-          "Entrada registrada."
-        );
-
+      if (!date || !originId || !foodId || !Number.isFinite(qty) || qty <= 0) {
+        toast("Preencha os dados da entrada corretamente.");
+        return;
       }
-    );
 
+      const submit = e.target.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+
+      try {
+        await insertEntry({ date, originId, foodId, qty, note });
+        await reloadFromSupabase();
+        e.target.reset();
+        document.getElementById("entryDate").value = isoToday();
+        renderEntries();
+        toast("Entrada registrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro na entrada: " + (error?.message || "verifique o Supabase."));
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
   }
 
 
-  const movementForm =
-    document.getElementById(
-      "movementForm"
-    );
-
+  const movementForm = document.getElementById("movementForm");
 
   if (movementForm) {
+    movementForm.addEventListener("submit", async e => {
+      e.preventDefault();
 
-    movementForm.addEventListener(
-      "submit",
-      e => {
+      const f = new FormData(e.target);
+      const date = f.get("date");
+      const type = f.get("type");
+      const originId = f.get("origin");
+      const foodId = f.get("foodId");
+      const qty = Number(f.get("qty"));
+      const reasonId = f.get("reasonId");
+      const note = String(f.get("note") || "").trim();
 
-        e.preventDefault();
-
-        const f =
-          new FormData(
-            e.target
-          );
-
-
-        const origin =
-          f.get("origin");
-
-        const food =
-          f.get("foodId");
-
-        const qty =
-          Number(
-            f.get("qty")
-          );
-
-
-        const st =
-          calcStock();
-
-
-        const available =
-          Number(
-            st[origin]?.[food] || 0
-          );
-
-
-        if (qty > available) {
-
-          toast(
-            `Saldo insuficiente. Disponível em ${getName(
-              db.origins,
-              origin
-            )}: ${fmt(available)}.`
-          );
-
-          return;
-
-        }
-
-
-        db.movements.push({
-
-          id: uid(),
-
-          date:
-            f.get("date"),
-
-          type:
-            f.get("type"),
-
-          originId:
-            origin,
-
-          foodId:
-            food,
-
-          qty:
-            qty,
-
-          reasonId:
-            f.get("reasonId"),
-
-          note:
-            f.get("note") || "",
-
-          createdAt:
-            new Date()
-              .toISOString()
-
-        });
-
-
-        save();
-
-        e.target.reset();
-
-        document.getElementById(
-          "movementDate"
-        ).value = isoToday();
-
-        renderAll();
-
-        toast(
-          "Movimentação registrada."
-        );
-
+      if (!date || !type || !originId || !foodId || !Number.isFinite(qty) || qty <= 0) {
+        toast("Preencha os dados da movimentação corretamente.");
+        return;
       }
-    );
 
+      const st = calcStock();
+      const available = Number(st[originId]?.[foodId] || 0);
+
+      if (qty > available) {
+        toast(`Saldo insuficiente. Disponível em ${getName(db.origins, originId)}: ${fmt(available)}.`);
+        return;
+      }
+
+      if (type === "perda" && !reasonId) {
+        toast("Selecione o motivo da perda.");
+        return;
+      }
+
+      const submit = e.target.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+
+      try {
+        await insertMovement({ date, type, originId, foodId, qty, reasonId, note });
+        await reloadFromSupabase();
+        e.target.reset();
+        document.getElementById("movementDate").value = isoToday();
+        renderAll();
+        toast(type === "perda" ? "Perda registrada no Supabase." : "Saída registrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro na movimentação: " + (error?.message || "verifique o Supabase."));
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
   }
 
 
-  const dashboardDate =
-    document.getElementById(
-      "dashboardDate"
-    );
+  const dashboardDate = document.getElementById("dashboardDate");
+  if (dashboardDate) dashboardDate.addEventListener("change", renderDashboard);
 
+  const entryDate = document.getElementById("entryDate");
+  if (entryDate) entryDate.addEventListener("change", renderEntries);
 
-  if (dashboardDate) {
-
-    dashboardDate.addEventListener(
-      "change",
-      renderDashboard
-    );
-
-  }
-
-
-  const entryDate =
-    document.getElementById(
-      "entryDate"
-    );
-
-
-  if (entryDate) {
-
-    entryDate.addEventListener(
-      "change",
-      renderEntries
-    );
-
-  }
-
-
-  const attendanceDate =
-    document.getElementById(
-      "attendanceDate"
-    );
-
-
+  const attendanceDate = document.getElementById("attendanceDate");
   if (attendanceDate) {
-
-    attendanceDate.addEventListener(
-      "change",
-      renderAttendance
-    );
-
+    // Atualiza imediatamente ao escolher uma nova data.
+    attendanceDate.addEventListener("change", renderAttendance);
+    attendanceDate.addEventListener("input", renderAttendance);
   }
 
+  const attendanceSearch = document.getElementById("attendanceSearch");
+  if (attendanceSearch) attendanceSearch.addEventListener("input", renderAttendance);
 
-  const attendanceSearch =
-    document.getElementById(
-      "attendanceSearch"
-    );
-
-
-  if (attendanceSearch) {
-
-    attendanceSearch.addEventListener(
-      "input",
-      renderAttendance
-    );
-
-  }
-
-
-  const refreshStock =
-    document.getElementById(
-      "refreshStock"
-    );
-
-
+  const refreshStock = document.getElementById("refreshStock");
   if (refreshStock) {
-
-    refreshStock.addEventListener(
-      "click",
-      () => {
-
-        renderStock();
-
-        toast(
-          "Estoque atualizado."
-        );
-
+    refreshStock.addEventListener("click", async () => {
+      try {
+        await reloadFromSupabase();
+        toast("Estoque atualizado.");
+      } catch (error) {
+        console.error(error);
+        toast("Não foi possível atualizar o estoque.");
       }
-    );
-
+    });
   }
 
+  const generateReport = document.getElementById("generateReport");
+  if (generateReport) generateReport.addEventListener("click", renderReport);
 
-  const generateReport =
-    document.getElementById(
-      "generateReport"
-    );
-
-
-  if (generateReport) {
-
-    generateReport.addEventListener(
-      "click",
-      renderReport
-    );
-
-  }
+  const exportCSVButton = document.getElementById("exportCSV");
+  if (exportCSVButton) exportCSVButton.addEventListener("click", exportCSV);
 
 
-  const exportCSVButton =
-    document.getElementById(
-      "exportCSV"
-    );
-
-
-  if (exportCSVButton) {
-
-    exportCSVButton.addEventListener(
-      "click",
-      exportCSV
-    );
-
-  }
-
-
-  const personForm =
-    document.getElementById(
-      "personForm"
-    );
-
-
+  const personForm = document.getElementById("personForm");
   if (personForm) {
+    personForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
+      const registration = String(f.get("registration") || "").trim();
 
-    personForm.addEventListener(
-      "submit",
-      e => {
-
-        e.preventDefault();
-
-        const f =
-          new FormData(
-            e.target
-          );
-
-
-        db.people.push({
-
-          id: uid(),
-
-          name:
-            f.get("name")
-              .trim(),
-
-          registration:
-            f.get("registration")
-              .trim()
-
-        });
-
-
-        save();
-
-        e.target.reset();
-
-        renderAll();
-
-        toast(
-          "Pessoa cadastrada."
-        );
-
+      if (!name || !registration) {
+        toast("Informe nome e matrícula.");
+        return;
       }
-    );
 
+      try {
+        await insertPerson(name, registration);
+        await reloadFromSupabase();
+        e.target.reset();
+        toast("Pessoa cadastrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro ao cadastrar pessoa: " + (error?.message || "verifique o Supabase."));
+      }
+    });
   }
 
 
-  const foodForm =
-    document.getElementById(
-      "foodForm"
-    );
-
-
+  const foodForm = document.getElementById("foodForm");
   if (foodForm) {
+    foodForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
 
-    foodForm.addEventListener(
-      "submit",
-      e => {
-
-        e.preventDefault();
-
-        const f =
-          new FormData(
-            e.target
-          );
-
-
-        db.foods.push({
-
-          id: uid(),
-
-          name:
-            f.get("name")
-              .trim()
-
-        });
-
-
-        save();
-
-        e.target.reset();
-
-        renderAll();
-
-        toast(
-          "Alimento cadastrado."
-        );
-
+      if (!name) {
+        toast("Informe o nome do alimento.");
+        return;
       }
-    );
 
+      try {
+        await insertFood(name);
+        await reloadFromSupabase();
+        e.target.reset();
+        toast("Alimento cadastrado no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro ao cadastrar alimento: " + (error?.message || "verifique o Supabase."));
+      }
+    });
   }
 
 
-  const originForm =
-    document.getElementById(
-      "originForm"
-    );
-
-
+  const originForm = document.getElementById("originForm");
   if (originForm) {
+    originForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
 
-    originForm.addEventListener(
-      "submit",
-      e => {
-
-        e.preventDefault();
-
-        const f =
-          new FormData(
-            e.target
-          );
-
-
-        db.origins.push({
-
-          id: uid(),
-
-          name:
-            f.get("name")
-              .trim()
-
-        });
-
-
-        save();
-
-        e.target.reset();
-
-        renderAll();
-
-        toast(
-          "Origem cadastrada."
-        );
-
+      if (!name) {
+        toast("Informe o nome da origem.");
+        return;
       }
-    );
 
+      try {
+        await insertOrigin(name);
+        await reloadFromSupabase();
+        e.target.reset();
+        toast("Origem cadastrada no Supabase.");
+      } catch (error) {
+        console.error(error);
+        toast("Erro ao cadastrar origem: " + (error?.message || "verifique o Supabase."));
+      }
+    });
   }
 
 
-  const reasonForm =
-    document.getElementById(
-      "reasonForm"
-    );
-
-
+  // Motivos continuam sendo os quatro padrões do aplicativo.
+  // Não há tabela de motivos no esquema utilizado pelo app_corrigido.
+  const reasonForm = document.getElementById("reasonForm");
   if (reasonForm) {
+    reasonForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const name = String(f.get("name") || "").trim();
 
-    reasonForm.addEventListener(
-      "submit",
-      e => {
-
-        e.preventDefault();
-
-        const f =
-          new FormData(
-            e.target
-          );
-
-
-        db.reasons.push({
-
-          id: uid(),
-
-          name:
-            f.get("name")
-              .trim()
-
-        });
-
-
-        save();
-
-        e.target.reset();
-
-        renderAll();
-
-        toast(
-          "Motivo cadastrado."
-        );
-
+      if (!name) {
+        toast("Informe o motivo.");
+        return;
       }
-    );
 
+      if (db.reasons.some(r => r.name.toLowerCase() === name.toLowerCase())) {
+        toast("Esse motivo já existe.");
+        return;
+      }
+
+      db.reasons.push({ id: name, name });
+      saveLocalReasons();
+      e.target.reset();
+      renderAll();
+      toast("Motivo adicionado nesta sessão.");
+    });
   }
 
 
-  const backupBtn =
-    document.getElementById(
-      "backupBtn"
-    );
-
-
+  const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) {
-
-    backupBtn.addEventListener(
-      "click",
-      () =>
-        download(
-          new Blob(
-            [
-              JSON.stringify(
-                db,
-                null,
-                2
-              )
-            ],
-            {
-              type:
-                "application/json"
-            }
-          ),
-          `backup_controle_alimentos_${isoToday()}.json`
-        )
-    );
-
+    backupBtn.addEventListener("click", () => {
+      download(
+        new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }),
+        `backup_controle_alimentos_${isoToday()}.json`
+      );
+    });
   }
 
 
-  const restoreFile =
-    document.getElementById(
-      "restoreFile"
-    );
-
-
+  const restoreFile = document.getElementById("restoreFile");
   if (restoreFile) {
+    restoreFile.addEventListener("change", async e => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-    restoreFile.addEventListener(
-      "change",
-      async e => {
-
-        const file =
-          e.target.files[0];
-
-        if (!file) return;
-
-
-        try {
-
-          const obj =
-            JSON.parse(
-              await file.text()
-            );
-
-
-          if (
-            !obj.foods ||
-            !obj.origins ||
-            !obj.entries
-          ) {
-
-            throw Error(
-              "Arquivo inválido"
-            );
-
-          }
-
-
-          db = obj;
-
-          save();
-
-          renderAll();
-
-          toast(
-            "Backup restaurado."
-          );
-
-
-        } catch (err) {
-
-          console.error(err);
-
-          alert(
-            "Não foi possível restaurar este arquivo."
-          );
-
-        }
-
-
-        e.target.value = "";
-
+      try {
+        const obj = JSON.parse(await file.text());
+        await restoreCloudBackup(obj);
+        await reloadFromSupabase();
+        toast("Backup restaurado no Supabase.");
+      } catch (error) {
+        console.error(error);
+        await showAceConfirm(
+          "Não foi possível restaurar este arquivo no Supabase.\n\n" +
+          (error?.message || "Verifique o backup e as permissões."),
+          "❌ Erro"
+        );
       }
-    );
 
+      e.target.value = "";
+    });
   }
 
 
-  const resetBtn =
-    document.getElementById(
-      "resetBtn"
-    );
-
-
+  const resetBtn = document.getElementById("resetBtn");
   if (resetBtn) {
+    resetBtn.addEventListener("click", async () => {
+      if (!(await showAceConfirm(
+          "Atualizar os dados deste aparelho com o conteúdo atual do Supabase?",
+          "Atualizar dados"
+        ))) return;
 
-    resetBtn.addEventListener(
-      "click",
-      () => {
-
-        if (
-          !confirm(
-            "Isso apagará os dados atuais deste aparelho. Tem certeza?"
-          )
-        ) {
-          return;
-        }
-
-
-        localStorage.removeItem(
-          KEY
-        );
-
-
-        db = load();
-
-        setDates();
-
-        renderAll();
-
-        toast(
-          "Dados padrão restaurados."
-        );
-
+      try {
+        await reloadFromSupabase(true);
+      } catch (error) {
+        console.error(error);
+        toast("Não foi possível atualizar os dados.");
       }
-    );
-
+    });
   }
 
+}
+
+
+async function restoreCloudBackup(obj) {
+  if (!obj || !obj.foods || !obj.origins || !obj.entries) {
+    throw new Error("Arquivo de backup inválido.");
+  }
+
+  const userId = getCurrentUserId();
+
+  // O backup usa o mesmo formato interno que o aplicativo exibe.
+  if (Array.isArray(obj.people) && obj.people.length) {
+    const rows = obj.people.map(p => ({
+      id: Number.isSafeInteger(Number(p.id)) ? Number(p.id) : newNumericId(),
+      nome: p.name,
+      "matrícula": p.registration,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("Pessoas").upsert(rows);
+    if (error) throw error;
+  }
+
+  if (Array.isArray(obj.foods) && obj.foods.length) {
+    const rows = obj.foods.map(f => ({
+      id: Number.isSafeInteger(Number(f.id)) ? Number(f.id) : newNumericId(),
+      nome: f.name,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("Alimentos").upsert(rows);
+    if (error) throw error;
+  }
+
+  if (Array.isArray(obj.origins) && obj.origins.length) {
+    const rows = obj.origins.map(o => ({
+      id: Number.isSafeInteger(Number(o.id)) ? Number(o.id) : newNumericId(),
+      nome: o.name,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("origens").upsert(rows);
+    if (error) throw error;
+  }
+
+  if (Array.isArray(obj.entries) && obj.entries.length) {
+    const rows = obj.entries.map(e => ({
+      id: Number.isSafeInteger(Number(e.id)) ? Number(e.id) : newNumericId(),
+      data_entrada: e.date,
+      alimento_id: e.foodId,
+      quantidade: Number(e.qty || 0),
+      origem_id: e.originId,
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("entradas").upsert(rows);
+    if (error) throw error;
+  }
+
+  const outputs = (obj.movements || []).filter(m => m.type === "saida");
+  if (outputs.length) {
+    const rows = outputs.map(m => ({
+      id: Number.isSafeInteger(Number(m.rawId)) ? Number(m.rawId) : newNumericId(),
+      data_saida: m.date,
+      alimento_id: m.foodId,
+      quantidade: Number(m.qty || 0),
+      origem_id: m.originId,
+      destino: m.note || "",
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("saídas").upsert(rows);
+    if (error) throw error;
+  }
+
+  const losses = (obj.movements || []).filter(m => m.type === "perda");
+  if (losses.length) {
+    const rows = losses.map(m => ({
+      id: Number.isSafeInteger(Number(m.rawId)) ? Number(m.rawId) : newNumericId(),
+      data_perda: m.date,
+      alimento_id: m.foodId,
+      quantidade: Number(m.qty || 0),
+      origem_id: m.originId,
+      motivo: db.reasons.find(r => r.id === m.reasonId)?.name || m.reasonId || "Outro",
+      usuario_id: userId
+    }));
+    const { error } = await supabaseClient.from("perdas").upsert(rows);
+    if (error) throw error;
+  }
+
+  // Presença é restaurada sem depender de uma chave composta.
+  for (const [date, peopleIds] of Object.entries(obj.attendance || {})) {
+    for (const personId of peopleIds || []) {
+      await setAttendance(date, personId, true);
+    }
+  }
 }
 
 
@@ -3528,6 +4357,9 @@ function renderAll() {
 
 async function initApp() {
 
+  if (appStarted) return;
+  appStarted = true;
+
   console.log(
     "ACE Controle de Alimentos iniciado."
   );
@@ -3541,6 +4373,9 @@ async function initApp() {
     setDates();
 
     nav();
+
+    // Cria o botão sem alterar os menus existentes.
+    setupResetMovementsButton();
 
     bindEvents();
 
@@ -3557,14 +4392,82 @@ async function initApp() {
 
   } catch (error) {
 
+    appStarted = false;
+
     console.error(
       "Erro ao iniciar aplicativo:",
       error
     );
 
-    alert(
+
+    const message =
+      String(
+        error?.message ||
+        ""
+      );
+
+
+    // --------------------------------------------------------
+    // JWT inválido:
+    // não deixa o usuário preso no dashboard.
+    // O SIGNED_OUT também será tratado pelo listener.
+    // --------------------------------------------------------
+
+    if (
+      message
+        .toLowerCase()
+        .includes("jwt")
+    ) {
+
+      currentUser = null;
+
+
+      const oldLogin =
+        document.getElementById(
+          "loginScreen"
+        );
+
+
+      if (oldLogin) {
+
+        oldLogin.remove();
+
+      }
+
+
+      createLoginScreen();
+
+
+      const loginError =
+        document.getElementById(
+          "loginError"
+        );
+
+
+      if (loginError) {
+
+        loginError.textContent =
+          "Sua sessão expirou ou ficou inválida. Entre novamente com seu e-mail e senha.";
+
+        loginError.classList.add(
+          "show"
+        );
+
+      }
+
+
+      return;
+
+    }
+
+
+    await showAceConfirm(
       "Não foi possível carregar os dados do sistema.\n\n" +
-      (error?.message || "Verifique a conexão com o Supabase.")
+      (
+        error?.message ||
+        "Verifique a conexão com o Supabase."
+      ),
+      "❌ Erro"
     );
 
   }
@@ -3581,6 +4484,61 @@ async function startAuth() {
   createLoginScreen();
 
 
+  // ==========================================================
+  // MONITORA ALTERAÇÕES DE AUTENTICAÇÃO
+  //
+  // Registrado ANTES de getSession() para que, se o token
+  // inválido for limpo durante initApp(), a tela de login
+  // volte imediatamente.
+  // ==========================================================
+
+  supabaseClient.auth.onAuthStateChange(
+    (event, session) => {
+
+      console.log(
+        "ACE AUTH:",
+        event
+      );
+
+
+      if (
+        event === "SIGNED_IN" &&
+        session?.user
+      ) {
+
+        currentUser =
+          session.user;
+
+
+        document
+          .getElementById(
+            "loginScreen"
+          )
+          ?.remove();
+
+
+        initApp();
+
+      }
+
+
+      if (
+        event === "SIGNED_OUT"
+      ) {
+
+        currentUser = null;
+
+        appStarted = false;
+
+
+        location.reload();
+
+      }
+
+    }
+  );
+
+
   try {
 
     const {
@@ -3591,7 +4549,9 @@ async function startAuth() {
 
 
     if (error) {
+
       throw error;
+
     }
 
 
@@ -3608,7 +4568,7 @@ async function startAuth() {
         ?.remove();
 
 
-      initApp();
+      await initApp();
 
       return;
 
@@ -3644,42 +4604,6 @@ async function startAuth() {
     }
 
   }
-
-
-  // Monitora alterações de autenticação
-
-  supabaseClient.auth.onAuthStateChange(
-    (event, session) => {
-
-      if (
-        event === "SIGNED_IN" &&
-        session?.user
-      ) {
-
-        currentUser =
-          session.user;
-
-        document
-          .getElementById(
-            "loginScreen"
-          )
-          ?.remove();
-
-        initApp();
-
-      }
-
-
-      if (
-        event === "SIGNED_OUT"
-      ) {
-
-        location.reload();
-
-      }
-
-    }
-  );
 
 }
 
