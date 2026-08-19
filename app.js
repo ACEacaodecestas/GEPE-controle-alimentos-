@@ -508,7 +508,17 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         originId: Number(s.origem_id),
         usuarioId: s.usuario_id || null,
         usuarioNome: s.usuario_nome || s.usuarioNome || null,
-        reasonId: null,
+        reasonId:
+          reasons.find(
+            r =>
+              r.name
+                .toLowerCase() ===
+              String(
+                s.motivo || ""
+              ).toLowerCase()
+          )?.id ||
+          s.motivo ||
+          null,
         note:
           s.destino ||
           s.observacao ||
@@ -666,15 +676,22 @@ async function insertEntry({ date, originId, foodId, qty, note }) {
 
 async function insertMovement({ date, type, originId, foodId, qty, reasonId, note }) {
   const userId = getCurrentUserId();
+  const reasonName = db.reasons.find(r => r.id === reasonId)?.name || reasonId || "Outro";
+
   if (type === "saida") {
     const { error } = await supabaseClient.from("saídas").insert({
-      id: newNumericId(), data_saida: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), destino: note || "", usuario_id: userId
+      id: newNumericId(),
+      data_saida: date,
+      alimento_id: Number(foodId),
+      quantidade: qty,
+      origem_id: Number(originId),
+      destino: note || "",
+      motivo: reasonName,
+      usuario_id: userId
     });
     if (error) throw error;
     return;
   }
-
-  const reasonName = db.reasons.find(r => r.id === reasonId)?.name || reasonId || "Outro";
   const { error } = await supabaseClient.from("perdas").insert({
     id: newNumericId(), data_perda: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), motivo: reasonName, usuario_id: userId
   });
@@ -728,7 +745,11 @@ async function updateMovement({ id, type, date, originId, foodId, qty, reasonId,
           alimento_id: Number(foodId),
           quantidade: Number(qty),
           origem_id: Number(originId),
-          destino: note || ""
+          destino: note || "",
+          motivo:
+            db.reasons.find(r => r.id === reasonId)?.name ||
+            reasonId ||
+            "Outro"
         }
       : {
           data_perda: date,
