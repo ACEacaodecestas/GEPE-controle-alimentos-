@@ -7657,7 +7657,7 @@ function ensureHistoryStyles() {
     }
 
     .ace-history-scroll{
-      max-height:760px;
+      max-height:620px;
       overflow-y:auto;
       overflow-x:auto;
       border:1px solid #e3e9ef;
@@ -7951,6 +7951,57 @@ function buildHistoryRows() {
 
 }
 
+
+
+// ============================================================
+// LIMITA HISTÓRICOS A 10 LINHAS VISÍVEIS
+// ============================================================
+function applyTenVisibleRows(container, itemSelector, includeHeader = false) {
+
+  if (!container) return;
+
+  const items =
+    [...container.querySelectorAll(itemSelector)];
+
+  // Até 10 registros: deixa a área livre, sem rolagem vertical.
+  if (items.length <= 10) {
+    container.style.maxHeight = "none";
+    container.style.overflowY = "visible";
+    return;
+  }
+
+  // Mais de 10: calcula a altura exata dos 10 primeiros registros.
+  let height = 0;
+
+  items.slice(0, 10).forEach(item => {
+    const style = getComputedStyle(item);
+    height +=
+      item.getBoundingClientRect().height +
+      parseFloat(style.marginTop || 0) +
+      parseFloat(style.marginBottom || 0);
+  });
+
+  // No Histórico geral, soma a altura do cabeçalho da tabela.
+  if (includeHeader) {
+    const header = container.querySelector("thead");
+    if (header) {
+      height += header.getBoundingClientRect().height;
+    }
+  }
+
+  // Para layouts em grid, considera o gap entre as 10 linhas.
+  const containerStyle = getComputedStyle(container);
+  const gap = parseFloat(containerStyle.rowGap || containerStyle.gap || 0);
+  if (gap > 0) {
+    height += gap * 9;
+  }
+
+  // Pequena folga para não cortar bordas/sombras.
+  container.style.maxHeight = `${Math.ceil(height + 4)}px`;
+  container.style.overflowY = "auto";
+}
+
+
 function renderHistory() {
 
   const target =
@@ -8052,6 +8103,15 @@ function renderHistory() {
       ],
       null
     );
+
+  // Mostra no máximo 10 linhas no Histórico geral.
+  requestAnimationFrame(() => {
+    applyTenVisibleRows(
+      target,
+      "tbody tr",
+      true
+    );
+  });
 
 }
 
@@ -9730,6 +9790,15 @@ function renderBasketModule() {
     </div>
 
   `;
+
+  // Mostra no máximo 10 linhas no Histórico de saída de cestas.
+  requestAnimationFrame(() => {
+    applyTenVisibleRows(
+      module.querySelector(".ace-basket-history-list"),
+      ".ace-basket-history-row",
+      false
+    );
+  });
 
 
   module
