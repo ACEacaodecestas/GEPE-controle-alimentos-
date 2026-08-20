@@ -7955,50 +7955,26 @@ function buildHistoryRows() {
 
 // ============================================================
 // LIMITA HISTÓRICOS A 10 LINHAS VISÍVEIS
+// CORREÇÃO: não mede altura de elementos escondidos.
+// Usa altura máxima fixa somente quando houver mais de 10 linhas.
 // ============================================================
-function applyTenVisibleRows(container, itemSelector, includeHeader = false) {
+function applyTenVisibleRows(container, itemSelector, maxHeight) {
 
   if (!container) return;
 
-  const items =
-    [...container.querySelectorAll(itemSelector)];
+  const count =
+    container.querySelectorAll(itemSelector).length;
 
-  // Até 10 registros: deixa a área livre, sem rolagem vertical.
-  if (items.length <= 10) {
+  if (count > 10) {
+    container.style.maxHeight = maxHeight;
+    container.style.overflowY = "auto";
+    container.style.overflowX = "auto";
+    container.style.scrollbarGutter = "stable";
+  } else {
     container.style.maxHeight = "none";
     container.style.overflowY = "visible";
-    return;
+    container.style.overflowX = "auto";
   }
-
-  // Mais de 10: calcula a altura exata dos 10 primeiros registros.
-  let height = 0;
-
-  items.slice(0, 10).forEach(item => {
-    const style = getComputedStyle(item);
-    height +=
-      item.getBoundingClientRect().height +
-      parseFloat(style.marginTop || 0) +
-      parseFloat(style.marginBottom || 0);
-  });
-
-  // No Histórico geral, soma a altura do cabeçalho da tabela.
-  if (includeHeader) {
-    const header = container.querySelector("thead");
-    if (header) {
-      height += header.getBoundingClientRect().height;
-    }
-  }
-
-  // Para layouts em grid, considera o gap entre as 10 linhas.
-  const containerStyle = getComputedStyle(container);
-  const gap = parseFloat(containerStyle.rowGap || containerStyle.gap || 0);
-  if (gap > 0) {
-    height += gap * 9;
-  }
-
-  // Pequena folga para não cortar bordas/sombras.
-  container.style.maxHeight = `${Math.ceil(height + 4)}px`;
-  container.style.overflowY = "auto";
 }
 
 
@@ -8109,7 +8085,7 @@ function renderHistory() {
     applyTenVisibleRows(
       target,
       "tbody tr",
-      true
+      "640px"
     );
   });
 
@@ -9384,10 +9360,7 @@ function ensureBasketStyles() {
     .ace-basket-history-list{
       display:grid;
       gap:12px;
-      max-height:1240px;
-      overflow-y:auto;
       padding-right:6px;
-      scrollbar-gutter:stable;
     }
 
     .ace-basket-history-row{
@@ -9796,7 +9769,7 @@ function renderBasketModule() {
     applyTenVisibleRows(
       module.querySelector(".ace-basket-history-list"),
       ".ace-basket-history-row",
-      false
+      "1240px"
     );
   });
 
