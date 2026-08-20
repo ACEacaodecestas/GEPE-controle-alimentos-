@@ -3952,6 +3952,76 @@ function renderEntries() {
 // 11. MOVIMENTAÇÕES
 // ============================================================
 
+
+function isBasketMovementRecord(item) {
+
+  return (
+    item?.type === "saida" &&
+    String(
+      item?.note || ""
+    ).startsWith("Cesta: ")
+  );
+
+}
+
+
+function getBasketTypeFromMovement(item) {
+
+  if (!isBasketMovementRecord(item)) {
+    return "";
+  }
+
+  const note =
+    String(
+      item.note || ""
+    );
+
+  const withoutPrefix =
+    note.replace(
+      /^Cesta:\s*/,
+      ""
+    );
+
+  const parts =
+    withoutPrefix.split("|");
+
+  return (
+    parts[0]?.trim() ||
+    ""
+  );
+
+}
+
+
+function getMovementReasonDisplay(item) {
+
+  if (isBasketMovementRecord(item)) {
+    return "Cesta";
+  }
+
+  return getName(
+    db.reasons,
+    item.reasonId
+  );
+
+}
+
+
+function getMovementObservationDisplay(item) {
+
+  // Saída automática de cesta:
+  // OBS deve ficar vazia.
+  if (isBasketMovementRecord(item)) {
+    return "";
+  }
+
+  // Saída/Perda manual:
+  // mantém a observação digitada pelo usuário.
+  return item.note || "";
+
+}
+
+
 function renderMovements() {
 
   const source =
@@ -4139,17 +4209,32 @@ function renderMovements() {
           "Motivo",
           x =>
             esc(
-              getName(
-                db.reasons,
-                x.reasonId
+              getMovementReasonDisplay(
+                x
               )
             )
         ],
 
         [
+          "Tipo de cesta",
+          x =>
+            isBasketMovementRecord(x)
+              ? esc(
+                  getBasketTypeFromMovement(
+                    x
+                  )
+                )
+              : "—"
+        ],
+
+        [
           "Obs.",
           x =>
-            esc(x.note || "")
+            esc(
+              getMovementObservationDisplay(
+                x
+              )
+            )
         ]
 
       ],
