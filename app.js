@@ -4481,14 +4481,23 @@ function renderStock() {
 
     if (aguaFria) {
 
-      const totalAguaFria =
-        Object.values(
-          st[aguaFria.id] || {}
-        ).reduce(
-          (a, v) =>
-            a + Number(v),
-          0
-        );
+      // O cartão "Água Fria" representa o estoque físico total.
+      // Por isso, soma o saldo de TODAS as origens do consolidado.
+      // Ex.: Água Fria 88 + Piedade 22 = 110 itens.
+      const totalEstoqueFisico =
+        Object.values(st)
+          .reduce(
+            (total, originStock) =>
+              total +
+              Object.values(
+                originStock || {}
+              ).reduce(
+                (sum, value) =>
+                  sum + Number(value),
+                0
+              ),
+            0
+          );
 
 
       cards.innerHTML = `
@@ -4500,7 +4509,7 @@ function renderStock() {
           </h3>
 
           <div class="origin-value">
-            ${fmt(totalAguaFria)} itens
+            ${fmt(totalEstoqueFisico)} itens
           </div>
 
         </div>
