@@ -3567,24 +3567,43 @@ function renderDashboard() {
                   )}
                 </b>
 
-                <button
-                  type="button"
-                  class="recent-edit-button"
-                  data-edit-recent="${esc(String(x.id))}"
-                  style="
-                    flex:0 0 auto;
-                    border:1px solid #0b3a63;
-                    background:#fff;
-                    color:#0b3a63;
-                    border-radius:7px;
-                    padding:5px 9px;
-                    font-size:12px;
-                    font-weight:900;
-                    cursor:pointer;
-                  "
-                >
-                  ✏️ Editar
-                </button>
+                <div style="display:flex;align-items:center;gap:7px;flex:0 0 auto;">
+                  <button
+                    type="button"
+                    class="recent-edit-button"
+                    data-edit-recent="${esc(String(x.id))}"
+                    style="
+                      border:1px solid #0b3a63;
+                      background:#fff;
+                      color:#0b3a63;
+                      border-radius:7px;
+                      padding:5px 9px;
+                      font-size:12px;
+                      font-weight:900;
+                      cursor:pointer;
+                    "
+                  >
+                    ✏️ Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    class="recent-delete-button"
+                    data-delete-recent="${esc(String(x.id))}"
+                    style="
+                      border:1px solid #dc2626;
+                      background:#fff;
+                      color:#dc2626;
+                      border-radius:7px;
+                      padding:5px 9px;
+                      font-size:12px;
+                      font-weight:900;
+                      cursor:pointer;
+                    "
+                  >
+                    🗑️ Excluir
+                  </button>
+                </div>
 
               </div>
 
@@ -3627,8 +3646,152 @@ function renderDashboard() {
 
       });
 
+    document
+      .querySelectorAll("[data-delete-recent]")
+      .forEach(button => {
+
+        button.addEventListener(
+          "click",
+          () =>
+            deleteRecentLaunch(
+              button.dataset.deleteRecent
+            )
+        );
+
+      });
+
   }
 
+}
+
+
+// ============================================================
+// EXCLUIR ÚLTIMO LANÇAMENTO
+// ============================================================
+
+async function deleteMatchingHistoryRecord(item, isEntry) {
+
+  const type = isEntry
+    ? "entrada"
+    : (item.type === "perda" ? "perda" : "saida");
+
+  let query = supabaseClient
+    .from("historico_movimentacoes")
+    .select("id")
+    .eq("data", item.date)
+    .eq("tipo", type)
+    .eq("quantidade", Number(item.qty || 0))
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (item.originId != null) {
+    query = query.eq("origem_id", Number(item.originId));
+  }
+
+  if (item.foodId != null) {
+    query = query.eq("alimento_id", Number(item.foodId));
+  }
+
+  if (item.usuarioId) {
+    query = query.eq("usuario_id", item.usuarioId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.warn(
+      "ACE - não foi possível localizar o histórico correspondente:",
+      error
+    );
+    return;
+  }
+
+  const historyId = data?.[0]?.id;
+
+  if (historyId == null) {
+    return;
+  }
+
+  const { error: deleteError } = await supabaseClient
+    .from("historico_movimentacoes")
+    .delete()
+    .eq("id", historyId);
+
+  if (deleteError) {
+    console.warn(
+      "ACE - não foi possível excluir o histórico correspondente:",
+      deleteError
+    );
+  }
+}
+
+
+async function deleteRecentLaunch(id) {
+
+  const entry = db.entries.find(
+    x => String(x.id) === String(id)
+  );
+
+  const movement = db.movements.find(
+    x => String(x.id) === String(id)
+  );
+
+  const item = entry || movement;
+  const isEntry = Boolean(entry);
+
+  if (!item) {
+    toast("Lançamento não encontrado.");
+    return;
+  }
+
+  const foodName = getName(db.foods, item.foodId);
+  const qty = fmt(item.qty);
+
+  const stockText = isEntry
+    ? "Como este lançamento é uma Entrada, essa quantidade será retirada do estoque."
+    : "Como este lançamento é uma Saída/Perda, essa quantidade voltará automaticamente para o estoque.";
+
+  const confirmed = await showAceConfirm(
+    `Excluir o lançamento de ${qty} — ${foodName}?
+
+${stockText}`,
+    "🗑️ Excluir lançamento"
+  );
+
+  if (confirmed === false) {
+    return;
+  }
+
+  try {
+
+    if (isEntry) {
+      await deleteEntry(item.id);
+    } else {
+      await deleteMovement(item.id);
+    }
+
+    await deleteMatchingHistoryRecord(item, isEntry);
+    await reloadFromSupabase();
+    renderAll();
+
+    showAceSuccess(
+      isEntry
+        ? "Lançamento excluído com sucesso. Estoque atualizado."
+        : "Lançamento excluído com sucesso. Quantidade devolvida ao estoque."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR ÚLTIMO LANÇAMENTO:",
+      error
+    );
+
+    toast(
+      "Não foi possível excluir o lançamento: " +
+      (error?.message || "verifique o Supabase.")
+    );
+  }
 }
 
 
