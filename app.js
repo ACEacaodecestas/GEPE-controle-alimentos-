@@ -553,8 +553,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
           s.motivo ||
           null,
         note:
-          s.destino ||
           s.observacao ||
+          s.destino ||
           "",
         createdAt:
           s.created_at ||
@@ -770,7 +770,14 @@ async function insertMovement({ date, type, originId, foodId, qty, reasonId, not
     return;
   }
   const { error } = await supabaseClient.from("perdas").insert({
-    id: newNumericId(), data_perda: date, alimento_id: Number(foodId), quantidade: qty, origem_id: Number(originId), motivo: reasonName, usuario_id: userId
+    id: newNumericId(),
+    data_perda: date,
+    alimento_id: Number(foodId),
+    quantidade: qty,
+    origem_id: Number(originId),
+    motivo: reasonName,
+    observacao: note || "",
+    usuario_id: userId
   });
   if (error) throw error;
 }
@@ -836,7 +843,8 @@ async function updateMovement({ id, type, date, originId, foodId, qty, reasonId,
           motivo:
             db.reasons.find(r => r.id === reasonId)?.name ||
             reasonId ||
-            "Outro"
+            "Outro",
+          observacao: note || ""
         };
 
   const { error } = await supabaseClient
