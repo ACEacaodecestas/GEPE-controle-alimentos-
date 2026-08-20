@@ -3096,7 +3096,8 @@ function setDates() {
     "entryDate",
     "movementDate",
     "dashboardDate",
-    "attendanceDate"
+    "attendanceDate",
+    "historyDateFilter"
   ].forEach(id => {
 
     const e =
