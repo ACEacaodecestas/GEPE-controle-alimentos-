@@ -1096,6 +1096,70 @@ function toast(msg) {
 
 
 // ============================================================
+// MENSAGEM CENTRAL DE SUCESSO
+// ============================================================
+function showAceSuccess(message) {
+
+  document.getElementById("aceSuccessMessage")?.remove();
+
+  clearTimeout(window._aceSuccessTimer);
+
+  const overlay = document.createElement("div");
+  overlay.id = "aceSuccessMessage";
+
+  overlay.innerHTML = `
+    <div style="
+      position:fixed;
+      inset:0;
+      z-index:1000005;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      pointer-events:none;
+      background:rgba(11,58,99,.12);
+      backdrop-filter:blur(1px);
+    ">
+      <div style="
+        width:min(460px,calc(100vw - 40px));
+        box-sizing:border-box;
+        padding:28px 30px;
+        border:2px solid #22a65a;
+        border-radius:18px;
+        background:#ffffff;
+        box-shadow:0 18px 50px rgba(0,0,0,.22);
+        text-align:center;
+        font-family:inherit;
+      ">
+        <div style="
+          margin-bottom:10px;
+          font-size:46px;
+          line-height:1;
+        ">✅</div>
+        <div style="
+          color:#169447;
+          font-size:22px;
+          font-weight:900;
+          line-height:1.4;
+        ">${esc(message)}</div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  window._aceSuccessTimer = setTimeout(() => {
+    overlay.style.transition = "opacity .35s ease";
+    overlay.style.opacity = "0";
+
+    setTimeout(() => {
+      overlay.remove();
+    }, 350);
+  }, 2000);
+}
+
+
+// ============================================================
 // 4.9 RECUPERAÇÃO DE SENHA
 // ============================================================
 
@@ -3325,12 +3389,49 @@ function renderDashboard() {
       .length;
 
 
+  const cestasSaidas =
+    (db.basketOutputs || [])
+      .filter(x => x.date === date)
+      .reduce(
+        (total, x) =>
+          total + Number(x.basketQty || 0),
+        0
+      );
+
+
+  // Cria automaticamente o cartão de Cestas no Resumo do dia.
+  let kpiCestas =
+    document.getElementById("kpiCestas");
+
+  if (!kpiCestas) {
+    const cards =
+      document.querySelector("#dashboard .cards");
+
+    if (cards) {
+      const card =
+        document.createElement("div");
+
+      card.className = "card";
+      card.innerHTML = `
+        <span>🧺 Cestas</span>
+        <strong id="kpiCestas">0</strong>
+        <small>cestas</small>
+      `;
+
+      cards.appendChild(card);
+      kpiCestas =
+        document.getElementById("kpiCestas");
+    }
+  }
+
+
   const ids = [
     ["kpiEntrada", ent],
     ["kpiSaida", sai],
     ["kpiPerda", per],
     ["kpiEstoque", estoque],
-    ["kpiPresentes", pres]
+    ["kpiPresentes", pres],
+    ["kpiCestas", cestasSaidas]
   ];
 
 
@@ -8021,7 +8122,7 @@ function bindEvents() {
         e.target.reset();
         document.getElementById("entryDate").value = isoToday();
         renderEntries();
-        toast("Entrada registrada no Supabase.");
+        showAceSuccess("Entrada registrada com sucesso!");
       } catch (error) {
         console.error(error);
         toast("Erro na entrada: " + (error?.message || "verifique o Supabase."));
@@ -8074,7 +8175,7 @@ function bindEvents() {
         e.target.reset();
         document.getElementById("movementDate").value = isoToday();
         renderAll();
-        toast(type === "perda" ? "Perda registrada no Supabase." : "Saída registrada no Supabase.");
+        showAceSuccess(type === "perda" ? "Perda registrada com sucesso!" : "Saída registrada com sucesso!");
       } catch (error) {
         console.error(error);
         toast("Erro na movimentação: " + (error?.message || "verifique o Supabase."));
@@ -9550,8 +9651,8 @@ function renderBasketModule() {
 
             renderAll();
 
-            toast(
-              `${qty} cesta(s) ${basket?.name || ""} registrada(s) com sucesso.`
+            showAceSuccess(
+              `${qty} cesta(s) ${basket?.name || ""} registrada(s) com sucesso!`
             );
 
           } catch (error) {
