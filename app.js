@@ -745,6 +745,7 @@ async function insertEntry({ date, originId, foodId, qty, note }) {
     alimento_id: Number(foodId),
     quantidade: qty,
     origem_id: Number(originId),
+    observacao: note || "",
     usuario_id: getCurrentUserId()
   });
 
@@ -789,7 +790,8 @@ async function updateEntry({ id, date, originId, foodId, qty, note }) {
       data_entrada: date,
       alimento_id: Number(foodId),
       quantidade: Number(qty),
-      origem_id: Number(originId)
+      origem_id: Number(originId),
+      observacao: note || ""
     })
     .eq("id", Number(id));
 
@@ -10771,3 +10773,4 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
+
