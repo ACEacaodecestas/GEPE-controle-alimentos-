@@ -236,7 +236,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     attendanceResult,
     basketsResult,
     basketItemsResult,
-    basketOutputsResult
+    basketOutputsResult,
+    historyResult
   ] = await Promise.all([
 
     supabaseClient
@@ -298,6 +299,13 @@ async function loadFromSupabase(allowJwtRefresh = true) {
       .select("*")
       .order("data_saida", {
         ascending: false
+      }),
+
+    supabaseClient
+      .from("historico_movimentacoes")
+      .select("*")
+      .order("created_at", {
+        ascending: false
       })
 
   ]);
@@ -317,7 +325,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     ["presença", attendanceResult],
     ["cestas", basketsResult],
     ["cestas_itens", basketItemsResult],
-    ["cestas_saidas", basketOutputsResult]
+    ["cestas_saidas", basketOutputsResult],
+    ["historico_movimentacoes", historyResult]
   ].find(([, result]) => result.error);
 
 
@@ -477,6 +486,9 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
   const basketOutputs =
     basketOutputsResult.data || [];
+
+  const historyRows =
+    historyResult.data || [];
 
   const reasons =
     loadLocalReasons();
@@ -642,6 +654,29 @@ async function loadFromSupabase(allowJwtRefresh = true) {
           `${cs.data_saida || isoToday()}T00:00:00Z`
       })),
 
+    history:
+      historyRows.map(h => ({
+        id: Number(h.id),
+        date: h.data,
+        type: h.tipo || "",
+        originId:
+          h.origem_id != null
+            ? Number(h.origem_id)
+            : null,
+        foodId:
+          h.alimento_id != null
+            ? Number(h.alimento_id)
+            : null,
+        qty: Number(h.quantidade || 0),
+        reason: h.motivo || "—",
+        basketType: h.tipo_cesta || "—",
+        note: h.observacao || "",
+        usuarioId: h.usuario_id || null,
+        createdAt:
+          h.created_at ||
+          `${h.data || isoToday()}T00:00:00Z`
+      })),
+
     reasons
 
   };
@@ -736,6 +771,54 @@ async function insertOrigin(name) {
   return id;
 }
 
+
+async function insertHistoryRecord({
+  date,
+  type,
+  originId,
+  foodId,
+  qty,
+  reason = "—",
+  basketType = "—",
+  note = ""
+}) {
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from("historico_movimentacoes")
+      .insert({
+        data: date,
+        tipo: type,
+        origem_id:
+          originId != null
+            ? Number(originId)
+            : null,
+        alimento_id:
+          foodId != null
+            ? Number(foodId)
+            : null,
+        quantidade:
+          Number(qty || 0),
+        motivo:
+          reason || "—",
+        tipo_cesta:
+          basketType || "—",
+        observacao:
+          note || "",
+        usuario_id:
+          getCurrentUserId()
+      });
+
+
+  if (error) {
+    throw error;
+  }
+
+}
+
+
 async function insertEntry({ date, originId, foodId, qty, note }) {
   rememberCurrentUser();
 
@@ -750,6 +833,17 @@ async function insertEntry({ date, originId, foodId, qty, note }) {
   });
 
   if (error) throw error;
+
+  await insertHistoryRecord({
+    date,
+    type: "entrada",
+    originId,
+    foodId,
+    qty,
+    reason: "—",
+    basketType: "—",
+    note: note || ""
+  });
 }
 
 async function insertMovement({ date, type, originId, foodId, qty, reasonId, note }) {
@@ -768,6 +862,18 @@ async function insertMovement({ date, type, originId, foodId, qty, reasonId, not
       usuario_id: userId
     });
     if (error) throw error;
+
+    await insertHistoryRecord({
+      date,
+      type: "saida",
+      originId,
+      foodId,
+      qty,
+      reason: reasonName,
+      basketType: "—",
+      note: note || ""
+    });
+
     return;
   }
   const { error } = await supabaseClient.from("perdas").insert({
@@ -781,6 +887,17 @@ async function insertMovement({ date, type, originId, foodId, qty, reasonId, not
     usuario_id: userId
   });
   if (error) throw error;
+
+  await insertHistoryRecord({
+    date,
+    type: "perda",
+    originId,
+    foodId,
+    qty,
+    reason: reasonName,
+    basketType: "—",
+    note: note || ""
+  });
 }
 
 async function updateEntry({ id, date, originId, foodId, qty, note }) {
@@ -7177,6 +7294,597 @@ function setupResetMovementsButton() {
 }
 
 
+
+// ============================================================
+// HISTÓRICO GERAL DE MOVIMENTAÇÕES
+// ============================================================
+
+function ensureHistoryStyles() {
+
+  if (document.getElementById("aceHistoryStyle")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "aceHistoryStyle";
+
+  style.textContent = `
+
+    #historico{
+      padding-bottom:30px;
+    }
+
+    .ace-history-header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+
+    .ace-history-title{
+      margin:0;
+      color:#0b2f55;
+      font-size:30px;
+      font-weight:900;
+    }
+
+    .ace-history-subtitle{
+      margin-top:4px;
+      color:#667085;
+      font-size:14px;
+    }
+
+    .ace-history-actions{
+      display:flex;
+      align-items:flex-end;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .ace-history-filter{
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+      font-weight:800;
+      color:#344054;
+      font-size:13px;
+    }
+
+    .ace-history-filter input{
+      min-width:180px;
+      padding:10px 12px;
+      border:1px solid #cfd9e2;
+      border-radius:9px;
+      background:#fff;
+      color:#172b3a;
+      font:inherit;
+    }
+
+    .ace-history-btn{
+      padding:10px 14px;
+      border-radius:9px;
+      font-size:14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-history-clear-filter{
+      border:1px solid #0b4b7a;
+      background:#fff;
+      color:#0b4b7a;
+    }
+
+    .ace-history-delete{
+      border:1px solid #f0b8b4;
+      background:#fff1f0;
+      color:#b42318;
+    }
+
+    .ace-history-panel{
+      padding:18px;
+      border:1px solid #d7e0e8;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 10px 30px rgba(20,45,70,.07);
+    }
+
+    .ace-history-scroll{
+      max-height:760px;
+      overflow-y:auto;
+      overflow-x:auto;
+      border:1px solid #e3e9ef;
+      border-radius:10px;
+    }
+
+    .ace-history-scroll .table-wrap{
+      overflow:visible;
+    }
+
+    .ace-history-scroll table{
+      margin:0;
+    }
+
+    .ace-history-scroll thead{
+      position:sticky;
+      top:0;
+      z-index:3;
+      background:#f5f7f9;
+    }
+
+    @media(max-width:700px){
+      .ace-history-title{
+        font-size:25px;
+      }
+
+      .ace-history-actions{
+        width:100%;
+      }
+
+      .ace-history-filter,
+      .ace-history-filter input,
+      .ace-history-btn{
+        width:100%;
+      }
+    }
+
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+function setupHistoryPage() {
+
+  ensureHistoryStyles();
+
+  const tabs = document.querySelector(".tabs");
+
+  if (!tabs) {
+    console.warn("ACE: menu .tabs não encontrado para criar Histórico.");
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // Cria o botão Histórico antes de Estoque
+  // ----------------------------------------------------------
+
+  let historyTab =
+    tabs.querySelector('[data-page="historico"]');
+
+  if (!historyTab) {
+
+    historyTab = document.createElement("button");
+
+    historyTab.type = "button";
+    historyTab.className = "tab";
+    historyTab.dataset.page = "historico";
+    historyTab.innerHTML = "📜 Histórico";
+
+    const stockTab =
+      [...tabs.querySelectorAll(".tab")]
+        .find(tab =>
+          normalizeAceText(tab.textContent)
+            .includes("estoque")
+        );
+
+    if (stockTab) {
+      tabs.insertBefore(historyTab, stockTab);
+    } else {
+      tabs.appendChild(historyTab);
+    }
+  }
+
+
+  // ----------------------------------------------------------
+  // Cria a página Histórico
+  // ----------------------------------------------------------
+
+  let page =
+    document.getElementById("historico");
+
+  if (!page) {
+
+    page = document.createElement("section");
+
+    page.id = "historico";
+    page.className = "page";
+
+    page.innerHTML = `
+
+      <div class="ace-history-header">
+
+        <div>
+          <h2 class="ace-history-title">
+            📜 Histórico
+          </h2>
+
+          <div class="ace-history-subtitle">
+            Entradas, saídas e perdas registradas no sistema.
+          </div>
+        </div>
+
+        <div class="ace-history-actions">
+
+          <label class="ace-history-filter">
+            Filtrar por data
+            <input
+              id="historyDateFilter"
+              type="date"
+            >
+          </label>
+
+          <button
+            id="historyClearFilter"
+            class="ace-history-btn ace-history-clear-filter"
+            type="button"
+          >
+            Limpar filtro
+          </button>
+
+          <button
+            id="historyDeleteAll"
+            class="ace-history-btn ace-history-delete"
+            type="button"
+          >
+            🗑️ Excluir Histórico
+          </button>
+
+        </div>
+
+      </div>
+
+      <div class="ace-history-panel">
+
+        <div
+          id="historyMovementsTable"
+          class="ace-history-scroll"
+        ></div>
+
+      </div>
+
+    `;
+
+
+    const stockTab =
+      [...tabs.querySelectorAll(".tab")]
+        .find(tab =>
+          normalizeAceText(tab.textContent)
+            .includes("estoque")
+        );
+
+    const stockPageId =
+      stockTab?.dataset?.page;
+
+    const stockPage =
+      stockPageId
+        ? document.getElementById(stockPageId)
+        : null;
+
+    if (stockPage?.parentElement) {
+      stockPage.parentElement.insertBefore(
+        page,
+        stockPage
+      );
+    } else {
+
+      const anyPage =
+        document.querySelector(".page");
+
+      if (anyPage?.parentElement) {
+        anyPage.parentElement.appendChild(page);
+      } else {
+        document.body.appendChild(page);
+      }
+    }
+  }
+
+
+  // ----------------------------------------------------------
+  // Retira a tabela Movimentações da tela Saída/Perda
+  // O Histórico de saída de cestas permanece onde já está.
+  // ----------------------------------------------------------
+
+  const oldMovementsTable =
+    document.getElementById("movementsTable");
+
+  const oldMovementsPanel =
+    oldMovementsTable?.closest(
+      ".panel,.box,.section,.card"
+    );
+
+  if (
+    oldMovementsPanel &&
+    oldMovementsPanel.id !== "aceBasketModule"
+  ) {
+    oldMovementsPanel.style.display = "none";
+  }
+
+
+  const dateInput =
+    document.getElementById("historyDateFilter");
+
+  if (
+    dateInput &&
+    dateInput.dataset.aceBound !== "1"
+  ) {
+
+    dateInput.dataset.aceBound = "1";
+
+    dateInput.addEventListener(
+      "change",
+      renderHistory
+    );
+  }
+
+
+  const clearButton =
+    document.getElementById("historyClearFilter");
+
+  if (
+    clearButton &&
+    clearButton.dataset.aceBound !== "1"
+  ) {
+
+    clearButton.dataset.aceBound = "1";
+
+    clearButton.addEventListener(
+      "click",
+      () => {
+
+        const input =
+          document.getElementById(
+            "historyDateFilter"
+          );
+
+        if (input) {
+          input.value = "";
+        }
+
+        renderHistory();
+      }
+    );
+  }
+
+
+  const deleteButton =
+    document.getElementById("historyDeleteAll");
+
+  if (
+    deleteButton &&
+    deleteButton.dataset.aceBound !== "1"
+  ) {
+
+    deleteButton.dataset.aceBound = "1";
+
+    deleteButton.addEventListener(
+      "click",
+      deleteHistoryMovements
+    );
+  }
+
+}
+
+
+function buildHistoryRows() {
+
+  return (db?.history || [])
+    .slice()
+    .sort(
+      (a, b) =>
+        String(
+          b.createdAt || ""
+        ).localeCompare(
+          String(
+            a.createdAt || ""
+          )
+        )
+    );
+
+}
+
+function renderHistory() {
+
+  const target =
+    document.getElementById(
+      "historyMovementsTable"
+    );
+
+  if (!target) {
+    return;
+  }
+
+
+  const filterDate =
+    document.getElementById(
+      "historyDateFilter"
+    )?.value || "";
+
+
+  let rows =
+    buildHistoryRows();
+
+
+  if (filterDate) {
+    rows =
+      rows.filter(
+        row =>
+          row.date === filterDate
+      );
+  }
+
+
+  target.innerHTML =
+    table(
+      rows,
+      [
+        [
+          "Data",
+          x => fmtDate(x.date)
+        ],
+
+        [
+          "Tipo",
+          x => {
+
+            if (x.type === "entrada") {
+              return `<span class="pill" style="background:#ecfdf3;color:#027a48;">Entrada</span>`;
+            }
+
+            if (x.type === "perda") {
+              return `<span class="pill red">Perda</span>`;
+            }
+
+            return `<span class="pill blue">Saída</span>`;
+          }
+        ],
+
+        [
+          "Origem",
+          x =>
+            esc(
+              getName(
+                db.origins,
+                x.originId
+              )
+            )
+        ],
+
+        [
+          "Alimento",
+          x =>
+            esc(
+              getName(
+                db.foods,
+                x.foodId
+              )
+            )
+        ],
+
+        [
+          "Qtd",
+          x => fmt(x.qty)
+        ],
+
+        [
+          "Motivo",
+          x => esc(x.reason || "—")
+        ],
+
+        [
+          "Tipo de cesta",
+          x => esc(x.basketType || "—")
+        ],
+
+        [
+          "Obs.",
+          x => esc(x.note || "")
+        ]
+
+      ],
+      null
+    );
+
+}
+
+
+async function deleteHistoryMovements() {
+
+  const confirmation =
+    await showAceConfirm(
+      "Tem certeza que deseja excluir todo o Histórico?\n\n" +
+      "Serão apagadas SOMENTE as linhas desta janela de Histórico.\n\n" +
+      "Entradas, saídas, perdas, estoque, cestas, presenças, cadastros e usuários NÃO serão alterados.",
+      "⚠️ Excluir Histórico"
+    );
+
+
+  if (!confirmation) {
+    return;
+  }
+
+
+  const button =
+    document.getElementById(
+      "historyDeleteAll"
+    );
+
+
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      "⏳ Excluindo...";
+  }
+
+
+  try {
+
+    const {
+      error
+    } =
+      await supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .delete()
+        .not(
+          "id",
+          "is",
+          null
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    db = await loadFromSupabase(false);
+
+    renderAll();
+
+
+    await showAceConfirm(
+      "Histórico excluído com sucesso.\n\n" +
+      "A janela ficou vazia e será alimentada novamente conforme novas entradas, saídas, perdas e cestas forem registradas.",
+      "✅ Histórico limpo"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR HISTÓRICO:",
+      error
+    );
+
+
+    await showAceConfirm(
+      "Não foi possível excluir o Histórico.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro"
+    );
+
+
+  } finally {
+
+    if (button) {
+      button.disabled = false;
+      button.textContent =
+        "🗑️ Excluir Histórico";
+    }
+
+  }
+
+}
+
+
 // ============================================================
 // 18. NAVEGAÇÃO
 // ============================================================
@@ -9820,6 +10528,23 @@ async function registerBasketOutput({
 
       }
 
+      await insertHistoryRecord({
+        date: today,
+        type: "saida",
+        originId:
+          aguaFria.id,
+        foodId:
+          item.foodId,
+        qty:
+          qtyToAdd,
+        reason:
+          "Cesta",
+        basketType:
+          basket.name,
+        note:
+          ""
+      });
+
     }
 
   } catch (movementsError) {
@@ -10484,6 +11209,8 @@ function renderAll() {
 
   renderCadastros();
 
+  renderHistory();
+
 }
 
 
@@ -10508,10 +11235,11 @@ async function initApp() {
 
     setDates();
 
-    nav();
+    // Cria Histórico antes de ligar a navegação,
+    // para o novo botão receber o mesmo comportamento das outras abas.
+    setupHistoryPage();
 
-    // Cria o botão sem alterar os menus existentes.
-    setupResetMovementsButton();
+    nav();
 
     bindEvents();
 
