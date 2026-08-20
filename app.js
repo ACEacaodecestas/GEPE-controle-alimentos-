@@ -978,6 +978,129 @@ function toast(msg) {
 }
 
 
+function showCenterSuccess(
+  message = "Registrado com sucesso!"
+) {
+
+  const old =
+    document.getElementById(
+      "aceCenterSuccess"
+    );
+
+  if (old) {
+    old.remove();
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceCenterSuccessStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement("style");
+
+    style.id =
+      "aceCenterSuccessStyle";
+
+    style.textContent = `
+
+      #aceCenterSuccess{
+        position:fixed;
+        inset:0;
+        z-index:1000020;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+        pointer-events:none;
+      }
+
+      .ace-center-success-box{
+        min-width:280px;
+        max-width:calc(100vw - 40px);
+        padding:20px 28px;
+        border:2px solid #12b76a;
+        border-radius:16px;
+        background:#ecfdf3;
+        color:#027a48;
+        box-shadow:0 18px 45px rgba(16,24,40,.24);
+        text-align:center;
+        font-size:20px;
+        font-weight:900;
+        line-height:1.35;
+        animation:
+          aceSuccessIn .18s ease-out,
+          aceSuccessOut .25s ease-in 1.75s forwards;
+      }
+
+      @keyframes aceSuccessIn{
+        from{
+          opacity:0;
+          transform:scale(.92);
+        }
+        to{
+          opacity:1;
+          transform:scale(1);
+        }
+      }
+
+      @keyframes aceSuccessOut{
+        from{
+          opacity:1;
+          transform:scale(1);
+        }
+        to{
+          opacity:0;
+          transform:scale(.96);
+        }
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  const modal =
+    document.createElement("div");
+
+  modal.id =
+    "aceCenterSuccess";
+
+  modal.innerHTML = `
+
+    <div class="ace-center-success-box">
+      ✅ ${esc(message)}
+    </div>
+
+  `;
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  clearTimeout(
+    window._aceCenterSuccessTimer
+  );
+
+  window._aceCenterSuccessTimer =
+    setTimeout(
+      () => {
+        modal.remove();
+      },
+      2050
+    );
+
+}
+
+
+
 // ============================================================
 // 4.9 RECUPERAÇÃO DE SENHA
 // ============================================================
@@ -7277,7 +7400,7 @@ function bindEvents() {
         e.target.reset();
         document.getElementById("entryDate").value = isoToday();
         renderEntries();
-        toast("Entrada registrada no Supabase.");
+        showCenterSuccess("Registrado com sucesso!");
       } catch (error) {
         console.error(error);
         toast("Erro na entrada: " + (error?.message || "verifique o Supabase."));
@@ -7330,7 +7453,7 @@ function bindEvents() {
         e.target.reset();
         document.getElementById("movementDate").value = isoToday();
         renderAll();
-        toast(type === "perda" ? "Perda registrada no Supabase." : "Saída registrada no Supabase.");
+        showCenterSuccess("Registrado com sucesso!");
       } catch (error) {
         console.error(error);
         toast("Erro na movimentação: " + (error?.message || "verifique o Supabase."));
