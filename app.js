@@ -3666,7 +3666,7 @@ function renderDashboard() {
 
 
 // ============================================================
-// EXCLUIR ÚLTIMO LANÇAMENTO
+// ESTORNAR ÚLTIMO LANÇAMENTO
 // ============================================================
 
 async function deleteMatchingHistoryRecord(item, isEntry) {
@@ -3776,7 +3776,7 @@ ${stockText}`,
 
     showAceSuccess(
       isEntry
-        ? "Lançamento excluído com sucesso. Estoque atualizado."
+        ? "Lançamento de entrada excluído com sucesso. Estoque atualizado."
         : "Lançamento excluído com sucesso. Quantidade devolvida ao estoque."
     );
 
@@ -9276,9 +9276,58 @@ function ensureBasketStyles() {
       font-weight:900;
     }
 
+    .ace-basket-history-toolbar{
+      display:flex;
+      align-items:flex-end;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:0 0 14px;
+    }
+
+    .ace-basket-history-filter{
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+      color:#344054;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .ace-basket-history-filter input{
+      min-width:190px;
+      padding:10px 12px;
+      border:1px solid #cfdbe5;
+      border-radius:9px;
+      background:#fff;
+      color:#17324d;
+      font:inherit;
+    }
+
+    .ace-basket-history-action{
+      padding:10px 14px;
+      border-radius:9px;
+      background:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-history-clear{
+      border:1px solid #0b4b7a;
+      color:#0b4b7a;
+    }
+
+    .ace-basket-history-delete-all{
+      border:1px solid #dc2626;
+      color:#dc2626;
+    }
+
     .ace-basket-history-list{
       display:grid;
       gap:12px;
+      max-height:1240px;
+      overflow-y:auto;
+      padding-right:6px;
+      scrollbar-gutter:stable;
     }
 
     .ace-basket-history-row{
@@ -9323,6 +9372,25 @@ function ensureBasketStyles() {
       color:#0b3a63;
       font-size:18px;
       font-weight:900;
+    }
+
+    .ace-basket-history-side{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:9px;
+    }
+
+    .ace-basket-history-reverse{
+      padding:8px 11px;
+      border:1px solid #dc2626;
+      border-radius:8px;
+      background:#fff;
+      color:#dc2626;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+      white-space:nowrap;
     }
 
 
@@ -9628,6 +9696,33 @@ function renderBasketModule() {
         📋 Histórico de saída de cestas
       </h3>
 
+      <div class="ace-basket-history-toolbar">
+        <label class="ace-basket-history-filter">
+          Filtrar por data
+          <input
+            id="basketHistoryDateFilter"
+            type="date"
+            value="${esc(window.aceBasketHistoryDateFilter || "")}"
+          >
+        </label>
+
+        <button
+          type="button"
+          id="basketHistoryClearFilter"
+          class="ace-basket-history-action ace-basket-history-clear"
+        >
+          Limpar filtro
+        </button>
+
+        <button
+          type="button"
+          id="basketHistoryDeleteAll"
+          class="ace-basket-history-action ace-basket-history-delete-all"
+        >
+          🗑️ Excluir Histórico
+        </button>
+      </div>
+
       <div class="ace-basket-history-list">
         ${renderBasketHistoryRows()}
       </div>
@@ -9867,6 +9962,276 @@ function renderBasketModule() {
 
     });
 
+
+  const basketHistoryDateFilter =
+    module.querySelector("#basketHistoryDateFilter");
+
+  if (basketHistoryDateFilter) {
+    basketHistoryDateFilter.addEventListener("change", () => {
+      window.aceBasketHistoryDateFilter = basketHistoryDateFilter.value || "";
+      renderBasketModule();
+    });
+  }
+
+  const basketHistoryClearFilter =
+    module.querySelector("#basketHistoryClearFilter");
+
+  if (basketHistoryClearFilter) {
+    basketHistoryClearFilter.addEventListener("click", () => {
+      window.aceBasketHistoryDateFilter = "";
+      renderBasketModule();
+    });
+  }
+
+  const basketHistoryDeleteAll =
+    module.querySelector("#basketHistoryDeleteAll");
+
+  if (basketHistoryDeleteAll) {
+    basketHistoryDeleteAll.addEventListener(
+      "click",
+      deleteAllBasketHistoryWithoutReversal
+    );
+  }
+
+  module
+    .querySelectorAll("[data-reverse-basket-output]")
+    .forEach(button => {
+      button.addEventListener("click", () => {
+        reverseBasketHistoryGroup(
+          decodeURIComponent(button.dataset.reverseBasketOutput || "")
+        );
+      });
+    });
+
+}
+
+
+async function deleteAllBasketHistoryWithoutReversal() {
+
+  if (!(db?.basketOutputs || []).length) {
+    toast("Não há histórico de saída de cestas para excluir.");
+    return;
+  }
+
+  const confirmed = await showAceConfirm(
+    "Excluir TODO o histórico de saída de cestas?\n\nOs alimentos NÃO retornarão ao estoque. Somente os registros do histórico de cestas serão apagados.",
+    "🗑️ Excluir histórico de cestas"
+  );
+
+  if (confirmed === false) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from("cestas_saidas")
+      .delete()
+      .not("id", "is", null);
+
+    if (error) throw error;
+
+    await reloadFromSupabase();
+    renderAll();
+    showAceSuccess(
+      "Histórico de saída de cestas excluído. O estoque não foi alterado."
+    );
+  } catch (error) {
+    console.error("ACE - erro ao excluir histórico de cestas:", error);
+    toast(
+      "Não foi possível excluir o histórico de cestas: " +
+      (error?.message || "verifique o Supabase.")
+    );
+  }
+}
+
+
+function getBasketHistoryGroupKey(row) {
+  return [
+    row.date || "",
+    row.usuarioId || "",
+    row.basketId || "",
+    row.originId || "",
+    row.destination || "",
+    normalizeAceText(row.receivedBy || "")
+  ].join("||");
+}
+
+
+async function removeBasketHistoryAuditRecords({
+  date,
+  originId,
+  userId,
+  basketName,
+  composition,
+  basketQty
+}) {
+
+  for (const item of composition || []) {
+    const foodId = Number(item.alimento_id ?? item.foodId);
+    const perBasket = Number(
+      item.quantidade_por_cesta ?? item.qty ?? 0
+    );
+    let qtyToRemove = perBasket * Number(basketQty || 0);
+
+    if (!foodId || qtyToRemove <= 0) continue;
+
+    let query = supabaseClient
+      .from("historico_movimentacoes")
+      .select("id, quantidade")
+      .eq("data", date)
+      .eq("tipo", "saida")
+      .eq("origem_id", Number(originId))
+      .eq("alimento_id", foodId)
+      .eq("motivo", "Cesta")
+      .eq("tipo_cesta", basketName)
+      .order("created_at", { ascending: false });
+
+    if (userId) query = query.eq("usuario_id", userId);
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn("ACE - falha ao localizar auditoria da cesta:", error);
+      continue;
+    }
+
+    for (const historyRow of data || []) {
+      if (qtyToRemove <= 0) break;
+      const rowQty = Number(historyRow.quantidade || 0);
+
+      if (rowQty <= qtyToRemove + 0.0000001) {
+        const { error: delError } = await supabaseClient
+          .from("historico_movimentacoes")
+          .delete()
+          .eq("id", historyRow.id);
+        if (delError) throw delError;
+        qtyToRemove -= rowQty;
+      } else {
+        const { error: updError } = await supabaseClient
+          .from("historico_movimentacoes")
+          .update({ quantidade: rowQty - qtyToRemove })
+          .eq("id", historyRow.id);
+        if (updError) throw updError;
+        qtyToRemove = 0;
+      }
+    }
+  }
+}
+
+
+async function reverseBasketHistoryGroup(groupKey) {
+
+  const groupRows = (db?.basketOutputs || []).filter(
+    row => getBasketHistoryGroupKey(row) === groupKey
+  );
+
+  if (!groupRows.length) {
+    toast("Saída de cesta não encontrada.");
+    return;
+  }
+
+  const first = groupRows[0];
+  const basketQty = groupRows.reduce(
+    (sum, row) => sum + Number(row.basketQty || 0),
+    0
+  );
+  const composition =
+    (first.composition && first.composition.length)
+      ? first.composition
+      : getBasketItems(first.basketId).map(item => ({
+          alimento_id: Number(item.foodId),
+          alimento: item.foodName,
+          quantidade_por_cesta: Number(item.qty)
+        }));
+
+  const confirmed = await showAceConfirm(
+    `Estornar ${fmt(basketQty)} cesta(s) ${first.basketName || ""}?\n\nOs alimentos que compõem essa saída retornarão automaticamente ao estoque.`,
+    "↩️ Estornar saída de cesta"
+  );
+
+  if (confirmed === false) return;
+
+  const movementNote =
+    `Cesta: ${first.basketName} | ${first.destination}` +
+    (
+      first.destination === "Comunidade" && first.receivedBy
+        ? ` | Recebido por: ${first.receivedBy}`
+        : ""
+    );
+
+  try {
+    for (const item of composition) {
+      const foodId = Number(item.alimento_id ?? item.foodId);
+      const qtyToRemove =
+        Number(item.quantidade_por_cesta ?? item.qty ?? 0) * basketQty;
+
+      if (!foodId || qtyToRemove <= 0) continue;
+
+      let query = supabaseClient
+        .from("saídas")
+        .select("id, quantidade")
+        .eq("data_saida", first.date)
+        .eq("alimento_id", foodId)
+        .eq("origem_id", Number(first.originId))
+        .eq("destino", movementNote)
+        .eq("motivo", "Montagem de cesta")
+        .order("id", { ascending: true });
+
+      if (first.usuarioId) query = query.eq("usuario_id", first.usuarioId);
+
+      const { data: movementRows, error: findError } = await query;
+      if (findError) throw findError;
+
+      let remaining = qtyToRemove;
+      for (const movementRow of movementRows || []) {
+        if (remaining <= 0) break;
+        const rowQty = Number(movementRow.quantidade || 0);
+
+        if (rowQty <= remaining + 0.0000001) {
+          const { error: delError } = await supabaseClient
+            .from("saídas")
+            .delete()
+            .eq("id", movementRow.id);
+          if (delError) throw delError;
+          remaining -= rowQty;
+        } else {
+          const { error: updError } = await supabaseClient
+            .from("saídas")
+            .update({ quantidade: rowQty - remaining })
+            .eq("id", movementRow.id);
+          if (updError) throw updError;
+          remaining = 0;
+        }
+      }
+    }
+
+    await removeBasketHistoryAuditRecords({
+      date: first.date,
+      originId: first.originId,
+      userId: first.usuarioId,
+      basketName: first.basketName,
+      composition,
+      basketQty
+    });
+
+    const ids = groupRows.map(row => Number(row.id)).filter(Number.isFinite);
+    if (ids.length) {
+      const { error: basketDeleteError } = await supabaseClient
+        .from("cestas_saidas")
+        .delete()
+        .in("id", ids);
+      if (basketDeleteError) throw basketDeleteError;
+    }
+
+    await reloadFromSupabase();
+    renderAll();
+    showAceSuccess(
+      `${fmt(basketQty)} cesta(s) estornada(s) com sucesso. Itens devolvidos ao estoque.`
+    );
+  } catch (error) {
+    console.error("ACE - erro ao estornar saída de cesta:", error);
+    toast(
+      "Não foi possível estornar a saída da cesta: " +
+      (error?.message || "verifique o Supabase.")
+    );
+  }
 }
 
 
@@ -9915,16 +10280,7 @@ function renderBasketHistoryRows() {
   sourceRows.forEach(row => {
 
     const key =
-      [
-        row.date || "",
-        row.usuarioId || "",
-        row.basketId || "",
-        row.originId || "",
-        row.destination || "",
-        normalizeAceText(
-          row.receivedBy || ""
-        )
-      ].join("||");
+      getBasketHistoryGroupKey(row);
 
 
     if (!groupedMap.has(key)) {
@@ -9970,7 +10326,7 @@ function renderBasketHistoryRows() {
   });
 
 
-  const rows =
+  let rows =
     [...groupedMap.values()]
       .sort((a, b) => {
 
@@ -9990,8 +10346,14 @@ function renderBasketHistoryRows() {
 
         return dbb.localeCompare(da);
 
-      })
-      .slice(0, 30);
+      });
+
+  const filterDate =
+    window.aceBasketHistoryDateFilter || "";
+
+  if (filterDate) {
+    rows = rows.filter(row => row.date === filterDate);
+  }
 
 
   if (!rows.length) {
@@ -10058,8 +10420,18 @@ function renderBasketHistoryRows() {
 
         </div>
 
-        <div class="ace-basket-history-qty">
-          ${fmt(row.basketQty)} cesta(s)
+        <div class="ace-basket-history-side">
+          <div class="ace-basket-history-qty">
+            ${fmt(row.basketQty)} cesta(s)
+          </div>
+
+          <button
+            type="button"
+            class="ace-basket-history-reverse"
+            data-reverse-basket-output="${encodeURIComponent(getBasketHistoryGroupKey(row))}"
+          >
+            ↩️ Estorno
+          </button>
         </div>
 
       </div>
