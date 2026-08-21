@@ -133,7 +133,19 @@ const ACE_OFFLINE_MURAL_KEY =
   "ace_offline_mural_v1";
 
 const ACE_OFFLINE_USER_KEY =
-  "ace_offline_user_v2";
+  "ace_offline_user_v3";
+
+const ACE_OFFLINE_CREDENTIAL_KEY =
+  "ace_offline_credential_v1";
+
+const ACE_OFFLINE_LOGOUT_KEY =
+  "ace_offline_explicit_logout_v1";
+
+const ACE_OFFLINE_QUEUE_KEY =
+  "ace_offline_queue_v1";
+
+let aceOfflineSyncRunning =
+  false;
 
 const ACE_OFFLINE_STATUS_ID =
   "aceOfflineStatus";
@@ -388,6 +400,1240 @@ function clearOfflineUser() {
 }
 
 
+
+function bytesToBase64(
+  bytes
+) {
+
+  let binary = "";
+
+  bytes.forEach(
+    value => {
+      binary +=
+        String.fromCharCode(
+          value
+        );
+    }
+  );
+
+  return btoa(
+    binary
+  );
+
+}
+
+
+async function deriveOfflinePasswordVerifier(
+  password,
+  saltBase64
+) {
+
+  const encoder =
+    new TextEncoder();
+
+  const salt =
+    saltBase64
+      ? Uint8Array.from(
+          atob(
+            saltBase64
+          ),
+          char =>
+            char.charCodeAt(0)
+        )
+      : crypto.getRandomValues(
+          new Uint8Array(16)
+        );
+
+
+  const keyMaterial =
+    await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(
+        String(password || "")
+      ),
+      "PBKDF2",
+      false,
+      [
+        "deriveBits"
+      ]
+    );
+
+
+  const bits =
+    await crypto.subtle.deriveBits(
+      {
+        name:
+          "PBKDF2",
+        salt,
+        iterations:
+          120000,
+        hash:
+          "SHA-256"
+      },
+      keyMaterial,
+      256
+    );
+
+
+  return {
+    salt:
+      bytesToBase64(
+        salt
+      ),
+    verifier:
+      bytesToBase64(
+        new Uint8Array(
+          bits
+        )
+      )
+  };
+
+}
+
+
+async function saveOfflineCredentials(
+  email,
+  password,
+  user
+) {
+
+  if (
+    !email ||
+    !password ||
+    !user?.id
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const result =
+      await deriveOfflinePasswordVerifier(
+        password
+      );
+
+
+    localStorage.setItem(
+      ACE_OFFLINE_CREDENTIAL_KEY,
+      JSON.stringify({
+        email:
+          String(email)
+            .trim()
+            .toLowerCase(),
+        userId:
+          user.id,
+        salt:
+          result.salt,
+        verifier:
+          result.verifier
+      })
+    );
+
+
+    localStorage.setItem(
+      ACE_OFFLINE_LOGOUT_KEY,
+      "0"
+    );
+
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível preparar login offline:",
+      error
+    );
+
+  }
+
+}
+
+
+async function verifyOfflineCredentials(
+  email,
+  password
+) {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_CREDENTIAL_KEY
+      );
+
+
+    if (!raw) {
+      return false;
+    }
+
+
+    const saved =
+      JSON.parse(
+        raw
+      );
+
+
+    if (
+      String(
+        saved?.email || ""
+      )
+        .trim()
+        .toLowerCase() !==
+      String(
+        email || ""
+      )
+        .trim()
+        .toLowerCase()
+    ) {
+      return false;
+    }
+
+
+    if (
+      !saved?.salt ||
+      !saved?.verifier
+    ) {
+      return false;
+    }
+
+
+    const result =
+      await deriveOfflinePasswordVerifier(
+        password,
+        saved.salt
+      );
+
+
+    return (
+      result.verifier ===
+      saved.verifier
+    );
+
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível validar login offline:",
+      error
+    );
+
+    return false;
+
+  }
+
+}
+
+
+function wasExplicitlyLoggedOut() {
+
+  return (
+    localStorage.getItem(
+      ACE_OFFLINE_LOGOUT_KEY
+    ) === "1"
+  );
+
+}
+
+
+function getOfflineQueue() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_QUEUE_KEY
+      );
+
+
+    const queue =
+      raw
+        ? JSON.parse(raw)
+        : [];
+
+
+    return Array.isArray(
+      queue
+    )
+      ? queue
+      : [];
+
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível ler fila offline:",
+      error
+    );
+
+    return [];
+
+  }
+
+}
+
+
+function saveOfflineQueue(
+  queue
+) {
+
+  localStorage.setItem(
+    ACE_OFFLINE_QUEUE_KEY,
+    JSON.stringify(
+      Array.isArray(queue)
+        ? queue
+        : []
+    )
+  );
+
+
+  updateOfflineStatusBadge();
+
+}
+
+
+function enqueueOfflineOperation(
+  type,
+  payload
+) {
+
+  const queue =
+    getOfflineQueue();
+
+
+  queue.push({
+    id:
+      uid(),
+    type,
+    payload,
+    createdAt:
+      new Date()
+        .toISOString()
+  });
+
+
+  saveOfflineQueue(
+    queue
+  );
+
+}
+
+
+function queueOfflineAttendance(
+  payload
+) {
+
+  const queue =
+    getOfflineQueue()
+      .filter(
+        item =>
+          !(
+            item.type ===
+              "attendance" &&
+            item.payload?.date ===
+              payload.date &&
+            Number(
+              item.payload?.personId
+            ) ===
+              Number(
+                payload.personId
+              )
+          )
+      );
+
+
+  queue.push({
+    id:
+      uid(),
+    type:
+      "attendance",
+    payload,
+    createdAt:
+      new Date()
+        .toISOString()
+  });
+
+
+  saveOfflineQueue(
+    queue
+  );
+
+}
+
+
+function saveOfflineDbNow() {
+
+  saveOfflineSnapshot(
+    db
+  );
+
+  renderAll();
+
+  updateOfflineStatusBadge();
+
+}
+
+
+function makeLocalHistoryRecord({
+  id,
+  date,
+  type,
+  originId,
+  foodId,
+  qty,
+  reason = "—",
+  basketType = "—",
+  note = ""
+}) {
+
+  return {
+    id:
+      Number(id),
+    date,
+    type,
+    originId:
+      originId != null
+        ? Number(originId)
+        : null,
+    foodId:
+      foodId != null
+        ? Number(foodId)
+        : null,
+    qty:
+      Number(qty || 0),
+    reason:
+      reason || "—",
+    basketType:
+      basketType || "—",
+    note:
+      note || "",
+    usuarioId:
+      currentUser?.id ||
+      null,
+    createdAt:
+      new Date()
+        .toISOString()
+  };
+
+}
+
+
+function applyLocalEntry({
+  id,
+  historyId,
+  date,
+  originId,
+  foodId,
+  qty,
+  note
+}) {
+
+  db.entries =
+    db.entries || [];
+
+  db.history =
+    db.history || [];
+
+
+  db.entries.unshift({
+    id:
+      Number(id),
+    date,
+    foodId:
+      Number(foodId),
+    qty:
+      Number(qty),
+    originId:
+      Number(originId),
+    usuarioId:
+      currentUser?.id ||
+      null,
+    usuarioNome:
+      getCurrentDisplayName(),
+    note:
+      note || "",
+    createdAt:
+      new Date()
+        .toISOString()
+  });
+
+
+  db.history.unshift(
+    makeLocalHistoryRecord({
+      id:
+        historyId,
+      date,
+      type:
+        "entrada",
+      originId,
+      foodId,
+      qty,
+      reason:
+        "—",
+      basketType:
+        "—",
+      note
+    })
+  );
+
+
+  saveOfflineDbNow();
+
+}
+
+
+function applyLocalMovement({
+  id,
+  historyId,
+  date,
+  type,
+  originId,
+  foodId,
+  qty,
+  reasonName,
+  note
+}) {
+
+  db.movements =
+    db.movements || [];
+
+  db.history =
+    db.history || [];
+
+
+  const sourceTable =
+    type === "saida"
+      ? "saídas"
+      : "perdas";
+
+
+  db.movements.unshift({
+    id:
+      `${type}-${id}`,
+    rawId:
+      Number(id),
+    sourceTable,
+    date,
+    type,
+    foodId:
+      Number(foodId),
+    qty:
+      Number(qty),
+    originId:
+      Number(originId),
+    usuarioId:
+      currentUser?.id ||
+      null,
+    usuarioNome:
+      getCurrentDisplayName(),
+    reasonId:
+      reasonName,
+    note:
+      note || "",
+    createdAt:
+      new Date()
+        .toISOString()
+  });
+
+
+  db.history.unshift(
+    makeLocalHistoryRecord({
+      id:
+        historyId,
+      date,
+      type,
+      originId,
+      foodId,
+      qty,
+      reason:
+        reasonName,
+      basketType:
+        "—",
+      note
+    })
+  );
+
+
+  saveOfflineDbNow();
+
+}
+
+
+function applyLocalAttendance(
+  date,
+  personId,
+  present
+) {
+
+  db.attendance =
+    db.attendance || {};
+
+
+  const list =
+    Array.isArray(
+      db.attendance[date]
+    )
+      ? [
+          ...db.attendance[date]
+        ]
+      : [];
+
+
+  const numericId =
+    Number(
+      personId
+    );
+
+
+  if (present) {
+
+    if (
+      !list.includes(
+        numericId
+      )
+    ) {
+      list.push(
+        numericId
+      );
+    }
+
+  } else {
+
+    const index =
+      list.indexOf(
+        numericId
+      );
+
+
+    if (
+      index >= 0
+    ) {
+      list.splice(
+        index,
+        1
+      );
+    }
+
+  }
+
+
+  db.attendance[date] =
+    list;
+
+
+  saveOfflineDbNow();
+
+}
+
+
+function applyLocalBasketOutput({
+  basketId,
+  basketName,
+  basketImage = "",
+  basketQty,
+  destination,
+  receivedBy,
+  items
+}) {
+
+  const aguaFria =
+    getAguaFriaOrigin();
+
+
+  if (!aguaFria) {
+    throw new Error(
+      "Origem Água Fria não encontrada."
+    );
+  }
+
+
+  const today =
+    isoToday();
+
+  const userId =
+    currentUser?.id ||
+    null;
+
+  const qtyCestas =
+    Number(
+      basketQty
+    );
+
+
+  const composition =
+    (items || []).map(
+      item => ({
+        alimento_id:
+          Number(
+            item.foodId
+          ),
+        alimento:
+          item.foodName,
+        quantidade_por_cesta:
+          Number(
+            item.qty
+          ),
+        quantidade_total:
+          Number(
+            item.qty
+          ) *
+          qtyCestas
+      })
+    );
+
+
+  db.basketOutputs =
+    db.basketOutputs || [];
+
+  db.movements =
+    db.movements || [];
+
+  db.history =
+    db.history || [];
+
+
+  const existingBasket =
+    db.basketOutputs.find(
+      item =>
+        Number(
+          item.basketId
+        ) ===
+          Number(
+            basketId
+          ) &&
+        item.date ===
+          today &&
+        Number(
+          item.originId
+        ) ===
+          Number(
+            aguaFria.id
+          ) &&
+        item.destination ===
+          destination &&
+        String(
+          item.receivedBy || ""
+        ) ===
+          String(
+            destination ===
+              "Comunidade"
+              ? receivedBy || ""
+              : ""
+          ) &&
+        String(
+          item.usuarioId || ""
+        ) ===
+          String(
+            userId || ""
+          )
+    );
+
+
+  if (existingBasket) {
+
+    existingBasket.basketQty =
+      Number(
+        existingBasket.basketQty ||
+        0
+      ) +
+      qtyCestas;
+
+    existingBasket.composition =
+      composition;
+
+  } else {
+
+    db.basketOutputs.unshift({
+      id:
+        newNumericId(),
+      basketId:
+        Number(
+          basketId
+        ),
+      basketName:
+        basketName || "",
+      basketImage:
+        basketImage || "",
+      basketQty:
+        qtyCestas,
+      originId:
+        Number(
+          aguaFria.id
+        ),
+      destination:
+        destination || "",
+      receivedBy:
+        destination ===
+          "Comunidade"
+          ? receivedBy || ""
+          : "",
+      date:
+        today,
+      usuarioId:
+        userId,
+      composition,
+      createdAt:
+        new Date()
+          .toISOString()
+    });
+
+  }
+
+
+  const movementNote =
+    `Cesta: ${basketName} | ${destination}` +
+    (
+      destination ===
+        "Comunidade" &&
+      receivedBy
+        ? ` | Recebido por: ${receivedBy}`
+        : ""
+    );
+
+
+  (items || []).forEach(
+    item => {
+
+      const total =
+        Number(
+          item.qty
+        ) *
+        qtyCestas;
+
+
+      const existingMovement =
+        db.movements.find(
+          movement =>
+            movement.type ===
+              "saida" &&
+            movement.date ===
+              today &&
+            Number(
+              movement.foodId
+            ) ===
+              Number(
+                item.foodId
+              ) &&
+            Number(
+              movement.originId
+            ) ===
+              Number(
+                aguaFria.id
+              ) &&
+            movement.note ===
+              movementNote &&
+            String(
+              movement.usuarioId || ""
+            ) ===
+              String(
+                userId || ""
+              )
+        );
+
+
+      if (existingMovement) {
+
+        existingMovement.qty =
+          Number(
+            existingMovement.qty ||
+            0
+          ) +
+          total;
+
+      } else {
+
+        const rawId =
+          newNumericId();
+
+
+        db.movements.unshift({
+          id:
+            `saida-${rawId}`,
+          rawId,
+          sourceTable:
+            "saídas",
+          date:
+            today,
+          type:
+            "saida",
+          foodId:
+            Number(
+              item.foodId
+            ),
+          qty:
+            total,
+          originId:
+            Number(
+              aguaFria.id
+            ),
+          usuarioId:
+            userId,
+          usuarioNome:
+            getCurrentDisplayName(),
+          reasonId:
+            "Montagem de cesta",
+          note:
+            movementNote,
+          createdAt:
+            new Date()
+              .toISOString()
+        });
+
+      }
+
+
+      db.history.unshift(
+        makeLocalHistoryRecord({
+          id:
+            newNumericId(),
+          date:
+            today,
+          type:
+            "saida",
+          originId:
+            aguaFria.id,
+          foodId:
+            item.foodId,
+          qty:
+            total,
+          reason:
+            "Cesta",
+          basketType:
+            basketName,
+          note:
+            movementNote
+        })
+      );
+
+    }
+  );
+
+
+  saveOfflineDbNow();
+
+}
+
+
+async function syncOfflineOperation(
+  item
+) {
+
+  const payload =
+    item.payload || {};
+
+
+  if (
+    item.type ===
+    "entry"
+  ) {
+
+    const {
+      error: entryError
+    } =
+      await supabaseClient
+        .from(
+          "entradas"
+        )
+        .upsert(
+          payload.entryRow,
+          {
+            onConflict:
+              "id"
+          }
+        );
+
+
+    if (entryError) {
+      throw entryError;
+    }
+
+
+    const {
+      error: historyError
+    } =
+      await supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .upsert(
+          payload.historyRow,
+          {
+            onConflict:
+              "id"
+          }
+        );
+
+
+    if (historyError) {
+      throw historyError;
+    }
+
+
+    return;
+
+  }
+
+
+  if (
+    item.type ===
+    "movement"
+  ) {
+
+    const {
+      error: movementError
+    } =
+      await supabaseClient
+        .from(
+          payload.table
+        )
+        .upsert(
+          payload.row,
+          {
+            onConflict:
+              "id"
+          }
+        );
+
+
+    if (movementError) {
+      throw movementError;
+    }
+
+
+    const {
+      error: historyError
+    } =
+      await supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .upsert(
+          payload.historyRow,
+          {
+            onConflict:
+              "id"
+          }
+        );
+
+
+    if (historyError) {
+      throw historyError;
+    }
+
+
+    return;
+
+  }
+
+
+  if (
+    item.type ===
+    "attendance"
+  ) {
+
+    const table =
+      supabaseClient.from(
+        "presença"
+      );
+
+
+    const {
+      error: deleteError
+    } =
+      await table
+        .delete()
+        .eq(
+          "data",
+          payload.date
+        )
+        .eq(
+          "pessoa_id",
+          Number(
+            payload.personId
+          )
+        );
+
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+
+    if (
+      payload.present
+    ) {
+
+      const {
+        error: insertError
+      } =
+        await table
+          .insert({
+            id:
+              Number(
+                payload.id
+              ),
+            data:
+              payload.date,
+            pessoa_id:
+              Number(
+                payload.personId
+              ),
+            present:
+              true,
+            usuario_id:
+              payload.userId
+          });
+
+
+      if (insertError) {
+        throw insertError;
+      }
+
+    }
+
+
+    return;
+
+  }
+
+
+  if (
+    item.type ===
+    "basket"
+  ) {
+
+    await registerBasketOutput(
+      payload
+    );
+
+    return;
+
+  }
+
+
+  if (
+    item.type ===
+    "manualBasket"
+  ) {
+
+    await registerManualBasketOutput(
+      payload
+    );
+
+    return;
+
+  }
+
+
+  throw new Error(
+    "Operação offline desconhecida: " +
+    item.type
+  );
+
+}
+
+
+async function syncOfflineQueue() {
+
+  if (
+    aceOfflineSyncRunning ||
+    !navigator.onLine ||
+    !currentUser?.id
+  ) {
+    return {
+      synced:
+        0,
+      remaining:
+        getOfflineQueue()
+          .length
+    };
+  }
+
+
+  let queue =
+    getOfflineQueue();
+
+
+  if (!queue.length) {
+
+    return {
+      synced:
+        0,
+      remaining:
+        0
+    };
+
+  }
+
+
+  aceOfflineSyncRunning =
+    true;
+
+
+  let synced =
+    0;
+
+
+  try {
+
+    while (
+      queue.length &&
+      navigator.onLine
+    ) {
+
+      const item =
+        queue[0];
+
+
+      try {
+
+        await syncOfflineOperation(
+          item
+        );
+
+
+        queue.shift();
+
+        synced += 1;
+
+        saveOfflineQueue(
+          queue
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "ACE - falha ao sincronizar operação offline:",
+          item,
+          error
+        );
+
+        break;
+
+      }
+
+    }
+
+
+    return {
+      synced,
+      remaining:
+        queue.length
+    };
+
+
+  } finally {
+
+    aceOfflineSyncRunning =
+      false;
+
+    updateOfflineStatusBadge();
+
+  }
+
+}
+
+
 function saveOfflineMuralPosts(
   posts
 ) {
@@ -483,13 +1729,24 @@ function updateOfflineStatusBadge() {
     document.body.appendChild(badge);
   }
 
+  const pending =
+    getOfflineQueue()
+      .length;
+
+
   if (navigator.onLine) {
-    badge.textContent = "🟢 Online";
+    badge.textContent =
+      pending
+        ? `🟢 Online · ${pending} pendente(s)`
+        : "🟢 Online";
     badge.style.background = "#eaf8ef";
     badge.style.color = "#167a3d";
     badge.style.border = "1px solid #9bd4ad";
   } else {
-    badge.textContent = "🟠 Offline";
+    badge.textContent =
+      pending
+        ? `🟠 Offline · ${pending} pendente(s)`
+        : "🟠 Offline";
     badge.style.background = "#fff6e7";
     badge.style.color = "#a15c00";
     badge.style.border = "1px solid #f1c27d";
@@ -511,9 +1768,27 @@ function setupOfflineStatus() {
       );
 
 
-      // Atualiza silenciosamente os dados e o Mural
-      // quando a internet voltar.
+      // Primeiro envia tudo que foi feito offline.
+      // Só depois baixa novamente o estado oficial do Supabase.
       try {
+
+        const syncResult =
+          await syncOfflineQueue();
+
+
+        if (
+          syncResult.remaining >
+          0
+        ) {
+
+          showAceSuccess(
+            `⚠️ Ainda existem ${syncResult.remaining} operação(ões) aguardando sincronização.`
+          );
+
+          return;
+
+        }
+
 
         db =
           await loadFromSupabase();
@@ -527,10 +1802,23 @@ function setupOfflineStatus() {
 
         renderAll();
 
+
+        if (
+          syncResult.synced >
+          0
+        ) {
+
+          showAceSuccess(
+            `✅ ${syncResult.synced} operação(ões) offline sincronizada(s) com sucesso!`
+          );
+
+        }
+
+
       } catch (error) {
 
         console.warn(
-          "ACE: conexão voltou, mas a sincronização de leitura ainda falhou:",
+          "ACE: conexão voltou, mas a sincronização ainda falhou:",
           error
         );
 
@@ -1217,8 +2505,9 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
 
 function save() {
-  // Compatibilidade com a estrutura antiga.
-  // O banco oficial agora é o Supabase; não usamos localStorage para dados.
+  // O Supabase continua sendo o banco oficial.
+  // O localStorage mantém somente snapshot/fila para funcionamento offline.
+  saveOfflineSnapshot(db);
   return true;
 }
 
@@ -2010,86 +3299,338 @@ async function insertHistoryRecord({
 }
 
 
-async function insertEntry({ date, originId, foodId, qty, note }) {
+async function insertEntry({
+  date,
+  originId,
+  foodId,
+  qty,
+  note
+}) {
+
   rememberCurrentUser();
 
-  const { error } = await supabaseClient.from("entradas").insert({
-    id: newNumericId(),
-    data_entrada: date,
-    alimento_id: Number(foodId),
-    quantidade: qty,
-    origem_id: Number(originId),
-    observacao: note || "",
-    usuario_id: getCurrentUserId()
-  });
 
-  if (error) throw error;
+  const entryId =
+    newNumericId();
 
-  await insertHistoryRecord({
-    date,
-    type: "entrada",
-    originId,
-    foodId,
-    qty,
-    reason: "—",
-    basketType: "—",
-    note: note || ""
-  });
-}
+  const historyId =
+    newNumericId();
 
-async function insertMovement({ date, type, originId, foodId, qty, reasonId, note }) {
-  const userId = getCurrentUserId();
-  const reasonName = db.reasons.find(r => r.id === reasonId)?.name || reasonId || "Outro";
 
-  if (type === "saida") {
-    const { error } = await supabaseClient.from("saídas").insert({
-      id: newNumericId(),
-      data_saida: date,
-      alimento_id: Number(foodId),
-      quantidade: qty,
-      origem_id: Number(originId),
-      destino: note || "",
-      motivo: reasonName,
-      usuario_id: userId
-    });
-    if (error) throw error;
-
-    await insertHistoryRecord({
+  const entryRow = {
+    id:
+      entryId,
+    data_entrada:
       date,
-      type: "saida",
+    alimento_id:
+      Number(
+        foodId
+      ),
+    quantidade:
+      Number(
+        qty
+      ),
+    origem_id:
+      Number(
+        originId
+      ),
+    observacao:
+      note || "",
+    usuario_id:
+      getCurrentUserId()
+  };
+
+
+  const historyRow = {
+    id:
+      historyId,
+    data:
+      date,
+    tipo:
+      "entrada",
+    origem_id:
+      Number(
+        originId
+      ),
+    alimento_id:
+      Number(
+        foodId
+      ),
+    quantidade:
+      Number(
+        qty
+      ),
+    motivo:
+      "—",
+    tipo_cesta:
+      "—",
+    observacao:
+      note || "",
+    usuario_id:
+      getCurrentUserId()
+  };
+
+
+  if (
+    !navigator.onLine
+  ) {
+
+    applyLocalEntry({
+      id:
+        entryId,
+      historyId,
+      date,
       originId,
       foodId,
-      qty,
-      reason: reasonName,
-      basketType: "—",
-      note: note || ""
+      qty:
+        Number(
+          qty
+        ),
+      note
     });
 
-    return;
-  }
-  const { error } = await supabaseClient.from("perdas").insert({
-    id: newNumericId(),
-    data_perda: date,
-    alimento_id: Number(foodId),
-    quantidade: qty,
-    origem_id: Number(originId),
-    motivo: reasonName,
-    observacao: note || "",
-    usuario_id: userId
-  });
-  if (error) throw error;
 
-  await insertHistoryRecord({
-    date,
-    type: "perda",
-    originId,
-    foodId,
-    qty,
-    reason: reasonName,
-    basketType: "—",
-    note: note || ""
-  });
+    enqueueOfflineOperation(
+      "entry",
+      {
+        entryRow,
+        historyRow
+      }
+    );
+
+
+    return;
+
+  }
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from(
+        "entradas"
+      )
+      .insert(
+        entryRow
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  const {
+    error: historyError
+  } =
+    await supabaseClient
+      .from(
+        "historico_movimentacoes"
+      )
+      .insert(
+        historyRow
+      );
+
+
+  if (historyError) {
+    throw historyError;
+  }
+
 }
+
+
+async function insertMovement({
+  date,
+  type,
+  originId,
+  foodId,
+  qty,
+  reasonId,
+  note
+}) {
+
+  const userId =
+    getCurrentUserId();
+
+  const reasonName =
+    db.reasons.find(
+      r =>
+        r.id ===
+        reasonId
+    )?.name ||
+    reasonId ||
+    "Outro";
+
+
+  const movementId =
+    newNumericId();
+
+  const historyId =
+    newNumericId();
+
+
+  const table =
+    type ===
+      "saida"
+      ? "saídas"
+      : "perdas";
+
+
+  const row =
+    type ===
+      "saida"
+      ? {
+          id:
+            movementId,
+          data_saida:
+            date,
+          alimento_id:
+            Number(
+              foodId
+            ),
+          quantidade:
+            Number(
+              qty
+            ),
+          origem_id:
+            Number(
+              originId
+            ),
+          destino:
+            note || "",
+          motivo:
+            reasonName,
+          usuario_id:
+            userId
+        }
+      : {
+          id:
+            movementId,
+          data_perda:
+            date,
+          alimento_id:
+            Number(
+              foodId
+            ),
+          quantidade:
+            Number(
+              qty
+            ),
+          origem_id:
+            Number(
+              originId
+            ),
+          motivo:
+            reasonName,
+          observacao:
+            note || "",
+          usuario_id:
+            userId
+        };
+
+
+  const historyRow = {
+    id:
+      historyId,
+    data:
+      date,
+    tipo:
+      type,
+    origem_id:
+      Number(
+        originId
+      ),
+    alimento_id:
+      Number(
+        foodId
+      ),
+    quantidade:
+      Number(
+        qty
+      ),
+    motivo:
+      reasonName,
+    tipo_cesta:
+      "—",
+    observacao:
+      note || "",
+    usuario_id:
+      userId
+  };
+
+
+  if (
+    !navigator.onLine
+  ) {
+
+    applyLocalMovement({
+      id:
+        movementId,
+      historyId,
+      date,
+      type,
+      originId,
+      foodId,
+      qty:
+        Number(
+          qty
+        ),
+      reasonName,
+      note
+    });
+
+
+    enqueueOfflineOperation(
+      "movement",
+      {
+        table,
+        row,
+        historyRow
+      }
+    );
+
+
+    return;
+
+  }
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from(
+        table
+      )
+      .insert(
+        row
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  const {
+    error: historyError
+  } =
+    await supabaseClient
+      .from(
+        "historico_movimentacoes"
+      )
+      .insert(
+        historyRow
+      );
+
+
+  if (historyError) {
+    throw historyError;
+  }
+
+}
+
 
 async function updateEntry({ id, date, originId, foodId, qty, note }) {
   const { error } = await supabaseClient
@@ -2197,22 +3738,141 @@ async function deleteMovement(id) {
   if (error) throw error;
 }
 
-async function setAttendance(date, personId, present) {
-  const table = supabaseClient.from("presença");
-  const { data: existing, error: findError } = await table.select("id").eq("data", date).eq("pessoa_id", Number(personId)).limit(1);
-  if (findError) throw findError;
+async function setAttendance(
+  date,
+  personId,
+  present
+) {
 
-  if (present) {
-    if (!existing?.length) {
-      const { error } = await table.insert({ id: newNumericId(), data: date, pessoa_id: Number(personId), present: true, usuario_id: getCurrentUserId() });
-      if (error) throw error;
-    }
+  if (
+    !navigator.onLine
+  ) {
+
+    const attendanceId =
+      newNumericId();
+
+
+    applyLocalAttendance(
+      date,
+      personId,
+      present
+    );
+
+
+    queueOfflineAttendance({
+      id:
+        attendanceId,
+      date,
+      personId:
+        Number(
+          personId
+        ),
+      present:
+        Boolean(
+          present
+        ),
+      userId:
+        getCurrentUserId()
+    });
+
+
     return;
+
   }
 
-  const { error } = await table.delete().eq("data", date).eq("pessoa_id", Number(personId));
-  if (error) throw error;
+
+  const table =
+    supabaseClient.from(
+      "presença"
+    );
+
+
+  const {
+    data: existing,
+    error: findError
+  } =
+    await table
+      .select(
+        "id"
+      )
+      .eq(
+        "data",
+        date
+      )
+      .eq(
+        "pessoa_id",
+        Number(
+          personId
+        )
+      )
+      .limit(1);
+
+
+  if (findError) {
+    throw findError;
+  }
+
+
+  if (present) {
+
+    if (
+      !existing?.length
+    ) {
+
+      const {
+        error
+      } =
+        await table.insert({
+          id:
+            newNumericId(),
+          data:
+            date,
+          pessoa_id:
+            Number(
+              personId
+            ),
+          present:
+            true,
+          usuario_id:
+            getCurrentUserId()
+        });
+
+
+      if (error) {
+        throw error;
+      }
+
+    }
+
+
+    return;
+
+  }
+
+
+  const {
+    error
+  } =
+    await table
+      .delete()
+      .eq(
+        "data",
+        date
+      )
+      .eq(
+        "pessoa_id",
+        Number(
+          personId
+        )
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
 }
+
 
 async function deleteCadastro(key, id) {
   if (key === "people") return deletePerson(id);
@@ -3970,10 +5630,17 @@ async function loginUser(e) {
       const offlineDb =
         loadOfflineSnapshot();
 
+      const validCredential =
+        await verifyOfflineCredentials(
+          email,
+          password
+        );
+
 
       if (
         offlineUser &&
         offlineDb &&
+        validCredential &&
         String(
           offlineUser.email || ""
         )
@@ -3984,6 +5651,11 @@ async function loginUser(e) {
 
         currentUser =
           offlineUser;
+
+        localStorage.setItem(
+          ACE_OFFLINE_LOGOUT_KEY,
+          "0"
+        );
 
 
         document
@@ -4005,7 +5677,7 @@ async function loginUser(e) {
 
 
       throw new Error(
-        "OFFLINE_SEM_SESSAO_LOCAL"
+        "OFFLINE_LOGIN_INVALIDO"
       );
 
     }
@@ -4026,6 +5698,12 @@ async function loginUser(e) {
     currentUser = data.user;
 
     saveOfflineUser(
+      currentUser
+    );
+
+    await saveOfflineCredentials(
+      email,
+      password,
       currentUser
     );
 
@@ -4060,6 +5738,19 @@ function traduzirErroLogin(err) {
   const msg = String(
     err?.message || ""
   ).toLowerCase();
+
+
+  if (
+    msg.includes(
+      "offline_login_invalido"
+    )
+  ) {
+
+    return (
+      "Sem internet. E-mail ou senha offline inválidos, ou este aparelho ainda não foi preparado para login offline."
+    );
+
+  }
 
 
   if (
@@ -4374,7 +6065,10 @@ async function logoutUser() {
   if (!ok) return;
 
 
-  clearOfflineUser();
+  localStorage.setItem(
+    ACE_OFFLINE_LOGOUT_KEY,
+    "1"
+  );
 
   const { error } =
     await supabaseClient.auth.signOut();
@@ -13811,6 +15505,56 @@ async function registerManualBasketOutput({
   }
 
 
+  if (
+    !navigator.onLine
+  ) {
+
+    const localBasketId =
+      newNumericId();
+
+
+    applyLocalBasketOutput({
+      basketId:
+        localBasketId,
+      basketName:
+        name,
+      basketImage:
+        "",
+      basketQty:
+        qtyCestas,
+      destination,
+      receivedBy,
+      items:
+        normalizedItems
+    });
+
+
+    enqueueOfflineOperation(
+      "manualBasket",
+      {
+        name,
+        basketQty:
+          qtyCestas,
+        destination,
+        receivedBy,
+        items:
+          normalizedItems.map(
+            item => ({
+              foodId:
+                item.foodId,
+              qty:
+                item.qty
+            })
+          )
+      }
+    );
+
+
+    return;
+
+  }
+
+
   const manualBasketId =
     newNumericId();
 
@@ -14099,6 +15843,46 @@ async function registerBasketOutput({
         Number(item.qty) *
         qtyCestas
     }));
+
+
+  if (
+    !navigator.onLine
+  ) {
+
+    applyLocalBasketOutput({
+      basketId:
+        basket.id,
+      basketName:
+        basket.name,
+      basketImage:
+        getBasketImagePath(
+          basket
+        ),
+      basketQty:
+        qtyCestas,
+      destination,
+      receivedBy,
+      items
+    });
+
+
+    enqueueOfflineOperation(
+      "basket",
+      {
+        basketId:
+          basket.id,
+        basketQty:
+          qtyCestas,
+        destination,
+        receivedBy
+      }
+    );
+
+
+    return;
+
+  }
+
 
   // ========================================================
   // HISTÓRICO DA CESTA
@@ -17763,10 +19547,36 @@ async function initApp() {
 
     if (navigator.onLine) {
 
-      db =
-        await loadFromSupabase();
+      const pendingSync =
+        await syncOfflineQueue();
 
-      saveOfflineSnapshot(db);
+
+      if (
+        pendingSync.remaining >
+        0
+      ) {
+
+        const offlineDb =
+          loadOfflineSnapshot();
+
+        if (offlineDb) {
+          db =
+            offlineDb;
+        } else {
+          db =
+            await loadFromSupabase();
+        }
+
+      } else {
+
+        db =
+          await loadFromSupabase();
+
+        saveOfflineSnapshot(
+          db
+        );
+
+      }
 
     } else {
 
@@ -17933,7 +19743,8 @@ async function startAuth() {
 
     if (
       offlineUser &&
-      offlineDb
+      offlineDb &&
+      !wasExplicitlyLoggedOut()
     ) {
 
       currentUser =
@@ -17963,7 +19774,10 @@ async function startAuth() {
     if (loginError) {
 
       loginError.textContent =
-        "Sem internet. Conecte este aparelho uma vez, faça login normalmente e aguarde os dados carregarem para ativar o modo offline.";
+        offlineUser &&
+        offlineDb
+          ? "Modo offline disponível. Digite seu e-mail e senha para entrar."
+          : "Sem internet. Este aparelho precisa fazer login online pelo menos uma vez para preparar o modo offline.";
 
       loginError.classList.add(
         "show"
@@ -18021,6 +19835,11 @@ async function startAuth() {
 
         saveOfflineUser(
           currentUser
+        );
+
+        localStorage.setItem(
+          ACE_OFFLINE_LOGOUT_KEY,
+          "0"
         );
 
         rememberCurrentUser();
@@ -18100,6 +19919,11 @@ async function startAuth() {
 
       saveOfflineUser(
         currentUser
+      );
+
+      localStorage.setItem(
+        ACE_OFFLINE_LOGOUT_KEY,
+        "0"
       );
 
       rememberCurrentUser();
