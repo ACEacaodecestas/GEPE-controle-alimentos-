@@ -510,7 +510,11 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         registration:
           p["matrícula"] ??
           p.matricula ??
-          ""
+          "",
+        ede: p.ede || "",
+        studyDay: p.dia_estudo || "",
+        studyTime: p.horario || "",
+        sede: p.sede || ""
       })),
 
 
@@ -757,9 +761,30 @@ function getCurrentUserId() {
 }
 
 
-async function insertPerson(name, registration) {
+async function insertPerson({
+  name,
+  registration,
+  ede,
+  studyDay,
+  studyTime,
+  sede
+}) {
   const id = newNumericId();
-  const { error } = await supabaseClient.from("Pessoas").insert({ id, nome: name, "matrícula": registration, ativo: true, usuario_id: getCurrentUserId() });
+
+  const { error } = await supabaseClient
+    .from("Pessoas")
+    .insert({
+      id,
+      nome: name,
+      "matrícula": registration,
+      ede: ede || "",
+      dia_estudo: studyDay || "",
+      horario: studyTime || "",
+      sede: sede || "",
+      ativo: true,
+      usuario_id: getCurrentUserId()
+    });
+
   if (error) throw error;
   return id;
 }
@@ -2876,6 +2901,24 @@ function addUserBar() {
     <span class="user-email">
       ${esc(currentUser.email)}
     </span>
+
+    <button
+      id="installBtn"
+      type="button"
+      style="
+        border:1px solid rgba(255,255,255,.78);
+        background:rgba(255,255,255,.14);
+        color:#fff;
+        border-radius:10px;
+        padding:9px 14px;
+        font-size:14px;
+        font-weight:900;
+        cursor:pointer;
+        white-space:nowrap;
+      "
+    >
+      📲 Instalar aplicativo
+    </button>
 
     <button
       id="logoutBtn"
@@ -5675,7 +5718,139 @@ function renderReport() {
 // 16. CADASTROS
 // ============================================================
 
+function ensurePersonExtraFields() {
+
+  const form =
+    document.getElementById("personForm");
+
+  if (!form || form.dataset.acePersonExtraFields === "1") {
+    return;
+  }
+
+  form.dataset.acePersonExtraFields = "1";
+  form.classList.add("ace-person-form-expanded");
+
+  const submit =
+    form.querySelector('button[type="submit"]');
+
+  const fields =
+    document.createElement("div");
+
+  fields.className = "ace-person-extra-fields";
+
+  fields.innerHTML = `
+    <label class="ace-person-field">
+      <span>Qual EDE</span>
+      <input
+        name="ede"
+        type="text"
+        placeholder="Ex.: EDE 1"
+      >
+    </label>
+
+    <label class="ace-person-field">
+      <span>Dia de Estudo</span>
+      <select name="studyDay">
+        <option value="">Selecione...</option>
+        <option value="Segunda-feira">Segunda-feira</option>
+        <option value="Terça-feira">Terça-feira</option>
+        <option value="Quarta-feira">Quarta-feira</option>
+        <option value="Quinta-feira">Quinta-feira</option>
+        <option value="Sexta-feira">Sexta-feira</option>
+        <option value="Sábado">Sábado</option>
+        <option value="Domingo">Domingo</option>
+      </select>
+    </label>
+
+    <label class="ace-person-field">
+      <span>Horário</span>
+      <input
+        name="studyTime"
+        type="time"
+      >
+    </label>
+
+    <label class="ace-person-field">
+      <span>Sede</span>
+      <input
+        name="sede"
+        type="text"
+        placeholder="Ex.: Sede Água Fria"
+      >
+    </label>
+  `;
+
+  if (submit) {
+    form.insertBefore(fields, submit);
+  } else {
+    form.appendChild(fields);
+  }
+
+  if (!document.getElementById("acePersonExtraFieldsStyle")) {
+    const style = document.createElement("style");
+    style.id = "acePersonExtraFieldsStyle";
+    style.textContent = `
+      #personForm.ace-person-form-expanded{
+        display:grid !important;
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
+        gap:12px;
+        align-items:end;
+      }
+
+      #personForm .ace-person-extra-fields{
+        grid-column:1 / -1;
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:12px;
+      }
+
+      #personForm .ace-person-field{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+        color:#344054;
+        font-size:13px;
+        font-weight:800;
+      }
+
+      #personForm .ace-person-field input,
+      #personForm .ace-person-field select{
+        width:100%;
+        min-height:48px;
+        box-sizing:border-box;
+        padding:10px 12px;
+        border:1px solid #d0dbe5;
+        border-radius:10px;
+        background:#fff;
+        color:#172b3a;
+        font:inherit;
+      }
+
+      @media(max-width:900px){
+        #personForm.ace-person-form-expanded{
+          grid-template-columns:1fr;
+        }
+        #personForm .ace-person-extra-fields{
+          grid-template-columns:1fr 1fr;
+        }
+        #personForm.ace-person-form-expanded button[type="submit"]{
+          width:100%;
+        }
+      }
+
+      @media(max-width:600px){
+        #personForm .ace-person-extra-fields{
+          grid-template-columns:1fr;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 function renderCadastros() {
+
+  ensurePersonExtraFields();
 
   const people =
     document.getElementById(
@@ -5705,7 +5880,11 @@ function renderCadastros() {
                     <br>
 
                     <small>
-                      ${esc(p.registration)}
+                      Matrícula: ${esc(p.registration)}
+                      ${p.ede ? `<br>EDE: ${esc(p.ede)}` : ""}
+                      ${p.studyDay ? `<br>Dia de Estudo: ${esc(p.studyDay)}` : ""}
+                      ${p.studyTime ? `<br>Horário: ${esc(p.studyTime)}` : ""}
+                      ${p.sede ? `<br>Sede: ${esc(p.sede)}` : ""}
                     </small>
 
                   </span>
@@ -8576,6 +8755,8 @@ function bindEvents() {
   if (exportCSVButton) exportCSVButton.addEventListener("click", exportCSV);
 
 
+  ensurePersonExtraFields();
+
   const personForm = document.getElementById("personForm");
   if (personForm) {
     personForm.addEventListener("submit", async e => {
@@ -8583,6 +8764,10 @@ function bindEvents() {
       const f = new FormData(e.target);
       const name = String(f.get("name") || "").trim();
       const registration = String(f.get("registration") || "").trim();
+      const ede = String(f.get("ede") || "").trim();
+      const studyDay = String(f.get("studyDay") || "").trim();
+      const studyTime = String(f.get("studyTime") || "").trim();
+      const sede = String(f.get("sede") || "").trim();
 
       if (!name || !registration) {
         toast("Informe nome e matrícula.");
@@ -8590,10 +8775,17 @@ function bindEvents() {
       }
 
       try {
-        await insertPerson(name, registration);
+        await insertPerson({
+          name,
+          registration,
+          ede,
+          studyDay,
+          studyTime,
+          sede
+        });
         await reloadFromSupabase();
         e.target.reset();
-        toast("Pessoa cadastrada no Supabase.");
+        showAceSuccess("Pessoa cadastrada com sucesso.");
       } catch (error) {
         console.error(error);
         toast("Erro ao cadastrar pessoa: " + (error?.message || "verifique o Supabase."));
@@ -8749,6 +8941,10 @@ async function restoreCloudBackup(obj) {
       id: Number.isSafeInteger(Number(p.id)) ? Number(p.id) : newNumericId(),
       nome: p.name,
       "matrícula": p.registration,
+      ede: p.ede || "",
+      dia_estudo: p.studyDay || "",
+      horario: p.studyTime || "",
+      sede: p.sede || "",
       usuario_id: userId
     }));
     const { error } = await supabaseClient.from("Pessoas").upsert(rows);
@@ -11977,6 +12173,23 @@ function setupPWA() {
       async () => {
 
         if (!deferredPrompt) {
+
+          const standalone =
+            window.matchMedia?.(
+              "(display-mode: standalone)"
+            )?.matches ||
+            window.navigator.standalone === true;
+
+          if (standalone) {
+            toast(
+              "O aplicativo já está instalado neste dispositivo."
+            );
+          } else {
+            toast(
+              "A instalação será liberada pelo navegador quando o aplicativo estiver pronto para instalar."
+            );
+          }
+
           return;
         }
 
@@ -12077,9 +12290,11 @@ async function initApp() {
 
     bindEvents();
 
-    setupPWA();
-
+    // O botão de instalação precisa existir no cabeçalho
+    // antes de setupPWA() conectar o evento de clique.
     addUserBar();
+
+    setupPWA();
 
     renderAll();
 
