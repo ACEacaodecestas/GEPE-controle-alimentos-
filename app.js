@@ -14656,7 +14656,7 @@ function setupPWA() {
     );
 
 
-  // Mantém o botão original visível também no celular.
+  // O botão original continua visível no cabeçalho.
   if (installBtn) {
 
     installBtn.classList.remove(
@@ -14669,6 +14669,7 @@ function setupPWA() {
   }
 
 
+  // Guarda o prompt NATIVO de instalação do navegador.
   window.addEventListener(
     "beforeinstallprompt",
     e => {
@@ -14707,24 +14708,39 @@ function setupPWA() {
             .standalone === true;
 
 
+        // Se já estiver instalado, não tenta instalar novamente.
         if (standalone) {
 
-          await showAceConfirm(
-            "O aplicativo já está instalado neste dispositivo.",
-            "📲 Instalar aplicativo"
+          toast(
+            "Aplicativo já instalado."
           );
 
           return;
         }
 
 
+        // Abre DIRETAMENTE a instalação nativa do PWA.
         if (deferredPrompt) {
 
           try {
 
             deferredPrompt.prompt();
 
-            await deferredPrompt.userChoice;
+            const choice =
+              await deferredPrompt.userChoice;
+
+
+            if (
+              choice?.outcome ===
+              "accepted"
+            ) {
+
+              toast(
+                "Instalação iniciada."
+              );
+
+            }
+
 
             deferredPrompt =
               null;
@@ -14732,25 +14748,47 @@ function setupPWA() {
           } catch (error) {
 
             console.warn(
-              "ACE - erro ao abrir instalação:",
+              "ACE - erro na instalação:",
               error
             );
 
           }
 
-          return;
         }
 
-
-        await showAceConfirm(
-          "Se a janela automática de instalação ainda não aparecer, abra o menu do navegador e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.",
-          "📲 Instalar aplicativo"
-        );
+        // IMPORTANTE:
+        // Não mostramos mais aquela janela azul de instruções.
+        // Se deferredPrompt ainda não existir, o clique não
+        // inventa uma instalação: o navegador precisa primeiro
+        // reconhecer o site como PWA instalável.
 
       }
     );
 
   }
+
+
+  // Quando a instalação terminar, oculta o botão.
+  window.addEventListener(
+    "appinstalled",
+    () => {
+
+      deferredPrompt = null;
+
+      if (installBtn) {
+
+        installBtn.classList.add(
+          "hidden"
+        );
+
+      }
+
+      toast(
+        "Aplicativo instalado com sucesso."
+      );
+
+    }
+  );
 
 
   if (
