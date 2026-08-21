@@ -5905,10 +5905,10 @@ function renderAttendance() {
 
                   <div class="person-reg">
                     Matrícula: ${esc(p.registration)}
-                    ${p.ede ? ` · EDE: ${esc(p.ede)}` : ""}
-                    ${p.studyDay ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
-                    ${p.studyTime ? ` · Horário: ${esc(p.studyTime)}` : ""}
-                    ${p.sede ? ` · Sede: ${esc(p.sede)}` : ""}
+                    ${String(p.ede || "").trim() ? ` · EDE: ${esc(p.ede)}` : ""}
+                    ${String(p.studyDay || "").trim() ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
+                    ${String(p.studyTime || "").trim() ? ` · Horário: ${esc(p.studyTime)}` : ""}
+                    ${String(p.sede || "").trim() ? ` · Sede: ${esc(p.sede)}` : ""}
                   </div>
 
                 </div>
@@ -7332,7 +7332,7 @@ async function delBy(key, id) {
       await reloadFromSupabase();
 
       showAceSuccess(
-        "Pessoa excluída com sucesso!"
+        "✅ Excluído com sucesso!"
       );
 
 
