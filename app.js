@@ -14656,30 +14656,67 @@ function setupPWA() {
     );
 
 
-  // O botão original continua visível no cabeçalho.
+  const isStandalone =
+    () =>
+      window.matchMedia?.(
+        "(display-mode: standalone)"
+      )?.matches ||
+      window.navigator
+        .standalone === true;
+
+
+  // ==========================================================
+  // IMPORTANTE:
+  // O navegador só permite abrir a instalação nativa quando
+  // ele próprio dispara "beforeinstallprompt".
+  //
+  // Portanto:
+  // - enquanto o prompt não estiver disponível, escondemos o
+  //   botão para evitar clique que não faz nada;
+  // - assim que o navegador liberar a instalação, o botão
+  //   aparece;
+  // - ao clicar, abre DIRETAMENTE o prompt nativo.
+  // ==========================================================
+
   if (installBtn) {
 
-    installBtn.classList.remove(
-      "hidden"
-    );
+    if (isStandalone()) {
 
-    installBtn.style.display =
-      "";
+      installBtn.classList.add(
+        "hidden"
+      );
+
+      installBtn.style.display =
+        "none";
+
+    } else {
+
+      installBtn.classList.add(
+        "hidden"
+      );
+
+      installBtn.style.display =
+        "none";
+
+    }
 
   }
 
 
-  // Guarda o prompt NATIVO de instalação do navegador.
   window.addEventListener(
     "beforeinstallprompt",
-    e => {
+    event => {
 
-      e.preventDefault();
+      event.preventDefault();
 
-      deferredPrompt = e;
+      deferredPrompt =
+        event;
 
 
-      if (installBtn) {
+      if (
+        installBtn &&
+        !isStandalone()
+      ) {
 
         installBtn.classList.remove(
           "hidden"
@@ -14700,67 +14737,69 @@ function setupPWA() {
       "click",
       async () => {
 
-        const standalone =
-          window.matchMedia?.(
-            "(display-mode: standalone)"
-          )?.matches ||
-          window.navigator
-            .standalone === true;
+        if (
+          isStandalone()
+        ) {
 
-
-        // Se já estiver instalado, não tenta instalar novamente.
-        if (standalone) {
-
-          toast(
-            "Aplicativo já instalado."
+          installBtn.classList.add(
+            "hidden"
           );
+
+          installBtn.style.display =
+            "none";
 
           return;
         }
 
 
-        // Abre DIRETAMENTE a instalação nativa do PWA.
-        if (deferredPrompt) {
-
-          try {
-
-            deferredPrompt.prompt();
-
-            const choice =
-              await deferredPrompt.userChoice;
+        // O botão só fica visível quando deferredPrompt existe.
+        if (!deferredPrompt) {
+          return;
+        }
 
 
-            if (
-              choice?.outcome ===
-              "accepted"
-            ) {
+        try {
 
-              toast(
-                "Instalação iniciada."
-              );
+          deferredPrompt.prompt();
 
-            }
+          const choice =
+            await deferredPrompt
+              .userChoice;
 
 
-            deferredPrompt =
-              null;
+          if (
+            choice?.outcome ===
+            "accepted"
+          ) {
 
-          } catch (error) {
-
-            console.warn(
-              "ACE - erro na instalação:",
-              error
-            );
+            installBtn.disabled =
+              true;
 
           }
 
-        }
 
-        // IMPORTANTE:
-        // Não mostramos mais aquela janela azul de instruções.
-        // Se deferredPrompt ainda não existir, o clique não
-        // inventa uma instalação: o navegador precisa primeiro
-        // reconhecer o site como PWA instalável.
+          deferredPrompt =
+            null;
+
+
+          // Depois de usar o prompt, o navegador exige um novo
+          // beforeinstallprompt para permitir outra tentativa.
+          installBtn.classList.add(
+            "hidden"
+          );
+
+          installBtn.style.display =
+            "none";
+
+
+        } catch (error) {
+
+          console.warn(
+            "ACE - erro ao abrir instalação nativa:",
+            error
+          );
+
+        }
 
       }
     );
@@ -14768,12 +14807,13 @@ function setupPWA() {
   }
 
 
-  // Quando a instalação terminar, oculta o botão.
   window.addEventListener(
     "appinstalled",
     () => {
 
-      deferredPrompt = null;
+      deferredPrompt =
+        null;
+
 
       if (installBtn) {
 
@@ -14781,10 +14821,14 @@ function setupPWA() {
           "hidden"
         );
 
+        installBtn.style.display =
+          "none";
+
       }
 
-      toast(
-        "Aplicativo instalado com sucesso."
+
+      showAceSuccess(
+        "✅ Aplicativo instalado com sucesso!"
       );
 
     }
@@ -14811,10 +14855,11 @@ function setupPWA() {
           .then(
             registration => {
 
-              // Força a verificação da versão mais recente
-              // do Service Worker sempre que o app abrir online.
-              registration.update()
-                .catch(() => {});
+              registration
+                .update()
+                .catch(
+                  () => {}
+                );
 
             }
           )
