@@ -1,135 +1,435 @@
-const CACHE = "controle-alimentos-offline-v10";
+const CACHE = "controle-alimentos-offline-v11";
+
+const SCOPE_URL =
+  self.registration.scope;
+
+const INDEX_URL =
+  new URL(
+    "index.html",
+    SCOPE_URL
+  ).href;
+
+const ROOT_URL =
+  SCOPE_URL;
 
 const ASSETS = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./app.js",
-  "./manifest-v3.json",
-  "./icon-192.png",
-  "./icon-512.png"
+  ROOT_URL,
+  INDEX_URL,
+  new URL("style.css", SCOPE_URL).href,
+  new URL("app.js", SCOPE_URL).href,
+  new URL("manifest-v3.json", SCOPE_URL).href,
+  new URL("icon-192.png", SCOPE_URL).href,
+  new URL("icon-512.png", SCOPE_URL).href
 ];
 
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then(cache => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
-  );
-});
 
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then(keys =>
-        Promise.all(
-          keys
-            .filter(key => key !== CACHE)
-            .map(key => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
-  );
-});
+// ============================================================
+// INSTALAÇÃO
+// ============================================================
+//
+// Salva cada arquivo separadamente.
+// Se um arquivo opcional falhar, o Service Worker NÃO perde
+// todo o cache. O index.html é tratado como obrigatório.
+//
+self.addEventListener(
+  "install",
+  event => {
 
-self.addEventListener("fetch", event => {
-  const request = event.request;
+    event.waitUntil(
+      (async () => {
 
-  if (request.method !== "GET") {
-    return;
-  }
+        const cache =
+          await caches.open(
+            CACHE
+          );
 
-  const url = new URL(request.url);
 
-  // API/Supabase não entra no cache de arquivos estáticos.
-  if (
-    url.hostname.includes("supabase.co") ||
-    url.hostname.includes("supabase.in")
-  ) {
-    return;
-  }
+        // index.html é obrigatório para abrir offline
+        const indexResponse =
+          await fetch(
+            INDEX_URL,
+            {
+              cache:
+                "reload"
+            }
+          );
 
-  // Navegação: ONLINE pega a versão nova.
-  // OFFLINE cai no index.html salvo.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request, { cache: "no-store" })
-        .then(response => {
-          const copy = response.clone();
 
-          caches.open(CACHE)
-            .then(cache =>
-              cache.put("./index.html", copy)
-            );
-
-          return response;
-        })
-        .catch(() =>
-          caches.match("./index.html")
-        )
-    );
-    return;
-  }
-
-  // Arquivos principais do app:
-  // NETWORK-FIRST para não ficar preso em app.js antigo.
-  const isCoreAsset =
-    url.origin === self.location.origin &&
-    (
-      url.pathname.endsWith("/app.js") ||
-      url.pathname.endsWith("/style.css") ||
-      url.pathname.endsWith("/manifest-v3.json") ||
-      url.pathname.endsWith("/sw.js")
-    );
-
-  if (isCoreAsset) {
-    event.respondWith(
-      fetch(request, { cache: "no-store" })
-        .then(response => {
-          const copy = response.clone();
-
-          caches.open(CACHE)
-            .then(cache =>
-              cache.put(request, copy)
-            );
-
-          return response;
-        })
-        .catch(() =>
-          caches.match(request)
-        )
-    );
-    return;
-  }
-
-  // Outros arquivos estáticos: cache-first.
-  event.respondWith(
-    caches
-      .match(request)
-      .then(cached => {
-        if (cached) {
-          return cached;
+        if (
+          !indexResponse ||
+          !indexResponse.ok
+        ) {
+          throw new Error(
+            "Não foi possível armazenar index.html para uso offline."
+          );
         }
 
-        return fetch(request)
-          .then(response => {
+
+        await cache.put(
+          INDEX_URL,
+          indexResponse.clone()
+        );
+
+
+        // Também guarda a raiz do aplicativo
+        await cache.put(
+          ROOT_URL,
+          indexResponse.clone()
+        );
+
+
+        // Demais arquivos: tenta salvar individualmente
+        await Promise.allSettled(
+          ASSETS
+            .filter(
+              url =>
+                url !== INDEX_URL &&
+                url !== ROOT_URL
+            )
+            .map(
+              async url => {
+
+                const response =
+                  await fetch(
+                    url,
+                    {
+                      cache:
+                        "reload"
+                    }
+                  );
+
+
+                if (
+                  response &&
+                  response.ok
+                ) {
+
+                  await cache.put(
+                    url,
+                    response.clone()
+                  );
+
+                }
+
+              }
+            )
+        );
+
+
+        await self.skipWaiting();
+
+      })()
+    );
+
+  }
+);
+
+
+// ============================================================
+// ATIVAÇÃO
+// ============================================================
+
+self.addEventListener(
+  "activate",
+  event => {
+
+    event.waitUntil(
+      (async () => {
+
+        const keys =
+          await caches.keys();
+
+
+        await Promise.all(
+          keys
+            .filter(
+              key =>
+                key !== CACHE
+            )
+            .map(
+              key =>
+                caches.delete(
+                  key
+                )
+            )
+        );
+
+
+        await self.clients.claim();
+
+      })()
+    );
+
+  }
+);
+
+
+// ============================================================
+// FETCH
+// ============================================================
+
+self.addEventListener(
+  "fetch",
+  event => {
+
+    const request =
+      event.request;
+
+
+    if (
+      request.method !==
+      "GET"
+    ) {
+      return;
+    }
+
+
+    const url =
+      new URL(
+        request.url
+      );
+
+
+    // --------------------------------------------------------
+    // Supabase e APIs externas:
+    // não entram no cache do shell do aplicativo.
+    // --------------------------------------------------------
+
+    if (
+      url.hostname.includes(
+        "supabase.co"
+      ) ||
+      url.hostname.includes(
+        "supabase.in"
+      )
+    ) {
+      return;
+    }
+
+
+    // --------------------------------------------------------
+    // NAVEGAÇÃO DO APP
+    //
+    // Primeiro devolve o index.html do cache.
+    // Isso garante que o PWA ABRA mesmo sem Wi-Fi/dados.
+    //
+    // Em paralelo, quando houver internet, atualiza o cache.
+    // --------------------------------------------------------
+
+    if (
+      request.mode ===
+      "navigate"
+    ) {
+
+      event.respondWith(
+        (async () => {
+
+          const cache =
+            await caches.open(
+              CACHE
+            );
+
+
+          const cachedIndex =
+            await cache.match(
+              INDEX_URL
+            ) ||
+            await cache.match(
+              ROOT_URL
+            );
+
+
+          // Atualiza em segundo plano quando online
+          const updatePromise =
+            fetch(
+              request,
+              {
+                cache:
+                  "no-store"
+              }
+            )
+              .then(
+                async response => {
+
+                  if (
+                    response &&
+                    response.ok
+                  ) {
+
+                    await cache.put(
+                      INDEX_URL,
+                      response.clone()
+                    );
+
+                    await cache.put(
+                      ROOT_URL,
+                      response.clone()
+                    );
+
+                  }
+
+
+                  return response;
+
+                }
+              )
+              .catch(
+                () =>
+                  null
+              );
+
+
+          if (
+            cachedIndex
+          ) {
+
+            event.waitUntil(
+              updatePromise
+            );
+
+            return cachedIndex;
+
+          }
+
+
+          const networkResponse =
+            await updatePromise;
+
+
+          if (
+            networkResponse
+          ) {
+            return networkResponse;
+          }
+
+
+          return new Response(
+            `
+              <!doctype html>
+              <html lang="pt-BR">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width,initial-scale=1">
+                  <title>ACE - Offline</title>
+                </head>
+                <body style="font-family:Arial,sans-serif;padding:30px;text-align:center">
+                  <h2>ACE Controle de Alimentos</h2>
+                  <p>O aplicativo ainda não terminou de preparar o modo offline.</p>
+                  <p>Conecte-se à internet uma vez e abra o aplicativo novamente.</p>
+                </body>
+              </html>
+            `,
+            {
+              headers: {
+                "Content-Type":
+                  "text/html; charset=utf-8"
+              }
+            }
+          );
+
+        })()
+      );
+
+      return;
+
+    }
+
+
+    // --------------------------------------------------------
+    // ARQUIVOS DO PRÓPRIO APP
+    //
+    // Cache-first para funcionar offline.
+    // Quando não estiver salvo, busca na rede e guarda.
+    // --------------------------------------------------------
+
+    if (
+      url.origin ===
+      self.location.origin &&
+      url.href.startsWith(
+        SCOPE_URL
+      )
+    ) {
+
+      event.respondWith(
+        (async () => {
+
+          const cache =
+            await caches.open(
+              CACHE
+            );
+
+
+          const cached =
+            await cache.match(
+              request
+            );
+
+
+          if (
+            cached
+          ) {
+            return cached;
+          }
+
+
+          try {
+
+            const response =
+              await fetch(
+                request
+              );
+
+
             if (
               response &&
-              response.status === 200 &&
-              response.type === "basic"
+              response.ok
             ) {
-              const copy = response.clone();
 
-              caches.open(CACHE)
-                .then(cache =>
-                  cache.put(request, copy)
-                );
+              await cache.put(
+                request,
+                response.clone()
+              );
+
             }
 
+
             return response;
-          });
-      })
-  );
-});
+
+
+          } catch {
+
+            // CSS/JS ausente não deve derrubar a navegação,
+            // mas devolvemos erro controlado para o recurso.
+            return new Response(
+              "",
+              {
+                status:
+                  503,
+                statusText:
+                  "Offline"
+              }
+            );
+
+          }
+
+        })()
+      );
+
+      return;
+
+    }
+
+
+    // --------------------------------------------------------
+    // Conteúdo externo (ex.: vídeo por link):
+    // funciona somente quando houver internet.
+    // --------------------------------------------------------
+
+    event.respondWith(
+      fetch(
+        request
+      )
+    );
+
+  }
+);
