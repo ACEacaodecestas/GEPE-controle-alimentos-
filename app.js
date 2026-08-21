@@ -9803,6 +9803,49 @@ async function deleteHistoryMovements() {
 
 // ============================================================
 
+function openDefaultMuralAcePage() {
+
+  document
+    .querySelectorAll(
+      ".tab"
+    )
+    .forEach(
+      x =>
+        x.classList.toggle(
+          "active",
+          x.dataset.page ===
+            "muralAce"
+        )
+    );
+
+
+  document
+    .querySelectorAll(
+      ".page"
+    )
+    .forEach(
+      x =>
+        x.classList.remove(
+          "active"
+        )
+    );
+
+
+  const muralPage =
+    document.getElementById(
+      "muralAce"
+    );
+
+
+  if (muralPage) {
+    muralPage.classList.add(
+      "active"
+    );
+  }
+
+}
+
+
 function nav() {
 
   document
@@ -10927,6 +10970,158 @@ function ensureBasketStyles() {
       cursor:pointer;
     }
 
+    .ace-manual-basket{
+      margin-top:28px;
+      padding:22px;
+      border:1px solid #cfe0ed;
+      border-radius:16px;
+      background:#f8fbfd;
+    }
+
+    .ace-manual-basket-title{
+      margin:0;
+      color:#0b3a63;
+      font-size:23px;
+      font-weight:900;
+    }
+
+    .ace-manual-basket-subtitle{
+      margin:5px 0 18px;
+      color:#667085;
+      font-size:14px;
+      line-height:1.45;
+    }
+
+    .ace-manual-basket-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+
+    .ace-manual-basket-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      color:#344054;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .ace-manual-basket-field.full{
+      grid-column:1/-1;
+    }
+
+    .ace-manual-basket-field input,
+    .ace-manual-basket-field select{
+      width:100%;
+      min-height:44px;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border:1px solid #cfdbe5;
+      border-radius:10px;
+      background:#fff;
+      color:#17324d;
+      font:inherit;
+    }
+
+    .ace-manual-items-box{
+      grid-column:1/-1;
+      padding:15px;
+      border:1px solid #d8e2ea;
+      border-radius:12px;
+      background:#fff;
+    }
+
+    .ace-manual-items-title{
+      margin-bottom:10px;
+      color:#0b3a63;
+      font-size:15px;
+      font-weight:900;
+    }
+
+    .ace-manual-item-add{
+      display:grid;
+      grid-template-columns:1fr 150px auto;
+      gap:9px;
+      align-items:end;
+    }
+
+    .ace-manual-add-btn{
+      min-height:44px;
+      padding:9px 14px;
+      border:0;
+      border-radius:9px;
+      background:#0b4b7a;
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-manual-items-list{
+      display:grid;
+      gap:8px;
+      margin-top:13px;
+    }
+
+    .ace-manual-item-row{
+      display:grid;
+      grid-template-columns:1fr auto auto;
+      gap:10px;
+      align-items:center;
+      padding:9px 11px;
+      border-radius:9px;
+      background:#f4f7f9;
+    }
+
+    .ace-manual-item-name{
+      color:#17324d;
+      font-weight:800;
+    }
+
+    .ace-manual-item-qty{
+      min-width:72px;
+      color:#0b3a63;
+      text-align:right;
+      font-weight:900;
+    }
+
+    .ace-manual-remove{
+      border:1px solid #dc2626;
+      border-radius:8px;
+      background:#fff;
+      color:#dc2626;
+      padding:6px 9px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-manual-empty{
+      padding:13px;
+      border:1px dashed #ccd8e2;
+      border-radius:9px;
+      color:#667085;
+      text-align:center;
+      font-size:13px;
+    }
+
+    .ace-manual-register{
+      width:100%;
+      margin-top:16px;
+      padding:13px 15px;
+      border:0;
+      border-radius:10px;
+      background:#0b4b7a;
+      color:#fff;
+      font-size:15px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-manual-register:disabled{
+      opacity:.62;
+      cursor:wait;
+    }
+
     .ace-basket-history{
       margin-top:28px;
       padding-top:22px;
@@ -11088,6 +11283,19 @@ function ensureBasketStyles() {
 
       .ace-basket-edit-row{
         grid-template-columns:1fr auto auto auto;
+      }
+
+      .ace-manual-basket-grid{
+        grid-template-columns:1fr;
+      }
+
+      .ace-manual-basket-field.full,
+      .ace-manual-items-box{
+        grid-column:auto;
+      }
+
+      .ace-manual-item-add{
+        grid-template-columns:1fr;
       }
     }
 
@@ -11350,6 +11558,138 @@ function renderBasketModule() {
       }
 
     </div>
+
+    <div class="ace-manual-basket">
+
+      <h3 class="ace-manual-basket-title">
+        🧺 Montar cesta manualmente
+      </h3>
+
+      <div class="ace-manual-basket-subtitle">
+        Monte uma cesta exclusiva para esta saída.
+        Informe o nome, os alimentos, as quantidades e o destino.
+        Os itens serão debitados do estoque de Água Fria.
+      </div>
+
+      <div class="ace-manual-basket-grid">
+
+        <label class="ace-manual-basket-field">
+          Nome da cesta
+          <input
+            id="manualBasketName"
+            type="text"
+            placeholder="Ex.: Cesta Emergencial"
+          >
+        </label>
+
+        <label class="ace-manual-basket-field">
+          Quantidade de cestas
+          <input
+            id="manualBasketQty"
+            type="number"
+            min="1"
+            step="1"
+            value="1"
+          >
+        </label>
+
+        <label class="ace-manual-basket-field">
+          Destino
+          <select id="manualBasketDestination">
+            <option value="">Selecione...</option>
+            <option value="Messejana">Messejana</option>
+            <option value="Praia do Futuro">Praia do Futuro</option>
+            <option value="Comunidade">Comunidade</option>
+          </select>
+        </label>
+
+        <label
+          id="manualBasketReceivedWrap"
+          class="ace-manual-basket-field"
+          style="display:none"
+        >
+          Nome da pessoa que recebeu
+          <input
+            id="manualBasketReceivedBy"
+            type="text"
+            placeholder="Digite o nome de quem recebeu"
+          >
+        </label>
+
+        <div class="ace-manual-items-box">
+
+          <div class="ace-manual-items-title">
+            Alimentos da cesta
+          </div>
+
+          <div class="ace-manual-item-add">
+
+            <label class="ace-manual-basket-field">
+              Alimento
+              <select id="manualBasketFood">
+                <option value="">Selecione...</option>
+                ${
+                  (db.foods || [])
+                    .slice()
+                    .sort(
+                      (a,b) =>
+                        String(a.name).localeCompare(
+                          String(b.name),
+                          "pt-BR"
+                        )
+                    )
+                    .map(
+                      food => `
+                        <option value="${food.id}">
+                          ${esc(food.name)}
+                        </option>
+                      `
+                    )
+                    .join("")
+                }
+              </select>
+            </label>
+
+            <label class="ace-manual-basket-field">
+              Qtd. por cesta
+              <input
+                id="manualBasketFoodQty"
+                type="number"
+                min="1"
+                step="1"
+                value="1"
+              >
+            </label>
+
+            <button
+              id="manualBasketAddFood"
+              type="button"
+              class="ace-manual-add-btn"
+            >
+              + Adicionar
+            </button>
+
+          </div>
+
+          <div
+            id="manualBasketItemsList"
+            class="ace-manual-items-list"
+          ></div>
+
+        </div>
+
+      </div>
+
+      <button
+        id="manualBasketRegister"
+        type="button"
+        class="ace-manual-register"
+      >
+        🧺 Registrar saída da cesta manual
+      </button>
+
+    </div>
+
 
     <div class="ace-basket-history">
 
@@ -11631,6 +11971,434 @@ function renderBasketModule() {
       );
 
     });
+
+
+  // ========================================================
+  // CESTA MANUAL
+  // ========================================================
+
+  let manualBasketItems =
+    [];
+
+
+  const manualDestination =
+    module.querySelector(
+      "#manualBasketDestination"
+    );
+
+  const manualReceivedWrap =
+    module.querySelector(
+      "#manualBasketReceivedWrap"
+    );
+
+  const manualReceivedInput =
+    module.querySelector(
+      "#manualBasketReceivedBy"
+    );
+
+
+  manualDestination
+    ?.addEventListener(
+      "change",
+      () => {
+
+        const community =
+          manualDestination.value ===
+          "Comunidade";
+
+        if (manualReceivedWrap) {
+          manualReceivedWrap.style.display =
+            community
+              ? ""
+              : "none";
+        }
+
+        if (
+          !community &&
+          manualReceivedInput
+        ) {
+          manualReceivedInput.value =
+            "";
+        }
+
+      }
+    );
+
+
+  const renderManualBasketItems =
+    () => {
+
+      const list =
+        module.querySelector(
+          "#manualBasketItemsList"
+        );
+
+      if (!list) {
+        return;
+      }
+
+
+      if (!manualBasketItems.length) {
+
+        list.innerHTML = `
+          <div class="ace-manual-empty">
+            Nenhum alimento adicionado à cesta.
+          </div>
+        `;
+
+        return;
+      }
+
+
+      list.innerHTML =
+        manualBasketItems
+          .map(
+            item => `
+
+              <div
+                class="ace-manual-item-row"
+                data-manual-food-row="${item.foodId}"
+              >
+
+                <div class="ace-manual-item-name">
+                  ${esc(
+                    getName(
+                      db.foods,
+                      item.foodId
+                    )
+                  )}
+                </div>
+
+                <div class="ace-manual-item-qty">
+                  ${fmt(item.qty)} por cesta
+                </div>
+
+                <button
+                  type="button"
+                  class="ace-manual-remove"
+                  data-manual-remove-food="${item.foodId}"
+                >
+                  ×
+                </button>
+
+              </div>
+
+            `
+          )
+          .join("");
+
+
+      list
+        .querySelectorAll(
+          "[data-manual-remove-food]"
+        )
+        .forEach(
+          button => {
+
+            button.onclick =
+              () => {
+
+                const foodId =
+                  Number(
+                    button.dataset
+                      .manualRemoveFood
+                  );
+
+                manualBasketItems =
+                  manualBasketItems
+                    .filter(
+                      item =>
+                        Number(
+                          item.foodId
+                        ) !==
+                        foodId
+                    );
+
+                renderManualBasketItems();
+
+              };
+
+          }
+        );
+
+    };
+
+
+  renderManualBasketItems();
+
+
+  module
+    .querySelector(
+      "#manualBasketAddFood"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        const foodId =
+          Number(
+            module.querySelector(
+              "#manualBasketFood"
+            )?.value || 0
+          );
+
+        const qty =
+          Number(
+            module.querySelector(
+              "#manualBasketFoodQty"
+            )?.value || 0
+          );
+
+
+        if (!foodId) {
+          toast(
+            "Selecione um alimento."
+          );
+          return;
+        }
+
+
+        if (
+          !Number.isFinite(qty) ||
+          qty <= 0
+        ) {
+          toast(
+            "Informe uma quantidade válida."
+          );
+          return;
+        }
+
+
+        const existing =
+          manualBasketItems.find(
+            item =>
+              Number(item.foodId) ===
+              foodId
+          );
+
+
+        if (existing) {
+          existing.qty =
+            qty;
+        } else {
+          manualBasketItems.push({
+            foodId,
+            qty
+          });
+        }
+
+
+        const foodSelect =
+          module.querySelector(
+            "#manualBasketFood"
+          );
+
+        const foodQty =
+          module.querySelector(
+            "#manualBasketFoodQty"
+          );
+
+        if (foodSelect) {
+          foodSelect.value = "";
+        }
+
+        if (foodQty) {
+          foodQty.value = "1";
+        }
+
+
+        renderManualBasketItems();
+
+      }
+    );
+
+
+  module
+    .querySelector(
+      "#manualBasketRegister"
+    )
+    ?.addEventListener(
+      "click",
+      async event => {
+
+        const button =
+          event.currentTarget;
+
+        const name =
+          module.querySelector(
+            "#manualBasketName"
+          )?.value
+            ?.trim() || "";
+
+        const basketQty =
+          Number(
+            module.querySelector(
+              "#manualBasketQty"
+            )?.value || 0
+          );
+
+        const destination =
+          module.querySelector(
+            "#manualBasketDestination"
+          )?.value || "";
+
+        const receivedBy =
+          module.querySelector(
+            "#manualBasketReceivedBy"
+          )?.value
+            ?.trim() || "";
+
+
+        if (!name) {
+          toast(
+            "Informe o nome da cesta."
+          );
+          return;
+        }
+
+
+        if (
+          !Number.isInteger(basketQty) ||
+          basketQty <= 0
+        ) {
+          toast(
+            "Informe uma quantidade válida de cestas."
+          );
+          return;
+        }
+
+
+        if (!destination) {
+          toast(
+            "Selecione o destino."
+          );
+          return;
+        }
+
+
+        if (
+          destination ===
+            "Comunidade" &&
+          !receivedBy
+        ) {
+          toast(
+            "Informe o nome da pessoa que recebeu."
+          );
+          return;
+        }
+
+
+        if (
+          !manualBasketItems.length
+        ) {
+          toast(
+            "Adicione pelo menos um alimento à cesta."
+          );
+          return;
+        }
+
+
+        const confirmed =
+          await showAceConfirm(
+            `Confirmar saída de ${basketQty} cesta(s) "${name}"?\n\n` +
+            `Origem: Água Fria\n` +
+            `Destino: ${destination}\n` +
+            `Itens diferentes: ${manualBasketItems.length}` +
+            (
+              destination ===
+                "Comunidade"
+                ? `\nRecebido por: ${receivedBy}`
+                : ""
+            ),
+            "🧺 Confirmar cesta manual"
+          );
+
+
+        if (confirmed === false) {
+          return;
+        }
+
+
+        button.disabled = true;
+        const originalText =
+          button.textContent;
+        button.textContent =
+          "Registrando...";
+
+
+        try {
+
+          await registerManualBasketOutput({
+            name,
+            basketQty,
+            destination,
+            receivedBy,
+            items:
+              manualBasketItems
+          });
+
+
+          db =
+            await loadFromSupabase();
+
+          renderAll();
+
+
+          showAceSuccess(
+            `${basketQty} cesta(s) "${name}" registrada(s) com sucesso!`
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO NA CESTA MANUAL:",
+            error
+          );
+
+
+          if (
+            error?.code ===
+              "ACE_BASKET_STOCK_INSUFFICIENT"
+          ) {
+
+            showBasketStockError({
+              basketName:
+                error.basketName ||
+                name,
+              basketQty:
+                error.basketQty ||
+                basketQty,
+              shortages:
+                error.shortages ||
+                []
+            });
+
+          } else {
+
+            await showAceConfirm(
+              "Não foi possível registrar a cesta manual.\n\n" +
+              (
+                error?.message ||
+                "Verifique o Supabase."
+              ),
+              "❌ Erro"
+            );
+
+          }
+
+
+        } finally {
+
+          button.disabled =
+            false;
+          button.textContent =
+            originalText;
+
+        }
+
+      }
+    );
 
 
   const basketHistoryDateFilter =
@@ -12306,6 +13074,326 @@ function showBasketStockError({
     .onclick = () => {
       modal.remove();
     };
+
+}
+
+
+
+async function registerManualBasketOutput({
+  name,
+  basketQty,
+  destination,
+  receivedBy,
+  items
+}) {
+
+  const aguaFria =
+    getAguaFriaOrigin();
+
+  if (!aguaFria) {
+    throw new Error(
+      "A origem Água Fria não foi encontrada."
+    );
+  }
+
+
+  const qtyCestas =
+    Number(
+      basketQty
+    );
+
+
+  if (
+    !Number.isInteger(
+      qtyCestas
+    ) ||
+    qtyCestas <= 0
+  ) {
+    throw new Error(
+      "Quantidade de cestas inválida."
+    );
+  }
+
+
+  const normalizedItems =
+    (items || [])
+      .map(
+        item => ({
+          foodId:
+            Number(
+              item.foodId
+            ),
+          qty:
+            Number(
+              item.qty
+            ),
+          foodName:
+            getName(
+              db.foods,
+              Number(
+                item.foodId
+              )
+            )
+        })
+      )
+      .filter(
+        item =>
+          item.foodId &&
+          item.qty > 0
+      );
+
+
+  if (!normalizedItems.length) {
+    throw new Error(
+      "A cesta precisa ter pelo menos um alimento."
+    );
+  }
+
+
+  // --------------------------------------------------------
+  // Verifica TODO o estoque antes de criar qualquer registro.
+  // --------------------------------------------------------
+
+  const stock =
+    calcStock();
+
+  const shortages =
+    [];
+
+
+  normalizedItems.forEach(
+    item => {
+
+      const required =
+        Number(item.qty) *
+        qtyCestas;
+
+      const available =
+        Number(
+          stock?.[aguaFria.id]?.[
+            item.foodId
+          ] ||
+          stock?.[
+            String(
+              aguaFria.id
+            )
+          ]?.[
+            String(
+              item.foodId
+            )
+          ] ||
+          0
+        );
+
+
+      if (
+        required >
+        available
+      ) {
+
+        shortages.push({
+          foodName:
+            item.foodName,
+          required,
+          available
+        });
+
+      }
+
+    }
+  );
+
+
+  if (shortages.length) {
+
+    const error =
+      new Error(
+        "Estoque insuficiente em Água Fria."
+      );
+
+    error.code =
+      "ACE_BASKET_STOCK_INSUFFICIENT";
+
+    error.shortages =
+      shortages;
+
+    error.basketName =
+      name;
+
+    error.basketQty =
+      qtyCestas;
+
+    throw error;
+
+  }
+
+
+  const manualBasketId =
+    newNumericId();
+
+
+  // --------------------------------------------------------
+  // Cria uma cesta técnica INATIVA.
+  // Ela serve apenas para manter a integridade do histórico
+  // e não aparece junto às cestas fixas da tela.
+  // --------------------------------------------------------
+
+  const {
+    error: basketError
+  } =
+    await supabaseClient
+      .from(
+        "cestas"
+      )
+      .insert({
+        id:
+          manualBasketId,
+        nome:
+          name,
+        imagem:
+          "",
+        ativo:
+          false
+      });
+
+
+  if (basketError) {
+    throw basketError;
+  }
+
+
+  const basketItemRows =
+    normalizedItems.map(
+      item => ({
+        cesta_id:
+          manualBasketId,
+        alimento_id:
+          item.foodId,
+        quantidade:
+          item.qty
+      })
+    );
+
+
+  const {
+    error: basketItemsError
+  } =
+    await supabaseClient
+      .from(
+        "cestas_itens"
+      )
+      .insert(
+        basketItemRows
+      );
+
+
+  if (basketItemsError) {
+
+    await supabaseClient
+      .from(
+        "cestas"
+      )
+      .delete()
+      .eq(
+        "id",
+        manualBasketId
+      );
+
+    throw basketItemsError;
+
+  }
+
+
+  // --------------------------------------------------------
+  // Coloca a cesta técnica apenas na memória para aproveitar
+  // toda a lógica segura já existente de saída, estoque,
+  // histórico e estorno.
+  // --------------------------------------------------------
+
+  db.baskets =
+    db.baskets || [];
+
+  db.basketItems =
+    db.basketItems || [];
+
+
+  db.baskets.push({
+    id:
+      manualBasketId,
+    name:
+      name,
+    image:
+      "",
+    active:
+      false
+  });
+
+
+  normalizedItems.forEach(
+    item => {
+
+      db.basketItems.push({
+        id:
+          newNumericId(),
+        basketId:
+          manualBasketId,
+        foodId:
+          item.foodId,
+        qty:
+          item.qty
+      });
+
+    }
+  );
+
+
+  try {
+
+    await registerBasketOutput({
+      basketId:
+        manualBasketId,
+      basketQty:
+        qtyCestas,
+      destination,
+      receivedBy
+    });
+
+
+  } catch (error) {
+
+    // Se a saída falhar antes de gerar histórico,
+    // tenta limpar a cesta técnica criada.
+    try {
+
+      await supabaseClient
+        .from(
+          "cestas_itens"
+        )
+        .delete()
+        .eq(
+          "cesta_id",
+          manualBasketId
+        );
+
+
+      await supabaseClient
+        .from(
+          "cestas"
+        )
+        .delete()
+        .eq(
+          "id",
+          manualBasketId
+        );
+
+    } catch {
+      // limpeza auxiliar
+    }
+
+
+    throw error;
+
+  }
 
 }
 
@@ -13875,7 +14963,29 @@ function ensureMuralAceStyles() {
     @media(max-width:850px){
 
       .ace-mural-grid{
-        grid-template-columns:1fr;
+        display:flex;
+        overflow-x:auto;
+        overflow-y:hidden;
+        gap:14px;
+        scroll-snap-type:x mandatory;
+        scroll-behavior:smooth;
+        -webkit-overflow-scrolling:touch;
+        scrollbar-width:none;
+        padding-bottom:6px;
+      }
+
+      .ace-mural-grid::-webkit-scrollbar{
+        display:none;
+      }
+
+      .ace-mural-card{
+        flex:0 0 100%;
+        scroll-snap-align:start;
+        scroll-snap-stop:always;
+      }
+
+      .ace-mural-empty{
+        flex:0 0 100%;
       }
 
       .ace-mural-header{
@@ -13890,6 +15000,18 @@ function ensureMuralAceStyles() {
         grid-column:auto;
       }
 
+      .ace-mural-mobile-hint{
+        display:block;
+      }
+
+    }
+
+    .ace-mural-mobile-hint{
+      display:none;
+      margin:0 0 10px;
+      color:#667085;
+      font-size:13px;
+      font-weight:700;
     }
 
   `;
@@ -14269,6 +15391,10 @@ function renderMuralAce() {
 
     </div>
 
+
+    <div class="ace-mural-mobile-hint">
+      👈 Deslize para o lado para ver as próximas publicações
+    </div>
 
     <div class="ace-mural-grid">
 
@@ -15792,6 +16918,9 @@ async function initApp() {
     renderMuralAce();
 
     nav();
+
+    // Sempre abre o aplicativo diretamente no Mural ACE.
+    openDefaultMuralAcePage();
 
     bindEvents();
 
