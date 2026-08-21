@@ -1,4 +1,4 @@
-const CACHE = "controle-alimentos-offline-v8";
+const CACHE = "controle-alimentos-offline-v9";
 
 const ASSETS = [
   "./",
@@ -43,6 +43,7 @@ self.addEventListener("fetch", event => {
 
   const url = new URL(request.url);
 
+  // API/Supabase não entra no cache de arquivos estáticos.
   if (
     url.hostname.includes("supabase.co") ||
     url.hostname.includes("supabase.in")
@@ -50,32 +51,60 @@ self.addEventListener("fetch", event => {
     return;
   }
 
+  // Navegação: ONLINE pega a versão nova.
+  // OFFLINE cai no index.html salvo.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: "no-store" })
         .then(response => {
           const copy = response.clone();
 
           caches.open(CACHE)
             .then(cache =>
-              cache.put(
-                "./index.html",
-                copy
-              )
+              cache.put("./index.html", copy)
             );
 
           return response;
         })
         .catch(() =>
-          caches.match(
-            "./index.html"
-          )
+          caches.match("./index.html")
         )
     );
-
     return;
   }
 
+  // Arquivos principais do app:
+  // NETWORK-FIRST para não ficar preso em app.js antigo.
+  const isCoreAsset =
+    url.origin === self.location.origin &&
+    (
+      url.pathname.endsWith("/app.js") ||
+      url.pathname.endsWith("/style.css") ||
+      url.pathname.endsWith("/manifest-v3.json") ||
+      url.pathname.endsWith("/sw.js")
+    );
+
+  if (isCoreAsset) {
+    event.respondWith(
+      fetch(request, { cache: "no-store" })
+        .then(response => {
+          const copy = response.clone();
+
+          caches.open(CACHE)
+            .then(cache =>
+              cache.put(request, copy)
+            );
+
+          return response;
+        })
+        .catch(() =>
+          caches.match(request)
+        )
+    );
+    return;
+  }
+
+  // Outros arquivos estáticos: cache-first.
   event.respondWith(
     caches
       .match(request)
@@ -91,15 +120,11 @@ self.addEventListener("fetch", event => {
               response.status === 200 &&
               response.type === "basic"
             ) {
-              const copy =
-                response.clone();
+              const copy = response.clone();
 
               caches.open(CACHE)
                 .then(cache =>
-                  cache.put(
-                    request,
-                    copy
-                  )
+                  cache.put(request, copy)
                 );
             }
 
