@@ -2902,23 +2902,7 @@ function addUserBar() {
       ${esc(currentUser.email)}
     </span>
 
-    <button
-      id="installBtn"
-      type="button"
-      style="
-        border:1px solid rgba(255,255,255,.78);
-        background:rgba(255,255,255,.14);
-        color:#fff;
-        border-radius:10px;
-        padding:9px 14px;
-        font-size:14px;
-        font-weight:900;
-        cursor:pointer;
-        white-space:nowrap;
-      "
-    >
-      📲 Instalar aplicativo
-    </button>
+    
 
     <button
       id="logoutBtn"
@@ -5214,7 +5198,7 @@ function renderAttendance() {
             <div class="person-name">${esc(p.name)}</div>
             <div class="person-reg">
               Matrícula: ${esc(p.registration)}
-              ${p.ede ? ` · ESDE: ${esc(p.ede)}` : ""}
+              ${p.ede ? ` · EDE: ${esc(p.ede)}` : ""}
               ${p.studyDay ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
               ${p.studyTime ? ` · Horário: ${esc(p.studyTime)}` : ""}
               ${p.sede ? ` · Sede: ${esc(p.sede)}` : ""}
@@ -12672,11 +12656,9 @@ async function initApp() {
 
     bindEvents();
 
-    // O botão de instalação precisa existir no cabeçalho
-    // antes de setupPWA() conectar o evento de clique.
-    addUserBar();
-
     setupPWA();
+
+    addUserBar();
 
     renderAll();
 
