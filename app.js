@@ -174,7 +174,14 @@ function uid() {
 
 
 function isoToday() {
-  return new Date().toISOString().slice(0, 10);
+  // Usa a data LOCAL do aparelho/navegador.
+  // Não usar toISOString(), pois ele converte para UTC e, no Brasil,
+  // após aproximadamente 21h pode avançar para o dia seguinte.
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 let numericIdCounter = 0;
