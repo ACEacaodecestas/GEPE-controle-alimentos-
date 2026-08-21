@@ -14802,7 +14802,21 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "sw.js"
+            "sw.js",
+            {
+              updateViaCache:
+                "none"
+            }
+          )
+          .then(
+            registration => {
+
+              // Força a verificação da versão mais recente
+              // do Service Worker sempre que o app abrir online.
+              registration.update()
+                .catch(() => {});
+
+            }
           )
           .catch(
             err =>
