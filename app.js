@@ -250,6 +250,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     supabaseClient
       .from("Pessoas")
       .select("*")
+      .or("ativo.eq.true,ativo.is.null")
       .order("nome"),
 
     supabaseClient
@@ -788,6 +789,651 @@ async function insertPerson({
   if (error) throw error;
   return id;
 }
+
+
+async function updatePerson({
+  id,
+  name,
+  registration,
+  ede,
+  studyDay,
+  studyTime,
+  sede
+}) {
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from("Pessoas")
+      .update({
+        nome:
+          name,
+        "matrícula":
+          registration,
+        ede:
+          ede || "",
+        dia_estudo:
+          studyDay || "",
+        horario:
+          studyTime || "",
+        sede:
+          sede || ""
+      })
+      .eq(
+        "id",
+        Number(id)
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+}
+
+
+async function archivePersonAndRemoveAttendance(
+  personId
+) {
+
+  const numericPersonId =
+    Number(personId);
+
+
+  // ----------------------------------------------------------
+  // 1. Remove SOMENTE as presenças dessa pessoa.
+  // Assim os dias antigos são recalculados sem ela.
+  // ----------------------------------------------------------
+
+  const {
+    error: attendanceError
+  } =
+    await supabaseClient
+      .from("presença")
+      .delete()
+      .eq(
+        "pessoa_id",
+        numericPersonId
+      );
+
+
+  if (attendanceError) {
+    throw attendanceError;
+  }
+
+
+  // ----------------------------------------------------------
+  // 2. Não apaga fisicamente a pessoa.
+  // Apenas deixa o cadastro inativo para evitar conflito
+  // com outros registros vinculados no Supabase.
+  // ----------------------------------------------------------
+
+  const {
+    error: personError
+  } =
+    await supabaseClient
+      .from("Pessoas")
+      .update({
+        ativo:
+          false
+      })
+      .eq(
+        "id",
+        numericPersonId
+      );
+
+
+  if (personError) {
+    throw personError;
+  }
+
+}
+
+
+function ensureAttendancePersonActionsStyle() {
+
+  if (
+    document.getElementById(
+      "aceAttendancePersonActionsStyle"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+  style.id =
+    "aceAttendancePersonActionsStyle";
+
+  style.textContent = `
+
+    .attendance-row{
+      gap:14px;
+    }
+
+    .ace-attendance-actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-left:auto;
+    }
+
+    .ace-attendance-edit,
+    .ace-attendance-delete{
+      min-height:38px;
+      padding:7px 12px;
+      border-radius:9px;
+      background:#fff;
+      font-family:inherit;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    .ace-attendance-edit{
+      border:1px solid #0b4b7a;
+      color:#0b4b7a;
+    }
+
+    .ace-attendance-delete{
+      border:1px solid #ef4444;
+      color:#d92d20;
+    }
+
+    .ace-attendance-switch-wrap{
+      margin-left:4px;
+    }
+
+    #acePersonEditModal{
+      position:fixed;
+      inset:0;
+      z-index:1000020;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.58);
+      backdrop-filter:blur(3px);
+    }
+
+    .ace-person-edit-box{
+      width:min(620px,calc(100vw - 34px));
+      max-height:90vh;
+      overflow:auto;
+      box-sizing:border-box;
+      padding:25px;
+      border-radius:18px;
+      background:#fff;
+      box-shadow:0 22px 70px rgba(0,0,0,.30);
+    }
+
+    .ace-person-edit-title{
+      margin:0 0 18px;
+      color:#0b3a63;
+      font-size:24px;
+      font-weight:900;
+    }
+
+    .ace-person-edit-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:13px;
+    }
+
+    .ace-person-edit-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      color:#102a43;
+      font-weight:900;
+    }
+
+    .ace-person-edit-field input,
+    .ace-person-edit-field select{
+      min-height:46px;
+      box-sizing:border-box;
+      padding:9px 11px;
+      border:1px solid #ccd9e4;
+      border-radius:10px;
+      background:#fff;
+      color:#102a43;
+      font:inherit;
+    }
+
+    .ace-person-edit-actions{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top:20px;
+    }
+
+    .ace-person-edit-actions button{
+      min-height:43px;
+      padding:9px 17px;
+      border-radius:10px;
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    #acePersonEditSave{
+      border:1px solid #0756a0;
+      background:#0756a0;
+      color:#fff;
+    }
+
+    #acePersonEditCancel{
+      border:1px solid #98a2b3;
+      background:#fff;
+      color:#344054;
+    }
+
+    @media(max-width:760px){
+
+      .attendance-row{
+        align-items:flex-start;
+        flex-wrap:wrap;
+      }
+
+      .ace-attendance-actions{
+        width:100%;
+        margin-left:0;
+      }
+
+      .ace-person-edit-grid{
+        grid-template-columns:1fr;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function openAttendancePersonEditModal(
+  personId
+) {
+
+  ensureAttendancePersonActionsStyle();
+
+
+  const person =
+    db.people.find(
+      p =>
+        Number(p.id) ===
+        Number(personId)
+    );
+
+
+  if (!person) {
+    toast(
+      "Pessoa não encontrada."
+    );
+    return;
+  }
+
+
+  const old =
+    document.getElementById(
+      "acePersonEditModal"
+    );
+
+  if (old) {
+    old.remove();
+  }
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+  modal.id =
+    "acePersonEditModal";
+
+
+  const studyDays = [
+    "",
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+    "Domingo"
+  ];
+
+
+  modal.innerHTML = `
+
+    <div class="ace-person-edit-box">
+
+      <div class="ace-person-edit-title">
+        ✏️ Editar pessoa
+      </div>
+
+      <div class="ace-person-edit-grid">
+
+        <label class="ace-person-edit-field">
+          Nome completo
+          <input
+            id="acePersonEditName"
+            type="text"
+            value="${esc(person.name || "")}"
+          >
+        </label>
+
+        <label class="ace-person-edit-field">
+          Matrícula
+          <input
+            id="acePersonEditRegistration"
+            type="text"
+            value="${esc(person.registration || "")}"
+          >
+        </label>
+
+        <label class="ace-person-edit-field">
+          Qual EDE
+          <input
+            id="acePersonEditEde"
+            type="text"
+            value="${esc(person.ede || "")}"
+            placeholder="Ex.: ESDE 1"
+          >
+        </label>
+
+        <label class="ace-person-edit-field">
+          Dia de Estudo
+          <select id="acePersonEditStudyDay">
+            ${
+              studyDays
+                .map(
+                  day => `
+                    <option
+                      value="${esc(day)}"
+                      ${
+                        day ===
+                        (person.studyDay || "")
+                          ? "selected"
+                          : ""
+                      }
+                    >
+                      ${day || "Selecione..."}
+                    </option>
+                  `
+                )
+                .join("")
+            }
+          </select>
+        </label>
+
+        <label class="ace-person-edit-field">
+          Horário
+          <input
+            id="acePersonEditStudyTime"
+            type="time"
+            value="${esc(person.studyTime || "")}"
+          >
+        </label>
+
+        <label class="ace-person-edit-field">
+          Sede
+          <input
+            id="acePersonEditSede"
+            type="text"
+            value="${esc(person.sede || "")}"
+          >
+        </label>
+
+      </div>
+
+      <div class="ace-person-edit-actions">
+
+        <button
+          id="acePersonEditCancel"
+          type="button"
+        >
+          Cancelar
+        </button>
+
+        <button
+          id="acePersonEditSave"
+          type="button"
+        >
+          💾 Salvar
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  document
+    .getElementById(
+      "acePersonEditCancel"
+    )
+    .onclick =
+      () =>
+        modal.remove();
+
+
+  document
+    .getElementById(
+      "acePersonEditSave"
+    )
+    .onclick =
+      async () => {
+
+        const saveButton =
+          document.getElementById(
+            "acePersonEditSave"
+          );
+
+        const name =
+          document
+            .getElementById(
+              "acePersonEditName"
+            )
+            .value
+            .trim();
+
+        const registration =
+          document
+            .getElementById(
+              "acePersonEditRegistration"
+            )
+            .value
+            .trim();
+
+        const ede =
+          document
+            .getElementById(
+              "acePersonEditEde"
+            )
+            .value
+            .trim();
+
+        const studyDay =
+          document
+            .getElementById(
+              "acePersonEditStudyDay"
+            )
+            .value
+            .trim();
+
+        const studyTime =
+          document
+            .getElementById(
+              "acePersonEditStudyTime"
+            )
+            .value
+            .trim();
+
+        const sede =
+          document
+            .getElementById(
+              "acePersonEditSede"
+            )
+            .value
+            .trim();
+
+
+        if (
+          !name ||
+          !registration
+        ) {
+          toast(
+            "Informe nome e matrícula."
+          );
+          return;
+        }
+
+
+        saveButton.disabled = true;
+        saveButton.textContent =
+          "Salvando...";
+
+
+        try {
+
+          await updatePerson({
+            id:
+              person.id,
+            name,
+            registration,
+            ede,
+            studyDay,
+            studyTime,
+            sede
+          });
+
+
+          modal.remove();
+
+          await reloadFromSupabase();
+
+          showAceSuccess(
+            "Cadastro atualizado com sucesso!"
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO EDITAR PESSOA:",
+            error
+          );
+
+          toast(
+            "Não foi possível editar a pessoa: " +
+            (
+              error?.message ||
+              "verifique o Supabase."
+            )
+          );
+
+
+        } finally {
+
+          if (
+            document.body.contains(
+              saveButton
+            )
+          ) {
+            saveButton.disabled = false;
+            saveButton.textContent =
+              "💾 Salvar";
+          }
+
+        }
+
+      };
+
+}
+
+
+async function deleteAttendancePerson(
+  personId
+) {
+
+  const person =
+    db.people.find(
+      p =>
+        Number(p.id) ===
+        Number(personId)
+    );
+
+
+  if (!person) {
+    return;
+  }
+
+
+  const confirmed =
+    await showAceConfirm(
+      `Excluir ${person.name}?\n\n` +
+      "A pessoa será removida das listas do sistema e todas as presenças dela serão apagadas.\n\n" +
+      "Os outros presentes de cada dia continuarão registrados. Entradas, saídas, estoque e demais históricos não serão alterados.",
+      "Excluir pessoa"
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  try {
+
+    await archivePersonAndRemoveAttendance(
+      person.id
+    );
+
+    await reloadFromSupabase();
+
+    showAceSuccess(
+      "Pessoa excluída das listas e presenças removidas com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR PESSOA DA PRESENÇA:",
+      error
+    );
+
+    toast(
+      "Não foi possível excluir a pessoa: " +
+      (
+        error?.message ||
+        "verifique o Supabase."
+      )
+    );
+
+  }
+
+}
+
 
 async function insertFood(name) {
   const id = newNumericId();
@@ -5173,68 +5819,257 @@ async function removeMovement(id) {
 
 function renderAttendance() {
 
+  ensureAttendancePersonActionsStyle();
+
+
   const date =
-    document.getElementById("attendanceDate")?.value || isoToday();
+    document.getElementById(
+      "attendanceDate"
+    )?.value ||
+    isoToday();
+
 
   const q =
-    (document.getElementById("attendanceSearch")?.value || "").toLowerCase();
+    (
+      document.getElementById(
+        "attendanceSearch"
+      )?.value ||
+      ""
+    ).toLowerCase();
 
-  const set = new Set(db.attendance[date] || []);
 
-  const people = db.people.filter(p =>
-    (p.name + " " + p.registration).toLowerCase().includes(q)
-  );
+  const set =
+    new Set(
+      db.attendance[date] ||
+      []
+    );
 
-  const count = document.getElementById("attendanceCount");
-  if (count) count.textContent = `${set.size} presentes`;
 
-  const list = document.getElementById("attendanceList");
-  if (!list) return;
+  const people =
+    db.people.filter(
+      p =>
+        (
+          p.name +
+          " " +
+          p.registration +
+          " " +
+          (p.ede || "") +
+          " " +
+          (p.studyDay || "") +
+          " " +
+          (p.studyTime || "") +
+          " " +
+          (p.sede || "")
+        )
+          .toLowerCase()
+          .includes(q)
+    );
 
-  list.innerHTML = people.length
-    ? people.map(p => `
-        <div class="attendance-row">
-          <div>
-            <div class="person-name">${esc(p.name)}</div>
-            <div class="person-reg">
-              Matrícula: ${esc(p.registration)}
-              ${p.ede ? ` · EDE: ${esc(p.ede)}` : ""}
-              ${p.studyDay ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
-              ${p.studyTime ? ` · Horário: ${esc(p.studyTime)}` : ""}
-              ${p.sede ? ` · Sede: ${esc(p.sede)}` : ""}
-            </div>
+
+  const count =
+    document.getElementById(
+      "attendanceCount"
+    );
+
+
+  if (count) {
+    count.textContent =
+      `${set.size} presentes`;
+  }
+
+
+  const list =
+    document.getElementById(
+      "attendanceList"
+    );
+
+
+  if (!list) {
+    return;
+  }
+
+
+  list.innerHTML =
+    people.length
+      ? people
+          .map(
+            p => `
+
+              <div class="attendance-row">
+
+                <div style="min-width:0;flex:1;">
+
+                  <div class="person-name">
+                    ${esc(p.name)}
+                  </div>
+
+                  <div class="person-reg">
+                    Matrícula: ${esc(p.registration)}
+                    ${p.ede ? ` · EDE: ${esc(p.ede)}` : ""}
+                    ${p.studyDay ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
+                    ${p.studyTime ? ` · Horário: ${esc(p.studyTime)}` : ""}
+                    ${p.sede ? ` · Sede: ${esc(p.sede)}` : ""}
+                  </div>
+
+                </div>
+
+                <div class="ace-attendance-actions">
+
+                  <button
+                    type="button"
+                    class="ace-attendance-edit"
+                    data-attendance-edit-person="${p.id}"
+                  >
+                    ✏️ Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    class="ace-attendance-delete"
+                    data-attendance-delete-person="${p.id}"
+                  >
+                    🗑️ Excluir
+                  </button>
+
+                </div>
+
+                <label class="switch ace-attendance-switch-wrap">
+
+                  <input
+                    type="checkbox"
+                    data-person="${p.id}"
+                    ${
+                      set.has(p.id)
+                        ? "checked"
+                        : ""
+                    }
+                  >
+
+                  <span class="slider"></span>
+
+                </label>
+
+              </div>
+
+            `
+          )
+          .join("")
+      : `
+          <div class="empty">
+            Nenhuma pessoa cadastrada/encontrada.
           </div>
-          <label class="switch">
-            <input
-              type="checkbox"
-              data-person="${p.id}"
-              ${set.has(p.id) ? "checked" : ""}
-            >
-            <span class="slider"></span>
-          </label>
-        </div>
-      `).join("")
-    : `<div class="empty">Nenhuma pessoa cadastrada/encontrada.</div>`;
+        `;
 
-  document.querySelectorAll("[data-person]").forEach(el => {
-    el.addEventListener("change", async e => {
-      const personId = e.target.dataset.person;
-      const present = e.target.checked;
-      e.target.disabled = true;
 
-      try {
-        await setAttendance(date, personId, present);
-        await reloadFromSupabase();
-        toast(present ? "Presença registrada." : "Presença removida.");
-      } catch (error) {
-        console.error(error);
-        e.target.checked = !present;
-        toast("Não foi possível atualizar a presença.");
-      } finally {
-        e.target.disabled = false;
+  document
+    .querySelectorAll(
+      "[data-person]"
+    )
+    .forEach(
+      el => {
+
+        el.addEventListener(
+          "change",
+          async e => {
+
+            const personId =
+              e.target
+                .dataset
+                .person;
+
+            const present =
+              e.target
+                .checked;
+
+            e.target.disabled =
+              true;
+
+
+            try {
+
+              await setAttendance(
+                date,
+                personId,
+                present
+              );
+
+              await reloadFromSupabase();
+
+              toast(
+                present
+                  ? "Presença registrada."
+                  : "Presença removida."
+              );
+
+
+            } catch (error) {
+
+              console.error(
+                error
+              );
+
+              e.target.checked =
+                !present;
+
+              toast(
+                "Não foi possível atualizar a presença."
+              );
+
+
+            } finally {
+
+              e.target.disabled =
+                false;
+
+            }
+
+          }
+        );
+
       }
-    });
-  });
+    );
+
+
+  document
+    .querySelectorAll(
+      "[data-attendance-edit-person]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openAttendancePersonEditModal(
+              Number(
+                button
+                  .dataset
+                  .attendanceEditPerson
+              )
+            );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      "[data-attendance-delete-person]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            deleteAttendancePerson(
+              Number(
+                button
+                  .dataset
+                  .attendanceDeletePerson
+              )
+            );
+
+      }
+    );
 
 }
 
