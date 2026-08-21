@@ -1,4 +1,5 @@
-const CACHE = "controle-alimentos-offline-v11";
+const CACHE = "controle-alimentos-offline-v12";
+const MEDIA_CACHE = "controle-alimentos-media-v1";
 
 const SCOPE_URL =
   self.registration.scope;
@@ -23,14 +24,6 @@ const ASSETS = [
 ];
 
 
-// ============================================================
-// INSTALAÇÃO
-// ============================================================
-//
-// Salva cada arquivo separadamente.
-// Se um arquivo opcional falhar, o Service Worker NÃO perde
-// todo o cache. O index.html é tratado como obrigatório.
-//
 self.addEventListener(
   "install",
   event => {
@@ -44,7 +37,6 @@ self.addEventListener(
           );
 
 
-        // index.html é obrigatório para abrir offline
         const indexResponse =
           await fetch(
             INDEX_URL,
@@ -70,15 +62,12 @@ self.addEventListener(
           indexResponse.clone()
         );
 
-
-        // Também guarda a raiz do aplicativo
         await cache.put(
           ROOT_URL,
           indexResponse.clone()
         );
 
 
-        // Demais arquivos: tenta salvar individualmente
         await Promise.allSettled(
           ASSETS
             .filter(
@@ -103,12 +92,10 @@ self.addEventListener(
                   response &&
                   response.ok
                 ) {
-
                   await cache.put(
                     url,
                     response.clone()
                   );
-
                 }
 
               }
@@ -125,10 +112,6 @@ self.addEventListener(
 );
 
 
-// ============================================================
-// ATIVAÇÃO
-// ============================================================
-
 self.addEventListener(
   "activate",
   event => {
@@ -144,7 +127,8 @@ self.addEventListener(
           keys
             .filter(
               key =>
-                key !== CACHE
+                key !== CACHE &&
+                key !== MEDIA_CACHE
             )
             .map(
               key =>
@@ -163,10 +147,6 @@ self.addEventListener(
   }
 );
 
-
-// ============================================================
-// FETCH
-// ============================================================
 
 self.addEventListener(
   "fetch",
@@ -190,10 +170,102 @@ self.addEventListener(
       );
 
 
-    // --------------------------------------------------------
-    // Supabase e APIs externas:
-    // não entram no cache do shell do aplicativo.
-    // --------------------------------------------------------
+    // ========================================================
+    // SUPABASE STORAGE PÚBLICO
+    //
+    // Imagens/vídeos enviados pelo aparelho e já visualizados
+    // ficam disponíveis offline.
+    // ========================================================
+
+    const isSupabaseStoragePublic =
+      (
+        url.hostname.includes(
+          "supabase.co"
+        ) ||
+        url.hostname.includes(
+          "supabase.in"
+        )
+      ) &&
+      url.pathname.includes(
+        "/storage/v1/object/public/"
+      );
+
+
+    if (
+      isSupabaseStoragePublic
+    ) {
+
+      event.respondWith(
+        (async () => {
+
+          const cache =
+            await caches.open(
+              MEDIA_CACHE
+            );
+
+
+          const cached =
+            await cache.match(
+              request
+            );
+
+
+          if (cached) {
+            return cached;
+          }
+
+
+          try {
+
+            const response =
+              await fetch(
+                request
+              );
+
+
+            if (
+              response &&
+              response.ok
+            ) {
+
+              await cache.put(
+                request,
+                response.clone()
+              );
+
+            }
+
+
+            return response;
+
+
+          } catch {
+
+            return new Response(
+              "",
+              {
+                status:
+                  503,
+                statusText:
+                  "Offline"
+              }
+            );
+
+          }
+
+        })()
+      );
+
+      return;
+
+    }
+
+
+    // ========================================================
+    // SUPABASE REST/AUTH/API
+    // Não tenta cachear chamadas de banco/autenticação.
+    // O app.js usa snapshots locais quando offline.
+    // ========================================================
 
     if (
       url.hostname.includes(
@@ -207,14 +279,9 @@ self.addEventListener(
     }
 
 
-    // --------------------------------------------------------
-    // NAVEGAÇÃO DO APP
-    //
-    // Primeiro devolve o index.html do cache.
-    // Isso garante que o PWA ABRA mesmo sem Wi-Fi/dados.
-    //
-    // Em paralelo, quando houver internet, atualiza o cache.
-    // --------------------------------------------------------
+    // ========================================================
+    // NAVEGAÇÃO DO PWA
+    // ========================================================
 
     if (
       request.mode ===
@@ -239,7 +306,6 @@ self.addEventListener(
             );
 
 
-          // Atualiza em segundo plano quando online
           const updatePromise =
             fetch(
               request,
@@ -335,12 +401,9 @@ self.addEventListener(
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // ARQUIVOS DO PRÓPRIO APP
-    //
-    // Cache-first para funcionar offline.
-    // Quando não estiver salvo, busca na rede e guarda.
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
       url.origin ===
@@ -398,8 +461,6 @@ self.addEventListener(
 
           } catch {
 
-            // CSS/JS ausente não deve derrubar a navegação,
-            // mas devolvemos erro controlado para o recurso.
             return new Response(
               "",
               {
@@ -420,10 +481,10 @@ self.addEventListener(
     }
 
 
-    // --------------------------------------------------------
-    // Conteúdo externo (ex.: vídeo por link):
-    // funciona somente quando houver internet.
-    // --------------------------------------------------------
+    // ========================================================
+    // LINKS EXTERNOS (YouTube, etc.)
+    // Online somente, conforme combinado.
+    // ========================================================
 
     event.respondWith(
       fetch(
