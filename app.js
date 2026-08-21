@@ -5212,7 +5212,13 @@ function renderAttendance() {
         <div class="attendance-row">
           <div>
             <div class="person-name">${esc(p.name)}</div>
-            <div class="person-reg">Matrícula: ${esc(p.registration)}</div>
+            <div class="person-reg">
+              Matrícula: ${esc(p.registration)}
+              ${p.ede ? ` · ESDE: ${esc(p.ede)}` : ""}
+              ${p.studyDay ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
+              ${p.studyTime ? ` · Horário: ${esc(p.studyTime)}` : ""}
+              ${p.sede ? ` · Sede: ${esc(p.sede)}` : ""}
+            </div>
           </div>
           <label class="switch">
             <input
