@@ -84,6 +84,122 @@ const MURAL_ACE_ADMIN_EMAIL =
 
 let muralAcePosts = [];
 
+const ACE_OFFLINE_DB_KEY =
+  "ace_offline_snapshot_v1";
+
+const ACE_OFFLINE_STATUS_ID =
+  "aceOfflineStatus";
+
+
+function saveOfflineSnapshot(snapshot) {
+  try {
+    localStorage.setItem(
+      ACE_OFFLINE_DB_KEY,
+      JSON.stringify({
+        savedAt: new Date().toISOString(),
+        db: snapshot
+      })
+    );
+  } catch (error) {
+    console.warn(
+      "ACE: não foi possível salvar snapshot offline:",
+      error
+    );
+  }
+}
+
+
+function loadOfflineSnapshot() {
+  try {
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_DB_KEY
+      );
+
+    if (!raw) return null;
+
+    const parsed =
+      JSON.parse(raw);
+
+    return parsed?.db || null;
+
+  } catch (error) {
+    console.warn(
+      "ACE: não foi possível ler snapshot offline:",
+      error
+    );
+    return null;
+  }
+}
+
+
+function updateOfflineStatusBadge() {
+  let badge =
+    document.getElementById(
+      ACE_OFFLINE_STATUS_ID
+    );
+
+  if (!badge) {
+    badge =
+      document.createElement("div");
+
+    badge.id =
+      ACE_OFFLINE_STATUS_ID;
+
+    badge.style.cssText = `
+      position:fixed;
+      right:14px;
+      bottom:14px;
+      z-index:1000010;
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
+      pointer-events:none;
+    `;
+
+    document.body.appendChild(badge);
+  }
+
+  if (navigator.onLine) {
+    badge.textContent = "🟢 Online";
+    badge.style.background = "#eaf8ef";
+    badge.style.color = "#167a3d";
+    badge.style.border = "1px solid #9bd4ad";
+  } else {
+    badge.textContent = "🟠 Offline";
+    badge.style.background = "#fff6e7";
+    badge.style.color = "#a15c00";
+    badge.style.border = "1px solid #f1c27d";
+  }
+}
+
+
+function setupOfflineStatus() {
+  updateOfflineStatusBadge();
+
+  window.addEventListener(
+    "online",
+    () => {
+      updateOfflineStatusBadge();
+      showAceSuccess(
+        "✅ Conexão restabelecida."
+      );
+    }
+  );
+
+  window.addEventListener(
+    "offline",
+    () => {
+      updateOfflineStatusBadge();
+      showAceSuccess(
+        "🟠 Você está offline. O app continuará usando os últimos dados sincronizados."
+      );
+    }
+  );
+}
+
 // ============================================================
 // IDENTIFICAÇÃO DOS USUÁRIOS DAS MOVIMENTAÇÕES
 // ============================================================
@@ -754,9 +870,43 @@ function save() {
 
 
 async function reloadFromSupabase(showToast = false) {
-  db = await loadFromSupabase();
+
+  if (!navigator.onLine) {
+
+    const offlineDb =
+      loadOfflineSnapshot();
+
+    if (offlineDb) {
+      db = offlineDb;
+      renderAll();
+
+      if (showToast) {
+        showAceSuccess(
+          "🟠 Dados carregados do modo offline."
+        );
+      }
+
+      return;
+    }
+
+    throw new Error(
+      "Sem conexão e sem dados offline salvos neste aparelho."
+    );
+  }
+
+
+  db =
+    await loadFromSupabase();
+
+  saveOfflineSnapshot(db);
+
   renderAll();
-  if (showToast) toast("Dados atualizados do Supabase.");
+
+  if (showToast) {
+    showAceSuccess(
+      "✅ Dados atualizados do Supabase."
+    );
+  }
 }
 
 
@@ -16902,7 +17052,26 @@ async function initApp() {
 
   try {
 
-    db = await loadFromSupabase();
+    if (navigator.onLine) {
+
+      db =
+        await loadFromSupabase();
+
+      saveOfflineSnapshot(db);
+
+    } else {
+
+      const offlineDb =
+        loadOfflineSnapshot();
+
+      if (!offlineDb) {
+        throw new Error(
+          "Este aparelho ainda não possui dados offline. Conecte-se à internet uma vez para sincronizar."
+        );
+      }
+
+      db = offlineDb;
+    }
 
 
     setDates();
@@ -16927,6 +17096,8 @@ async function initApp() {
     setupPWA();
 
     addUserBar();
+
+    setupOfflineStatus();
 
     renderAll();
 
@@ -17217,4 +17388,3 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
-
