@@ -8085,7 +8085,7 @@ function renderHistory() {
     applyTenVisibleRows(
       target,
       "tbody tr",
-      "640px"
+      "535px"
     );
   });
 
@@ -9769,7 +9769,7 @@ function renderBasketModule() {
     applyTenVisibleRows(
       module.querySelector(".ace-basket-history-list"),
       ".ace-basket-history-row",
-      "1240px"
+      "1460px"
     );
   });
 
