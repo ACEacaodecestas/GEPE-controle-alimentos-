@@ -133,7 +133,7 @@ const ACE_OFFLINE_MURAL_KEY =
   "ace_offline_mural_v1";
 
 const ACE_OFFLINE_USER_KEY =
-  "ace_offline_user_v1";
+  "ace_offline_user_v2";
 
 const ACE_OFFLINE_STATUS_ID =
   "aceOfflineStatus";
@@ -214,7 +214,7 @@ function saveOfflineUser(
   } catch (error) {
 
     console.warn(
-      "ACE: não foi possível salvar o usuário para acesso offline:",
+      "ACE: não foi possível salvar o usuário offline:",
       error
     );
 
@@ -225,6 +225,10 @@ function saveOfflineUser(
 
 function loadOfflineUser() {
 
+  // ----------------------------------------------------------
+  // 1. Tenta a cópia própria do ACE
+  // ----------------------------------------------------------
+
   try {
 
     const raw =
@@ -232,36 +236,134 @@ function loadOfflineUser() {
         ACE_OFFLINE_USER_KEY
       );
 
-    if (!raw) {
-      return null;
+
+    if (raw) {
+
+      const user =
+        JSON.parse(raw);
+
+
+      if (
+        user?.id &&
+        user?.email
+      ) {
+        return user;
+      }
+
     }
-
-
-    const user =
-      JSON.parse(raw);
-
-
-    if (
-      !user?.id ||
-      !user?.email
-    ) {
-      return null;
-    }
-
-
-    return user;
-
 
   } catch (error) {
 
     console.warn(
-      "ACE: não foi possível ler o usuário offline:",
+      "ACE: falha ao ler usuário offline próprio:",
       error
     );
 
-    return null;
+  }
+
+
+  // ----------------------------------------------------------
+  // 2. Recupera a sessão que o próprio Supabase Auth guarda
+  //    no localStorage.
+  //
+  // Isso permite o acesso offline mesmo se o usuário já estava
+  // logado antes desta versão do app ser instalada.
+  // ----------------------------------------------------------
+
+  try {
+
+    for (
+      let i = 0;
+      i < localStorage.length;
+      i++
+    ) {
+
+      const key =
+        localStorage.key(i);
+
+
+      if (
+        !key ||
+        !key.includes(
+          "auth-token"
+        )
+      ) {
+        continue;
+      }
+
+
+      const raw =
+        localStorage.getItem(
+          key
+        );
+
+
+      if (!raw) {
+        continue;
+      }
+
+
+      let parsed =
+        JSON.parse(raw);
+
+
+      // Algumas versões podem armazenar JSON duplamente
+      // serializado.
+      if (
+        typeof parsed ===
+        "string"
+      ) {
+
+        try {
+          parsed =
+            JSON.parse(parsed);
+        } catch {
+          // segue
+        }
+
+      }
+
+
+      const possibleUsers = [
+        parsed?.user,
+        parsed?.currentSession?.user,
+        parsed?.session?.user,
+        parsed?.data?.user,
+        parsed?.data?.session?.user
+      ];
+
+
+      const user =
+        possibleUsers.find(
+          item =>
+            item?.id &&
+            item?.email
+        );
+
+
+      if (user) {
+
+        saveOfflineUser(
+          user
+        );
+
+        return user;
+
+      }
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: falha ao recuperar sessão local do Supabase:",
+      error
+    );
 
   }
+
+
+  return null;
 
 }
 
@@ -3849,6 +3951,66 @@ async function loginUser(e) {
 
   try {
 
+    // ========================================================
+    // LOGIN OFFLINE
+    // ========================================================
+    //
+    // Se não há internet, não tentamos autenticar no Supabase.
+    // Validamos apenas que este aparelho já foi autenticado
+    // anteriormente com o mesmo e-mail e possui dados locais.
+    //
+    // A senha nunca é salva localmente.
+    // ========================================================
+
+    if (!navigator.onLine) {
+
+      const offlineUser =
+        loadOfflineUser();
+
+      const offlineDb =
+        loadOfflineSnapshot();
+
+
+      if (
+        offlineUser &&
+        offlineDb &&
+        String(
+          offlineUser.email || ""
+        )
+          .trim()
+          .toLowerCase() ===
+        email.toLowerCase()
+      ) {
+
+        currentUser =
+          offlineUser;
+
+
+        document
+          .getElementById(
+            "loginScreen"
+          )
+          ?.remove();
+
+
+        loading.textContent =
+          "";
+
+
+        await initApp();
+
+        return;
+
+      }
+
+
+      throw new Error(
+        "OFFLINE_SEM_SESSAO_LOCAL"
+      );
+
+    }
+
+
     const { data, error: authError } =
       await supabaseClient.auth.signInWithPassword({
         email,
@@ -3898,6 +4060,19 @@ function traduzirErroLogin(err) {
   const msg = String(
     err?.message || ""
   ).toLowerCase();
+
+
+  if (
+    msg.includes(
+      "offline_sem_sessao_local"
+    )
+  ) {
+
+    return (
+      "Sem internet. Este aparelho precisa entrar online pelo menos uma vez para liberar o acesso offline."
+    );
+
+  }
 
 
   if (
@@ -17739,11 +17914,12 @@ async function startAuth() {
 
 
   // ==========================================================
-  // ACESSO OFFLINE
+  // ACESSO OFFLINE AUTOMÁTICO
+  // ==========================================================
   //
-  // Se este aparelho já foi autenticado online anteriormente,
-  // não tenta acessar o Supabase Auth quando estiver sem rede.
-  // Usa o usuário local + o último snapshot sincronizado.
+  // Importantíssimo: este bloco roda ANTES de qualquer chamada
+  // ao Supabase Auth. Assim não existe "Failed to fetch" quando
+  // o celular está sem internet.
   // ==========================================================
 
   if (!navigator.onLine) {
@@ -17787,7 +17963,7 @@ async function startAuth() {
     if (loginError) {
 
       loginError.textContent =
-        "Sem internet e este aparelho ainda não possui uma sessão offline válida. Conecte-se uma vez e entre normalmente.";
+        "Sem internet. Conecte este aparelho uma vez, faça login normalmente e aguarde os dados carregarem para ativar o modo offline.";
 
       loginError.classList.add(
         "show"
