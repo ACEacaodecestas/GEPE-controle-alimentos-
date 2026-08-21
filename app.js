@@ -15151,9 +15151,18 @@ async function saveMuralAcePost(
 
 
   if (!title) {
-    toast(
-      "Informe o título da publicação."
+
+    await showAceConfirm(
+      "Informe o título da publicação antes de salvar.",
+      "⚠️ Campo obrigatório"
     );
+
+    document
+      .getElementById(
+        "aceMuralTitle"
+      )
+      ?.focus();
+
     return;
   }
 
@@ -15163,9 +15172,12 @@ async function saveMuralAcePost(
     source === "upload" &&
     !file
   ) {
-    toast(
-      "Selecione uma imagem ou vídeo."
+
+    await showAceConfirm(
+      "Selecione uma imagem ou vídeo antes de salvar a publicação.",
+      "⚠️ Arquivo obrigatório"
     );
+
     return;
   }
 
@@ -15175,9 +15187,18 @@ async function saveMuralAcePost(
     source === "link" &&
     !externalUrl
   ) {
-    toast(
-      "Cole o link da imagem ou vídeo."
+
+    await showAceConfirm(
+      "Cole o link da imagem, vídeo ou YouTube antes de salvar.",
+      "⚠️ Link obrigatório"
     );
+
+    document
+      .getElementById(
+        "aceMuralExternalUrl"
+      )
+      ?.focus();
+
     return;
   }
 
@@ -15189,9 +15210,18 @@ async function saveMuralAcePost(
       externalUrl
     )
   ) {
-    toast(
-      "Informe um link válido começando com http:// ou https://."
+
+    await showAceConfirm(
+      "Informe um link válido começando com http:// ou https://.",
+      "⚠️ Link inválido"
     );
+
+    document
+      .getElementById(
+        "aceMuralExternalUrl"
+      )
+      ?.focus();
+
     return;
   }
 
@@ -15206,6 +15236,51 @@ async function saveMuralAcePost(
     button.disabled = true;
     button.textContent =
       "⏳ Salvando...";
+  }
+
+
+  const uploadStatus =
+    document.getElementById(
+      "aceMuralUploadStatus"
+    );
+
+  const linkStatus =
+    document.getElementById(
+      "aceMuralLinkStatus"
+    );
+
+
+  if (
+    source === "upload" &&
+    file &&
+    uploadStatus
+  ) {
+
+    uploadStatus.className =
+      "ace-mural-ready-status show";
+
+    uploadStatus.textContent =
+      "✅ Arquivo validado. Clique em Salvar publicação para concluir.";
+
+  }
+
+
+  if (
+    source === "link" &&
+    externalUrl &&
+    linkStatus
+  ) {
+
+    linkStatus.className =
+      "ace-mural-ready-status show";
+
+    linkStatus.textContent =
+      getMuralAceYouTubeEmbedUrl(
+        externalUrl
+      )
+        ? "✅ Link do YouTube validado. Clique em Salvar publicação para concluir."
+        : "✅ Link validado. Clique em Salvar publicação para concluir.";
+
   }
 
 
@@ -15237,7 +15312,7 @@ async function saveMuralAcePost(
         uploadStatus.className =
           "ace-mural-ready-status show";
         uploadStatus.textContent =
-          "✅ Upload concluído! Agora salvando a publicação...";
+          "✅ Upload concluído com sucesso. Finalizando a publicação...";
       }
 
       if (button) {
@@ -15267,6 +15342,14 @@ async function saveMuralAcePost(
       if (button) {
         button.textContent =
           "💾 Salvando link...";
+      }
+
+
+      if (linkStatus) {
+        linkStatus.className =
+          "ace-mural-ready-status show";
+        linkStatus.textContent =
+          "✅ Link validado com sucesso. Finalizando a publicação...";
       }
 
     }
