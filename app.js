@@ -7943,18 +7943,166 @@ function setupHistoryPage() {
 
 function buildHistoryRows() {
 
-  return (db?.history || [])
-    .slice()
-    .sort(
-      (a, b) =>
-        String(
-          b.createdAt || ""
-        ).localeCompare(
+  const source =
+    (db?.history || [])
+      .slice()
+      .sort(
+        (a, b) =>
           String(
-            a.createdAt || ""
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
           )
+      );
+
+
+  // ==========================================================
+  // AGRUPAMENTO DO HISTÓRICO DE CESTAS
+  //
+  // Quando forem lançamentos de cesta com:
+  // - mesma data
+  // - mesma origem
+  // - mesmo tipo de cesta
+  // - mesmo alimento
+  //
+  // as quantidades são somadas e exibidas em uma única linha.
+  //
+  // EXCEÇÃO:
+  // saídas para Comunidade permanecem separadas por pessoa
+  // que recebeu a cesta.
+  // ==========================================================
+
+  const grouped = [];
+  const basketGroups = new Map();
+
+
+  source.forEach(row => {
+
+    const basketType =
+      String(
+        row.basketType || "—"
+      ).trim();
+
+    const reason =
+      String(
+        row.reason || ""
+      ).trim();
+
+    const isBasket =
+      row.type === "saida" &&
+      (
+        reason.toLowerCase() === "cesta" ||
+        (
+          basketType &&
+          basketType !== "—"
         )
-    );
+      );
+
+
+    if (!isBasket) {
+      grouped.push(row);
+      return;
+    }
+
+
+    const note =
+      String(
+        row.note || ""
+      ).trim();
+
+    const normalizedNote =
+      normalizeAceText(note);
+
+    const isCommunity =
+      normalizedNote.includes(
+        "comunidade"
+      );
+
+
+    // Para Comunidade, mantém separado pelo recebedor.
+    // Para os demais destinos, o recebedor não participa
+    // da chave de agrupamento.
+    let receiverKey = "";
+
+    if (isCommunity) {
+
+      const receiverMatch =
+        note.match(
+          /recebido\s+por\s*:\s*(.+)$/i
+        );
+
+      receiverKey =
+        normalizeAceText(
+          receiverMatch?.[1] || note
+        );
+
+    }
+
+
+    const key = [
+      row.date || "",
+      row.type || "",
+      row.originId ?? "",
+      row.foodId ?? "",
+      basketType,
+      isCommunity
+        ? `comunidade:${receiverKey}`
+        : "nao-comunidade"
+    ].join("||");
+
+
+    if (!basketGroups.has(key)) {
+
+      const copy = {
+        ...row,
+        qty:
+          Number(row.qty || 0)
+      };
+
+      basketGroups.set(
+        key,
+        copy
+      );
+
+      grouped.push(copy);
+
+      return;
+    }
+
+
+    const existing =
+      basketGroups.get(key);
+
+    existing.qty =
+      Number(existing.qty || 0) +
+      Number(row.qty || 0);
+
+
+    // Mantém o registro mais recente como referência
+    // para ordenação.
+    if (
+      String(row.createdAt || "") >
+      String(existing.createdAt || "")
+    ) {
+      existing.createdAt =
+        row.createdAt;
+    }
+
+  });
+
+
+  return grouped.sort(
+    (a, b) =>
+      String(
+        b.createdAt || ""
+      ).localeCompare(
+        String(
+          a.createdAt || ""
+        )
+      )
+  );
 
 }
 
@@ -11228,7 +11376,7 @@ async function registerBasketOutput({
         basketType:
           basket.name,
         note:
-          ""
+          movementNote
       });
 
     }
