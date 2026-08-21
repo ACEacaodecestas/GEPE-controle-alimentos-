@@ -13823,6 +13823,28 @@ function ensureMuralAceStyles() {
       word-break:break-all;
     }
 
+    .ace-mural-ready-status{
+      display:none;
+      margin-top:9px;
+      padding:10px 12px;
+      border:1px solid #22a447;
+      border-radius:9px;
+      background:#eefbf3;
+      color:#16803a;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .ace-mural-ready-status.show{
+      display:block;
+    }
+
+    .ace-mural-ready-status.error{
+      border-color:#ef4444;
+      background:#fff1f0;
+      color:#d92d20;
+    }
+
     .ace-mural-source-choice{
       display:flex;
       gap:10px;
@@ -14625,6 +14647,11 @@ function openMuralAceEditor(
             No celular, toque acima para escolher uma imagem ou vídeo da galeria/arquivos.
           </span>
 
+          <div
+            id="aceMuralUploadStatus"
+            class="ace-mural-ready-status"
+          ></div>
+
           ${
             editing &&
             post?.arquivo_path
@@ -14656,6 +14683,11 @@ function openMuralAceEditor(
           <span class="ace-mural-help">
             Aceita link direto de imagem/vídeo e links do YouTube.
           </span>
+
+          <div
+            id="aceMuralLinkStatus"
+            class="ace-mural-ready-status"
+          ></div>
 
         </label>
 
@@ -14745,6 +14777,172 @@ function openMuralAceEditor(
 
 
   updateMuralSourceFields();
+
+
+  const muralFileInput =
+    document.getElementById(
+      "aceMuralFile"
+    );
+
+  const muralUploadStatus =
+    document.getElementById(
+      "aceMuralUploadStatus"
+    );
+
+  if (muralFileInput) {
+
+    muralFileInput.addEventListener(
+      "change",
+      () => {
+
+        const file =
+          muralFileInput.files?.[0];
+
+        if (!file) {
+
+          if (muralUploadStatus) {
+            muralUploadStatus.className =
+              "ace-mural-ready-status";
+            muralUploadStatus.textContent =
+              "";
+          }
+
+          return;
+        }
+
+
+        const allowed =
+          (
+            String(file.type || "")
+              .startsWith("image/")
+          ) ||
+          [
+            "video/mp4",
+            "video/webm"
+          ].includes(
+            String(file.type || "")
+          );
+
+
+        if (!allowed) {
+
+          if (muralUploadStatus) {
+            muralUploadStatus.className =
+              "ace-mural-ready-status show error";
+            muralUploadStatus.textContent =
+              "❌ Formato não permitido. Use imagem, MP4 ou WEBM.";
+          }
+
+          return;
+        }
+
+
+        const sizeMb =
+          file.size /
+          1024 /
+          1024;
+
+
+        if (sizeMb > 100) {
+
+          if (muralUploadStatus) {
+            muralUploadStatus.className =
+              "ace-mural-ready-status show error";
+            muralUploadStatus.textContent =
+              "❌ Arquivo maior que 100 MB.";
+          }
+
+          return;
+        }
+
+
+        if (muralUploadStatus) {
+          muralUploadStatus.className =
+            "ace-mural-ready-status show";
+          muralUploadStatus.textContent =
+            `✅ Arquivo pronto para publicar: ${file.name} (${sizeMb.toFixed(1)} MB)`;
+        }
+
+      }
+    );
+
+  }
+
+
+  const muralExternalInput =
+    document.getElementById(
+      "aceMuralExternalUrl"
+    );
+
+  const muralLinkStatus =
+    document.getElementById(
+      "aceMuralLinkStatus"
+    );
+
+  const validateMuralExternalInput =
+    () => {
+
+      const value =
+        muralExternalInput?.value
+          ?.trim() || "";
+
+      if (!value) {
+
+        if (muralLinkStatus) {
+          muralLinkStatus.className =
+            "ace-mural-ready-status";
+          muralLinkStatus.textContent =
+            "";
+        }
+
+        return false;
+      }
+
+
+      const valid =
+        isMuralAceValidExternalUrl(
+          value
+        );
+
+
+      if (muralLinkStatus) {
+
+        if (valid) {
+
+          muralLinkStatus.className =
+            "ace-mural-ready-status show";
+
+          muralLinkStatus.textContent =
+            getMuralAceYouTubeEmbedUrl(value)
+              ? "✅ Link do YouTube reconhecido e pronto para publicar."
+              : "✅ Link válido e pronto para publicar.";
+
+        } else {
+
+          muralLinkStatus.className =
+            "ace-mural-ready-status show error";
+
+          muralLinkStatus.textContent =
+            "❌ Link inválido. Use um endereço começando com http:// ou https://.";
+
+        }
+
+      }
+
+      return valid;
+
+    };
+
+
+  muralExternalInput?.addEventListener(
+    "input",
+    validateMuralExternalInput
+  );
+
+  muralExternalInput?.addEventListener(
+    "change",
+    validateMuralExternalInput
+  );
 
 
   document
@@ -15019,10 +15217,57 @@ async function saveMuralAcePost(
 
     if (file) {
 
+      if (button) {
+        button.textContent =
+          "⬆️ Enviando arquivo...";
+      }
+
       newUpload =
         await uploadMuralAceFile(
           file
         );
+
+
+      const uploadStatus =
+        document.getElementById(
+          "aceMuralUploadStatus"
+        );
+
+      if (uploadStatus) {
+        uploadStatus.className =
+          "ace-mural-ready-status show";
+        uploadStatus.textContent =
+          "✅ Upload concluído! Agora salvando a publicação...";
+      }
+
+      if (button) {
+        button.textContent =
+          "💾 Salvando publicação...";
+      }
+
+    }
+
+
+    if (
+      source === "link" &&
+      externalUrl
+    ) {
+
+      const validLink =
+        isMuralAceValidExternalUrl(
+          externalUrl
+        );
+
+      if (!validLink) {
+        throw new Error(
+          "O link informado é inválido."
+        );
+      }
+
+      if (button) {
+        button.textContent =
+          "💾 Salvando link...";
+      }
 
     }
 
@@ -15241,12 +15486,29 @@ async function saveMuralAcePost(
     }
 
 
-    await showAceConfirm(
-      "Não foi possível salvar a publicação.\n\n" +
-      (
+    const rawMessage =
+      String(
         error?.message ||
         "Verifique as permissões do Supabase."
-      ),
+      );
+
+
+    const friendlyMessage =
+      rawMessage
+        .toLowerCase()
+        .includes(
+          "row-level security"
+        )
+        ? (
+            "O Supabase bloqueou a publicação por permissão (RLS).\n\n" +
+            "Execute o arquivo SQL de correção das permissões do Mural ACE e entre novamente com o e-mail administrador."
+          )
+        : rawMessage;
+
+
+    await showAceConfirm(
+      "Não foi possível salvar a publicação.\n\n" +
+      friendlyMessage,
       "❌ Erro"
     );
 
