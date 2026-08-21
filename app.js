@@ -5923,14 +5923,6 @@ function renderAttendance() {
                     ✏️ Editar
                   </button>
 
-                  <button
-                    type="button"
-                    class="ace-attendance-delete"
-                    data-attendance-delete-person="${p.id}"
-                  >
-                    🗑️ Excluir
-                  </button>
-
                 </div>
 
                 <label class="switch ace-attendance-switch-wrap">
@@ -6050,26 +6042,6 @@ function renderAttendance() {
       }
     );
 
-
-  document
-    .querySelectorAll(
-      "[data-attendance-delete-person]"
-    )
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            deleteAttendancePerson(
-              Number(
-                button
-                  .dataset
-                  .attendanceDeletePerson
-              )
-            );
-
-      }
-    );
 
 }
 
@@ -7313,6 +7285,83 @@ function renderCadastros() {
 
 async function delBy(key, id) {
 
+  // ==========================================================
+  // PESSOAS:
+  // Não apaga fisicamente para evitar conflito com registros
+  // vinculados. Remove as presenças da pessoa e deixa o cadastro
+  // inativo, fazendo a pessoa desaparecer das listas.
+  // ==========================================================
+
+  if (key === "people") {
+
+    const person =
+      db.people.find(
+        p =>
+          Number(p.id) ===
+          Number(id)
+      );
+
+
+    if (!person) {
+      toast("Pessoa não encontrada.");
+      return;
+    }
+
+
+    const confirmed =
+      await showAceConfirm(
+        `Excluir ${person.name}?\n\n` +
+        "A pessoa será removida do cadastro e das listas de presença.\n" +
+        "As presenças anteriores dessa pessoa também serão removidas.\n\n" +
+        "Entradas, saídas, estoque e demais históricos não serão alterados.",
+        "Excluir pessoa"
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    try {
+
+      await archivePersonAndRemoveAttendance(
+        person.id
+      );
+
+      await reloadFromSupabase();
+
+      showAceSuccess(
+        "Pessoa excluída com sucesso!"
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "ACE - ERRO AO EXCLUIR PESSOA:",
+        error
+      );
+
+      toast(
+        "Não foi possível excluir a pessoa: " +
+        (
+          error?.message ||
+          "verifique o Supabase."
+        )
+      );
+
+    }
+
+    return;
+  }
+
+
+  // ==========================================================
+  // DEMAIS CADASTROS:
+  // Mantém o comportamento anterior.
+  // ==========================================================
+
   if (!(await showAceConfirm(
       "Excluir cadastro? Registros históricos que já usam este item continuarão salvos.",
       "Excluir cadastro"
@@ -7320,13 +7369,31 @@ async function delBy(key, id) {
       return;
     }
 
+
   try {
-    await deleteCadastro(key, id);
+
+    await deleteCadastro(
+      key,
+      id
+    );
+
     await reloadFromSupabase();
-    toast("Cadastro excluído.");
+
+    toast(
+      "Cadastro excluído."
+    );
+
+
   } catch (error) {
-    console.error(error);
-    toast("Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados.");
+
+    console.error(
+      error
+    );
+
+    toast(
+      "Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados."
+    );
+
   }
 
 }
