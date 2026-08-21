@@ -72,6 +72,48 @@ const DEFAULT = {
 
 let db = null;
 let deferredPrompt = null;
+
+
+// ============================================================
+// CAPTURA IMEDIATA DO PROMPT DE INSTALAÇÃO
+// ============================================================
+//
+// O Chrome pode disparar "beforeinstallprompt" muito cedo,
+// antes de initApp()/setupPWA() terminar de carregar.
+//
+// Guardamos o evento aqui, logo no início do app.js, para não
+// perder a instalação nativa.
+//
+window.addEventListener(
+  "beforeinstallprompt",
+  event => {
+
+    event.preventDefault();
+
+    deferredPrompt =
+      event;
+
+
+    const button =
+      document.getElementById(
+        "installBtn"
+      );
+
+
+    if (button) {
+
+      button.classList.remove(
+        "hidden"
+      );
+
+      button.style.display =
+        "";
+
+    }
+
+  }
+);
+
 let currentUser = null;
 let appStarted = false;
 
@@ -14666,16 +14708,7 @@ function setupPWA() {
 
 
   // ==========================================================
-  // IMPORTANTE:
-  // O navegador só permite abrir a instalação nativa quando
-  // ele próprio dispara "beforeinstallprompt".
-  //
-  // Portanto:
-  // - enquanto o prompt não estiver disponível, escondemos o
-  //   botão para evitar clique que não faz nada;
-  // - assim que o navegador liberar a instalação, o botão
-  //   aparece;
-  // - ao clicar, abre DIRETAMENTE o prompt nativo.
+  // BOTÃO ORIGINAL SEMPRE VISÍVEL NO NAVEGADOR
   // ==========================================================
 
   if (installBtn) {
@@ -14691,18 +14724,20 @@ function setupPWA() {
 
     } else {
 
-      installBtn.classList.add(
+      installBtn.classList.remove(
         "hidden"
       );
 
       installBtn.style.display =
-        "none";
+        "";
 
     }
 
   }
 
 
+  // Este segundo listener é mantido como reforço.
+  // O principal já foi registrado no topo do app.js.
   window.addEventListener(
     "beforeinstallprompt",
     event => {
@@ -14733,76 +14768,169 @@ function setupPWA() {
 
   if (installBtn) {
 
-    installBtn.addEventListener(
-      "click",
+    installBtn.onclick =
       async () => {
 
-        if (
-          isStandalone()
-        ) {
-
-          installBtn.classList.add(
-            "hidden"
-          );
+        if (isStandalone()) {
 
           installBtn.style.display =
             "none";
 
           return;
+
         }
 
 
-        // O botão só fica visível quando deferredPrompt existe.
-        if (!deferredPrompt) {
+        // ------------------------------------------------------
+        // Se o prompt nativo foi capturado, abre DIRETAMENTE
+        // a instalação do Chrome/Android.
+        // ------------------------------------------------------
+
+        if (deferredPrompt) {
+
+          try {
+
+            await deferredPrompt
+              .prompt();
+
+
+            const choice =
+              await deferredPrompt
+                .userChoice;
+
+
+            if (
+              choice?.outcome ===
+              "accepted"
+            ) {
+
+              installBtn.disabled =
+                true;
+
+            }
+
+
+            deferredPrompt =
+              null;
+
+
+          } catch (error) {
+
+            console.warn(
+              "ACE - erro ao iniciar instalação:",
+              error
+            );
+
+          }
+
           return;
+
         }
 
+
+        // ------------------------------------------------------
+        // O prompt ainda não chegou:
+        // força atualização do Service Worker e aguarda por até
+        // 3 segundos pelo beforeinstallprompt.
+        //
+        // Não mostra janela azul, não mostra instrução.
+        // Se o Chrome liberar o prompt nesse intervalo,
+        // a instalação abre automaticamente.
+        // ------------------------------------------------------
 
         try {
 
-          deferredPrompt.prompt();
-
-          const choice =
-            await deferredPrompt
-              .userChoice;
-
-
           if (
-            choice?.outcome ===
-            "accepted"
+            "serviceWorker" in navigator
           ) {
 
-            installBtn.disabled =
-              true;
+            const registration =
+              await navigator
+                .serviceWorker
+                .getRegistration();
+
+
+            if (registration) {
+
+              await registration
+                .update()
+                .catch(
+                  () => {}
+                );
+
+            }
 
           }
 
 
-          deferredPrompt =
-            null;
+          installBtn.disabled =
+            true;
+
+          installBtn.textContent =
+            "📲 Preparando instalação...";
 
 
-          // Depois de usar o prompt, o navegador exige um novo
-          // beforeinstallprompt para permitir outra tentativa.
-          installBtn.classList.add(
-            "hidden"
-          );
+          const startedAt =
+            Date.now();
 
-          installBtn.style.display =
-            "none";
+
+          while (
+            !deferredPrompt &&
+            Date.now() - startedAt <
+              3000
+          ) {
+
+            await new Promise(
+              resolve =>
+                setTimeout(
+                  resolve,
+                  150
+                )
+            );
+
+          }
+
+
+          installBtn.disabled =
+            false;
+
+          installBtn.textContent =
+            "📲 Instalar";
+
+
+          if (deferredPrompt) {
+
+            await deferredPrompt
+              .prompt();
+
+
+            await deferredPrompt
+              .userChoice;
+
+
+            deferredPrompt =
+              null;
+
+          }
 
 
         } catch (error) {
 
+          installBtn.disabled =
+            false;
+
+          installBtn.textContent =
+            "📲 Instalar";
+
+
           console.warn(
-            "ACE - erro ao abrir instalação nativa:",
+            "ACE - instalação não liberada pelo navegador:",
             error
           );
 
         }
 
-      }
-    );
+      };
 
   }
 
