@@ -132,6 +132,9 @@ const ACE_OFFLINE_DB_KEY =
 const ACE_OFFLINE_MURAL_KEY =
   "ace_offline_mural_v1";
 
+const ACE_OFFLINE_USER_KEY =
+  "ace_offline_user_v1";
+
 const ACE_OFFLINE_STATUS_ID =
   "aceOfflineStatus";
 
@@ -177,6 +180,110 @@ function loadOfflineSnapshot() {
   }
 }
 
+
+
+
+function saveOfflineUser(
+  user
+) {
+
+  if (
+    !user?.id ||
+    !user?.email
+  ) {
+    return;
+  }
+
+
+  try {
+
+    localStorage.setItem(
+      ACE_OFFLINE_USER_KEY,
+      JSON.stringify({
+        id:
+          user.id,
+        email:
+          user.email,
+        user_metadata:
+          user.user_metadata || {},
+        app_metadata:
+          user.app_metadata || {}
+      })
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível salvar o usuário para acesso offline:",
+      error
+    );
+
+  }
+
+}
+
+
+function loadOfflineUser() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_USER_KEY
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+
+    const user =
+      JSON.parse(raw);
+
+
+    if (
+      !user?.id ||
+      !user?.email
+    ) {
+      return null;
+    }
+
+
+    return user;
+
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível ler o usuário offline:",
+      error
+    );
+
+    return null;
+
+  }
+
+}
+
+
+function clearOfflineUser() {
+
+  try {
+
+    localStorage.removeItem(
+      ACE_OFFLINE_USER_KEY
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível limpar usuário offline:",
+      error
+    );
+
+  }
+
+}
 
 
 function saveOfflineMuralPosts(
@@ -659,6 +766,10 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
             currentUser =
               refreshData.session.user;
+
+            saveOfflineUser(
+              currentUser
+            );
 
             rememberCurrentUser();
 
@@ -3752,6 +3863,10 @@ async function loginUser(e) {
 
     currentUser = data.user;
 
+    saveOfflineUser(
+      currentUser
+    );
+
     document
       .getElementById("loginScreen")
       .remove();
@@ -4083,6 +4198,8 @@ async function logoutUser() {
 
   if (!ok) return;
 
+
+  clearOfflineUser();
 
   const { error } =
     await supabaseClient.auth.signOut();
@@ -17622,6 +17739,69 @@ async function startAuth() {
 
 
   // ==========================================================
+  // ACESSO OFFLINE
+  //
+  // Se este aparelho já foi autenticado online anteriormente,
+  // não tenta acessar o Supabase Auth quando estiver sem rede.
+  // Usa o usuário local + o último snapshot sincronizado.
+  // ==========================================================
+
+  if (!navigator.onLine) {
+
+    const offlineUser =
+      loadOfflineUser();
+
+    const offlineDb =
+      loadOfflineSnapshot();
+
+
+    if (
+      offlineUser &&
+      offlineDb
+    ) {
+
+      currentUser =
+        offlineUser;
+
+
+      document
+        .getElementById(
+          "loginScreen"
+        )
+        ?.remove();
+
+
+      await initApp();
+
+      return;
+
+    }
+
+
+    const loginError =
+      document.getElementById(
+        "loginError"
+      );
+
+
+    if (loginError) {
+
+      loginError.textContent =
+        "Sem internet e este aparelho ainda não possui uma sessão offline válida. Conecte-se uma vez e entre normalmente.";
+
+      loginError.classList.add(
+        "show"
+      );
+
+    }
+
+
+    return;
+
+  }
+
+
+  // ==========================================================
   // MONITORA ALTERAÇÕES DE AUTENTICAÇÃO
   //
   // Registrado ANTES de getSession() para que, se o token
@@ -17662,6 +17842,10 @@ async function startAuth() {
 
         currentUser =
           session.user;
+
+        saveOfflineUser(
+          currentUser
+        );
 
         rememberCurrentUser();
 
@@ -17737,6 +17921,10 @@ async function startAuth() {
 
       currentUser =
         data.session.user;
+
+      saveOfflineUser(
+        currentUser
+      );
 
       rememberCurrentUser();
 
