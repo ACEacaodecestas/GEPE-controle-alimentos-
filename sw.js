@@ -1,4 +1,4 @@
-const CACHE = "controle-alimentos-offline-v9";
+const CACHE = "controle-alimentos-offline-v10";
 
 const ASSETS = [
   "./",
