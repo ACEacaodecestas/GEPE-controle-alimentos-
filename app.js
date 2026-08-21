@@ -4296,31 +4296,396 @@ async function saveRecentEdit(id, isEntry) {
 // 10. ENTRADAS
 // ============================================================
 
-function renderEntries() {
+function ensureEntryHistoryControls() {
+
+  const tableEl =
+    document.getElementById(
+      "entriesTable"
+    );
+
+  if (!tableEl) return;
+
+
+  // ----------------------------------------------------------
+  // ESTILO DA JANELA:
+  // máximo visual equivalente a 10 entradas.
+  // A partir da 11ª aparece rolagem vertical.
+  // ----------------------------------------------------------
+
+  if (
+    !document.getElementById(
+      "aceEntryHistoryStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      "aceEntryHistoryStyle";
+
+    style.textContent = `
+
+      #entryHistoryControls{
+        display:flex;
+        flex-wrap:wrap;
+        align-items:flex-end;
+        gap:12px;
+        margin:0 0 16px;
+      }
+
+      #entryHistoryControls .entry-history-field{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+        min-width:210px;
+        color:#102a43;
+        font-weight:900;
+      }
+
+      #entryHistoryControls input{
+        min-height:46px;
+        box-sizing:border-box;
+        padding:9px 12px;
+        border:1px solid #ccd9e4;
+        border-radius:10px;
+        background:#fff;
+        color:#102a43;
+        font:inherit;
+      }
+
+      #entryHistoryControls button{
+        min-height:46px;
+        padding:9px 16px;
+        border-radius:10px;
+        font:inherit;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+      #entryHistoryClear{
+        border:1px solid #0756a0;
+        background:#fff;
+        color:#0756a0;
+      }
+
+      #entryHistoryDelete{
+        border:1px solid #ef4444;
+        background:#fff;
+        color:#d92d20;
+      }
+
+      #entriesTable .table-wrap{
+        max-height:530px;
+        overflow-y:auto;
+        overflow-x:auto;
+        scrollbar-gutter:stable;
+      }
+
+      #entriesTable table{
+        width:100%;
+      }
+
+      #entriesTable thead th{
+        position:sticky;
+        top:0;
+        z-index:2;
+        background:#f5f7f9;
+      }
+
+      #entriesTable tbody tr{
+        height:48px;
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  if (
+    document.getElementById(
+      "entryHistoryControls"
+    )
+  ) {
+    return;
+  }
+
+
+  const controls =
+    document.createElement(
+      "div"
+    );
+
+  controls.id =
+    "entryHistoryControls";
+
+  controls.innerHTML = `
+
+    <label class="entry-history-field">
+      Filtrar por data
+      <input
+        id="entryHistoryDateFilter"
+        type="date"
+        value="${isoToday()}"
+      >
+    </label>
+
+    <button
+      id="entryHistoryClear"
+      type="button"
+    >
+      Limpar filtro
+    </button>
+
+    <button
+      id="entryHistoryDelete"
+      type="button"
+    >
+      🗑️ Excluir Histórico
+    </button>
+
+  `;
+
+
+  tableEl.parentElement?.insertBefore(
+    controls,
+    tableEl
+  );
+
+
+  document
+    .getElementById(
+      "entryHistoryDateFilter"
+    )
+    ?.addEventListener(
+      "change",
+      renderEntries
+    );
+
+
+  document
+    .getElementById(
+      "entryHistoryDateFilter"
+    )
+    ?.addEventListener(
+      "input",
+      renderEntries
+    );
+
+
+  document
+    .getElementById(
+      "entryHistoryClear"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        const input =
+          document.getElementById(
+            "entryHistoryDateFilter"
+          );
+
+        if (input) {
+          input.value = "";
+        }
+
+        renderEntries();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "entryHistoryDelete"
+    )
+    ?.addEventListener(
+      "click",
+      deleteEntryHistoryOnly
+    );
+
+}
+
+
+async function deleteEntryHistoryOnly() {
 
   const date =
     document.getElementById(
-      "entryDate"
-    )?.value || isoToday();
+      "entryHistoryDateFilter"
+    )?.value || "";
 
+
+  const message =
+    date
+      ? (
+          "Excluir apenas o histórico de ENTRADAS da data " +
+          fmtDate(date) +
+          "?\n\nO estoque NÃO será alterado."
+        )
+      : (
+          "Excluir TODO o histórico exibido em Entradas do dia?\n\n" +
+          "O estoque NÃO será alterado."
+        );
+
+
+  const ok =
+    await showAceConfirm(
+      message,
+      "🗑️ Excluir histórico de entradas"
+    );
+
+
+  if (!ok) return;
+
+
+  const button =
+    document.getElementById(
+      "entryHistoryDelete"
+    );
+
+
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      "⏳ Excluindo...";
+  }
+
+
+  try {
+
+    let query =
+      supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .delete()
+        .eq(
+          "tipo",
+          "entrada"
+        );
+
+
+    if (date) {
+      query =
+        query.eq(
+          "data",
+          date
+        );
+    }
+
+
+    const {
+      error
+    } =
+      await query;
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    // Recarrega somente os dados.
+    // As entradas reais permanecem na tabela "entradas",
+    // portanto o cálculo do estoque não muda.
+    db =
+      await loadFromSupabase(
+        false
+      );
+
+    renderAll();
+
+    showAceSuccess(
+      "Histórico de entradas excluído com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR HISTÓRICO DE ENTRADAS:",
+      error
+    );
+
+    await showAceConfirm(
+      "Não foi possível excluir o histórico de entradas.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro"
+    );
+
+
+  } finally {
+
+    if (button) {
+      button.disabled = false;
+      button.textContent =
+        "🗑️ Excluir Histórico";
+    }
+
+  }
+
+}
+
+
+function renderEntries() {
+
+  ensureEntryHistoryControls();
+
+
+  const date =
+    document.getElementById(
+      "entryHistoryDateFilter"
+    )?.value || "";
+
+
+  // ==========================================================
+  // IMPORTANTE:
+  // Esta janela passa a mostrar o HISTÓRICO independente das
+  // entradas, e não a tabela que calcula o estoque.
+  //
+  // Dessa forma é possível excluir o histórico desta janela
+  // sem apagar a entrada real e sem modificar o estoque.
+  // ==========================================================
 
   const arr =
-    db.entries
+    (db.history || [])
       .filter(
-        x => x.date === date
+        x =>
+          x.type === "entrada" &&
+          (
+            !date ||
+            x.date === date
+          )
       )
       .sort(
         (a, b) =>
-          b.createdAt.localeCompare(
-            a.createdAt
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
           )
       );
 
 
   const total =
     arr.reduce(
-      (s, x) =>
-        s + Number(x.qty),
+      (sum, item) =>
+        sum +
+        Number(
+          item.qty || 0
+        ),
       0
     );
 
@@ -4332,8 +4697,10 @@ function renderEntries() {
 
 
   if (totalEl) {
+
     totalEl.textContent =
       `Total: ${fmt(total)}`;
+
   }
 
 
@@ -4351,7 +4718,10 @@ function renderEntries() {
         [
           [
             "Data",
-            x => fmtDate(x.date)
+            x =>
+              fmtDate(
+                x.date
+              )
           ],
           [
             "Origem",
@@ -4375,11 +4745,17 @@ function renderEntries() {
           ],
           [
             "Qtd",
-            x => fmt(x.qty)
+            x =>
+              fmt(
+                x.qty
+              )
           ],
           [
             "Obs.",
-            x => esc(x.note || "")
+            x =>
+              esc(
+                x.note || ""
+              )
           ]
         ],
         null
@@ -5744,7 +6120,7 @@ function ensurePersonExtraFields() {
       <input
         name="ede"
         type="text"
-        placeholder="Ex.: EDE 1"
+        placeholder="Ex.: ESDE 1"
       >
     </label>
 
