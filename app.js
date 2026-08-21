@@ -80,7 +80,7 @@ let appStarted = false;
 // ============================================================
 
 const MURAL_ACE_ADMIN_EMAIL =
-  "aislantavares329@hotmail.com";
+  "aislantavares329@gmail.com";
 
 let muralAcePosts = [];
 
@@ -13823,6 +13823,33 @@ function ensureMuralAceStyles() {
       word-break:break-all;
     }
 
+    .ace-mural-source-choice{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:3px;
+    }
+
+    .ace-mural-source-choice label{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      padding:10px 12px;
+      border:1px solid #cbd8e3;
+      border-radius:10px;
+      background:#fff;
+      cursor:pointer;
+      font-weight:800;
+    }
+
+    .ace-mural-media iframe{
+      display:block;
+      width:100%;
+      aspect-ratio:16/9;
+      border:0;
+      background:#000;
+    }
+
     @media(max-width:850px){
 
       .ace-mural-grid{
@@ -14053,6 +14080,116 @@ function formatMuralAceDate(
 }
 
 
+
+function getMuralAceYouTubeEmbedUrl(
+  url
+) {
+
+  const value =
+    String(url || "").trim();
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+
+    const parsed =
+      new URL(value);
+
+    let videoId = "";
+
+    if (
+      parsed.hostname === "youtu.be"
+    ) {
+      videoId =
+        parsed.pathname
+          .replace(/^\/+/, "")
+          .split("/")[0];
+    }
+
+    if (
+      parsed.hostname.includes(
+        "youtube.com"
+      )
+    ) {
+
+      if (
+        parsed.pathname === "/watch"
+      ) {
+        videoId =
+          parsed.searchParams.get("v") || "";
+      }
+
+      const shortsMatch =
+        parsed.pathname.match(
+          /^\/shorts\/([^/?#]+)/
+        );
+
+      if (shortsMatch) {
+        videoId =
+          shortsMatch[1];
+      }
+
+      const embedMatch =
+        parsed.pathname.match(
+          /^\/embed\/([^/?#]+)/
+        );
+
+      if (embedMatch) {
+        videoId =
+          embedMatch[1];
+      }
+
+    }
+
+    if (
+      !/^[A-Za-z0-9_-]{6,}$/.test(
+        videoId
+      )
+    ) {
+      return "";
+    }
+
+    return (
+      "https://www.youtube.com/embed/" +
+      encodeURIComponent(videoId)
+    );
+
+  } catch {
+
+    return "";
+
+  }
+
+}
+
+
+function isMuralAceValidExternalUrl(
+  value
+) {
+
+  try {
+
+    const url =
+      new URL(
+        String(value || "").trim()
+      );
+
+    return (
+      url.protocol === "https:" ||
+      url.protocol === "http:"
+    );
+
+  } catch {
+
+    return false;
+
+  }
+
+}
+
+
 function renderMuralAce() {
 
   const page =
@@ -14124,28 +14261,48 @@ function renderMuralAce() {
                       post.tipo || ""
                     ).toLowerCase();
 
+                  const youtubeEmbed =
+                    getMuralAceYouTubeEmbedUrl(
+                      post.arquivo_url
+                    );
+
+
                   const media =
                     post.arquivo_url
                       ? (
-                          type === "video"
+                          youtubeEmbed
                             ? `
                                 <div class="ace-mural-media">
-                                  <video
-                                    controls
-                                    preload="metadata"
-                                    src="${esc(post.arquivo_url)}"
-                                  ></video>
-                                </div>
-                              `
-                            : `
-                                <div class="ace-mural-media">
-                                  <img
-                                    src="${esc(post.arquivo_url)}"
-                                    alt="${esc(post.titulo || "Imagem do Mural ACE")}"
+                                  <iframe
+                                    src="${esc(youtubeEmbed)}"
+                                    title="${esc(post.titulo || "Vídeo do Mural ACE")}"
                                     loading="lazy"
-                                  >
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowfullscreen
+                                  ></iframe>
                                 </div>
                               `
+                            : (
+                                type === "video"
+                                  ? `
+                                      <div class="ace-mural-media">
+                                        <video
+                                          controls
+                                          preload="metadata"
+                                          src="${esc(post.arquivo_url)}"
+                                        ></video>
+                                      </div>
+                                    `
+                                  : `
+                                      <div class="ace-mural-media">
+                                        <img
+                                          src="${esc(post.arquivo_url)}"
+                                          alt="${esc(post.titulo || "Imagem do Mural ACE")}"
+                                          loading="lazy"
+                                        >
+                                      </div>
+                                    `
+                              )
                         )
                       : "";
 
@@ -14418,7 +14575,40 @@ function openMuralAceEditor(
         </label>
 
 
-        <label class="ace-mural-field full">
+        <div class="ace-mural-field full">
+
+          Origem do conteúdo
+
+          <div class="ace-mural-source-choice">
+
+            <label>
+              <input
+                type="radio"
+                name="aceMuralSource"
+                value="upload"
+                checked
+              >
+              📁 Upload do aparelho
+            </label>
+
+            <label>
+              <input
+                type="radio"
+                name="aceMuralSource"
+                value="link"
+              >
+              🔗 Link externo
+            </label>
+
+          </div>
+
+        </div>
+
+
+        <label
+          id="aceMuralUploadField"
+          class="ace-mural-field full"
+        >
           ${
             editing
               ? "Trocar imagem ou vídeo (opcional)"
@@ -14429,15 +14619,10 @@ function openMuralAceEditor(
             id="aceMuralFile"
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
-            ${
-              editing
-                ? ""
-                : "required"
-            }
           >
 
           <span class="ace-mural-help">
-            Imagens: JPG, PNG, WEBP ou GIF. Vídeos: MP4 ou WEBM.
+            No celular, toque acima para escolher uma imagem ou vídeo da galeria/arquivos.
           </span>
 
           ${
@@ -14450,6 +14635,27 @@ function openMuralAceEditor(
                 `
               : ""
           }
+
+        </label>
+
+
+        <label
+          id="aceMuralLinkField"
+          class="ace-mural-field full"
+          style="display:none"
+        >
+          Link da imagem ou vídeo
+
+          <input
+            id="aceMuralExternalUrl"
+            type="url"
+            inputmode="url"
+            placeholder="Cole aqui o link da imagem, vídeo ou YouTube"
+          >
+
+          <span class="ace-mural-help">
+            Aceita link direto de imagem/vídeo e links do YouTube.
+          </span>
 
         </label>
 
@@ -14482,6 +14688,63 @@ function openMuralAceEditor(
   document.body.appendChild(
     modal
   );
+
+
+  const muralSourceRadios =
+    modal.querySelectorAll(
+      'input[name="aceMuralSource"]'
+    );
+
+
+  const updateMuralSourceFields =
+    () => {
+
+      const source =
+        modal.querySelector(
+          'input[name="aceMuralSource"]:checked'
+        )?.value || "upload";
+
+
+      const uploadField =
+        document.getElementById(
+          "aceMuralUploadField"
+        );
+
+
+      const linkField =
+        document.getElementById(
+          "aceMuralLinkField"
+        );
+
+
+      if (uploadField) {
+        uploadField.style.display =
+          source === "upload"
+            ? ""
+            : "none";
+      }
+
+
+      if (linkField) {
+        linkField.style.display =
+          source === "link"
+            ? ""
+            : "none";
+      }
+
+    };
+
+
+  muralSourceRadios.forEach(
+    radio =>
+      radio.addEventListener(
+        "change",
+        updateMuralSourceFields
+      )
+  );
+
+
+  updateMuralSourceFields();
 
 
   document
@@ -14657,13 +14920,36 @@ async function saveMuralAcePost(
       "false";
 
 
+  const source =
+    document.querySelector(
+      'input[name="aceMuralSource"]:checked'
+    )?.value || "upload";
+
+
   const file =
-    document
-      .getElementById(
-        "aceMuralFile"
-      )
-      ?.files?.[0] ||
-    null;
+    source === "upload"
+      ? (
+          document
+            .getElementById(
+              "aceMuralFile"
+            )
+            ?.files?.[0] ||
+          null
+        )
+      : null;
+
+
+  const externalUrl =
+    source === "link"
+      ? (
+          document
+            .getElementById(
+              "aceMuralExternalUrl"
+            )
+            ?.value
+            .trim() || ""
+        )
+      : "";
 
 
   if (!title) {
@@ -14676,10 +14962,37 @@ async function saveMuralAcePost(
 
   if (
     !existingPost &&
+    source === "upload" &&
     !file
   ) {
     toast(
       "Selecione uma imagem ou vídeo."
+    );
+    return;
+  }
+
+
+  if (
+    !existingPost &&
+    source === "link" &&
+    !externalUrl
+  ) {
+    toast(
+      "Cole o link da imagem ou vídeo."
+    );
+    return;
+  }
+
+
+  if (
+    source === "link" &&
+    externalUrl &&
+    !isMuralAceValidExternalUrl(
+      externalUrl
+    )
+  ) {
+    toast(
+      "Informe um link válido começando com http:// ou https://."
     );
     return;
   }
@@ -14751,6 +15064,43 @@ async function saveMuralAcePost(
     }
 
 
+    if (
+      source === "link" &&
+      externalUrl
+    ) {
+
+      const lowerUrl =
+        externalUrl
+          .toLowerCase()
+          .split("?")[0]
+          .split("#")[0];
+
+
+      const isVideoLink =
+        Boolean(
+          getMuralAceYouTubeEmbedUrl(
+            externalUrl
+          )
+        ) ||
+        /\.(mp4|webm|mov|m4v)$/i.test(
+          lowerUrl
+        );
+
+
+      payload.tipo =
+        isVideoLink
+          ? "video"
+          : "imagem";
+
+      payload.arquivo_url =
+        externalUrl;
+
+      payload.arquivo_path =
+        null;
+
+    }
+
+
     if (existingPost) {
 
       const {
@@ -14775,7 +15125,13 @@ async function saveMuralAcePost(
 
 
       if (
-        newUpload &&
+        (
+          newUpload ||
+          (
+            source === "link" &&
+            externalUrl
+          )
+        ) &&
         existingPost.arquivo_path
       ) {
 
@@ -14814,13 +15170,13 @@ async function saveMuralAcePost(
             ...payload,
 
             tipo:
-              newUpload.type,
+              payload.tipo,
 
             arquivo_url:
-              newUpload.url,
+              payload.arquivo_url,
 
             arquivo_path:
-              newUpload.path,
+              payload.arquivo_path || null,
 
             data_publicacao:
               new Date()
