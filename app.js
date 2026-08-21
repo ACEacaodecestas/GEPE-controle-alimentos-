@@ -133,10 +133,13 @@ const ACE_OFFLINE_MURAL_KEY =
   "ace_offline_mural_v1";
 
 const ACE_OFFLINE_USER_KEY =
-  "ace_offline_user_v3";
+  "ace_offline_users_v4";
 
 const ACE_OFFLINE_CREDENTIAL_KEY =
-  "ace_offline_credential_v1";
+  "ace_offline_credentials_v2";
+
+const ACE_OFFLINE_LAST_USER_KEY =
+  "ace_offline_last_user_v1";
 
 const ACE_OFFLINE_LOGOUT_KEY =
   "ace_offline_explicit_logout_v1";
@@ -195,6 +198,43 @@ function loadOfflineSnapshot() {
 
 
 
+function getOfflineUsersMap() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_USER_KEY
+      );
+
+    const parsed =
+      raw
+        ? JSON.parse(raw)
+        : {};
+
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : {};
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível ler usuários offline:",
+      error
+    );
+
+    return {};
+
+  }
+
+}
+
+
 function saveOfflineUser(
   user
 ) {
@@ -209,19 +249,43 @@ function saveOfflineUser(
 
   try {
 
+    const email =
+      String(
+        user.email
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const users =
+      getOfflineUsersMap();
+
+
+    users[email] = {
+      id:
+        user.id,
+      email:
+        user.email,
+      user_metadata:
+        user.user_metadata || {},
+      app_metadata:
+        user.app_metadata || {}
+    };
+
+
     localStorage.setItem(
       ACE_OFFLINE_USER_KEY,
-      JSON.stringify({
-        id:
-          user.id,
-        email:
-          user.email,
-        user_metadata:
-          user.user_metadata || {},
-        app_metadata:
-          user.app_metadata || {}
-      })
+      JSON.stringify(
+        users
+      )
     );
+
+
+    localStorage.setItem(
+      ACE_OFFLINE_LAST_USER_KEY,
+      email
+    );
+
 
   } catch (error) {
 
@@ -235,53 +299,84 @@ function saveOfflineUser(
 }
 
 
-function loadOfflineUser() {
-
-  // ----------------------------------------------------------
-  // 1. Tenta a cópia própria do ACE
-  // ----------------------------------------------------------
+function loadOfflineUser(
+  email = ""
+) {
 
   try {
 
-    const raw =
-      localStorage.getItem(
-        ACE_OFFLINE_USER_KEY
-      );
+    const users =
+      getOfflineUsersMap();
 
 
-    if (raw) {
+    const normalizedEmail =
+      String(
+        email || ""
+      )
+        .trim()
+        .toLowerCase();
 
-      const user =
-        JSON.parse(raw);
 
-
-      if (
-        user?.id &&
-        user?.email
-      ) {
-        return user;
-      }
-
+    if (
+      normalizedEmail &&
+      users[
+        normalizedEmail
+      ]
+    ) {
+      return users[
+        normalizedEmail
+      ];
     }
+
+
+    const lastEmail =
+      String(
+        localStorage.getItem(
+          ACE_OFFLINE_LAST_USER_KEY
+        ) || ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    if (
+      lastEmail &&
+      users[
+        lastEmail
+      ]
+    ) {
+      return users[
+        lastEmail
+      ];
+    }
+
+
+    const firstUser =
+      Object.values(
+        users
+      )[0];
+
+
+    if (
+      firstUser?.id &&
+      firstUser?.email
+    ) {
+      return firstUser;
+    }
+
 
   } catch (error) {
 
     console.warn(
-      "ACE: falha ao ler usuário offline próprio:",
+      "ACE: falha ao ler usuário offline:",
       error
     );
 
   }
 
 
-  // ----------------------------------------------------------
-  // 2. Recupera a sessão que o próprio Supabase Auth guarda
-  //    no localStorage.
-  //
-  // Isso permite o acesso offline mesmo se o usuário já estava
-  // logado antes desta versão do app ser instalada.
-  // ----------------------------------------------------------
-
+  // Compatibilidade com versões anteriores:
+  // tenta recuperar a sessão local do próprio Supabase.
   try {
 
     for (
@@ -319,8 +414,6 @@ function loadOfflineUser() {
         JSON.parse(raw);
 
 
-      // Algumas versões podem armazenar JSON duplamente
-      // serializado.
       if (
         typeof parsed ===
         "string"
@@ -345,11 +438,28 @@ function loadOfflineUser() {
       ];
 
 
+      const requestedEmail =
+        String(
+          email || ""
+        )
+          .trim()
+          .toLowerCase();
+
+
       const user =
         possibleUsers.find(
           item =>
             item?.id &&
-            item?.email
+            item?.email &&
+            (
+              !requestedEmail ||
+              String(
+                item.email
+              )
+                .trim()
+                .toLowerCase() ===
+              requestedEmail
+            )
         );
 
 
@@ -379,25 +489,6 @@ function loadOfflineUser() {
 
 }
 
-
-function clearOfflineUser() {
-
-  try {
-
-    localStorage.removeItem(
-      ACE_OFFLINE_USER_KEY
-    );
-
-  } catch (error) {
-
-    console.warn(
-      "ACE: não foi possível limpar usuário offline:",
-      error
-    );
-
-  }
-
-}
 
 
 
@@ -491,6 +582,68 @@ async function deriveOfflinePasswordVerifier(
 }
 
 
+function getOfflineCredentialsMap() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_CREDENTIAL_KEY
+      );
+
+
+    const parsed =
+      raw
+        ? JSON.parse(raw)
+        : {};
+
+
+    // Migração automática da versão antiga,
+    // que armazenava apenas um usuário.
+    if (
+      parsed?.email &&
+      parsed?.salt &&
+      parsed?.verifier
+    ) {
+
+      const email =
+        String(
+          parsed.email
+        )
+          .trim()
+          .toLowerCase();
+
+
+      return {
+        [email]:
+          parsed
+      };
+
+    }
+
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : {};
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível ler credenciais offline:",
+      error
+    );
+
+    return {};
+
+  }
+
+}
+
+
 async function saveOfflineCredentials(
   email,
   password,
@@ -508,26 +661,47 @@ async function saveOfflineCredentials(
 
   try {
 
+    const normalizedEmail =
+      String(email)
+        .trim()
+        .toLowerCase();
+
+
     const result =
       await deriveOfflinePasswordVerifier(
         password
       );
 
 
+    const credentials =
+      getOfflineCredentialsMap();
+
+
+    credentials[
+      normalizedEmail
+    ] = {
+      email:
+        normalizedEmail,
+      userId:
+        user.id,
+      salt:
+        result.salt,
+      verifier:
+        result.verifier
+    };
+
+
     localStorage.setItem(
       ACE_OFFLINE_CREDENTIAL_KEY,
-      JSON.stringify({
-        email:
-          String(email)
-            .trim()
-            .toLowerCase(),
-        userId:
-          user.id,
-        salt:
-          result.salt,
-        verifier:
-          result.verifier
-      })
+      JSON.stringify(
+        credentials
+      )
+    );
+
+
+    localStorage.setItem(
+      ACE_OFFLINE_LAST_USER_KEY,
+      normalizedEmail
     );
 
 
@@ -556,37 +730,22 @@ async function verifyOfflineCredentials(
 
   try {
 
-    const raw =
-      localStorage.getItem(
-        ACE_OFFLINE_CREDENTIAL_KEY
-      );
-
-
-    if (!raw) {
-      return false;
-    }
-
-
-    const saved =
-      JSON.parse(
-        raw
-      );
-
-
-    if (
-      String(
-        saved?.email || ""
-      )
-        .trim()
-        .toLowerCase() !==
+    const normalizedEmail =
       String(
         email || ""
       )
         .trim()
-        .toLowerCase()
-    ) {
-      return false;
-    }
+        .toLowerCase();
+
+
+    const credentials =
+      getOfflineCredentialsMap();
+
+
+    const saved =
+      credentials[
+        normalizedEmail
+      ];
 
 
     if (
@@ -622,6 +781,8 @@ async function verifyOfflineCredentials(
   }
 
 }
+
+
 
 
 function wasExplicitlyLoggedOut() {
@@ -5625,7 +5786,9 @@ async function loginUser(e) {
     if (!navigator.onLine) {
 
       const offlineUser =
-        loadOfflineUser();
+        loadOfflineUser(
+          email
+        );
 
       const offlineDb =
         loadOfflineSnapshot();
@@ -5747,7 +5910,7 @@ function traduzirErroLogin(err) {
   ) {
 
     return (
-      "Sem internet. E-mail ou senha offline inválidos, ou este aparelho ainda não foi preparado para login offline."
+      "Sem internet. E-mail ou senha offline inválidos. Cada usuário precisa fazer login online pelo menos uma vez neste aparelho para liberar seu acesso offline."
     );
 
   }
@@ -17599,6 +17762,34 @@ function ensureMuralAceStyles() {
       font-weight:700;
     }
 
+    .ace-mural-story-bars{
+      display:none;
+      width:100%;
+      gap:5px;
+      margin:0 0 10px;
+    }
+
+    .ace-mural-story-bar{
+      flex:1 1 0;
+      height:4px;
+      overflow:hidden;
+      border-radius:999px;
+      background:#c9d3dc;
+      transition:background .18s ease;
+    }
+
+    .ace-mural-story-bar.active{
+      background:#0b4b7a;
+    }
+
+    @media(max-width:850px){
+
+      .ace-mural-story-bars.show{
+        display:flex;
+      }
+
+    }
+
   `;
 
 
@@ -18035,8 +18226,37 @@ function renderMuralAce() {
     </div>
 
 
+    ${
+      posts.length > 1
+        ? `
+            <div
+              class="ace-mural-story-bars show"
+              id="aceMuralStoryBars"
+              aria-label="Indicador de publicações"
+            >
+              ${
+                posts
+                  .map(
+                    (_, index) => `
+                      <span
+                        class="ace-mural-story-bar ${index === 0 ? "active" : ""}"
+                        data-mural-story-index="${index}"
+                      ></span>
+                    `
+                  )
+                  .join("")
+              }
+            </div>
+          `
+        : ""
+    }
+
     <div class="ace-mural-mobile-hint">
-      👈 Deslize para o lado para ver as próximas publicações
+      ${
+        posts.length > 1
+          ? "👈 Deslize para o lado para ver as próximas publicações"
+          : ""
+      }
     </div>
 
     <div class="ace-mural-grid">
@@ -18248,6 +18468,86 @@ function renderMuralAce() {
 
       }
     );
+
+
+  // ========================================================
+  // INDICADOR TIPO STORIES NO CELULAR
+  // ========================================================
+
+  const muralGrid =
+    page.querySelector(
+      ".ace-mural-grid"
+    );
+
+  const storyBars =
+    Array.from(
+      page.querySelectorAll(
+        ".ace-mural-story-bar"
+      )
+    );
+
+
+  const updateStoryBars =
+    () => {
+
+      if (
+        !muralGrid ||
+        storyBars.length < 2
+      ) {
+        return;
+      }
+
+
+      const width =
+        muralGrid.clientWidth;
+
+
+      if (
+        width <= 0
+      ) {
+        return;
+      }
+
+
+      const index =
+        Math.max(
+          0,
+          Math.min(
+            storyBars.length - 1,
+            Math.round(
+              muralGrid.scrollLeft /
+              width
+            )
+          )
+        );
+
+
+      storyBars.forEach(
+        (bar, barIndex) => {
+
+          bar.classList.toggle(
+            "active",
+            barIndex ===
+              index
+          );
+
+        }
+      );
+
+    };
+
+
+  muralGrid?.addEventListener(
+    "scroll",
+    updateStoryBars,
+    {
+      passive:
+        true
+    }
+  );
+
+
+  updateStoryBars();
 
 }
 
