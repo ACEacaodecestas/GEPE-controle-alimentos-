@@ -129,6 +129,9 @@ let muralAcePosts = [];
 const ACE_OFFLINE_DB_KEY =
   "ace_offline_snapshot_v1";
 
+const ACE_OFFLINE_MURAL_KEY =
+  "ace_offline_mural_v1";
+
 const ACE_OFFLINE_STATUS_ID =
   "aceOfflineStatus";
 
@@ -172,6 +175,73 @@ function loadOfflineSnapshot() {
     );
     return null;
   }
+}
+
+
+
+function saveOfflineMuralPosts(
+  posts
+) {
+
+  try {
+
+    localStorage.setItem(
+      ACE_OFFLINE_MURAL_KEY,
+      JSON.stringify({
+        savedAt:
+          new Date().toISOString(),
+        posts:
+          Array.isArray(posts)
+            ? posts
+            : []
+      })
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível salvar o Mural para uso offline:",
+      error
+    );
+
+  }
+
+}
+
+
+function loadOfflineMuralPosts() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_OFFLINE_MURAL_KEY
+      );
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed =
+      JSON.parse(raw);
+
+    return Array.isArray(
+      parsed?.posts
+    )
+      ? parsed.posts
+      : [];
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível ler o Mural offline:",
+      error
+    );
+
+    return [];
+
+  }
+
 }
 
 
@@ -223,11 +293,40 @@ function setupOfflineStatus() {
 
   window.addEventListener(
     "online",
-    () => {
+    async () => {
+
       updateOfflineStatusBadge();
+
       showAceSuccess(
         "✅ Conexão restabelecida."
       );
+
+
+      // Atualiza silenciosamente os dados e o Mural
+      // quando a internet voltar.
+      try {
+
+        db =
+          await loadFromSupabase();
+
+        saveOfflineSnapshot(
+          db
+        );
+
+
+        await loadMuralAcePosts();
+
+        renderAll();
+
+      } catch (error) {
+
+        console.warn(
+          "ACE: conexão voltou, mas a sincronização de leitura ainda falhou:",
+          error
+        );
+
+      }
+
     }
   );
 
@@ -15560,42 +15659,100 @@ function setupMuralAcePage() {
 
 async function loadMuralAcePosts() {
 
-  const {
-    data,
-    error
-  } =
-    await supabaseClient
-      .from(
-        "mural_ace"
-      )
-      .select("*")
-      .order(
-        "ordem",
-        {
-          ascending: true
-        }
-      )
-      .order(
-        "data_publicacao",
-        {
-          ascending: false
-        }
-      );
+  // ==========================================================
+  // OFFLINE:
+  // Nunca tenta chamar Supabase.
+  // Usa a última cópia do Mural salva neste aparelho.
+  // ==========================================================
 
+  if (!navigator.onLine) {
 
-  if (error) {
-    throw new Error(
-      "Falha ao carregar o Mural ACE: " +
-      (
-        error.message ||
-        "erro desconhecido"
-      )
-    );
+    muralAcePosts =
+      loadOfflineMuralPosts();
+
+    return muralAcePosts;
+
   }
 
 
-  muralAcePosts =
-    data || [];
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from(
+          "mural_ace"
+        )
+        .select("*")
+        .order(
+          "ordem",
+          {
+            ascending: true
+          }
+        )
+        .order(
+          "data_publicacao",
+          {
+            ascending: false
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    muralAcePosts =
+      data || [];
+
+
+    // Guarda a última versão para abrir sem internet.
+    saveOfflineMuralPosts(
+      muralAcePosts
+    );
+
+
+    return muralAcePosts;
+
+
+  } catch (error) {
+
+    // Se a rede estiver instável, não derruba o aplicativo.
+    // Tenta a cópia local do mural.
+    const cachedPosts =
+      loadOfflineMuralPosts();
+
+
+    if (cachedPosts.length) {
+
+      muralAcePosts =
+        cachedPosts;
+
+      console.warn(
+        "ACE: Mural carregado do cache local após falha de rede.",
+        error
+      );
+
+      return muralAcePosts;
+
+    }
+
+
+    // Sem cache: deixa o Mural vazio, mas o restante do app abre.
+    muralAcePosts =
+      [];
+
+    console.warn(
+      "ACE: não foi possível carregar o Mural ACE.",
+      error
+    );
+
+    return muralAcePosts;
+
+  }
 
 }
 
