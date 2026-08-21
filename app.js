@@ -14650,6 +14650,25 @@ function openBasketEditModal(basketId) {
 
 function setupPWA() {
 
+  const installBtn =
+    document.getElementById(
+      "installBtn"
+    );
+
+
+  // Mantém o botão original visível também no celular.
+  if (installBtn) {
+
+    installBtn.classList.remove(
+      "hidden"
+    );
+
+    installBtn.style.display =
+      "";
+
+  }
+
+
   window.addEventListener(
     "beforeinstallprompt",
     e => {
@@ -14659,26 +14678,19 @@ function setupPWA() {
       deferredPrompt = e;
 
 
-      const button =
-        document.getElementById(
-          "installBtn"
-        );
+      if (installBtn) {
 
-
-      if (button) {
-        button.classList.remove(
+        installBtn.classList.remove(
           "hidden"
         );
+
+        installBtn.style.display =
+          "";
+
       }
 
     }
   );
-
-
-  const installBtn =
-    document.getElementById(
-      "installBtn"
-    );
 
 
   if (installBtn) {
@@ -14687,34 +14699,52 @@ function setupPWA() {
       "click",
       async () => {
 
-        if (!deferredPrompt) {
+        const standalone =
+          window.matchMedia?.(
+            "(display-mode: standalone)"
+          )?.matches ||
+          window.navigator
+            .standalone === true;
 
-          const standalone =
-            window.matchMedia?.(
-              "(display-mode: standalone)"
-            )?.matches ||
-            window.navigator.standalone === true;
 
-          if (standalone) {
-            toast(
-              "O aplicativo já está instalado neste dispositivo."
+        if (standalone) {
+
+          await showAceConfirm(
+            "O aplicativo já está instalado neste dispositivo.",
+            "📲 Instalar aplicativo"
+          );
+
+          return;
+        }
+
+
+        if (deferredPrompt) {
+
+          try {
+
+            deferredPrompt.prompt();
+
+            await deferredPrompt.userChoice;
+
+            deferredPrompt =
+              null;
+
+          } catch (error) {
+
+            console.warn(
+              "ACE - erro ao abrir instalação:",
+              error
             );
-          } else {
-            toast(
-              "A instalação será liberada pelo navegador quando o aplicativo estiver pronto para instalar."
-            );
+
           }
 
           return;
         }
 
 
-        deferredPrompt.prompt();
-
-        deferredPrompt = null;
-
-        installBtn.classList.add(
-          "hidden"
+        await showAceConfirm(
+          "Se a janela automática de instalação ainda não aparecer, abra o menu do navegador e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.",
+          "📲 Instalar aplicativo"
         );
 
       }
@@ -14731,8 +14761,11 @@ function setupPWA() {
       "load",
       () => {
 
-        navigator.serviceWorker
-          .register("sw.js")
+        navigator
+          .serviceWorker
+          .register(
+            "sw.js"
+          )
           .catch(
             err =>
               console.warn(
@@ -17388,3 +17421,4 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
+
