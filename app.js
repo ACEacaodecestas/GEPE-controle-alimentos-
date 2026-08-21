@@ -14974,8 +14974,10 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "sw.js",
+            "./sw.js",
             {
+              scope:
+                "./",
               updateViaCache:
                 "none"
             }
