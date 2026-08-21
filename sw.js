@@ -1,4 +1,4 @@
-const CACHE = "controle-alimentos-offline-v14";
+const CACHE = "controle-alimentos-offline-v15";
 const MEDIA_CACHE = "controle-alimentos-media-v1";
 
 const SCOPE_URL =
