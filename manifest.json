@@ -1,21 +1,24 @@
 {
+  "id": "/GEPE-controle-alimentos/",
   "name": "Alimentos",
   "short_name": "Alimentos",
-  "description": "Controle de entradas, estoque, saídas, perdas e presença.",
-  "start_url": "./",
+  "description": "ACE Ação de Cestas - Controle de Alimentos",
+  "start_url": "/GEPE-controle-alimentos/",
+  "scope": "/GEPE-controle-alimentos/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0b3a63",
-  "lang": "pt-BR",
+  "theme_color": "#0b4f7c",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/GEPE-controle-alimentos/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "/GEPE-controle-alimentos/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
