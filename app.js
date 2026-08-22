@@ -13419,10 +13419,20 @@ function ensureBasketStyles() {
     }
 
     .ace-manual-basket-title{
+      display:flex;
+      align-items:center;
+      gap:14px;
       margin:0;
       color:#0b3a63;
       font-size:23px;
       font-weight:900;
+    }
+
+    .ace-manual-basket-title-image{
+      width:92px;
+      height:92px;
+      object-fit:contain;
+      flex:0 0 92px;
     }
 
     .ace-manual-basket-subtitle{
@@ -14002,12 +14012,17 @@ function renderBasketModule() {
     <div class="ace-manual-basket">
 
       <h3 class="ace-manual-basket-title">
-        🧺 Montar cesta manualmente
+        <img
+          class="ace-manual-basket-title-image"
+          src="cesta-personalizada-aberta.png"
+          alt="Cesta Personalizada aberta"
+        >
+        <span>Cesta Personalizada</span>
       </h3>
 
       <div class="ace-manual-basket-subtitle">
-        Monte uma cesta exclusiva para esta saída.
-        Informe o nome, os alimentos, as quantidades e o destino.
+        Monte uma cesta personalizada para esta saída.
+        Informe o nome, os alimentos, as quantidades e digite o destino.
         Os itens serão debitados do estoque de Água Fria.
       </div>
 
@@ -14035,24 +14050,10 @@ function renderBasketModule() {
 
         <label class="ace-manual-basket-field">
           Destino
-          <select id="manualBasketDestination">
-            <option value="">Selecione...</option>
-            <option value="Messejana">Messejana</option>
-            <option value="Praia do Futuro">Praia do Futuro</option>
-            <option value="Comunidade">Comunidade</option>
-          </select>
-        </label>
-
-        <label
-          id="manualBasketReceivedWrap"
-          class="ace-manual-basket-field"
-          style="display:none"
-        >
-          Nome da pessoa que recebeu
           <input
-            id="manualBasketReceivedBy"
+            id="manualBasketDestination"
             type="text"
-            placeholder="Digite o nome de quem recebeu"
+            placeholder="Ex.: Comunidade do Barroso"
           >
         </label>
 
@@ -14125,7 +14126,7 @@ function renderBasketModule() {
         type="button"
         class="ace-manual-register"
       >
-        🧺 Registrar saída da cesta manual
+        🧺 Registrar saída da cesta personalizada
       </button>
 
     </div>
@@ -14426,44 +14427,6 @@ function renderBasketModule() {
       "#manualBasketDestination"
     );
 
-  const manualReceivedWrap =
-    module.querySelector(
-      "#manualBasketReceivedWrap"
-    );
-
-  const manualReceivedInput =
-    module.querySelector(
-      "#manualBasketReceivedBy"
-    );
-
-
-  manualDestination
-    ?.addEventListener(
-      "change",
-      () => {
-
-        const community =
-          manualDestination.value ===
-          "Comunidade";
-
-        if (manualReceivedWrap) {
-          manualReceivedWrap.style.display =
-            community
-              ? ""
-              : "none";
-        }
-
-        if (
-          !community &&
-          manualReceivedInput
-        ) {
-          manualReceivedInput.value =
-            "";
-        }
-
-      }
-    );
-
 
   const renderManualBasketItems =
     () => {
@@ -14683,10 +14646,7 @@ function renderBasketModule() {
           )?.value || "";
 
         const receivedBy =
-          module.querySelector(
-            "#manualBasketReceivedBy"
-          )?.value
-            ?.trim() || "";
+          "";
 
 
         if (!name) {
@@ -14710,19 +14670,7 @@ function renderBasketModule() {
 
         if (!destination) {
           toast(
-            "Selecione o destino."
-          );
-          return;
-        }
-
-
-        if (
-          destination ===
-            "Comunidade" &&
-          !receivedBy
-        ) {
-          toast(
-            "Informe o nome da pessoa que recebeu."
+            "Digite o destino."
           );
           return;
         }
@@ -14743,14 +14691,8 @@ function renderBasketModule() {
             `Confirmar saída de ${basketQty} cesta(s) "${name}"?\n\n` +
             `Origem: Água Fria\n` +
             `Destino: ${destination}\n` +
-            `Itens diferentes: ${manualBasketItems.length}` +
-            (
-              destination ===
-                "Comunidade"
-                ? `\nRecebido por: ${receivedBy}`
-                : ""
-            ),
-            "🧺 Confirmar cesta manual"
+            `Itens diferentes: ${manualBasketItems.length}`,
+            "🧺 Confirmar cesta personalizada"
           );
 
 
@@ -14785,7 +14727,7 @@ function renderBasketModule() {
 
 
           showAceSuccess(
-            `${basketQty} cesta(s) "${name}" registrada(s) com sucesso!`
+            `${basketQty} cesta(s) personalizada(s) "${name}" registrada(s) com sucesso!`
           );
 
 
@@ -15682,7 +15624,7 @@ async function registerManualBasketOutput({
       basketName:
         name,
       basketImage:
-        "",
+        "cesta-personalizada-fechada.png",
       basketQty:
         qtyCestas,
       destination,
@@ -15741,7 +15683,7 @@ async function registerManualBasketOutput({
         nome:
           name,
         imagem:
-          "",
+          "cesta-personalizada-fechada.png",
         ativo:
           false
       });
@@ -15813,7 +15755,7 @@ async function registerManualBasketOutput({
     name:
       name,
     image:
-      "",
+      "cesta-personalizada-fechada.png",
     active:
       false
   });
