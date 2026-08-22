@@ -1,4 +1,4 @@
-const CACHE = "controle-alimentos-offline-v15";
+const CACHE = "controle-alimentos-offline-v16";
 const MEDIA_CACHE = "controle-alimentos-media-v1";
 
 const SCOPE_URL =
@@ -281,6 +281,11 @@ self.addEventListener(
 
     // ========================================================
     // NAVEGAÇÃO DO PWA
+    //
+    // IMPORTANTE:
+    // Ao tocar no ícone G Alimentos instalado, sempre entrega
+    // o index.html salvo no cache. Assim o PWA abre a tela real
+    // do aplicativo mesmo totalmente sem internet.
     // ========================================================
 
     if (
@@ -297,78 +302,125 @@ self.addEventListener(
             );
 
 
-          const cachedIndex =
+          let cachedIndex =
             await cache.match(
-              INDEX_URL
-            ) ||
-            await cache.match(
-              ROOT_URL
+              INDEX_URL,
+              {
+                ignoreSearch:
+                  true
+              }
             );
 
 
-          const updatePromise =
-            fetch(
-              request,
-              {
-                cache:
-                  "no-store"
-              }
-            )
-              .then(
-                async response => {
+          if (
+            !cachedIndex
+          ) {
 
-                  if (
-                    response &&
-                    response.ok
-                  ) {
-
-                    await cache.put(
-                      INDEX_URL,
-                      response.clone()
-                    );
-
-                    await cache.put(
-                      ROOT_URL,
-                      response.clone()
-                    );
-
-                  }
-
-
-                  return response;
-
+            cachedIndex =
+              await cache.match(
+                ROOT_URL,
+                {
+                  ignoreSearch:
+                    true
                 }
-              )
-              .catch(
-                () =>
-                  null
               );
 
+          }
 
+
+          // Se já temos o shell do aplicativo, abre ele primeiro.
+          // Quando houver internet, atualiza o cache em segundo plano.
           if (
             cachedIndex
           ) {
 
-            event.waitUntil(
-              updatePromise
-            );
+            if (
+              self.navigator?.onLine !==
+              false
+            ) {
+
+              event.waitUntil(
+                fetch(
+                  INDEX_URL,
+                  {
+                    cache:
+                      "no-store"
+                  }
+                )
+                  .then(
+                    async response => {
+
+                      if (
+                        response &&
+                        response.ok
+                      ) {
+
+                        await cache.put(
+                          INDEX_URL,
+                          response.clone()
+                        );
+
+                        await cache.put(
+                          ROOT_URL,
+                          response.clone()
+                        );
+
+                      }
+
+                    }
+                  )
+                  .catch(
+                    () => {}
+                  )
+              );
+
+            }
+
 
             return cachedIndex;
 
           }
 
 
-          const networkResponse =
-            await updatePromise;
+          // Primeira execução, caso o cache ainda não exista.
+          try {
+
+            const response =
+              await fetch(
+                INDEX_URL,
+                {
+                  cache:
+                    "no-store"
+                }
+              );
 
 
-          if (
-            networkResponse
-          ) {
-            return networkResponse;
+            if (
+              response &&
+              response.ok
+            ) {
+
+              await cache.put(
+                INDEX_URL,
+                response.clone()
+              );
+
+              await cache.put(
+                ROOT_URL,
+                response.clone()
+              );
+
+
+              return response;
+
+            }
+
+          } catch {
+            // Sem internet e ainda sem cache.
           }
 
 
+          // Só aparece se o aparelho nunca conseguiu preparar o app.
           return new Response(
             `
               <!doctype html>
@@ -376,12 +428,12 @@ self.addEventListener(
                 <head>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width,initial-scale=1">
-                  <title>ACE - Offline</title>
+                  <title>ACE - Preparando modo offline</title>
                 </head>
                 <body style="font-family:Arial,sans-serif;padding:30px;text-align:center">
                   <h2>ACE Controle de Alimentos</h2>
-                  <p>O aplicativo ainda não terminou de preparar o modo offline.</p>
-                  <p>Conecte-se à internet uma vez e abra o aplicativo novamente.</p>
+                  <p>Este aparelho ainda não possui os arquivos do aplicativo salvos.</p>
+                  <p>Conecte-se à internet uma vez, abra o aplicativo e aguarde alguns segundos.</p>
                 </body>
               </html>
             `,
