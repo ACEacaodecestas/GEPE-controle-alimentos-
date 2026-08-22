@@ -1,10 +1,10 @@
 {
-  "id": "/GEPE-controle-alimentos/",
+  "id": "/GEPE-controle-alimentos-/",
   "name": "Alimentos",
   "short_name": "Alimentos",
   "description": "ACE Ação de Cestas - Controle de Alimentos",
-  "start_url": "/GEPE-controle-alimentos/",
-  "scope": "/GEPE-controle-alimentos/",
+  "start_url": "/GEPE-controle-alimentos-/",
+  "scope": "/GEPE-controle-alimentos-/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0b4f7c",
@@ -12,13 +12,13 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/GEPE-controle-alimentos/icon-192.png",
+      "src": "/GEPE-controle-alimentos-/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/GEPE-controle-alimentos/icon-512.png",
+      "src": "/GEPE-controle-alimentos-/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
