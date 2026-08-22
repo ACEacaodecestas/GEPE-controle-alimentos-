@@ -1,11 +1,11 @@
 const CACHE =
-  "alimentos-app-shell-v19";
+  "alimentos-app-shell-v20";
 
 const MEDIA_CACHE =
   "alimentos-media-v2";
 
 const BASE =
-  "/GEPE-controle-alimentos/";
+  "/GEPE-controle-alimentos-/";
 
 const APP_URL =
   BASE;
@@ -41,8 +41,8 @@ self.addEventListener(
           );
 
 
-        // index.html é obrigatório
-        const response =
+        // Salva obrigatoriamente o index.html.
+        const indexResponse =
           await fetch(
             INDEX_URL,
             {
@@ -53,41 +53,44 @@ self.addEventListener(
 
 
         if (
-          !response ||
-          !response.ok
+          !indexResponse ||
+          !indexResponse.ok
         ) {
+
           throw new Error(
-            "Falha ao salvar o aplicativo para uso offline."
+            "Não foi possível salvar o aplicativo para uso offline."
           );
+
         }
 
 
         await cache.put(
           INDEX_URL,
-          response.clone()
+          indexResponse.clone()
         );
 
 
+        // A raiz do aplicativo usa o mesmo App Shell.
         await cache.put(
           APP_URL,
-          response.clone()
+          indexResponse.clone()
         );
 
 
-        // Demais arquivos
+        // Salva os demais arquivos.
         await Promise.allSettled(
           CORE_ASSETS
             .filter(
-              item =>
-                item !== INDEX_URL &&
-                item !== APP_URL
+              asset =>
+                asset !== INDEX_URL &&
+                asset !== APP_URL
             )
             .map(
-              async item => {
+              async asset => {
 
-                const asset =
+                const response =
                   await fetch(
-                    item,
+                    asset,
                     {
                       cache:
                         "reload"
@@ -96,13 +99,15 @@ self.addEventListener(
 
 
                 if (
-                  asset &&
-                  asset.ok
+                  response &&
+                  response.ok
                 ) {
+
                   await cache.put(
-                    item,
-                    asset.clone()
+                    asset,
+                    response.clone()
                   );
+
                 }
 
               }
@@ -160,7 +165,7 @@ self.addEventListener(
 
 
 // ============================================================
-// REQUISIÇÕES
+// FETCH
 // ============================================================
 
 self.addEventListener(
@@ -172,7 +177,8 @@ self.addEventListener(
 
 
     if (
-      request.method !== "GET"
+      request.method !==
+      "GET"
     ) {
       return;
     }
@@ -184,10 +190,12 @@ self.addEventListener(
       );
 
 
-    // --------------------------------------------------------
-    // 1. TODA NAVEGAÇÃO DO APP:
-    //    sempre abre index.html do cache.
-    // --------------------------------------------------------
+    // ========================================================
+    // 1. ABERTURA PELO ÍCONE INSTALADO
+    //
+    // Qualquer navegação dentro do caminho REAL do app
+    // recebe index.html do cache, mesmo sem internet.
+    // ========================================================
 
     if (
       request.mode ===
@@ -211,19 +219,27 @@ self.addEventListener(
           const shell =
             (
               await cache.match(
-                INDEX_URL
+                INDEX_URL,
+                {
+                  ignoreSearch:
+                    true
+                }
               )
             ) ||
             (
               await cache.match(
-                APP_URL
+                APP_URL,
+                {
+                  ignoreSearch:
+                    true
+                }
               )
             );
 
 
           if (shell) {
 
-            // Atualiza silenciosamente se internet existir.
+            // Atualiza o HTML em segundo plano quando houver rede.
             event.waitUntil(
               fetch(
                 INDEX_URL,
@@ -245,6 +261,7 @@ self.addEventListener(
                         fresh.clone()
                       );
 
+
                       await cache.put(
                         APP_URL,
                         fresh.clone()
@@ -265,7 +282,7 @@ self.addEventListener(
           }
 
 
-          // Primeira abertura, ainda sem cache.
+          // Somente se este aparelho ainda não tiver o cache.
           try {
 
             const fresh =
@@ -288,6 +305,7 @@ self.addEventListener(
                 fresh.clone()
               );
 
+
               await cache.put(
                 APP_URL,
                 fresh.clone()
@@ -299,7 +317,7 @@ self.addEventListener(
             }
 
           } catch {
-            // sem internet
+            // Sem internet.
           }
 
 
@@ -312,9 +330,16 @@ self.addEventListener(
                   <meta name="viewport" content="width=device-width,initial-scale=1">
                   <title>Alimentos</title>
                 </head>
-                <body style="font-family:Arial,sans-serif;text-align:center;padding:40px">
+                <body style="
+                  font-family:Arial,sans-serif;
+                  padding:40px;
+                  text-align:center;
+                ">
                   <h2>Alimentos</h2>
-                  <p>Abra o aplicativo uma vez com internet para preparar o modo offline.</p>
+                  <p>
+                    Abra o aplicativo uma vez com internet
+                    para concluir a preparação offline.
+                  </p>
                 </body>
               </html>
             `,
@@ -335,10 +360,9 @@ self.addEventListener(
     }
 
 
-    // --------------------------------------------------------
-    // 2. SUPABASE STORAGE:
-    //    mídia já visualizada pode abrir offline.
-    // --------------------------------------------------------
+    // ========================================================
+    // 2. SUPABASE STORAGE
+    // ========================================================
 
     const isSupabaseStorage =
       (
@@ -390,10 +414,12 @@ self.addEventListener(
               response &&
               response.ok
             ) {
+
               await cache.put(
                 request,
                 response.clone()
               );
+
             }
 
 
@@ -421,10 +447,9 @@ self.addEventListener(
     }
 
 
-    // --------------------------------------------------------
-    // 3. OUTRAS CHAMADAS SUPABASE:
-    //    ficam com a lógica offline do app.js.
-    // --------------------------------------------------------
+    // ========================================================
+    // 3. OUTRAS CHAMADAS DO SUPABASE
+    // ========================================================
 
     if (
       url.hostname.includes(
@@ -438,10 +463,9 @@ self.addEventListener(
     }
 
 
-    // --------------------------------------------------------
-    // 4. ARQUIVOS LOCAIS DO APP:
-    //    cache-first.
-    // --------------------------------------------------------
+    // ========================================================
+    // 4. ARQUIVOS LOCAIS DO APP
+    // ========================================================
 
     if (
       url.origin ===
@@ -487,10 +511,12 @@ self.addEventListener(
               response &&
               response.ok
             ) {
+
               await cache.put(
                 request,
                 response.clone()
               );
+
             }
 
 
@@ -518,7 +544,7 @@ self.addEventListener(
     }
 
 
-    // Links externos continuam online.
+    // Links externos continuam dependentes da internet.
     event.respondWith(
       fetch(
         request
