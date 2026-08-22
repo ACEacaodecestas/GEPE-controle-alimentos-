@@ -17296,9 +17296,75 @@ function setupPWA() {
 
       }
 
-      // Não exibimos mensagem própria aqui.
-      // O Android/Chrome já confirma quando a instalação
-      // realmente terminou, evitando aviso duplicado.
+
+      // Mensagem exibida somente depois que o navegador confirma
+      // que a instalação realmente terminou.
+      setTimeout(
+        () => {
+
+          const old =
+            document.getElementById(
+              "aceInstallFinished"
+            );
+
+          if (old) {
+            old.remove();
+          }
+
+
+          const notice =
+            document.createElement(
+              "div"
+            );
+
+          notice.id =
+            "aceInstallFinished";
+
+          notice.innerHTML = `
+            <div style="
+              width:min(430px,calc(100vw - 40px));
+              box-sizing:border-box;
+              padding:28px 24px;
+              border:2px solid #20a04a;
+              border-radius:18px;
+              background:#fff;
+              color:#16803a;
+              box-shadow:0 18px 55px rgba(0,0,0,.28);
+              text-align:center;
+              font-size:22px;
+              font-weight:900;
+              line-height:1.35;
+            ">
+              ✅ Aplicativo instalado com sucesso!
+            </div>
+          `;
+
+          notice.style.cssText = `
+            position:fixed;
+            inset:0;
+            z-index:1000020;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+            background:rgba(0,35,70,.30);
+          `;
+
+          document.body.appendChild(
+            notice
+          );
+
+
+          setTimeout(
+            () => {
+              notice.remove();
+            },
+            2200
+          );
+
+        },
+        350
+      );
 
     }
   );
@@ -17315,10 +17381,10 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "./sw.js",
+            "/GEPE-controle-alimentos/sw.js",
             {
               scope:
-                "./",
+                "/GEPE-controle-alimentos/",
               updateViaCache:
                 "none"
             }
