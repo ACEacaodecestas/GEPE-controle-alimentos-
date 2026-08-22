@@ -17280,6 +17280,10 @@ function setupPWA() {
       deferredPrompt =
         null;
 
+      const installBtn =
+        document.getElementById(
+          "installBtn"
+        );
 
       if (installBtn) {
 
@@ -17292,10 +17296,9 @@ function setupPWA() {
 
       }
 
-
-      showAceSuccess(
-        "✅ Aplicativo instalado com sucesso!"
-      );
+      // Não exibimos mensagem própria aqui.
+      // O Android/Chrome já confirma quando a instalação
+      // realmente terminou, evitando aviso duplicado.
 
     }
   );
