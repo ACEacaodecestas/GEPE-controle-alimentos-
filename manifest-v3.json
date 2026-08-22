@@ -1,11 +1,15 @@
 {
-  "id": "./",
-  "name": "G Alimentos",
-  "short_name": "G Alimentos",
+  "id": "./index.html",
+  "name": "Alimentos",
+  "short_name": "Alimentos",
   "description": "ACE Ação de Cestas - Controle de Alimentos",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "background_color": "#ffffff",
   "theme_color": "#0b4f7c",
   "orientation": "portrait-primary",
