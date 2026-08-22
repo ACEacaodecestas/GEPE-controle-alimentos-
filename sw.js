@@ -1,4 +1,4 @@
-const CACHE = "controle-alimentos-offline-v17";
+const CACHE = "controle-alimentos-offline-v18";
 const MEDIA_CACHE = "controle-alimentos-media-v1";
 
 const SCOPE_URL =
@@ -36,72 +36,68 @@ self.addEventListener(
             CACHE
           );
 
-
+        // O shell do app é obrigatório.
         const indexResponse =
           await fetch(
             INDEX_URL,
             {
-              cache:
-                "reload"
+              cache: "reload"
             }
           );
-
 
         if (
           !indexResponse ||
           !indexResponse.ok
         ) {
           throw new Error(
-            "Não foi possível armazenar index.html para uso offline."
+            "Falha ao preparar index.html para uso offline."
           );
         }
-
 
         await cache.put(
           INDEX_URL,
           indexResponse.clone()
         );
 
+        // Salva também a raiz do escopo apontando para o mesmo shell.
         await cache.put(
           ROOT_URL,
           indexResponse.clone()
         );
 
+        // Demais arquivos são cacheados individualmente.
+        const optionalAssets =
+          ASSETS.filter(
+            url =>
+              url !== INDEX_URL &&
+              url !== ROOT_URL
+          );
 
         await Promise.allSettled(
-          ASSETS
-            .filter(
-              url =>
-                url !== INDEX_URL &&
-                url !== ROOT_URL
-            )
-            .map(
-              async url => {
+          optionalAssets.map(
+            async url => {
 
-                const response =
-                  await fetch(
-                    url,
-                    {
-                      cache:
-                        "reload"
-                    }
-                  );
+              const response =
+                await fetch(
+                  url,
+                  {
+                    cache: "reload"
+                  }
+                );
 
-
-                if (
-                  response &&
-                  response.ok
-                ) {
-                  await cache.put(
-                    url,
-                    response.clone()
-                  );
-                }
-
+              if (
+                response &&
+                response.ok
+              ) {
+                await cache.put(
+                  url,
+                  response.clone()
+                );
               }
-            )
-        );
 
+            }
+          )
+        );
 
         await self.skipWaiting();
 
@@ -110,7 +106,6 @@ self.addEventListener(
 
   }
 );
-
 
 self.addEventListener(
   "activate",
@@ -282,12 +277,14 @@ self.addEventListener(
     // ========================================================
     // NAVEGAÇÃO DO PWA / ÍCONE INSTALADO
     //
-    // Qualquer abertura pelo ícone G Alimentos dentro do escopo
-    // devolve o index.html cacheado quando não houver internet.
+    // O ícone "Alimentos" abre ./index.html. Para qualquer
+    // navegação dentro do escopo, o Service Worker entrega
+    // imediatamente o App Shell cacheado, inclusive sem rede.
     // ========================================================
 
     if (
       request.mode === "navigate" &&
+      url.origin === self.location.origin &&
       url.href.startsWith(SCOPE_URL)
     ) {
 
@@ -295,10 +292,11 @@ self.addEventListener(
         (async () => {
 
           const cache =
-            await caches.open(CACHE);
+            await caches.open(
+              CACHE
+            );
 
-
-          const cachedIndex =
+          let shell =
             await cache.match(
               INDEX_URL,
               {
@@ -306,10 +304,19 @@ self.addEventListener(
               }
             );
 
+          if (!shell) {
+            shell =
+              await cache.match(
+                ROOT_URL,
+                {
+                  ignoreSearch: true
+                }
+              );
+          }
 
-          if (cachedIndex) {
+          if (shell) {
 
-            // Se houver internet, atualiza o shell em segundo plano.
+            // Atualiza silenciosamente quando houver rede.
             event.waitUntil(
               fetch(
                 INDEX_URL,
@@ -324,7 +331,6 @@ self.addEventListener(
                       response &&
                       response.ok
                     ) {
-
                       await cache.put(
                         INDEX_URL,
                         response.clone()
@@ -334,7 +340,6 @@ self.addEventListener(
                         ROOT_URL,
                         response.clone()
                       );
-
                     }
 
                   }
@@ -344,13 +349,10 @@ self.addEventListener(
                 )
             );
 
-
-            return cachedIndex;
-
+            return shell;
           }
 
-
-          // Sem cache ainda: tenta rede uma vez.
+          // Só ocorre se o PWA ainda não tiver preparado o cache.
           try {
 
             const response =
@@ -361,12 +363,10 @@ self.addEventListener(
                 }
               );
 
-
             if (
               response &&
               response.ok
             ) {
-
               await cache.put(
                 INDEX_URL,
                 response.clone()
@@ -378,13 +378,11 @@ self.addEventListener(
               );
 
               return response;
-
             }
 
           } catch {
-            // Sem internet.
+            // Sem rede e sem shell ainda.
           }
-
 
           return new Response(
             `
@@ -393,11 +391,11 @@ self.addEventListener(
                 <head>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width,initial-scale=1">
-                  <title>ACE Controle de Alimentos</title>
+                  <title>Alimentos</title>
                 </head>
                 <body style="font-family:Arial,sans-serif;padding:30px;text-align:center">
-                  <h2>ACE Controle de Alimentos</h2>
-                  <p>Abra o aplicativo uma vez com internet para concluir a preparação do modo offline.</p>
+                  <h2>Alimentos</h2>
+                  <p>Abra o aplicativo uma vez com internet para concluir o modo offline.</p>
                 </body>
               </html>
             `,
