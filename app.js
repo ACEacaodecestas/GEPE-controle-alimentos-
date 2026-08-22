@@ -5054,13 +5054,19 @@ function createLoginScreen() {
     .user-bar{
       display:flex;
       align-items:center;
+      justify-content:flex-end;
       gap:10px;
       margin-left:auto;
+      color:#fff;
+      white-space:nowrap;
     }
 
     .user-email{
+      display:inline-flex;
+      align-items:center;
       font-size:12px;
-      opacity:.9;
+      font-weight:700;
+      opacity:.95;
     }
 
     .logout-btn{
@@ -5087,8 +5093,31 @@ function createLoginScreen() {
         font-size:24px;
       }
 
+      .ace-header-v6{
+        position:relative;
+      }
+
+      .user-bar{
+        position:absolute;
+        right:14px;
+        bottom:20px;
+        z-index:5;
+        margin-left:0;
+        max-width:calc(100% - 28px);
+        gap:8px;
+      }
+
       .user-email{
-        display:none;
+        display:inline-flex;
+        max-width:210px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        font-size:11px;
+      }
+
+      .logout-btn{
+        flex:0 0 auto;
+        padding:9px 12px;
       }
 
     }
@@ -5111,7 +5140,7 @@ function createLoginScreen() {
       </div>
 
       <div class="login-title">
-        ACE Ação de Cestas
+        ACE - Ação de Cestas
       </div>
 
       <div class="login-subtitle">
@@ -5964,6 +5993,66 @@ function traduzirErroLogin(err) {
 // 6. CONTROLE DO USUÁRIO LOGADO
 // ============================================================
 
+function updateAceHeaderBranding() {
+
+  const header =
+    document.querySelector(
+      ".ace-header-v6"
+    );
+
+
+  if (!header) {
+    return;
+  }
+
+
+  const walker =
+    document.createTreeWalker(
+      header,
+      NodeFilter.SHOW_TEXT
+    );
+
+
+  const nodes = [];
+
+
+  while (
+    walker.nextNode()
+  ) {
+    nodes.push(
+      walker.currentNode
+    );
+  }
+
+
+  nodes.forEach(
+    node => {
+
+      const value =
+        String(
+          node.nodeValue || ""
+        ).trim();
+
+
+      if (
+        value ===
+        "ACE Ação de Cestas"
+      ) {
+
+        node.nodeValue =
+          node.nodeValue.replace(
+            "ACE Ação de Cestas",
+            "ACE - Ação de Cestas"
+          );
+
+      }
+
+    }
+  );
+
+}
+
+
 function addUserBar() {
 
   const header =
@@ -5974,8 +6063,17 @@ function addUserBar() {
   }
 
 
-  if (document.getElementById("userBar")) {
-    return;
+  updateAceHeaderBranding();
+
+
+  const oldBar =
+    document.getElementById(
+      "userBar"
+    );
+
+
+  if (oldBar) {
+    oldBar.remove();
   }
 
 
@@ -5988,11 +6086,9 @@ function addUserBar() {
 
   bar.innerHTML = `
 
-    <span class="user-email">
-      ${esc(currentUser.email)}
+    <span class="user-email" title="${esc(getCurrentDisplayName())}">
+      Usuário: ${esc(getCurrentDisplayName())}
     </span>
-
-    
 
     <button
       id="logoutBtn"
@@ -6016,7 +6112,6 @@ function addUserBar() {
     );
 
 }
-
 
 // ============================================================
 // MODAL PERSONALIZADO - CONFIRMAÇÕES
@@ -16970,6 +17065,230 @@ function openBasketEditModal(basketId) {
 // 20. PWA
 // ============================================================
 
+function ensureAceInstallOverlayStyles() {
+
+  if (
+    document.getElementById(
+      "aceInstallOverlayStyles"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceInstallOverlayStyles";
+
+
+  style.textContent = `
+
+    #aceInstallOverlay{
+      position:fixed;
+      inset:0;
+      z-index:1000060;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:rgba(0,0,0,.78);
+      backdrop-filter:blur(8px);
+    }
+
+    .ace-install-panel{
+      width:min(540px,calc(100vw - 34px));
+      box-sizing:border-box;
+      padding:30px 28px 34px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:28px;
+      background:#202124;
+      color:#fff;
+      box-shadow:0 28px 90px rgba(0,0,0,.55);
+    }
+
+    .ace-install-title{
+      margin:0 0 34px;
+      font-size:32px;
+      line-height:1.15;
+      font-weight:500;
+      letter-spacing:-.02em;
+    }
+
+    .ace-install-app{
+      display:flex;
+      align-items:center;
+      gap:22px;
+      min-height:120px;
+    }
+
+    .ace-install-icon{
+      width:88px;
+      height:88px;
+      flex:0 0 88px;
+      border-radius:22px;
+      object-fit:cover;
+      background:#fff;
+      box-shadow:0 8px 24px rgba(0,0,0,.28);
+    }
+
+    .ace-install-name{
+      font-size:28px;
+      font-weight:600;
+      line-height:1.15;
+    }
+
+    .ace-install-track{
+      position:relative;
+      height:5px;
+      margin-top:48px;
+      overflow:hidden;
+      border-radius:999px;
+      background:#55585d;
+    }
+
+    .ace-install-light{
+      position:absolute;
+      top:0;
+      left:-35%;
+      width:35%;
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(
+        90deg,
+        rgba(48,119,255,0),
+        #3f83ff 42%,
+        #72a5ff 60%,
+        rgba(48,119,255,0)
+      );
+      filter:drop-shadow(0 0 7px #3f83ff);
+      animation:aceInstallSweep 1.35s linear infinite;
+    }
+
+    @keyframes aceInstallSweep{
+      from{ transform:translateX(0); }
+      to{ transform:translateX(390%); }
+    }
+
+    @media(max-width:700px){
+
+      .ace-install-panel{
+        width:calc(100vw - 28px);
+        padding:28px 24px 30px;
+        border-radius:26px;
+      }
+
+      .ace-install-title{
+        margin-bottom:28px;
+        font-size:29px;
+      }
+
+      .ace-install-app{
+        gap:18px;
+      }
+
+      .ace-install-icon{
+        width:76px;
+        height:76px;
+        flex-basis:76px;
+        border-radius:19px;
+      }
+
+      .ace-install-name{
+        font-size:25px;
+      }
+
+      .ace-install-track{
+        margin-top:42px;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function showAceInstallingOverlay() {
+
+  ensureAceInstallOverlayStyles();
+
+
+  const old =
+    document.getElementById(
+      "aceInstallOverlay"
+    );
+
+
+  if (old) {
+    return;
+  }
+
+
+  const overlay =
+    document.createElement(
+      "div"
+    );
+
+
+  overlay.id =
+    "aceInstallOverlay";
+
+
+  overlay.innerHTML = `
+    <div class="ace-install-panel" role="status" aria-live="polite">
+
+      <div class="ace-install-title">
+        Instalando...
+      </div>
+
+      <div class="ace-install-app">
+        <img
+          class="ace-install-icon"
+          src="icon-192.png"
+          alt="Alimentos"
+        >
+
+        <div class="ace-install-name">
+          Alimentos
+        </div>
+      </div>
+
+      <div class="ace-install-track">
+        <div class="ace-install-light"></div>
+      </div>
+
+    </div>
+  `;
+
+
+  document.body.appendChild(
+    overlay
+  );
+
+}
+
+
+function hideAceInstallingOverlay() {
+
+  document
+    .getElementById(
+      "aceInstallOverlay"
+    )
+    ?.remove();
+
+}
+
+
 function setupPWA() {
 
   const installBtn =
@@ -17087,6 +17406,12 @@ function setupPWA() {
               installBtn.disabled =
                 true;
 
+              showAceInstallingOverlay();
+
+            } else {
+
+              hideAceInstallingOverlay();
+
             }
 
 
@@ -17095,6 +17420,8 @@ function setupPWA() {
 
 
           } catch (error) {
+
+            hideAceInstallingOverlay();
 
             console.warn(
               "ACE - erro ao iniciar instalação:",
@@ -17184,8 +17511,26 @@ function setupPWA() {
               .prompt();
 
 
-            await deferredPrompt
-              .userChoice;
+            const choice =
+              await deferredPrompt
+                .userChoice;
+
+
+            if (
+              choice?.outcome ===
+              "accepted"
+            ) {
+
+              installBtn.disabled =
+                true;
+
+              showAceInstallingOverlay();
+
+            } else {
+
+              hideAceInstallingOverlay();
+
+            }
 
 
             deferredPrompt =
@@ -17202,6 +17547,8 @@ function setupPWA() {
           installBtn.textContent =
             "📲 Instalar";
 
+
+          hideAceInstallingOverlay();
 
           console.warn(
             "ACE - instalação não liberada pelo navegador:",
@@ -17238,9 +17585,11 @@ function setupPWA() {
 
       }
 
-      // Não mostramos mensagem própria.
-      // A única confirmação será a mensagem NATIVA
-      // do Android/Chrome quando a instalação terminar.
+
+      hideAceInstallingOverlay();
+
+      // Sem mensagem duplicada: o Android/Chrome
+      // continua sendo o responsável pela confirmação final.
 
     }
   );
@@ -17675,6 +18024,30 @@ function ensureMuralAceStyles() {
         flex:0 0 100%;
         scroll-snap-align:start;
         scroll-snap-stop:always;
+      }
+
+      .ace-mural-media{
+        width:100%;
+        min-height:0;
+        max-height:none;
+        aspect-ratio:16/9;
+        background:#000;
+      }
+
+      .ace-mural-media video,
+      .ace-mural-media iframe{
+        width:100%;
+        height:100%;
+        max-height:none;
+        aspect-ratio:16/9;
+        object-fit:contain;
+        background:#000;
+      }
+
+      .ace-mural-media img{
+        width:100%;
+        max-height:68vh;
+        object-fit:contain;
       }
 
       .ace-mural-empty{
@@ -19858,6 +20231,8 @@ async function initApp() {
     bindEvents();
 
     setupPWA();
+
+    updateAceHeaderBranding();
 
     addUserBar();
 
