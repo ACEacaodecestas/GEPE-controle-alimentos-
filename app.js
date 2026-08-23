@@ -17220,6 +17220,8 @@ function ensureAceInstallOverlayStyles() {
 
 let aceInstallOverlayShownAt = 0;
 let aceInstallAccepted = false;
+let aceInstallBrowserFinished = false;
+let aceInstallHideTimer = null;
 
 
 function showAceInstallingOverlay() {
@@ -17289,8 +17291,23 @@ function hideAceInstallingOverlay(
   force = false
 ) {
 
+  if (
+    aceInstallHideTimer
+  ) {
+
+    clearTimeout(
+      aceInstallHideTimer
+    );
+
+    aceInstallHideTimer =
+      null;
+
+  }
+
+
   const close =
     () => {
+
       document
         .getElementById(
           "aceInstallOverlay"
@@ -17299,38 +17316,51 @@ function hideAceInstallingOverlay(
 
       aceInstallAccepted =
         false;
+
+      aceInstallBrowserFinished =
+        false;
+
+      aceInstallOverlayShownAt =
+        0;
+
+      aceInstallHideTimer =
+        null;
+
     };
 
 
   if (force) {
+
     close();
     return;
+
   }
 
 
+  // Mantém a tela tempo suficiente para acompanhar visualmente
+  // a etapa de instalação do Android/Chrome.
   const minimumVisibleMs =
-    1400;
+    7000;
+
 
   const elapsed =
     Date.now() -
     aceInstallOverlayShownAt;
 
 
-  if (
-    aceInstallOverlayShownAt &&
-    elapsed < minimumVisibleMs
-  ) {
-
-    setTimeout(
-      close,
-      minimumVisibleMs - elapsed
+  const remaining =
+    Math.max(
+      0,
+      minimumVisibleMs -
+      elapsed
     );
 
-    return;
-  }
 
-
-  close();
+  aceInstallHideTimer =
+    setTimeout(
+      close,
+      remaining
+    );
 
 }
 
@@ -17439,7 +17469,8 @@ function setupPWA() {
             aceInstallAccepted =
               false;
 
-            showAceInstallingOverlay();
+            aceInstallBrowserFinished =
+              false;
 
 
             await deferredPrompt
@@ -17461,6 +17492,10 @@ function setupPWA() {
 
               aceInstallAccepted =
                 true;
+
+              // A tela aparece SOMENTE depois que o usuário
+              // aceitou instalar no prompt nativo.
+              showAceInstallingOverlay();
 
             } else {
 
@@ -17568,7 +17603,8 @@ function setupPWA() {
             aceInstallAccepted =
               false;
 
-            showAceInstallingOverlay();
+            aceInstallBrowserFinished =
+              false;
 
 
             await deferredPrompt
@@ -17590,6 +17626,8 @@ function setupPWA() {
 
               aceInstallAccepted =
                 true;
+
+              showAceInstallingOverlay();
 
             } else {
 
@@ -17655,23 +17693,37 @@ function setupPWA() {
       }
 
 
-      // O evento appinstalled confirma que o navegador terminou.
-      // Mantemos a tela por um tempo mínimo para ela realmente
-      // ser percebida no celular, evitando que apareça e suma
-      // antes de o navegador conseguir desenhá-la.
+      // O navegador confirmou a instalação.
+      // Não fechamos a tela imediatamente porque, em alguns
+      // aparelhos Android, este evento chega antes da animação
+      // visual do sistema terminar.
+      aceInstallBrowserFinished =
+        true;
+
+
       if (
-        aceInstallAccepted &&
-        !document.getElementById(
-          "aceInstallOverlay"
-        )
+        aceInstallAccepted
       ) {
-        showAceInstallingOverlay();
+
+        if (
+          !document.getElementById(
+            "aceInstallOverlay"
+          )
+        ) {
+
+          showAceInstallingOverlay();
+
+        }
+
+
+        // Só agenda o fechamento respeitando o tempo mínimo
+        // de exibição da tela "Instalando...".
+        hideAceInstallingOverlay();
+
       }
 
-      hideAceInstallingOverlay();
-
-      // Sem mensagem duplicada: o Android/Chrome
-      // continua sendo o responsável pela confirmação final.
+      // A confirmação final continua sendo a mensagem nativa
+      // do Android/Chrome. Não criamos outra mensagem.
 
     }
   );
@@ -20701,5 +20753,4 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
-
 
