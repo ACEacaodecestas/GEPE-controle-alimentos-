@@ -27631,3 +27631,715 @@ startAuth();
 
 })();
 
+
+
+/* ============================================================
+   ACE - CABEÇALHO MOBILE RECONSTRUÍDO
+   Corrige exclusivamente o cabeçalho visual no celular.
+   Não altera lógica de login, offline, sincronização,
+   movimentações, mural, barra inferior ou instalação.
+   ============================================================ */
+
+(function aceRebuildMobileHeaderClean(){
+
+  const STYLE_ID = "ace-clean-header-style-v1";
+
+  function ensureStyle(){
+
+    if (document.getElementById(STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+
+    style.textContent = `
+
+      @media(max-width:850px){
+
+        .ace-header-v6{
+          position:relative !important;
+          height:166px !important;
+          min-height:166px !important;
+          padding:0 !important;
+          overflow:visible !important;
+        }
+
+        .ace-header-v6 > *:not(#aceMobileHeader){
+          display:none !important;
+        }
+
+        #aceMobileHeader{
+          position:absolute !important;
+          inset:0 !important;
+          z-index:50 !important;
+
+          display:grid !important;
+          grid-template-columns:88px minmax(0,1fr) auto !important;
+          grid-template-rows:96px 62px !important;
+
+          width:100% !important;
+          height:166px !important;
+
+          box-sizing:border-box !important;
+          padding:5px 12px !important;
+
+          column-gap:10px !important;
+          row-gap:0 !important;
+
+          align-items:center !important;
+          color:#fff !important;
+
+          overflow:visible !important;
+        }
+
+        /* LOGO */
+        #aceMobileHeader .ace-clean-logo{
+          grid-column:1 !important;
+          grid-row:1 !important;
+
+          width:82px !important;
+          height:82px !important;
+
+          object-fit:contain !important;
+
+          justify-self:start !important;
+          align-self:center !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          transform:none !important;
+        }
+
+        /* TÍTULO */
+        #aceMobileHeader .ace-clean-brand{
+          grid-column:2 / 4 !important;
+          grid-row:1 !important;
+
+          min-width:0 !important;
+
+          display:flex !important;
+          flex-direction:column !important;
+          justify-content:center !important;
+          align-items:flex-start !important;
+
+          text-align:left !important;
+
+          margin:0 !important;
+          padding:0 4px 0 0 !important;
+        }
+
+        #aceMobileHeader .ace-clean-title{
+          width:100% !important;
+
+          color:#fff !important;
+
+          font-size:26px !important;
+          font-weight:950 !important;
+          line-height:1.02 !important;
+          letter-spacing:-.55px !important;
+
+          white-space:nowrap !important;
+          overflow:visible !important;
+          text-overflow:clip !important;
+
+          margin:0 !important;
+        }
+
+        #aceMobileHeader .ace-clean-subtitle{
+          width:100% !important;
+
+          margin-top:8px !important;
+
+          color:rgba(255,255,255,.94) !important;
+
+          font-size:16px !important;
+          font-weight:800 !important;
+          line-height:1.05 !important;
+
+          white-space:nowrap !important;
+        }
+
+        /* BOTÃO MENU */
+        #aceMobileHeader .ace-clean-menu{
+          grid-column:1 !important;
+          grid-row:2 !important;
+
+          width:84px !important;
+          height:44px !important;
+
+          display:flex !important;
+          flex-direction:row !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          gap:8px !important;
+
+          margin:0 !important;
+          padding:0 9px !important;
+
+          border:0 !important;
+          border-radius:12px !important;
+
+          background:rgba(255,255,255,.10) !important;
+
+          color:#fff !important;
+          cursor:pointer !important;
+        }
+
+        #aceMobileHeader .ace-clean-hamburger{
+          width:26px !important;
+          flex:0 0 26px !important;
+
+          display:flex !important;
+          flex-direction:column !important;
+          justify-content:center !important;
+
+          gap:4px !important;
+        }
+
+        #aceMobileHeader .ace-clean-hamburger i{
+          display:block !important;
+
+          width:26px !important;
+          height:3px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          border:0 !important;
+          border-radius:999px !important;
+
+          background:#fff !important;
+        }
+
+        #aceMobileHeader .ace-clean-menu-text{
+          color:#fff !important;
+
+          font-size:12px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+        }
+
+        /* USUÁRIO */
+        #aceMobileHeader .ace-clean-account{
+          grid-column:2 / 4 !important;
+          grid-row:2 !important;
+
+          position:relative !important;
+
+          display:flex !important;
+          flex-direction:row !important;
+          align-items:center !important;
+          justify-content:flex-end !important;
+
+          gap:8px !important;
+
+          min-width:0 !important;
+
+          margin:0 !important;
+          padding:0 !important;
+        }
+
+        #aceMobileHeader .ace-clean-user-name{
+          max-width:155px !important;
+
+          overflow:hidden !important;
+          text-overflow:ellipsis !important;
+          white-space:nowrap !important;
+
+          color:#fff !important;
+
+          font-size:12px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          text-align:right !important;
+        }
+
+        #aceMobileHeader .ace-clean-avatar{
+          position:relative !important;
+
+          width:46px !important;
+          height:46px !important;
+          flex:0 0 46px !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          padding:0 !important;
+          margin:0 !important;
+
+          overflow:hidden !important;
+
+          border:2px solid rgba(255,255,255,.95) !important;
+          border-radius:50% !important;
+
+          background:#fff !important;
+
+          cursor:pointer !important;
+        }
+
+        #aceMobileHeader .ace-clean-avatar .ace-profile-avatar{
+          width:100% !important;
+          height:100% !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          font-size:20px !important;
+        }
+
+        #aceMobileHeader .ace-clean-more{
+          width:30px !important;
+          height:42px !important;
+          flex:0 0 30px !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          padding:0 !important;
+          margin:0 !important;
+
+          border:0 !important;
+          background:transparent !important;
+
+          color:#fff !important;
+
+          font-size:28px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          cursor:pointer !important;
+        }
+
+        /* STATUS ONLINE/OFFLINE */
+        #aceMobileHeader .ace-clean-net{
+          position:absolute !important;
+
+          right:38px !important;
+          top:-16px !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          gap:3px !important;
+
+          height:17px !important;
+
+          padding:1px 6px !important;
+
+          border:1px solid !important;
+          border-radius:999px !important;
+
+          font-size:8px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+
+          pointer-events:none !important;
+        }
+
+        #aceMobileHeader .ace-clean-net .ace-net-dot{
+          width:5px !important;
+          height:5px !important;
+          flex:0 0 5px !important;
+
+          border-radius:50% !important;
+        }
+
+        #aceMobileHeader .ace-clean-net.is-online{
+          color:#087c3a !important;
+          border-color:#8dd7aa !important;
+          background:rgba(241,255,246,.97) !important;
+        }
+
+        #aceMobileHeader .ace-clean-net.is-online .ace-net-dot{
+          background:#74b72e !important;
+        }
+
+        #aceMobileHeader .ace-clean-net.is-offline{
+          color:#a85b00 !important;
+          border-color:#f2c06b !important;
+          background:rgba(255,248,232,.97) !important;
+        }
+
+        #aceMobileHeader .ace-clean-net.is-offline .ace-net-dot{
+          background:#f39a0a !important;
+        }
+
+        /* DROPDOWN */
+        #aceMobileHeader .ace-account-dropdown{
+          top:150px !important;
+          right:10px !important;
+        }
+
+        @media(max-width:390px){
+
+          #aceMobileHeader{
+            grid-template-columns:76px minmax(0,1fr) auto !important;
+            column-gap:7px !important;
+            padding-left:9px !important;
+            padding-right:9px !important;
+          }
+
+          #aceMobileHeader .ace-clean-logo{
+            width:72px !important;
+            height:72px !important;
+          }
+
+          #aceMobileHeader .ace-clean-title{
+            font-size:22px !important;
+          }
+
+          #aceMobileHeader .ace-clean-subtitle{
+            font-size:14px !important;
+          }
+
+          #aceMobileHeader .ace-clean-menu{
+            width:74px !important;
+            padding:0 7px !important;
+            gap:6px !important;
+          }
+
+          #aceMobileHeader .ace-clean-hamburger{
+            width:22px !important;
+            flex:0 0 22px !important;
+          }
+
+          #aceMobileHeader .ace-clean-hamburger i{
+            width:22px !important;
+          }
+
+          #aceMobileHeader .ace-clean-menu-text{
+            font-size:11px !important;
+          }
+
+          #aceMobileHeader .ace-clean-user-name{
+            max-width:116px !important;
+            font-size:11px !important;
+          }
+
+          #aceMobileHeader .ace-clean-avatar{
+            width:43px !important;
+            height:43px !important;
+            flex:0 0 43px !important;
+          }
+
+          #aceMobileHeader .ace-clean-net{
+            right:35px !important;
+          }
+        }
+      }
+
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function rebuildHeader(){
+
+    const header =
+      document.querySelector(".ace-header-v6");
+
+    if (!header) return;
+
+    let mobileHeader =
+      document.getElementById("aceMobileHeader");
+
+    if (!mobileHeader){
+
+      mobileHeader =
+        document.createElement("div");
+
+      mobileHeader.id =
+        "aceMobileHeader";
+
+      header.appendChild(mobileHeader);
+    }
+
+    const name =
+      typeof getCurrentDisplayName === "function"
+        ? getCurrentDisplayName()
+        : "Usuário";
+
+    mobileHeader.innerHTML = `
+
+      <img
+        class="ace-clean-logo"
+        src="ace-cesta.png"
+        alt="ACE"
+      >
+
+      <div class="ace-clean-brand">
+        <div class="ace-clean-title">
+          ACE - Ação de Cestas
+        </div>
+        <div class="ace-clean-subtitle">
+          Controle de Alimentos
+        </div>
+      </div>
+
+      <button
+        id="aceCleanMenuButton"
+        class="ace-clean-menu"
+        type="button"
+        aria-label="Abrir menu"
+      >
+        <span class="ace-clean-hamburger">
+          <i></i>
+          <i></i>
+          <i></i>
+        </span>
+        <span class="ace-clean-menu-text">
+          Menu
+        </span>
+      </button>
+
+      <div class="ace-clean-account">
+
+        <span class="ace-clean-user-name">
+          Usuário: ${typeof esc === "function" ? esc(name) : name}
+        </span>
+
+        <button
+          id="aceCleanAvatarButton"
+          class="ace-clean-avatar"
+          type="button"
+          title="Minha conta"
+        >
+          <span
+            class="ace-profile-avatar"
+            data-ace-user-avatar
+          >
+            👤
+          </span>
+        </button>
+
+        <button
+          id="aceCleanMoreButton"
+          class="ace-clean-more"
+          type="button"
+          aria-label="Mais opções"
+        >
+          ⋮
+        </button>
+
+        <div
+          id="aceCleanNetBadge"
+          class="ace-clean-net"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="ace-net-dot"></span>
+          <span class="ace-clean-net-text"></span>
+        </div>
+
+      </div>
+
+      <div
+        id="aceAccountDropdown"
+        class="ace-account-dropdown"
+      >
+
+        <button
+          id="aceAccountProfile"
+          type="button"
+        >
+          👤 Minha conta
+        </button>
+
+        <button
+          id="aceAccountSync"
+          type="button"
+        >
+          🔄 Sincronizar dados
+        </button>
+
+        <button
+          id="aceAccountAbout"
+          type="button"
+        >
+          ℹ️ Sobre o aplicativo
+        </button>
+
+        <button
+          id="aceAccountLogout"
+          class="logout"
+          type="button"
+        >
+          🚪 Sair
+        </button>
+
+      </div>
+    `;
+
+    const menuButton =
+      document.getElementById(
+        "aceCleanMenuButton"
+      );
+
+    if (menuButton){
+
+      menuButton.onclick =
+        typeof openAceMobileDrawer === "function"
+          ? openAceMobileDrawer
+          : null;
+    }
+
+    const avatarButton =
+      document.getElementById(
+        "aceCleanAvatarButton"
+      );
+
+    if (avatarButton){
+
+      avatarButton.onclick =
+        typeof openAceMyAccount === "function"
+          ? openAceMyAccount
+          : null;
+    }
+
+    const moreButton =
+      document.getElementById(
+        "aceCleanMoreButton"
+      );
+
+    if (moreButton){
+
+      moreButton.onclick =
+        function(event){
+
+          event.stopPropagation();
+
+          if (
+            typeof toggleAceAccountMenu ===
+            "function"
+          ){
+            toggleAceAccountMenu();
+          }
+        };
+    }
+
+    if (
+      typeof setupAceAccountMenuEvents ===
+      "function"
+    ){
+      setupAceAccountMenuEvents();
+    }
+
+    if (
+      typeof updateAceAvatarElements ===
+      "function"
+    ){
+      updateAceAvatarElements();
+    }
+
+    updateNetworkBadge();
+  }
+
+  function updateNetworkBadge(){
+
+    const badge =
+      document.getElementById(
+        "aceCleanNetBadge"
+      );
+
+    if (!badge) return;
+
+    const online =
+      navigator.onLine;
+
+    badge.classList.toggle(
+      "is-online",
+      online
+    );
+
+    badge.classList.toggle(
+      "is-offline",
+      !online
+    );
+
+    const text =
+      badge.querySelector(
+        ".ace-clean-net-text"
+      );
+
+    if (text){
+
+      text.textContent =
+        online
+          ? "Online"
+          : "Offline";
+    }
+  }
+
+  function apply(){
+
+    ensureStyle();
+    rebuildHeader();
+    updateNetworkBadge();
+  }
+
+  function schedule(){
+
+    apply();
+
+    [
+      200,
+      600,
+      1200
+    ].forEach(
+      delay =>
+        setTimeout(
+          apply,
+          delay
+        )
+    );
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ){
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      schedule
+    );
+
+  } else {
+
+    schedule();
+  }
+
+  window.addEventListener(
+    "online",
+    updateNetworkBadge
+  );
+
+  window.addEventListener(
+    "offline",
+    updateNetworkBadge
+  );
+
+  window.addEventListener(
+    "resize",
+    function(){
+      if (
+        window.innerWidth <=
+        850
+      ){
+        updateNetworkBadge();
+      }
+    }
+  );
+
+})();
+
