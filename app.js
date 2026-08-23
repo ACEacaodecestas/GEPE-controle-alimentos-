@@ -20262,6 +20262,2674 @@ async function deleteMuralAcePost(
 }
 
 
+
+// ============================================================
+// 21A. LAYOUT MOBILE PROFISSIONAL + PERFIL DO USUÁRIO
+// ============================================================
+
+let aceMobileLayoutReady =
+  false;
+
+let aceProfileMenuOpen =
+  false;
+
+const ACE_AVATAR_BUCKET =
+  "avatars";
+
+const ACE_AVATAR_LOCAL_PREFIX =
+  "ace_avatar_local_v1:";
+
+const ACE_AVATAR_PENDING_PREFIX =
+  "ace_avatar_pending_v1:";
+
+
+// ------------------------------------------------------------
+// ÍCONES / NOMES DOS MENUS
+// ------------------------------------------------------------
+
+function getAceMobileMenuIcon(
+  text
+) {
+
+  const value =
+    normalizeAceText(
+      text || ""
+    );
+
+
+  if (
+    value.includes(
+      "mural"
+    )
+  ) {
+    return "📣";
+  }
+
+  if (
+    value.includes(
+      "inicio"
+    )
+  ) {
+    return "⌂";
+  }
+
+  if (
+    value.includes(
+      "entrada"
+    )
+  ) {
+    return "▣";
+  }
+
+  if (
+    value.includes(
+      "saida"
+    ) ||
+    value.includes(
+      "perda"
+    )
+  ) {
+    return "▱";
+  }
+
+  if (
+    value.includes(
+      "presenca"
+    )
+  ) {
+    return "♟";
+  }
+
+  if (
+    value.includes(
+      "historico"
+    )
+  ) {
+    return "▤";
+  }
+
+  if (
+    value.includes(
+      "estoque"
+    )
+  ) {
+    return "▥";
+  }
+
+  if (
+    value.includes(
+      "relatorio"
+    )
+  ) {
+    return "▧";
+  }
+
+  if (
+    value.includes(
+      "cadastro"
+    )
+  ) {
+    return "⚙";
+  }
+
+  return "•";
+
+}
+
+
+// ------------------------------------------------------------
+// AVATAR LOCAL / NUVEM
+// ------------------------------------------------------------
+
+function getAceAvatarLocalKey() {
+
+  return (
+    ACE_AVATAR_LOCAL_PREFIX +
+    String(
+      currentUser?.id ||
+      "anonymous"
+    )
+  );
+
+}
+
+
+function getAceAvatarPendingKey() {
+
+  return (
+    ACE_AVATAR_PENDING_PREFIX +
+    String(
+      currentUser?.id ||
+      "anonymous"
+    )
+  );
+
+}
+
+
+function getAceCachedAvatar() {
+
+  try {
+
+    return (
+      localStorage.getItem(
+        getAceAvatarLocalKey()
+      ) ||
+      currentUser
+        ?.user_metadata
+        ?.avatar_url ||
+      ""
+    );
+
+  } catch {
+
+    return (
+      currentUser
+        ?.user_metadata
+        ?.avatar_url ||
+      ""
+    );
+
+  }
+
+}
+
+
+function setAceCachedAvatar(
+  value
+) {
+
+  try {
+
+    if (value) {
+
+      localStorage.setItem(
+        getAceAvatarLocalKey(),
+        value
+      );
+
+    } else {
+
+      localStorage.removeItem(
+        getAceAvatarLocalKey()
+      );
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível salvar o avatar local:",
+      error
+    );
+
+  }
+
+}
+
+
+function updateAceAvatarElements() {
+
+  const avatar =
+    getAceCachedAvatar();
+
+
+  document
+    .querySelectorAll(
+      "[data-ace-user-avatar]"
+    )
+    .forEach(
+      element => {
+
+        if (avatar) {
+
+          element.innerHTML = `
+            <img
+              src="${esc(avatar)}"
+              alt="Foto do usuário"
+            >
+          `;
+
+          element.classList.add(
+            "has-photo"
+          );
+
+        } else {
+
+          element.innerHTML =
+            "👤";
+
+          element.classList.remove(
+            "has-photo"
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+async function aceCompressAvatarFile(
+  file
+) {
+
+  const sourceUrl =
+    URL.createObjectURL(
+      file
+    );
+
+
+  try {
+
+    const image =
+      await new Promise(
+        (resolve, reject) => {
+
+          const img =
+            new Image();
+
+          img.onload =
+            () =>
+              resolve(
+                img
+              );
+
+          img.onerror =
+            reject;
+
+          img.src =
+            sourceUrl;
+
+        }
+      );
+
+
+    const size =
+      360;
+
+    const canvas =
+      document.createElement(
+        "canvas"
+      );
+
+    canvas.width =
+      size;
+
+    canvas.height =
+      size;
+
+
+    const context =
+      canvas.getContext(
+        "2d"
+      );
+
+
+    const sourceSize =
+      Math.min(
+        image.naturalWidth,
+        image.naturalHeight
+      );
+
+    const sx =
+      (
+        image.naturalWidth -
+        sourceSize
+      ) / 2;
+
+    const sy =
+      (
+        image.naturalHeight -
+        sourceSize
+      ) / 2;
+
+
+    context.drawImage(
+      image,
+      sx,
+      sy,
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      size,
+      size
+    );
+
+
+    const blob =
+      await new Promise(
+        resolve =>
+          canvas.toBlob(
+            resolve,
+            "image/jpeg",
+            .84
+          )
+      );
+
+
+    const dataUrl =
+      canvas.toDataURL(
+        "image/jpeg",
+        .84
+      );
+
+
+    return {
+      blob,
+      dataUrl
+    };
+
+
+  } finally {
+
+    URL.revokeObjectURL(
+      sourceUrl
+    );
+
+  }
+
+}
+
+
+async function aceUploadAvatarBlob(
+  blob
+) {
+
+  if (
+    !currentUser?.id ||
+    !navigator.onLine
+  ) {
+    return false;
+  }
+
+
+  const path =
+    `${currentUser.id}/avatar.jpg`;
+
+
+  const {
+    error: uploadError
+  } =
+    await supabaseClient
+      .storage
+      .from(
+        ACE_AVATAR_BUCKET
+      )
+      .upload(
+        path,
+        blob,
+        {
+          cacheControl:
+            "3600",
+          upsert:
+            true,
+          contentType:
+            "image/jpeg"
+        }
+      );
+
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+
+  const {
+    data: publicData
+  } =
+    supabaseClient
+      .storage
+      .from(
+        ACE_AVATAR_BUCKET
+      )
+      .getPublicUrl(
+        path
+      );
+
+
+  const publicUrl =
+    publicData
+      ?.publicUrl
+      ? (
+          publicData.publicUrl +
+          "?v=" +
+          Date.now()
+        )
+      : "";
+
+
+  if (publicUrl) {
+
+    const {
+      data: authData,
+      error: authError
+    } =
+      await supabaseClient
+        .auth
+        .updateUser({
+          data: {
+            avatar_url:
+              publicUrl
+          }
+        });
+
+
+    if (authError) {
+      throw authError;
+    }
+
+
+    if (
+      authData
+        ?.user
+    ) {
+
+      currentUser =
+        authData.user;
+
+      saveOfflineUser(
+        currentUser
+      );
+
+    }
+
+
+    setAceCachedAvatar(
+      publicUrl
+    );
+
+  }
+
+
+  localStorage.removeItem(
+    getAceAvatarPendingKey()
+  );
+
+
+  updateAceAvatarElements();
+
+  return true;
+
+}
+
+
+async function aceSaveAvatarFile(
+  file
+) {
+
+  if (!file) {
+    return;
+  }
+
+
+  if (
+    !String(
+      file.type || ""
+    ).startsWith(
+      "image/"
+    )
+  ) {
+
+    await showAceConfirm(
+      "Selecione uma imagem válida.",
+      "⚠️ Foto do perfil"
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    const {
+      blob,
+      dataUrl
+    } =
+      await aceCompressAvatarFile(
+        file
+      );
+
+
+    setAceCachedAvatar(
+      dataUrl
+    );
+
+
+    localStorage.setItem(
+      getAceAvatarPendingKey(),
+      dataUrl
+    );
+
+
+    updateAceAvatarElements();
+
+
+    if (
+      navigator.onLine
+    ) {
+
+      await aceUploadAvatarBlob(
+        blob
+      );
+
+
+      showAceSuccess(
+        "✅ Foto do perfil atualizada!"
+      );
+
+    } else {
+
+      showAceSuccess(
+        "🟠 Foto salva no aparelho. Será sincronizada quando a internet voltar."
+      );
+
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - erro ao atualizar foto:",
+      error
+    );
+
+
+    await showAceConfirm(
+      "Não foi possível atualizar a foto.\n\n" +
+      (
+        error?.message ||
+        "Verifique a configuração do Storage de avatares."
+      ),
+      "❌ Foto do perfil"
+    );
+
+  }
+
+}
+
+
+function aceDataUrlToBlob(
+  dataUrl
+) {
+
+  const parts =
+    String(
+      dataUrl || ""
+    ).split(",");
+
+
+  if (
+    parts.length < 2
+  ) {
+    return null;
+  }
+
+
+  const mimeMatch =
+    parts[0]
+      .match(
+        /data:([^;]+)/
+      );
+
+
+  const mime =
+    mimeMatch
+      ?. [1] ||
+    "image/jpeg";
+
+
+  const binary =
+    atob(
+      parts[1]
+    );
+
+
+  const bytes =
+    new Uint8Array(
+      binary.length
+    );
+
+
+  for (
+    let i = 0;
+    i < binary.length;
+    i++
+  ) {
+
+    bytes[i] =
+      binary.charCodeAt(
+        i
+      );
+
+  }
+
+
+  return new Blob(
+    [
+      bytes
+    ],
+    {
+      type:
+        mime
+    }
+  );
+
+}
+
+
+async function aceSyncPendingAvatar() {
+
+  if (
+    !navigator.onLine ||
+    !currentUser?.id
+  ) {
+    return;
+  }
+
+
+  const pending =
+    localStorage.getItem(
+      getAceAvatarPendingKey()
+    );
+
+
+  if (!pending) {
+    return;
+  }
+
+
+  try {
+
+    const blob =
+      aceDataUrlToBlob(
+        pending
+      );
+
+
+    if (blob) {
+
+      await aceUploadAvatarBlob(
+        blob
+      );
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: avatar continua aguardando sincronização:",
+      error
+    );
+
+  }
+
+}
+
+
+// ------------------------------------------------------------
+// MODAL MINHA CONTA
+// ------------------------------------------------------------
+
+function openAceMyAccount() {
+
+  document
+    .getElementById(
+      "aceMyAccountModal"
+    )
+    ?.remove();
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+
+  modal.id =
+    "aceMyAccountModal";
+
+
+  modal.innerHTML = `
+
+    <div class="ace-profile-modal-card">
+
+      <button
+        class="ace-profile-close"
+        id="aceProfileClose"
+        type="button"
+        aria-label="Fechar"
+      >
+        ×
+      </button>
+
+
+      <div
+        class="ace-profile-avatar ace-profile-avatar-large"
+        data-ace-user-avatar
+      >
+        👤
+      </div>
+
+
+      <h2>
+        Minha conta
+      </h2>
+
+
+      <div class="ace-profile-name">
+        ${esc(
+          getCurrentDisplayName()
+        )}
+      </div>
+
+
+      <div class="ace-profile-email">
+        ${esc(
+          currentUser?.email ||
+          ""
+        )}
+      </div>
+
+
+      <div class="ace-profile-photo-actions">
+
+        <button
+          id="aceTakePhoto"
+          type="button"
+        >
+          📷 Tirar foto
+        </button>
+
+        <button
+          id="aceChoosePhoto"
+          type="button"
+        >
+          🖼️ Escolher da galeria
+        </button>
+
+        <button
+          id="aceRemovePhoto"
+          type="button"
+          class="danger"
+        >
+          🗑️ Remover foto
+        </button>
+
+      </div>
+
+
+      <input
+        id="aceCameraInput"
+        type="file"
+        accept="image/*"
+        capture="user"
+        hidden
+      >
+
+      <input
+        id="aceGalleryInput"
+        type="file"
+        accept="image/*"
+        hidden
+      >
+
+
+      <div class="ace-profile-hint">
+        A foto fica disponível offline neste aparelho e,
+        quando houver internet, é sincronizada com sua conta.
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  updateAceAvatarElements();
+
+
+  const close =
+    () =>
+      modal.remove();
+
+
+  modal.addEventListener(
+    "click",
+    event => {
+
+      if (
+        event.target ===
+        modal
+      ) {
+        close();
+      }
+
+    }
+  );
+
+
+  document
+    .getElementById(
+      "aceProfileClose"
+    )
+    .onclick =
+      close;
+
+
+  const cameraInput =
+    document.getElementById(
+      "aceCameraInput"
+    );
+
+  const galleryInput =
+    document.getElementById(
+      "aceGalleryInput"
+    );
+
+
+  document
+    .getElementById(
+      "aceTakePhoto"
+    )
+    .onclick =
+      () =>
+        cameraInput.click();
+
+
+  document
+    .getElementById(
+      "aceChoosePhoto"
+    )
+    .onclick =
+      () =>
+        galleryInput.click();
+
+
+  cameraInput.onchange =
+    async () => {
+
+      await aceSaveAvatarFile(
+        cameraInput.files?.[0]
+      );
+
+      cameraInput.value =
+        "";
+
+    };
+
+
+  galleryInput.onchange =
+    async () => {
+
+      await aceSaveAvatarFile(
+        galleryInput.files?.[0]
+      );
+
+      galleryInput.value =
+        "";
+
+    };
+
+
+  document
+    .getElementById(
+      "aceRemovePhoto"
+    )
+    .onclick =
+      async () => {
+
+        const confirmed =
+          await showAceConfirm(
+            "Remover sua foto de perfil?",
+            "👤 Minha conta"
+          );
+
+
+        if (!confirmed) {
+          return;
+        }
+
+
+        setAceCachedAvatar(
+          ""
+        );
+
+
+        localStorage.removeItem(
+          getAceAvatarPendingKey()
+        );
+
+
+        updateAceAvatarElements();
+
+
+        if (
+          navigator.onLine &&
+          currentUser?.id
+        ) {
+
+          try {
+
+            await supabaseClient
+              .storage
+              .from(
+                ACE_AVATAR_BUCKET
+              )
+              .remove([
+                `${currentUser.id}/avatar.jpg`
+              ]);
+
+
+            const {
+              data,
+              error
+            } =
+              await supabaseClient
+                .auth
+                .updateUser({
+                  data: {
+                    avatar_url:
+                      null
+                  }
+                });
+
+
+            if (error) {
+              throw error;
+            }
+
+
+            if (
+              data?.user
+            ) {
+
+              currentUser =
+                data.user;
+
+              saveOfflineUser(
+                currentUser
+              );
+
+            }
+
+          } catch (error) {
+
+            console.warn(
+              "ACE: não foi possível remover avatar da nuvem:",
+              error
+            );
+
+          }
+
+        }
+
+
+        showAceSuccess(
+          "✅ Foto removida."
+        );
+
+      };
+
+}
+
+
+// ------------------------------------------------------------
+// SINCRONIZAÇÃO MANUAL
+// ------------------------------------------------------------
+
+async function aceManualSync() {
+
+  if (
+    !navigator.onLine
+  ) {
+
+    showAceSuccess(
+      "🟠 Sem internet. A sincronização será feita automaticamente quando a conexão voltar."
+    );
+
+    return;
+
+  }
+
+
+  const button =
+    document.getElementById(
+      "aceAccountSync"
+    );
+
+
+  if (button) {
+
+    button.disabled =
+      true;
+
+    button.textContent =
+      "⏳ Sincronizando...";
+
+  }
+
+
+  try {
+
+    const result =
+      await syncOfflineQueue();
+
+
+    await aceSyncPendingAvatar();
+
+
+    if (
+      result.remaining >
+      0
+    ) {
+
+      showAceSuccess(
+        `⚠️ Ainda existem ${result.remaining} item(ns) aguardando sincronização.`
+      );
+
+      return;
+
+    }
+
+
+    db =
+      await loadFromSupabase();
+
+    saveOfflineSnapshot(
+      db
+    );
+
+
+    await loadMuralAcePosts();
+
+    renderAll();
+
+
+    showAceSuccess(
+      "✅ Dados sincronizados com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    await showAceConfirm(
+      "Não foi possível concluir a sincronização.\n\n" +
+      (
+        error?.message ||
+        "Tente novamente."
+      ),
+      "❌ Sincronização"
+    );
+
+
+  } finally {
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        "🔄 Sincronizar dados";
+
+    }
+
+  }
+
+}
+
+
+// ------------------------------------------------------------
+// MENU DA CONTA (3 PONTINHOS)
+// ------------------------------------------------------------
+
+function closeAceAccountMenu() {
+
+  document
+    .getElementById(
+      "aceAccountDropdown"
+    )
+    ?.classList.remove(
+      "show"
+    );
+
+  aceProfileMenuOpen =
+    false;
+
+}
+
+
+function toggleAceAccountMenu() {
+
+  const menu =
+    document.getElementById(
+      "aceAccountDropdown"
+    );
+
+
+  if (!menu) {
+    return;
+  }
+
+
+  aceProfileMenuOpen =
+    !aceProfileMenuOpen;
+
+
+  menu.classList.toggle(
+    "show",
+    aceProfileMenuOpen
+  );
+
+}
+
+
+function setupAceAccountMenuEvents() {
+
+  const more =
+    document.getElementById(
+      "aceAccountMore"
+    );
+
+
+  if (more) {
+
+    more.onclick =
+      event => {
+
+        event.stopPropagation();
+
+        toggleAceAccountMenu();
+
+      };
+
+  }
+
+
+  const avatarButton =
+    document.getElementById(
+      "aceMobileAvatarButton"
+    );
+
+
+  if (avatarButton) {
+
+    avatarButton.onclick =
+      openAceMyAccount;
+
+  }
+
+
+  document
+    .getElementById(
+      "aceAccountProfile"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceAccountMenu();
+
+        openAceMyAccount();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceAccountSync"
+    )
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        closeAceAccountMenu();
+
+        await aceManualSync();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceAccountAbout"
+    )
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        closeAceAccountMenu();
+
+
+        await showAceConfirm(
+          "ACE - Ação de Cestas\n\n" +
+          "Controle de Alimentos\n\n" +
+          "Aplicativo para controle de estoque, movimentações, presenças, cestas e informativos da equipe.",
+          "ℹ️ Sobre o aplicativo"
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceAccountInstall"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceAccountMenu();
+
+        document
+          .getElementById(
+            "installBtn"
+          )
+          ?.click();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceAccountLogout"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceAccountMenu();
+
+        logoutUser();
+
+      }
+    );
+
+
+  document.addEventListener(
+    "click",
+    event => {
+
+      if (
+        aceProfileMenuOpen &&
+        !event.target.closest(
+          "#aceAccountDropdown"
+        ) &&
+        !event.target.closest(
+          "#aceAccountMore"
+        )
+      ) {
+
+        closeAceAccountMenu();
+
+      }
+
+    }
+  );
+
+}
+
+
+// ------------------------------------------------------------
+// DRAWER LATERAL
+// ------------------------------------------------------------
+
+function closeAceMobileDrawer() {
+
+  document
+    .getElementById(
+      "aceMobileDrawer"
+    )
+    ?.classList.remove(
+      "open"
+    );
+
+  document
+    .getElementById(
+      "aceMobileDrawerBackdrop"
+    )
+    ?.classList.remove(
+      "open"
+    );
+
+}
+
+
+function openAceMobileDrawer() {
+
+  document
+    .getElementById(
+      "aceMobileDrawer"
+    )
+    ?.classList.add(
+      "open"
+    );
+
+  document
+    .getElementById(
+      "aceMobileDrawerBackdrop"
+    )
+    ?.classList.add(
+      "open"
+    );
+
+}
+
+
+function activateAceOriginalTab(
+  page
+) {
+
+  const original =
+    document.querySelector(
+      `.tabs .tab[data-page="${CSS.escape(
+        page
+      )}"]`
+    );
+
+
+  if (original) {
+
+    original.click();
+
+  }
+
+
+  closeAceMobileDrawer();
+
+  updateAceMobileNavigationState();
+
+}
+
+
+function buildAceMobileDrawer() {
+
+  const drawerList =
+    document.getElementById(
+      "aceMobileDrawerList"
+    );
+
+
+  if (!drawerList) {
+    return;
+  }
+
+
+  const tabs =
+    Array.from(
+      document.querySelectorAll(
+        ".tabs .tab[data-page]"
+      )
+    );
+
+
+  drawerList.innerHTML =
+    tabs
+      .map(
+        tab => {
+
+          const page =
+            tab.dataset.page;
+
+          const label =
+            String(
+              tab.textContent ||
+              ""
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
+
+          const cleanLabel =
+            label.replace(
+              /^[^\p{L}\p{N}]+/u,
+              ""
+            );
+
+          const icon =
+            getAceMobileMenuIcon(
+              cleanLabel
+            );
+
+
+          return `
+            <button
+              class="ace-drawer-item"
+              type="button"
+              data-ace-open-page="${esc(page)}"
+            >
+              <span class="ace-drawer-icon">
+                ${icon}
+              </span>
+              <span>
+                ${esc(cleanLabel)}
+              </span>
+            </button>
+          `;
+
+        }
+      )
+      .join("");
+
+
+  drawerList
+    .querySelectorAll(
+      "[data-ace-open-page]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            activateAceOriginalTab(
+              button.dataset.aceOpenPage
+            );
+
+      }
+    );
+
+}
+
+
+// ------------------------------------------------------------
+// NAVEGAÇÃO INFERIOR
+// ------------------------------------------------------------
+
+function updateAceMobileNavigationState() {
+
+  const active =
+    document.querySelector(
+      ".tabs .tab.active[data-page]"
+    );
+
+
+  const page =
+    active
+      ?.dataset
+      ?.page ||
+    "";
+
+
+  document
+    .querySelectorAll(
+      ".ace-bottom-item[data-ace-page]"
+    )
+    .forEach(
+      button => {
+
+        button.classList.toggle(
+          "active",
+          button.dataset.acePage ===
+            page
+        );
+
+      }
+    );
+
+}
+
+
+function setupAceBottomNavigation() {
+
+  const bottom =
+    document.getElementById(
+      "aceMobileBottomNav"
+    );
+
+
+  if (!bottom) {
+    return;
+  }
+
+
+  bottom
+    .querySelectorAll(
+      "[data-ace-page]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            activateAceOriginalTab(
+              button.dataset.acePage
+            );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceBottomMore"
+    )
+    ?.addEventListener(
+      "click",
+      openAceMobileDrawer
+    );
+
+
+  updateAceMobileNavigationState();
+
+}
+
+
+// ------------------------------------------------------------
+// ESTILOS
+// ------------------------------------------------------------
+
+function ensureAceProfessionalLayoutStyles() {
+
+  if (
+    document.getElementById(
+      "aceProfessionalLayoutStyles"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceProfessionalLayoutStyles";
+
+
+  style.textContent = `
+
+    .ace-profile-avatar{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      border-radius:50%;
+      background:#fff;
+      color:#0b4b7a;
+      user-select:none;
+    }
+
+    .ace-profile-avatar img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    .ace-profile-avatar-large{
+      width:112px;
+      height:112px;
+      margin:2px auto 15px;
+      border:4px solid #e7f0f7;
+      font-size:48px;
+      box-shadow:0 10px 28px rgba(0,42,80,.16);
+    }
+
+    #aceMyAccountModal{
+      position:fixed;
+      inset:0;
+      z-index:1000800;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(3,31,55,.58);
+      backdrop-filter:blur(5px);
+    }
+
+    .ace-profile-modal-card{
+      position:relative;
+      width:min(460px,calc(100vw - 32px));
+      box-sizing:border-box;
+      padding:30px 24px 25px;
+      border-radius:24px;
+      background:#fff;
+      box-shadow:0 30px 90px rgba(0,0,0,.30);
+      text-align:center;
+    }
+
+    .ace-profile-modal-card h2{
+      margin:0 0 5px;
+      color:#073b68;
+      font-size:27px;
+      font-weight:900;
+    }
+
+    .ace-profile-close{
+      position:absolute;
+      top:12px;
+      right:15px;
+      width:38px;
+      height:38px;
+      border:0;
+      border-radius:50%;
+      background:#f1f5f8;
+      color:#27445c;
+      font-size:25px;
+      line-height:1;
+      cursor:pointer;
+    }
+
+    .ace-profile-name{
+      color:#102a43;
+      font-size:18px;
+      font-weight:900;
+    }
+
+    .ace-profile-email{
+      margin-top:3px;
+      color:#667085;
+      font-size:14px;
+    }
+
+    .ace-profile-photo-actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:23px;
+    }
+
+    .ace-profile-photo-actions button{
+      min-height:47px;
+      padding:10px 12px;
+      border:1px solid #c8d8e5;
+      border-radius:12px;
+      background:#f8fbfd;
+      color:#0b4b7a;
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-profile-photo-actions .danger{
+      grid-column:1/-1;
+      border-color:#f0b8b4;
+      background:#fff5f4;
+      color:#c72c20;
+    }
+
+    .ace-profile-hint{
+      margin-top:17px;
+      padding:11px 13px;
+      border-radius:11px;
+      background:#f2f7fb;
+      color:#667085;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+
+    /* DESKTOP: preserva o layout atual */
+    #aceMobileHeader,
+    #aceMobileDrawer,
+    #aceMobileDrawerBackdrop,
+    #aceMobileBottomNav{
+      display:none;
+    }
+
+
+    @media(max-width:850px){
+
+      html,
+      body{
+        max-width:100%;
+        overflow-x:hidden;
+      }
+
+      body{
+        padding-bottom:76px;
+      }
+
+
+      /* ------------------------------------------------------
+      CABEÇALHO COMPACTO
+      ------------------------------------------------------ */
+
+      .ace-header-v6{
+        position:relative !important;
+        min-height:112px !important;
+        height:112px !important;
+        padding:0 !important;
+        overflow:visible !important;
+      }
+
+      .ace-header-v6 > *:not(#aceMobileHeader){
+        display:none !important;
+      }
+
+      #aceMobileHeader{
+        display:grid;
+        grid-template-columns:42px 54px minmax(0,1fr) auto auto;
+        align-items:center;
+        column-gap:9px;
+        width:100%;
+        height:112px;
+        box-sizing:border-box;
+        padding:12px 13px;
+        color:#fff;
+      }
+
+      .ace-mobile-menu-button{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:5px;
+        width:40px;
+        height:40px;
+        border:0;
+        border-radius:11px;
+        background:rgba(255,255,255,.08);
+        cursor:pointer;
+      }
+
+      .ace-mobile-menu-button span{
+        width:23px;
+        height:2.5px;
+        border-radius:99px;
+        background:#fff;
+      }
+
+      .ace-mobile-logo{
+        width:54px;
+        height:54px;
+        object-fit:contain;
+      }
+
+      .ace-mobile-brand{
+        min-width:0;
+      }
+
+      .ace-mobile-brand-title{
+        overflow:hidden;
+        color:#fff;
+        font-size:16px;
+        font-weight:900;
+        line-height:1.18;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+
+      .ace-mobile-brand-subtitle{
+        margin-top:3px;
+        overflow:hidden;
+        color:rgba(255,255,255,.86);
+        font-size:12px;
+        line-height:1.1;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+
+      .ace-mobile-user{
+        display:flex;
+        align-items:center;
+        gap:7px;
+        min-width:0;
+      }
+
+      .ace-mobile-user-name{
+        display:none;
+        max-width:112px;
+        overflow:hidden;
+        color:#fff;
+        font-size:11px;
+        font-weight:800;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+
+      .ace-mobile-avatar-button{
+        width:38px;
+        height:38px;
+        padding:0;
+        border:2px solid rgba(255,255,255,.76);
+        border-radius:50%;
+        background:rgba(255,255,255,.96);
+        cursor:pointer;
+      }
+
+      .ace-mobile-avatar-button .ace-profile-avatar{
+        width:100%;
+        height:100%;
+        font-size:20px;
+      }
+
+      .ace-mobile-more{
+        width:34px;
+        height:40px;
+        padding:0;
+        border:0;
+        border-radius:9px;
+        background:transparent;
+        color:#fff;
+        font-size:27px;
+        line-height:1;
+        cursor:pointer;
+      }
+
+      .ace-account-dropdown{
+        position:absolute;
+        top:82px;
+        right:12px;
+        z-index:1000300;
+        display:none;
+        width:230px;
+        overflow:hidden;
+        border:1px solid #d7e1e8;
+        border-radius:15px;
+        background:#fff;
+        box-shadow:0 18px 48px rgba(0,34,64,.25);
+      }
+
+      .ace-account-dropdown.show{
+        display:block;
+        animation:aceDropdownIn .16s ease-out;
+      }
+
+      @keyframes aceDropdownIn{
+        from{
+          opacity:0;
+          transform:translateY(-6px);
+        }
+        to{
+          opacity:1;
+          transform:translateY(0);
+        }
+      }
+
+      .ace-account-dropdown button{
+        display:flex;
+        align-items:center;
+        width:100%;
+        min-height:48px;
+        padding:10px 15px;
+        border:0;
+        border-bottom:1px solid #edf2f5;
+        background:#fff;
+        color:#173750;
+        text-align:left;
+        font:inherit;
+        font-size:14px;
+        font-weight:800;
+        cursor:pointer;
+      }
+
+      .ace-account-dropdown button:last-child{
+        border-bottom:0;
+      }
+
+      .ace-account-dropdown button:hover{
+        background:#f4f8fb;
+      }
+
+      .ace-account-dropdown .logout{
+        color:#cf2f25;
+      }
+
+
+      /* ------------------------------------------------------
+      MENU ORIGINAL SOME NO CELULAR
+      ------------------------------------------------------ */
+
+      .tabs{
+        display:none !important;
+      }
+
+
+      /* ------------------------------------------------------
+      DRAWER LATERAL
+      ------------------------------------------------------ */
+
+      #aceMobileDrawerBackdrop{
+        position:fixed;
+        inset:0;
+        z-index:1000200;
+        display:block;
+        visibility:hidden;
+        background:rgba(7,29,48,.44);
+        opacity:0;
+        transition:opacity .22s ease,visibility .22s;
+      }
+
+      #aceMobileDrawerBackdrop.open{
+        visibility:visible;
+        opacity:1;
+      }
+
+      #aceMobileDrawer{
+        position:fixed;
+        top:0;
+        left:0;
+        z-index:1000250;
+        display:flex;
+        flex-direction:column;
+        width:min(82vw,320px);
+        height:100dvh;
+        box-sizing:border-box;
+        padding:18px 15px 22px;
+        background:#fff;
+        box-shadow:14px 0 48px rgba(0,35,65,.26);
+        transform:translateX(-104%);
+        transition:transform .25s cubic-bezier(.2,.8,.2,1);
+      }
+
+      #aceMobileDrawer.open{
+        transform:translateX(0);
+      }
+
+      .ace-drawer-head{
+        display:flex;
+        align-items:center;
+        gap:11px;
+        padding:5px 6px 17px;
+        border-bottom:1px solid #e9eef2;
+      }
+
+      .ace-drawer-head img{
+        width:52px;
+        height:52px;
+        object-fit:contain;
+      }
+
+      .ace-drawer-head strong{
+        display:block;
+        color:#073b68;
+        font-size:16px;
+        line-height:1.15;
+      }
+
+      .ace-drawer-head small{
+        display:block;
+        margin-top:3px;
+        color:#667085;
+        font-size:11px;
+      }
+
+      .ace-drawer-close{
+        margin-left:auto;
+        width:36px;
+        height:36px;
+        border:0;
+        border-radius:50%;
+        background:#eef4f8;
+        color:#27445c;
+        font-size:23px;
+        cursor:pointer;
+      }
+
+      #aceMobileDrawerList{
+        display:flex;
+        flex-direction:column;
+        gap:3px;
+        padding:13px 0;
+        overflow-y:auto;
+      }
+
+      .ace-drawer-item{
+        display:flex;
+        align-items:center;
+        gap:13px;
+        min-height:49px;
+        padding:9px 12px;
+        border:0;
+        border-radius:12px;
+        background:transparent;
+        color:#28445e;
+        text-align:left;
+        font:inherit;
+        font-size:15px;
+        font-weight:750;
+        cursor:pointer;
+      }
+
+      .ace-drawer-item:hover{
+        background:#edf5fb;
+        color:#0756a0;
+      }
+
+      .ace-drawer-icon{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:29px;
+        color:#0b4b7a;
+        font-size:22px;
+      }
+
+      .ace-drawer-footer{
+        margin-top:auto;
+        padding-top:12px;
+        border-top:1px solid #e9eef2;
+      }
+
+      .ace-drawer-footer button{
+        width:100%;
+        min-height:47px;
+        border:1px solid #f0b8b4;
+        border-radius:12px;
+        background:#fff5f4;
+        color:#c72c20;
+        font:inherit;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+
+      /* ------------------------------------------------------
+      MURAL MAIS COMPACTO / INTERATIVO
+      ------------------------------------------------------ */
+
+      #muralAce{
+        padding-top:15px !important;
+        padding-left:14px !important;
+        padding-right:14px !important;
+        padding-bottom:90px !important;
+      }
+
+      .ace-mural-header{
+        margin-bottom:14px !important;
+      }
+
+      .ace-mural-title{
+        font-size:28px !important;
+        line-height:1.05 !important;
+      }
+
+      .ace-mural-subtitle{
+        margin-top:6px !important;
+        font-size:14px !important;
+        line-height:1.35 !important;
+      }
+
+      .ace-mural-story-bars{
+        margin:0 0 10px !important;
+      }
+
+      .ace-mural-mobile-hint{
+        display:none !important;
+      }
+
+      .ace-mural-grid{
+        gap:11px !important;
+        padding-bottom:0 !important;
+      }
+
+      .ace-mural-card{
+        border-radius:16px !important;
+        box-shadow:0 8px 22px rgba(20,54,82,.09) !important;
+      }
+
+      .ace-mural-media{
+        min-height:0 !important;
+        height:auto !important;
+        max-height:260px !important;
+        background:#f2f6f9 !important;
+      }
+
+      .ace-mural-media img{
+        width:100% !important;
+        height:auto !important;
+        max-height:260px !important;
+        object-fit:contain !important;
+      }
+
+      .ace-mural-media video{
+        display:block !important;
+        width:100% !important;
+        aspect-ratio:16/9 !important;
+        height:auto !important;
+        max-height:none !important;
+        object-fit:contain !important;
+        background:#000 !important;
+      }
+
+      .ace-mural-media iframe{
+        width:100% !important;
+        aspect-ratio:16/9 !important;
+      }
+
+      .ace-mural-body{
+        padding:13px 15px 15px !important;
+      }
+
+      .ace-mural-card-title{
+        font-size:20px !important;
+      }
+
+      .ace-mural-description{
+        margin-top:7px !important;
+        font-size:13px !important;
+      }
+
+      .ace-mural-meta{
+        margin-bottom:5px !important;
+      }
+
+
+      /* ------------------------------------------------------
+      BARRA INFERIOR
+      ------------------------------------------------------ */
+
+      #aceMobileBottomNav{
+        position:fixed;
+        left:0;
+        right:0;
+        bottom:0;
+        z-index:1000100;
+        display:grid;
+        grid-template-columns:repeat(5,1fr);
+        min-height:67px;
+        padding:6px 5px calc(6px + env(safe-area-inset-bottom));
+        border-top:1px solid #dce5ec;
+        background:rgba(255,255,255,.97);
+        box-shadow:0 -8px 28px rgba(20,54,82,.10);
+        backdrop-filter:blur(10px);
+      }
+
+      .ace-bottom-item{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:3px;
+        min-width:0;
+        padding:4px 2px;
+        border:0;
+        border-radius:11px;
+        background:transparent;
+        color:#3d566d;
+        font:inherit;
+        cursor:pointer;
+      }
+
+      .ace-bottom-item .icon{
+        font-size:21px;
+        line-height:1;
+      }
+
+      .ace-bottom-item .label{
+        overflow:hidden;
+        max-width:100%;
+        font-size:10px;
+        font-weight:800;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+
+      .ace-bottom-item.active{
+        background:#eaf4fd;
+        color:#0756a0;
+      }
+
+
+      .ace-profile-photo-actions{
+        grid-template-columns:1fr;
+      }
+
+      .ace-profile-photo-actions .danger{
+        grid-column:auto;
+      }
+
+    }
+
+
+    @media(min-width:560px) and (max-width:850px){
+
+      .ace-mobile-user-name{
+        display:block;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+// ------------------------------------------------------------
+// MONTA O LAYOUT
+// ------------------------------------------------------------
+
+function setupProfessionalMobileLayout() {
+
+  ensureAceProfessionalLayoutStyles();
+
+
+  const header =
+    document.querySelector(
+      ".ace-header-v6"
+    );
+
+
+  if (!header) {
+    return;
+  }
+
+
+  let mobileHeader =
+    document.getElementById(
+      "aceMobileHeader"
+    );
+
+
+  if (!mobileHeader) {
+
+    mobileHeader =
+      document.createElement(
+        "div"
+      );
+
+    mobileHeader.id =
+      "aceMobileHeader";
+
+
+    mobileHeader.innerHTML = `
+
+      <button
+        id="aceMobileMenuButton"
+        class="ace-mobile-menu-button"
+        type="button"
+        aria-label="Abrir menu"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+
+      <img
+        class="ace-mobile-logo"
+        src="ace-cesta.png"
+        alt="ACE"
+      >
+
+
+      <div class="ace-mobile-brand">
+
+        <div class="ace-mobile-brand-title">
+          ACE - Ação de Cestas
+        </div>
+
+        <div class="ace-mobile-brand-subtitle">
+          Controle de Alimentos
+        </div>
+
+      </div>
+
+
+      <div class="ace-mobile-user">
+
+        <div class="ace-mobile-user-name">
+          Usuário: ${esc(
+            getCurrentDisplayName()
+          )}
+        </div>
+
+        <button
+          id="aceMobileAvatarButton"
+          class="ace-mobile-avatar-button"
+          type="button"
+          title="Minha conta"
+        >
+          <span
+            class="ace-profile-avatar"
+            data-ace-user-avatar
+          >
+            👤
+          </span>
+        </button>
+
+      </div>
+
+
+      <button
+        id="aceAccountMore"
+        class="ace-mobile-more"
+        type="button"
+        aria-label="Mais opções"
+      >
+        ⋮
+      </button>
+
+
+      <div
+        id="aceAccountDropdown"
+        class="ace-account-dropdown"
+      >
+
+        <button
+          id="aceAccountProfile"
+          type="button"
+        >
+          👤 Minha conta
+        </button>
+
+        <button
+          id="aceAccountSync"
+          type="button"
+        >
+          🔄 Sincronizar dados
+        </button>
+
+        ${
+          document.getElementById(
+            "installBtn"
+          )
+            ? `
+                <button
+                  id="aceAccountInstall"
+                  type="button"
+                >
+                  📲 Instalar aplicativo
+                </button>
+              `
+            : ""
+        }
+
+        <button
+          id="aceAccountAbout"
+          type="button"
+        >
+          ℹ️ Sobre o aplicativo
+        </button>
+
+        <button
+          id="aceAccountLogout"
+          class="logout"
+          type="button"
+        >
+          🚪 Sair
+        </button>
+
+      </div>
+
+    `;
+
+
+    header.appendChild(
+      mobileHeader
+    );
+
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceMobileDrawerBackdrop"
+    )
+  ) {
+
+    const backdrop =
+      document.createElement(
+        "div"
+      );
+
+    backdrop.id =
+      "aceMobileDrawerBackdrop";
+
+    document.body.appendChild(
+      backdrop
+    );
+
+
+    backdrop.onclick =
+      closeAceMobileDrawer;
+
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceMobileDrawer"
+    )
+  ) {
+
+    const drawer =
+      document.createElement(
+        "aside"
+      );
+
+    drawer.id =
+      "aceMobileDrawer";
+
+
+    drawer.innerHTML = `
+
+      <div class="ace-drawer-head">
+
+        <img
+          src="ace-cesta.png"
+          alt="ACE"
+        >
+
+        <div>
+          <strong>
+            ACE - Ação de Cestas
+          </strong>
+          <small>
+            Controle de Alimentos
+          </small>
+        </div>
+
+        <button
+          id="aceMobileDrawerClose"
+          class="ace-drawer-close"
+          type="button"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div
+        id="aceMobileDrawerList"
+      ></div>
+
+
+      <div class="ace-drawer-footer">
+
+        <button
+          id="aceDrawerLogout"
+          type="button"
+        >
+          🚪 Sair
+        </button>
+
+      </div>
+
+    `;
+
+
+    document.body.appendChild(
+      drawer
+    );
+
+
+    document
+      .getElementById(
+        "aceMobileDrawerClose"
+      )
+      .onclick =
+        closeAceMobileDrawer;
+
+
+    document
+      .getElementById(
+        "aceDrawerLogout"
+      )
+      .onclick =
+        logoutUser;
+
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceMobileBottomNav"
+    )
+  ) {
+
+    const bottom =
+      document.createElement(
+        "nav"
+      );
+
+    bottom.id =
+      "aceMobileBottomNav";
+
+
+    bottom.innerHTML = `
+
+      <button
+        class="ace-bottom-item"
+        type="button"
+        data-ace-page="muralAce"
+      >
+        <span class="icon">📣</span>
+        <span class="label">Mural ACE</span>
+      </button>
+
+      <button
+        class="ace-bottom-item"
+        type="button"
+        data-ace-page="inicio"
+      >
+        <span class="icon">⌂</span>
+        <span class="label">Início</span>
+      </button>
+
+      <button
+        class="ace-bottom-item"
+        type="button"
+        data-ace-page="entrada"
+      >
+        <span class="icon">▣</span>
+        <span class="label">Entrada</span>
+      </button>
+
+      <button
+        class="ace-bottom-item"
+        type="button"
+        data-ace-page="movimentos"
+      >
+        <span class="icon">▱</span>
+        <span class="label">Saída/Perda</span>
+      </button>
+
+      <button
+        id="aceBottomMore"
+        class="ace-bottom-item"
+        type="button"
+      >
+        <span class="icon">▦</span>
+        <span class="label">Mais</span>
+      </button>
+
+    `;
+
+
+    document.body.appendChild(
+      bottom
+    );
+
+  }
+
+
+  buildAceMobileDrawer();
+
+  setupAceBottomNavigation();
+
+  setupAceAccountMenuEvents();
+
+  updateAceAvatarElements();
+
+
+  document
+    .getElementById(
+      "aceMobileMenuButton"
+    )
+    ?.addEventListener(
+      "click",
+      openAceMobileDrawer
+    );
+
+
+  // Observa alterações de aba do menu original
+  // para manter a barra inferior sincronizada.
+  if (
+    !aceMobileLayoutReady
+  ) {
+
+    const tabs =
+      document.querySelector(
+        ".tabs"
+      );
+
+
+    if (tabs) {
+
+      const observer =
+        new MutationObserver(
+          updateAceMobileNavigationState
+        );
+
+
+      observer.observe(
+        tabs,
+        {
+          subtree:
+            true,
+          attributes:
+            true,
+          attributeFilter: [
+            "class"
+          ]
+        }
+      );
+
+    }
+
+
+    window.addEventListener(
+      "online",
+      aceSyncPendingAvatar
+    );
+
+
+    aceMobileLayoutReady =
+      true;
+
+  }
+
+
+  aceSyncPendingAvatar();
+
+}
+
+
+
 function renderAll() {
 
   refreshSelects();
@@ -20283,6 +22951,15 @@ function renderAll() {
   renderCadastros();
 
   renderHistory();
+
+  if (
+    typeof setupProfessionalMobileLayout ===
+    "function"
+  ) {
+
+    setupProfessionalMobileLayout();
+
+  }
 
 }
 
@@ -20377,6 +23054,8 @@ async function initApp() {
     addUserBar();
 
     setupOfflineStatus();
+
+    setupProfessionalMobileLayout();
 
     renderAll();
 
