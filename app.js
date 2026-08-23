@@ -23712,3953 +23712,36 @@ async function startAuth() {
 startAuth();
 
 
-
 /* ============================================================
-   ACE - STATUS ONLINE / OFFLINE RESTAURADO
-   PATCH VISUAL APENAS.
-   Não altera login offline, fila offline, sincronização,
-   movimentações ou service worker.
+   ACE - LAYOUT MOBILE LIMPO E ESTÁVEL
+   UMA ÚNICA REGRA VISUAL.
+   Não altera nenhuma lógica funcional do aplicativo.
    ============================================================ */
 
-(function aceRestoreConnectionBadge(){
+(function aceCleanStableMobileLayout(){
 
-  const STYLE_ID = "ace-connection-badge-style-v2";
-  const BADGE_ID = "aceConnectionBadge";
+  const STYLE_ID = "ace-clean-stable-mobile-layout-v1";
+  const NET_ID = "aceHeaderNetMini";
 
   function ensureStyle(){
+
     if (document.getElementById(STYLE_ID)) return;
 
     const style = document.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = `
-      #${BADGE_ID}{
-        position:fixed !important;
-        right:14px !important;
-        bottom:calc(88px + env(safe-area-inset-bottom)) !important;
-        z-index:1000250 !important;
-        display:flex !important;
-        align-items:center !important;
-        justify-content:center !important;
-        gap:7px !important;
-        min-width:92px !important;
-        height:38px !important;
-        padding:0 13px !important;
-        box-sizing:border-box !important;
-        border:1.5px solid !important;
-        border-radius:999px !important;
-        font-size:13px !important;
-        font-weight:900 !important;
-        line-height:1 !important;
-        box-shadow:0 5px 18px rgba(0,0,0,.12) !important;
-        backdrop-filter:blur(8px) !important;
-        -webkit-backdrop-filter:blur(8px) !important;
-        user-select:none !important;
-        pointer-events:none !important;
-      }
-
-      #${BADGE_ID} .ace-net-dot{
-        width:14px !important;
-        height:14px !important;
-        flex:0 0 14px !important;
-        border-radius:50% !important;
-        box-shadow:inset 0 0 0 1px rgba(0,0,0,.08) !important;
-      }
-
-      #${BADGE_ID}.is-online{
-        color:#087c3a !important;
-        border-color:#8dd7aa !important;
-        background:rgba(241,255,246,.96) !important;
-      }
-
-      #${BADGE_ID}.is-online .ace-net-dot{
-        background:#74b72e !important;
-      }
-
-      #${BADGE_ID}.is-offline{
-        color:#a85b00 !important;
-        border-color:#f2c06b !important;
-        background:rgba(255,248,232,.97) !important;
-      }
-
-      #${BADGE_ID}.is-offline .ace-net-dot{
-        background:#f39a0a !important;
-      }
-
-      @media(min-width:851px){
-        #${BADGE_ID}{
-          bottom:18px !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function ensureBadge(){
-    let badge = document.getElementById(BADGE_ID);
-
-    if (!badge){
-      badge = document.createElement("div");
-      badge.id = BADGE_ID;
-      badge.setAttribute("role", "status");
-      badge.setAttribute("aria-live", "polite");
-      badge.innerHTML =
-        '<span class="ace-net-dot" aria-hidden="true"></span>' +
-        '<span class="ace-net-label"></span>';
-      document.body.appendChild(badge);
-    }
-
-    return badge;
-  }
-
-  function renderConnectionState(){
-    ensureStyle();
-    const badge = ensureBadge();
-    const online = navigator.onLine;
-    const label = badge.querySelector(".ace-net-label");
-
-    badge.classList.toggle("is-online", online);
-    badge.classList.toggle("is-offline", !online);
-
-    if (label){
-      label.textContent = online ? "Online" : "Offline";
-    }
-
-    badge.title = online
-      ? "Conectado à internet"
-      : "Sem internet - modo offline";
-  }
-
-  window.addEventListener("online", renderConnectionState);
-  window.addEventListener("offline", renderConnectionState);
-  window.addEventListener("pageshow", renderConnectionState);
-  document.addEventListener("visibilitychange", function(){
-    if (!document.hidden) renderConnectionState();
-  });
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", renderConnectionState);
-  } else {
-    renderConnectionState();
-  }
-
-  // Exposto apenas para compatibilidade com renders internos do app.
-  window.aceUpdateConnectionBadge = renderConnectionState;
-
-})();
-
-
-
-/* ============================================================
-   ACE - AJUSTE VISUAL DO CABEÇALHO + TÍTULO MURAL
-   Somente layout. Não altera funções do aplicativo.
-   ============================================================ */
-(function aceHeaderVisualAdjustment(){
-  const STYLE_ID = "ace-header-visual-adjustment-v3";
-
-  function apply(){
-    if (document.getElementById(STYLE_ID)) return;
-
-    const st = document.createElement("style");
-    st.id = STYLE_ID;
-    st.textContent = `
-      /* Título principal mais forte e maior */
-      @media (max-width: 850px){
-        .ace-mobile-header-title,
-        .mobile-header-title,
-        .app-header-title,
-        .header-title,
-        header h1 {
-          font-size: clamp(27px, 7.2vw, 38px) !important;
-          line-height: 1.05 !important;
-          font-weight: 900 !important;
-          letter-spacing: -0.6px !important;
-        }
-
-        .ace-mobile-header-subtitle,
-        .mobile-header-subtitle,
-        .app-header-subtitle,
-        .header-subtitle,
-        header h2 {
-          font-size: clamp(18px, 4.7vw, 25px) !important;
-          line-height: 1.12 !important;
-          font-weight: 800 !important;
-        }
-
-        /* Logo maior e alinhada ao bloco ACE */
-        .ace-mobile-header-logo,
-        .mobile-header-logo,
-        .app-header-logo,
-        .header-logo,
-        header img[src*="ace-cesta"],
-        header img[src*="logo"] {
-          width: 132px !important;
-          height: 132px !important;
-          max-width: 132px !important;
-          max-height: 132px !important;
-          object-fit: contain !important;
-        }
-
-        /* Mural ACE menor que o título principal */
-        #mural h1,
-        #mural h2,
-        .mural-title,
-        .mural-title h1,
-        .mural-title h2,
-        [class*="mural"] h1,
-        [class*="mural"] h2 {
-          font-size: clamp(25px, 6.4vw, 32px) !important;
-          line-height: 1.08 !important;
-          font-weight: 900 !important;
-        }
-      }
-    `;
-    document.head.appendChild(st);
-
-    /* Ajuste dirigido pelo texto para funcionar mesmo se os nomes
-       das classes do cabeçalho variarem entre versões. */
-    const all = [...document.querySelectorAll("h1,h2,h3,div,span,strong")];
-
-    const aceTitle = all.find(el =>
-      /ACE\s*-\s*Ação de Cestas/i.test((el.textContent || "").trim()) &&
-      el.children.length <= 4
-    );
-
-    if (aceTitle){
-      aceTitle.style.setProperty("font-size", "clamp(27px, 7.2vw, 38px)", "important");
-      aceTitle.style.setProperty("font-weight", "900", "important");
-      aceTitle.style.setProperty("line-height", "1.05", "important");
-
-      const header = aceTitle.closest("header") ||
-                     aceTitle.closest('[class*="header"]') ||
-                     aceTitle.parentElement?.parentElement;
-
-      if (header){
-        const imgs = [...header.querySelectorAll("img")];
-        const logo = imgs.find(img =>
-          /ace|cesta|logo/i.test((img.getAttribute("src") || "") + " " + (img.alt || ""))
-        ) || imgs[0];
-
-        if (logo){
-          logo.style.setProperty("width", "132px", "important");
-          logo.style.setProperty("height", "132px", "important");
-          logo.style.setProperty("max-width", "132px", "important");
-          logo.style.setProperty("max-height", "132px", "important");
-          logo.style.setProperty("object-fit", "contain", "important");
-          logo.style.setProperty("transform", "translateY(-5px)", "important");
-        }
-      }
-    }
-
-    const muralTitle = all.find(el =>
-      /^Mural ACE$/i.test((el.textContent || "").trim())
-    );
-
-    if (muralTitle){
-      muralTitle.style.setProperty("font-size", "clamp(25px, 6.4vw, 32px)", "important");
-      muralTitle.style.setProperty("line-height", "1.08", "important");
-      muralTitle.style.setProperty("font-weight", "900", "important");
-    }
-  }
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", apply);
-  } else {
-    apply();
-  }
-
-  /* reaplica após renderizações internas */
-  setTimeout(apply, 400);
-  setTimeout(apply, 1200);
-})();
-
-
-
-/* ============================================================
-   ACE - STATUS ONLINE/OFFLINE MENOR ACIMA DO ÍCONE DO USUÁRIO
-   Somente posição/tamanho visual. Não altera lógica offline.
-   ============================================================ */
-(function aceMoveConnectionStatus(){
-  const STYLE_ID = "ace-status-user-position-v1";
-
-  function apply(){
-    if (!document.getElementById(STYLE_ID)){
-      const st = document.createElement("style");
-      st.id = STYLE_ID;
-      st.textContent = `
-        @media (max-width: 850px){
-          /* O status será posicionado via JS relativo ao ícone */
-          .ace-status-above-user {
-            position: fixed !important;
-            z-index: 9998 !important;
-            width: auto !important;
-            min-width: 0 !important;
-            padding: 3px 8px !important;
-            border-radius: 999px !important;
-            font-size: 10px !important;
-            line-height: 1.15 !important;
-            font-weight: 800 !important;
-            white-space: nowrap !important;
-            margin: 0 !important;
-            box-shadow: 0 2px 7px rgba(0,0,0,.14) !important;
-            transform: translate(-50%, -100%) !important;
-          }
-
-          .ace-status-above-user::before {
-            width: 6px !important;
-            height: 6px !important;
-            min-width: 6px !important;
-            min-height: 6px !important;
-          }
-        }
-      `;
-      document.head.appendChild(st);
-    }
-
-    const candidates = [...document.querySelectorAll("div,span,p,strong")];
-    const status = candidates.find(el => {
-      const t = (el.textContent || "").trim().toLowerCase();
-      return (t === "online" || t === "offline") && el.children.length <= 2;
-    });
-    if (!status) return;
-
-    const header = [...document.querySelectorAll("header,[class*='header'],[class*='topbar']")]
-      .find(el => /Usuário\s*:/i.test(el.textContent || "")) ||
-      [...document.querySelectorAll("div,section")].find(el =>
-        /Usuário\s*:/i.test(el.textContent || "") &&
-        el.querySelector("img,button,[class*='avatar'],[class*='user']")
-      );
-
-    if (!header) return;
-
-    const userText = [...header.querySelectorAll("div,span,strong,p")].find(el =>
-      /Usuário\s*:/i.test((el.textContent || "").trim())
-    );
-
-    let icon = header.querySelector(
-      ".user-avatar,.avatar,.profile-avatar,.user-icon,[class*='avatar'],[class*='profile'] img"
-    );
-
-    if (!icon && userText){
-      const rectText = userText.getBoundingClientRect();
-      const possible = [...header.querySelectorAll("img,button,svg,[class*='user']")];
-      icon = possible
-        .map(el => ({el, r: el.getBoundingClientRect()}))
-        .filter(x => x.r.width > 25 && x.r.height > 25 && x.r.left >= rectText.left)
-        .sort((a,b) => a.r.left - b.r.left)[0]?.el;
-    }
-
-    if (!icon) return;
-
-    const r = icon.getBoundingClientRect();
-    status.classList.add("ace-status-above-user");
-
-    /* Centraliza imediatamente acima do avatar */
-    status.style.setProperty("left", `${r.left + r.width/2}px`, "important");
-    status.style.setProperty("top", `${Math.max(18, r.top - 5)}px`, "important");
-  }
-
-  function schedule(){
-    apply();
-    setTimeout(apply, 250);
-    setTimeout(apply, 700);
-    setTimeout(apply, 1400);
-  }
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", schedule);
-  } else {
-    schedule();
-  }
-
-  window.addEventListener("resize", apply);
-  window.addEventListener("online", () => setTimeout(apply, 50));
-  window.addEventListener("offline", () => setTimeout(apply, 50));
-
-  const obs = new MutationObserver(() => {
-    clearTimeout(window.__aceStatusMoveTimer);
-    window.__aceStatusMoveTimer = setTimeout(apply, 80);
-  });
-  setTimeout(() => obs.observe(document.body, {childList:true, subtree:true}), 300);
-})();
-
-
-
-/* ============================================================
-   ACE - CORREÇÃO FINAL DO CABEÇALHO MOBILE
-   Somente visual.
-   NÃO altera login, offline, sincronização, movimentações,
-   menu lateral, perfil, mural ou instalação.
-   ============================================================ */
-(function aceFinalMobileHeaderFix(){
-
-  const STYLE_ID =
-    "ace-final-mobile-header-fix-v1";
-
-
-  function getHeader(){
-
-    return (
-      document.getElementById(
-        "aceMobileHeader"
-      ) ||
-      document.querySelector(
-        ".ace-header-v6"
-      )
-    );
-
-  }
-
-
-  function getAvatar(){
-
-    return (
-      document.getElementById(
-        "aceMobileAvatarButton"
-      ) ||
-      document.querySelector(
-        ".ace-mobile-avatar-button"
-      )
-    );
-
-  }
-
-
-  function getStatus(){
-
-    return (
-      document.getElementById(
-        "aceConnectionBadge"
-      ) ||
-      [...document.querySelectorAll(
-        "div,span"
-      )].find(
-        element => {
-
-          const text =
-            String(
-              element.textContent || ""
-            )
-              .trim()
-              .toLowerCase();
-
-          return (
-            (
-              text === "online" ||
-              text === "offline"
-            ) &&
-            element.children.length <= 2
-          );
-
-        }
-      ) ||
-      null
-    );
-
-  }
-
-
-  function ensureStyles(){
-
-    if (
-      document.getElementById(
-        STYLE_ID
-      )
-    ) {
-      return;
-    }
-
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-
-    style.id =
-      STYLE_ID;
-
 
     style.textContent = `
 
       @media(max-width:850px){
 
-        /* -----------------------------------------------
+        /* =====================================================
            CABEÇALHO
-           ----------------------------------------------- */
-
-        .ace-header-v6{
-          position:relative !important;
-          height:148px !important;
-          min-height:148px !important;
-          padding:0 !important;
-          overflow:visible !important;
-        }
-
-        .ace-header-v6 > *:not(#aceMobileHeader){
-          display:none !important;
-        }
-
-        #aceMobileHeader{
-          position:absolute !important;
-          inset:0 !important;
-          z-index:40 !important;
-
-          display:grid !important;
-
-          grid-template-columns:
-            92px
-            minmax(0,1fr)
-            48px
-            34px !important;
-
-          grid-template-rows:
-            88px
-            52px !important;
-
-          column-gap:8px !important;
-          row-gap:0 !important;
-
-          align-items:center !important;
-
-          width:100% !important;
-          height:148px !important;
-
-          box-sizing:border-box !important;
-
-          padding:
-            5px
-            11px
-            3px
-            11px !important;
-
-          overflow:visible !important;
-
-          color:#fff !important;
-        }
-
-
-        /* -----------------------------------------------
-           LOGO
-           - proporcional
-           - não invade o botão ☰
-           ----------------------------------------------- */
-
-        #aceMobileHeader .ace-mobile-logo{
-          grid-column:1 !important;
-          grid-row:1 !important;
-
-          display:block !important;
-
-          width:86px !important;
-          height:86px !important;
-
-          max-width:86px !important;
-          max-height:86px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          justify-self:start !important;
-          align-self:center !important;
-
-          object-fit:contain !important;
-
-          transform:none !important;
-        }
-
-
-        /* -----------------------------------------------
-           TÍTULO
-           ----------------------------------------------- */
-
-        #aceMobileHeader .ace-mobile-brand{
-          grid-column:2 / 5 !important;
-          grid-row:1 !important;
-
-          display:flex !important;
-          flex-direction:column !important;
-          align-items:center !important;
-          justify-content:center !important;
-
-          min-width:0 !important;
-
-          margin:0 !important;
-          padding:
-            1px
-            3px
-            0
-            0 !important;
-
-          overflow:visible !important;
-
-          text-align:center !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-brand-title{
-          display:block !important;
-
-          width:100% !important;
-
-          margin:0 !important;
-
-          overflow:visible !important;
-
-          color:#fff !important;
-
-          font-size:23px !important;
-          font-weight:950 !important;
-          line-height:1.04 !important;
-          letter-spacing:-.45px !important;
-
-          text-align:center !important;
-
-          white-space:nowrap !important;
-          text-overflow:clip !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-brand-subtitle{
-          display:block !important;
-
-          width:100% !important;
-
-          margin-top:6px !important;
-
-          color:rgba(
-            255,
-            255,
-            255,
-            .94
-          ) !important;
-
-          font-size:15px !important;
-          font-weight:850 !important;
-          line-height:1.05 !important;
-
-          text-align:center !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* -----------------------------------------------
-           LINHA DE BAIXO
-           ----------------------------------------------- */
-
-        #aceMobileHeader .ace-mobile-menu-button{
-          grid-column:1 !important;
-          grid-row:2 !important;
-
-          display:flex !important;
-          flex-direction:column !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          gap:5px !important;
-
-          width:48px !important;
-          height:42px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          justify-self:start !important;
-
-          border:0 !important;
-          border-radius:10px !important;
-
-          background:rgba(
-            255,
-            255,
-            255,
-            .10
-          ) !important;
-
-          transform:none !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-menu-button span{
-          display:block !important;
-
-          width:27px !important;
-          height:3px !important;
-
-          border-radius:999px !important;
-
-          background:#fff !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-user{
-          grid-column:2 / 4 !important;
-          grid-row:2 !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:flex-end !important;
-
-          gap:8px !important;
-
-          min-width:0 !important;
-
-          padding-right:3px !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-user-name{
-          display:block !important;
-
-          max-width:160px !important;
-
-          overflow:hidden !important;
-
-          color:#fff !important;
-
-          font-size:12px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          text-align:right !important;
-
-          text-overflow:ellipsis !important;
-          white-space:nowrap !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-avatar-button{
-          display:block !important;
-
-          position:relative !important;
-
-          flex:0 0 43px !important;
-
-          width:43px !important;
-          height:43px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          overflow:hidden !important;
-
-          border:
-            2px
-            solid
-            rgba(
-              255,
-              255,
-              255,
-              .90
-            ) !important;
-
-          border-radius:50% !important;
-
-          background:#fff !important;
-
-          transform:none !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-avatar-button
-        .ace-profile-avatar{
-          width:100% !important;
-          height:100% !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          font-size:20px !important;
-        }
-
-
-        #aceMobileHeader .ace-mobile-more{
-          grid-column:4 !important;
-          grid-row:2 !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          width:34px !important;
-          height:42px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          border:0 !important;
-
-          background:transparent !important;
-
-          color:#fff !important;
-
-          font-size:28px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          transform:none !important;
-        }
-
-
-        /* -----------------------------------------------
-           ONLINE / OFFLINE
-           - pequeno
-           - acima do avatar
-           - sem sobrepor título
-           ----------------------------------------------- */
-
-        #aceConnectionBadge.ace-final-net-badge,
-        .ace-final-net-badge{
-          position:fixed !important;
-
-          z-index:1000500 !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          gap:4px !important;
-
-          min-width:0 !important;
-          width:auto !important;
-
-          height:21px !important;
-
-          margin:0 !important;
-          padding:
-            2px
-            7px !important;
-
-          border-width:1px !important;
-          border-style:solid !important;
-
-          border-radius:999px !important;
-
-          font-size:9px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-
-          box-shadow:
-            0
-            2px
-            6px
-            rgba(
-              0,
-              0,
-              0,
-              .12
-            ) !important;
-
-          transform:
-            translate(
-              -50%,
-              -100%
-            ) !important;
-
-          pointer-events:none !important;
-        }
-
-
-        #aceConnectionBadge.ace-final-net-badge
-        .ace-net-dot,
-        .ace-final-net-badge
-        .ace-net-dot{
-          width:6px !important;
-          height:6px !important;
-
-          flex:
-            0
-            0
-            6px !important;
-
-          border-radius:50% !important;
-        }
-
-
-        /* -----------------------------------------------
-           MURAL ACE menor que o título principal
-           ----------------------------------------------- */
-
-        .ace-mural-title{
-          font-size:27px !important;
-          line-height:1.05 !important;
-        }
-
-
-        /* -----------------------------------------------
-           TELAS MAIS ESTREITAS
-           ----------------------------------------------- */
-
-        @media(max-width:390px){
-
-          #aceMobileHeader{
-            grid-template-columns:
-              80px
-              minmax(0,1fr)
-              45px
-              32px !important;
-          }
-
-
-          #aceMobileHeader .ace-mobile-logo{
-            width:76px !important;
-            height:76px !important;
-
-            max-width:76px !important;
-            max-height:76px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-brand-title{
-            font-size:20px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-brand-subtitle{
-            font-size:13px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-user-name{
-            max-width:128px !important;
-            font-size:11px !important;
-          }
-
-        }
-
-      }
-
-    `;
-
-
-    document.head.appendChild(
-      style
-    );
-
-  }
-
-
-  function positionStatus(){
-
-    const status =
-      getStatus();
-
-    const avatar =
-      getAvatar();
-
-
-    if (
-      !status ||
-      !avatar ||
-      window.innerWidth >
-        850
-    ) {
-      return;
-    }
-
-
-    const rect =
-      avatar.getBoundingClientRect();
-
-
-    status.classList.add(
-      "ace-final-net-badge"
-    );
-
-
-    status.style.setProperty(
-      "left",
-      (
-        rect.left +
-        (
-          rect.width /
-          2
-        )
-      ) +
-      "px",
-      "important"
-    );
-
-
-    status.style.setProperty(
-      "top",
-      Math.max(
-        24,
-        rect.top -
-        7
-      ) +
-      "px",
-      "important"
-    );
-
-
-    status.style.setProperty(
-      "right",
-      "auto",
-      "important"
-    );
-
-
-    status.style.setProperty(
-      "bottom",
-      "auto",
-      "important"
-    );
-
-  }
-
-
-  function apply(){
-
-    ensureStyles();
-
-    positionStatus();
-
-  }
-
-
-  function schedule(){
-
-    apply();
-
-
-    [
-      80,
-      250,
-      600,
-      1200
-    ]
-      .forEach(
-        delay =>
-          setTimeout(
-            apply,
-            delay
-          )
-      );
-
-  }
-
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      schedule
-    );
-
-  } else {
-
-    schedule();
-
-  }
-
-
-  window.addEventListener(
-    "resize",
-    schedule
-  );
-
-
-  window.addEventListener(
-    "online",
-    schedule
-  );
-
-
-  window.addEventListener(
-    "offline",
-    schedule
-  );
-
-
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-
-      if (
-        !document.hidden
-      ) {
-        schedule();
-      }
-
-    }
-  );
-
-
-  const observer =
-    new MutationObserver(
-      () => {
-
-        clearTimeout(
-          window
-            .__aceFinalHeaderTimer
-        );
-
-
-        window
-          .__aceFinalHeaderTimer =
-          setTimeout(
-            apply,
-            80
-          );
-
-      }
-    );
-
-
-  setTimeout(
-    () => {
-
-      observer.observe(
-        document.body,
-        {
-          childList:
-            true,
-          subtree:
-            true,
-          attributes:
-            true,
-          attributeFilter: [
-            "class"
-          ]
-        }
-      );
-
-    },
-    350
-  );
-
-})();
-
-
-
-/* ============================================================
-   ACE - AJUSTE FINO: TÍTULO MAIS PRÓXIMO DA LOGO
-   + TÍTULO UM POUCO MAIOR
-   Somente visual. Não altera nenhuma função.
-   ============================================================ */
-(function aceHeaderTitleFineTune(){
-  const ID = "ace-header-title-fine-tune-v2";
-
-  function apply(){
-    if (!document.getElementById(ID)){
-      const style = document.createElement("style");
-      style.id = ID;
-      style.textContent = `
-        @media(max-width:850px){
-
-          /* Dá mais espaço horizontal ao título e o aproxima da logo */
-          #aceMobileHeader{
-            grid-template-columns:
-              92px
-              minmax(0,1fr)
-              48px
-              34px !important;
-
-            column-gap:2px !important;
-          }
-
-          /* Bloco do título deslocado para a esquerda */
-          #aceMobileHeader .ace-mobile-brand{
-            grid-column:2 / 5 !important;
-            transform:translateX(-9px) !important;
-            padding-right:0 !important;
-          }
-
-          /* Título principal maior */
-          #aceMobileHeader .ace-mobile-brand-title{
-            font-size:25px !important;
-            font-weight:950 !important;
-            letter-spacing:-0.65px !important;
-            line-height:1.02 !important;
-          }
-
-          /* Subtítulo acompanha o título para a esquerda */
-          #aceMobileHeader .ace-mobile-brand-subtitle{
-            font-size:15px !important;
-            margin-top:6px !important;
-          }
-
-          /* Mantém o status pequeno e claramente acima do avatar */
-          #aceConnectionBadge.ace-final-net-badge,
-          .ace-final-net-badge{
-            height:18px !important;
-            padding:1px 6px !important;
-            gap:3px !important;
-            font-size:8px !important;
-            line-height:1 !important;
-          }
-
-          #aceConnectionBadge.ace-final-net-badge .ace-net-dot,
-          .ace-final-net-badge .ace-net-dot{
-            width:5px !important;
-            height:5px !important;
-            flex:0 0 5px !important;
-          }
-        }
-
-        @media(max-width:390px){
-          #aceMobileHeader .ace-mobile-brand{
-            transform:translateX(-7px) !important;
-          }
-
-          #aceMobileHeader .ace-mobile-brand-title{
-            font-size:22px !important;
-          }
-
-          #aceMobileHeader .ace-mobile-brand-subtitle{
-            font-size:13px !important;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    /* reposiciona o status para ficar acima do avatar,
-       longe da linha "Controle de Alimentos" */
-    const avatar =
-      document.getElementById("aceMobileAvatarButton") ||
-      document.querySelector(".ace-mobile-avatar-button");
-
-    const status =
-      document.getElementById("aceConnectionBadge") ||
-      [...document.querySelectorAll("div,span")].find(el => {
-        const t = String(el.textContent || "").trim().toLowerCase();
-        return (t === "online" || t === "offline") && el.children.length <= 2;
-      });
-
-    if (avatar && status && window.innerWidth <= 850){
-      const r = avatar.getBoundingClientRect();
-
-      status.classList.add("ace-final-net-badge");
-
-      status.style.setProperty(
-        "left",
-        `${r.left + r.width / 2}px`,
-        "important"
-      );
-
-      /* Mais perto do avatar, sem encostar no subtítulo */
-      status.style.setProperty(
-        "top",
-        `${Math.max(24, r.top - 3)}px`,
-        "important"
-      );
-
-      status.style.setProperty("right", "auto", "important");
-      status.style.setProperty("bottom", "auto", "important");
-    }
-  }
-
-  function schedule(){
-    apply();
-    setTimeout(apply, 150);
-    setTimeout(apply, 500);
-    setTimeout(apply, 1000);
-  }
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", schedule);
-  } else {
-    schedule();
-  }
-
-  window.addEventListener("resize", schedule);
-  window.addEventListener("online", schedule);
-  window.addEventListener("offline", schedule);
-})();
-
-
-
-/* ============================================================
-   ACE - TEXTO "MENU" AO LADO DO BOTÃO DE 3 TRAÇOS
-   Somente visual. Não altera a função do botão.
-   ============================================================ */
-(function aceAddMenuLabel(){
-  const STYLE_ID = "ace-menu-label-v1";
-
-  function apply(){
-    const button =
-      document.querySelector("#aceMobileHeader .ace-mobile-menu-button") ||
-      document.querySelector(".ace-mobile-menu-button");
-
-    if (!button) return;
-
-    if (!document.getElementById(STYLE_ID)){
-      const style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.textContent = `
-        @media(max-width:850px){
-          #aceMobileHeader .ace-mobile-menu-button,
-          .ace-mobile-menu-button{
-            width:86px !important;
-            height:42px !important;
-            flex-direction:row !important;
-            gap:7px !important;
-            padding:0 9px !important;
-            justify-content:flex-start !important;
-          }
-
-          .ace-menu-lines{
-            display:flex !important;
-            flex-direction:column !important;
-            gap:4px !important;
-            flex:0 0 auto !important;
-          }
-
-          .ace-menu-lines span{
-            display:block !important;
-            width:24px !important;
-            height:3px !important;
-            border-radius:999px !important;
-            background:#fff !important;
-          }
-
-          .ace-menu-label{
-            display:inline-block !important;
-            color:#fff !important;
-            font-size:12px !important;
-            font-weight:900 !important;
-            line-height:1 !important;
-            white-space:nowrap !important;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    if (button.querySelector(".ace-menu-label")) return;
-
-    /* Agrupa apenas os três traços já existentes */
-    const spans = [...button.children].filter(
-      el => el.tagName === "SPAN"
-    );
-
-    if (spans.length >= 3){
-      const lines = document.createElement("span");
-      lines.className = "ace-menu-lines";
-
-      spans.slice(0,3).forEach(span => lines.appendChild(span));
-      button.insertBefore(lines, button.firstChild);
-    }
-
-    const label = document.createElement("span");
-    label.className = "ace-menu-label";
-    label.textContent = "Menu";
-    button.appendChild(label);
-  }
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", apply);
-  } else {
-    apply();
-  }
-
-  setTimeout(apply, 250);
-  setTimeout(apply, 700);
-  setTimeout(apply, 1400);
-})();
-
-
-
-/* ============================================================
-   ACE - REFINO VISUAL MOBILE
-   Corrige SOMENTE:
-   - altura do cabeçalho azul
-   - posição/tamanho de título e subtítulo
-   - botão ☰ Menu
-   - posição do Online/Offline
-   - ícones coloridos da barra inferior
-
-   NÃO altera:
-   - login
-   - login offline multiusuário
-   - movimentações
-   - fila offline
-   - sincronização
-   - mural
-   - perfil
-   - instalação
-   ============================================================ */
-
-(function aceMobileVisualRefinement(){
-
-  const STYLE_ID =
-    "ace-mobile-visual-refinement-v1";
-
-
-  function ensureStyles(){
-
-    if (
-      document.getElementById(
-        STYLE_ID
-      )
-    ) {
-      return;
-    }
-
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-
-    style.id =
-      STYLE_ID;
-
-
-    style.textContent = `
-
-      @media(max-width:850px){
-
-        /* =====================================================
-           CABEÇALHO MAIS ALTO
            ===================================================== */
 
         .ace-header-v6{
-          height:168px !important;
-          min-height:168px !important;
-          padding:0 !important;
-          overflow:visible !important;
-        }
-
-
-        #aceMobileHeader{
-          height:168px !important;
-
-          grid-template-columns:
-            92px
-            minmax(0,1fr)
-            49px
-            34px !important;
-
-          grid-template-rows:
-            100px
-            60px !important;
-
-          column-gap:5px !important;
-
-          padding:
-            4px
-            11px
-            4px
-            11px !important;
-        }
-
-
-        /* =====================================================
-           LOGO PROPORCIONAL
-           ===================================================== */
-
-        #aceMobileHeader
-        .ace-mobile-logo{
-
-          grid-column:1 !important;
-          grid-row:1 !important;
-
-          width:86px !important;
-          height:86px !important;
-
-          max-width:86px !important;
-          max-height:86px !important;
-
-          object-fit:contain !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          transform:none !important;
-
-          justify-self:start !important;
-          align-self:center !important;
-        }
-
-
-        /* =====================================================
-           TÍTULO
-           ===================================================== */
-
-        #aceMobileHeader
-        .ace-mobile-brand{
-
-          grid-column:
-            2 / 5 !important;
-
-          grid-row:1 !important;
-
-          display:flex !important;
-
-          flex-direction:column !important;
-
-          align-items:center !important;
-
-          justify-content:center !important;
-
-          min-width:0 !important;
-
-          padding:
-            0
-            3px
-            0
-            0 !important;
-
-          transform:
-            translateX(
-              -5px
-            ) !important;
-
-          overflow:visible !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-brand-title{
-
-          width:100% !important;
-
-          color:#fff !important;
-
-          font-size:24px !important;
-
-          font-weight:950 !important;
-
-          line-height:1.03 !important;
-
-          letter-spacing:
-            -.55px !important;
-
-          text-align:center !important;
-
-          white-space:nowrap !important;
-
-          overflow:visible !important;
-
-          text-overflow:clip !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-brand-subtitle{
-
-          width:100% !important;
-
-          margin-top:7px !important;
-
-          color:
-            rgba(
-              255,
-              255,
-              255,
-              .96
-            ) !important;
-
-          font-size:16px !important;
-
-          font-weight:850 !important;
-
-          line-height:1.05 !important;
-
-          text-align:center !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* =====================================================
-           ☰ MENU
-           ===================================================== */
-
-        #aceMobileHeader
-        .ace-mobile-menu-button{
-
-          grid-column:1 !important;
-          grid-row:2 !important;
-
-          display:flex !important;
-
-          flex-direction:row !important;
-
-          align-items:center !important;
-
-          justify-content:flex-start !important;
-
-          gap:8px !important;
-
-          width:88px !important;
-          height:44px !important;
-
-          margin:0 !important;
-
-          padding:
-            0
-            9px !important;
-
-          border:0 !important;
-
-          border-radius:12px !important;
-
-          background:
-            rgba(
-              255,
-              255,
-              255,
-              .10
-            ) !important;
-
-          transform:none !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-lines{
-
-          display:flex !important;
-
-          flex-direction:column !important;
-
-          gap:4px !important;
-
-          flex:0 0 auto !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-lines
-        span{
-
-          display:block !important;
-
-          width:25px !important;
-
-          height:3px !important;
-
-          border-radius:
-            999px !important;
-
-          background:#fff !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-label{
-
-          display:block !important;
-
-          color:#fff !important;
-
-          font-size:13px !important;
-
-          font-weight:900 !important;
-
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* =====================================================
-           USUÁRIO
-           ===================================================== */
-
-        #aceMobileHeader
-        .ace-mobile-user{
-
-          grid-column:
-            2 / 4 !important;
-
-          grid-row:2 !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-
-          justify-content:flex-end !important;
-
-          gap:8px !important;
-
-          min-width:0 !important;
-
-          padding-right:4px !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-user-name{
-
-          max-width:160px !important;
-
-          color:#fff !important;
-
-          font-size:12px !important;
-
-          font-weight:900 !important;
-
-          line-height:1 !important;
-
-          text-align:right !important;
-
-          white-space:nowrap !important;
-
-          overflow:hidden !important;
-
-          text-overflow:
-            ellipsis !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-avatar-button{
-
-          flex:
-            0 0 44px !important;
-
-          width:44px !important;
-          height:44px !important;
-
-          padding:0 !important;
-
-          border:
-            2px
-            solid
-            rgba(
-              255,
-              255,
-              255,
-              .92
-            ) !important;
-
-          border-radius:50% !important;
-
-          background:#fff !important;
-
-          overflow:hidden !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-more{
-
-          grid-column:4 !important;
-          grid-row:2 !important;
-
-          width:34px !important;
-          height:44px !important;
-
-          font-size:28px !important;
-
-          color:#fff !important;
-
-          background:
-            transparent !important;
-        }
-
-
-        /* =====================================================
-           ONLINE / OFFLINE
-           PEQUENO E ACIMA DO AVATAR
-           ===================================================== */
-
-        #aceConnectionBadge,
-        #aceConnectionBadge.ace-final-net-badge,
-        .ace-final-net-badge,
-        .ace-status-above-user{
-
-          position:fixed !important;
-
-          z-index:1000500 !important;
-
-          width:auto !important;
-
-          min-width:0 !important;
-
-          height:18px !important;
-
-          padding:
-            1px
-            6px !important;
-
-          gap:3px !important;
-
-          border-width:1px !important;
-
-          border-radius:
-            999px !important;
-
-          font-size:8px !important;
-
-          font-weight:900 !important;
-
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-
-          box-shadow:
-            0
-            2px
-            6px
-            rgba(
-              0,
-              0,
-              0,
-              .12
-            ) !important;
-
-          pointer-events:none !important;
-
-          transform:
-            translate(
-              -50%,
-              -100%
-            ) !important;
-        }
-
-
-        #aceConnectionBadge
-        .ace-net-dot,
-        .ace-final-net-badge
-        .ace-net-dot,
-        .ace-status-above-user
-        .ace-net-dot{
-
-          width:5px !important;
-          height:5px !important;
-
-          flex:
-            0
-            0
-            5px !important;
-
-          border-radius:50% !important;
-        }
-
-
-        /* =====================================================
-           BARRA INFERIOR
-           ===================================================== */
-
-        #aceMobileBottomNav{
-
-          min-height:78px !important;
-
-          padding:
-            6px
-            4px
-            calc(
-              6px +
-              env(
-                safe-area-inset-bottom
-              )
-            ) !important;
-        }
-
-
-        #aceMobileBottomNav
-        .ace-bottom-item{
-
-          gap:4px !important;
-
-          min-height:64px !important;
-
-          padding:
-            4px
-            2px !important;
-        }
-
-
-        #aceMobileBottomNav
-        .ace-bottom-item
-        .icon{
-
-          display:flex !important;
-
-          align-items:center !important;
-
-          justify-content:center !important;
-
-          width:34px !important;
-
-          height:34px !important;
-
-          font-size:25px !important;
-
-          line-height:1 !important;
-
-          border-radius:11px !important;
-        }
-
-
-        #aceMobileBottomNav
-        .ace-bottom-item
-        .label{
-
-          font-size:11px !important;
-
-          font-weight:900 !important;
-        }
-
-
-        #aceMobileBottomNav
-        .ace-bottom-item.active{
-
-          background:
-            #eaf4fd !important;
-        }
-
-
-        /* cores dos ícones */
-
-        #aceMobileBottomNav
-        [data-ace-target="mural"]
-        .icon{
-
-          background:
-            #fff0f2 !important;
-        }
-
-
-        #aceMobileBottomNav
-        [data-ace-target="inicio"]
-        .icon{
-
-          background:
-            #e9f4ff !important;
-        }
-
-
-        #aceMobileBottomNav
-        [data-ace-target="entrada"]
-        .icon{
-
-          background:
-            #eaf9ef !important;
-        }
-
-
-        #aceMobileBottomNav
-        [data-ace-target="saida"]
-        .icon{
-
-          background:
-            #fff0e9 !important;
-        }
-
-
-        #aceMobileBottomNav
-        #aceBottomMore
-        .icon{
-
-          background:
-            #f2ebff !important;
-        }
-
-
-        /* =====================================================
-           TELAS ESTREITAS
-           ===================================================== */
-
-        @media(max-width:390px){
-
-          #aceMobileHeader{
-
-            grid-template-columns:
-              82px
-              minmax(0,1fr)
-              46px
-              32px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-logo{
-
-            width:76px !important;
-            height:76px !important;
-
-            max-width:76px !important;
-            max-height:76px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-brand-title{
-
-            font-size:21px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-brand-subtitle{
-
-            font-size:14px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-user-name{
-
-            max-width:125px !important;
-
-            font-size:11px !important;
-          }
-
-        }
-
-      }
-
-    `;
-
-
-    document.head.appendChild(
-      style
-    );
-
-  }
-
-
-  function replaceBottomIcons(){
-
-    const bottom =
-      document.getElementById(
-        "aceMobileBottomNav"
-      );
-
-
-    if (!bottom) {
-      return;
-    }
-
-
-    const map = {
-
-      mural:
-        "📣",
-
-      inicio:
-        "🏠",
-
-      entrada:
-        "➕",
-
-      saida:
-        "📤"
-
-    };
-
-
-    Object.entries(
-      map
-    )
-      .forEach(
-        (
-          [
-            target,
-            icon
-          ]
-        ) => {
-
-          const item =
-            bottom.querySelector(
-              `[data-ace-target="${target}"]`
-            );
-
-
-          const iconElement =
-            item
-              ?.querySelector(
-                ".icon"
-              );
-
-
-          if (
-            iconElement
-          ) {
-
-            iconElement
-              .textContent =
-              icon;
-
-          }
-
-        }
-      );
-
-
-    const moreIcon =
-      bottom
-        .querySelector(
-          "#aceBottomMore .icon"
-        );
-
-
-    if (
-      moreIcon
-    ) {
-
-      moreIcon
-        .textContent =
-        "🟪";
-
-    }
-
-  }
-
-
-  function positionStatus(){
-
-    const avatar =
-      document.getElementById(
-        "aceMobileAvatarButton"
-      ) ||
-      document.querySelector(
-        ".ace-mobile-avatar-button"
-      );
-
-
-    const status =
-      document.getElementById(
-        "aceConnectionBadge"
-      ) ||
-      [
-        ...document
-          .querySelectorAll(
-            "div,span"
-          )
-      ]
-        .find(
-          element => {
-
-            const text =
-              String(
-                element.textContent ||
-                ""
-              )
-                .trim()
-                .toLowerCase();
-
-
-            return (
-              (
-                text ===
-                  "online" ||
-                text ===
-                  "offline"
-              ) &&
-              element.children
-                .length <=
-                2
-            );
-
-          }
-        );
-
-
-    if (
-      !avatar ||
-      !status ||
-      window.innerWidth >
-        850
-    ) {
-      return;
-    }
-
-
-    const rect =
-      avatar
-        .getBoundingClientRect();
-
-
-    status.classList.add(
-      "ace-final-net-badge"
-    );
-
-
-    status.style.setProperty(
-      "left",
-      (
-        rect.left +
-        rect.width /
-        2
-      ) +
-      "px",
-      "important"
-    );
-
-
-    status.style.setProperty(
-      "top",
-      Math.max(
-        24,
-        rect.top -
-        5
-      ) +
-      "px",
-      "important"
-    );
-
-
-    status.style.setProperty(
-      "right",
-      "auto",
-      "important"
-    );
-
-
-    status.style.setProperty(
-      "bottom",
-      "auto",
-      "important"
-    );
-
-  }
-
-
-  function apply(){
-
-    ensureStyles();
-
-    replaceBottomIcons();
-
-    positionStatus();
-
-  }
-
-
-  function schedule(){
-
-    apply();
-
-
-    [
-      120,
-      350,
-      800,
-      1500
-    ]
-      .forEach(
-        delay =>
-          setTimeout(
-            apply,
-            delay
-          )
-      );
-
-  }
-
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      schedule
-    );
-
-  } else {
-
-    schedule();
-
-  }
-
-
-  window.addEventListener(
-    "resize",
-    schedule
-  );
-
-
-  window.addEventListener(
-    "online",
-    schedule
-  );
-
-
-  window.addEventListener(
-    "offline",
-    schedule
-  );
-
-
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-
-      if (
-        !document.hidden
-      ) {
-
-        schedule();
-
-      }
-
-    }
-  );
-
-})();
-
-
-
-/* ============================================================
-   ACE - CABEÇALHO MOBILE PROFISSIONAL
-   ALTERAÇÃO SOMENTE VISUAL DO CABEÇALHO.
-   Mantém todas as funções existentes.
-   ============================================================ */
-
-(function aceProfessionalHeader(){
-
-  const STYLE_ID = "ace-professional-header-v2";
-
-  function installStyle(){
-
-    let old =
-      document.getElementById(
-        STYLE_ID
-      );
-
-    if (old) {
-      old.remove();
-    }
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-    style.id =
-      STYLE_ID;
-
-    style.textContent = `
-
-      @media(max-width:850px){
-
-        /* área azul */
-        .ace-header-v6{
-          height:178px !important;
-          min-height:178px !important;
-          overflow:hidden !important;
-        }
-
-        #aceMobileHeader{
           position:relative !important;
-
-          display:grid !important;
-
-          grid-template-columns:
-            90px
-            minmax(0,1fr)
-            46px
-            30px !important;
-
-          grid-template-rows:
-            108px
-            62px !important;
-
-          width:100% !important;
-          height:178px !important;
-
-          padding:
-            4px
-            12px
-            4px
-            12px !important;
-
-          column-gap:7px !important;
-
-          box-sizing:
-            border-box !important;
-        }
-
-
-        /* =========================
-           LOGO
-           ========================= */
-
-        #aceMobileHeader
-        .ace-mobile-logo{
-
-          grid-column:1 !important;
-          grid-row:1 !important;
-
-          width:84px !important;
-          height:84px !important;
-
-          max-width:84px !important;
-          max-height:84px !important;
-
-          object-fit:contain !important;
-
-          justify-self:start !important;
-          align-self:center !important;
-
-          margin:0 !important;
-
-          transform:none !important;
-        }
-
-
-        /* =========================
-           BLOCO DO TÍTULO
-           ========================= */
-
-        #aceMobileHeader
-        .ace-mobile-brand{
-
-          grid-column:
-            2 / 5 !important;
-
-          grid-row:1 !important;
-
-          min-width:0 !important;
-
-          display:flex !important;
-
-          flex-direction:column !important;
-
-          align-items:flex-start !important;
-
-          justify-content:center !important;
-
-          padding:
-            0
-            4px
-            0
-            2px !important;
-
-          transform:none !important;
-
-          overflow:visible !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-brand-title{
-
-          display:block !important;
-
-          width:100% !important;
-
-          margin:0 !important;
-
-          color:#ffffff !important;
-
-          font-size:
-            clamp(
-              21px,
-              5.35vw,
-              28px
-            ) !important;
-
-          font-weight:900 !important;
-
-          line-height:1.05 !important;
-
-          letter-spacing:
-            -.45px !important;
-
-          text-align:left !important;
-
-          white-space:nowrap !important;
-
-          overflow:visible !important;
-
-          text-overflow:clip !important;
-
-          text-shadow:
-            0
-            1px
-            2px
-            rgba(
-              0,
-              0,
-              0,
-              .12
-            ) !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-brand-subtitle{
-
-          display:block !important;
-
-          width:100% !important;
-
-          margin:
-            8px
-            0
-            0
-            0 !important;
-
-          color:
-            rgba(
-              255,
-              255,
-              255,
-              .92
-            ) !important;
-
-          font-size:
-            clamp(
-              15px,
-              3.9vw,
-              19px
-            ) !important;
-
-          font-weight:700 !important;
-
-          line-height:1.05 !important;
-
-          letter-spacing:
-            -.15px !important;
-
-          text-align:left !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* =========================
-           MENU
-           ========================= */
-
-        #aceMobileHeader
-        .ace-mobile-menu-button{
-
-          grid-column:1 !important;
-          grid-row:2 !important;
-
-          align-self:center !important;
-          justify-self:start !important;
-
-          display:flex !important;
-
-          flex-direction:row !important;
-
-          align-items:center !important;
-
-          justify-content:center !important;
-
-          gap:8px !important;
-
-          width:88px !important;
-          height:45px !important;
-
-          margin:0 !important;
-
-          padding:
-            0
-            10px !important;
-
-          border:0 !important;
-
-          border-radius:13px !important;
-
-          background:
-            rgba(
-              255,
-              255,
-              255,
-              .11
-            ) !important;
-
-          box-shadow:
-            inset
-            0
-            0
-            0
-            1px
-            rgba(
-              255,
-              255,
-              255,
-              .04
-            ) !important;
-
-          transform:none !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-lines{
-
-          display:flex !important;
-
-          flex-direction:column !important;
-
-          justify-content:center !important;
-
-          gap:4px !important;
-
-          width:25px !important;
-
-          flex:
-            0
-            0
-            25px !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-lines
-        span{
-
-          display:block !important;
-
-          width:25px !important;
-          height:3px !important;
-
-          margin:0 !important;
-
-          border:0 !important;
-
-          border-radius:
-            999px !important;
-
-          background:#fff !important;
-
-          opacity:1 !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-label{
-
-          display:block !important;
-
-          color:#fff !important;
-
-          font-size:13px !important;
-
-          font-weight:850 !important;
-
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* =========================
-           USUÁRIO
-           ========================= */
-
-        #aceMobileHeader
-        .ace-mobile-user{
-
-          grid-column:
-            2 / 4 !important;
-
-          grid-row:2 !important;
-
-          align-self:center !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-
-          justify-content:flex-end !important;
-
-          gap:9px !important;
-
-          min-width:0 !important;
-
-          padding-right:2px !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-user-name{
-
-          max-width:160px !important;
-
-          color:#fff !important;
-
-          font-size:12px !important;
-
-          font-weight:800 !important;
-
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-
-          overflow:hidden !important;
-
-          text-overflow:
-            ellipsis !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-avatar-button{
-
-          width:46px !important;
-          height:46px !important;
-
-          flex:
-            0
-            0
-            46px !important;
-
-          border:
-            2px
-            solid
-            rgba(
-              255,
-              255,
-              255,
-              .95
-            ) !important;
-
-          border-radius:50% !important;
-
-          background:#fff !important;
-
-          overflow:hidden !important;
-        }
-
-
-        #aceMobileHeader
-        .ace-mobile-more{
-
-          grid-column:4 !important;
-          grid-row:2 !important;
-
-          align-self:center !important;
-
-          width:30px !important;
-          height:45px !important;
-
-          padding:0 !important;
-
-          color:#fff !important;
-
-          font-size:27px !important;
-
-          background:
-            transparent !important;
-        }
-
-
-        /* =========================
-           ONLINE / OFFLINE
-           pequeno, discreto e isolado
-           ========================= */
-
-        #aceConnectionBadge,
-        #aceConnectionBadge.ace-final-net-badge,
-        .ace-final-net-badge,
-        .ace-status-above-user{
-
-          position:fixed !important;
-
-          z-index:1000500 !important;
-
-          width:auto !important;
-          min-width:0 !important;
-
-          height:17px !important;
-
-          padding:
-            1px
-            6px !important;
-
-          gap:3px !important;
-
-          border-width:1px !important;
-
-          border-radius:
-            999px !important;
-
-          font-size:8px !important;
-
-          font-weight:850 !important;
-
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-
-          transform:
-            translate(
-              -50%,
-              -100%
-            ) !important;
-
-          pointer-events:none !important;
-        }
-
-
-        #aceConnectionBadge
-        .ace-net-dot,
-        .ace-final-net-badge
-        .ace-net-dot,
-        .ace-status-above-user
-        .ace-net-dot{
-
-          width:5px !important;
-          height:5px !important;
-
-          flex:
-            0
-            0
-            5px !important;
-        }
-
-
-        /* telas pequenas */
-        @media(max-width:390px){
-
-          #aceMobileHeader{
-
-            grid-template-columns:
-              80px
-              minmax(0,1fr)
-              44px
-              28px !important;
-
-            column-gap:5px !important;
-
-            padding-left:9px !important;
-            padding-right:9px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-logo{
-
-            width:74px !important;
-            height:74px !important;
-
-            max-width:74px !important;
-            max-height:74px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-brand-title{
-
-            font-size:
-              clamp(
-                19px,
-                5.1vw,
-                23px
-              ) !important;
-
-            letter-spacing:
-              -.35px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-brand-subtitle{
-
-            font-size:
-              clamp(
-                13px,
-                3.6vw,
-                16px
-              ) !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-menu-button{
-
-            width:78px !important;
-
-            padding:
-              0
-              7px !important;
-
-            gap:6px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-menu-button
-          .ace-menu-lines{
-
-            width:22px !important;
-
-            flex:
-              0
-              0
-              22px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-menu-button
-          .ace-menu-lines
-          span{
-
-            width:22px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-menu-button
-          .ace-menu-label{
-
-            font-size:12px !important;
-          }
-
-
-          #aceMobileHeader
-          .ace-mobile-user-name{
-
-            max-width:118px !important;
-
-            font-size:11px !important;
-          }
-
-        }
-
-      }
-
-    `;
-
-    document.head.appendChild(
-      style
-    );
-
-  }
-
-
-  function repairMenuLines(){
-
-    const button =
-      document.querySelector(
-        "#aceMobileHeader .ace-mobile-menu-button"
-      );
-
-    if (!button) {
-      return;
-    }
-
-    let lines =
-      button.querySelector(
-        ".ace-menu-lines"
-      );
-
-    if (!lines) {
-
-      lines =
-        document.createElement(
-          "span"
-        );
-
-      lines.className =
-        "ace-menu-lines";
-
-      button.prepend(
-        lines
-      );
-
-    }
-
-    lines.innerHTML =
-      "<span></span><span></span><span></span>";
-
-
-    let label =
-      button.querySelector(
-        ".ace-menu-label"
-      );
-
-    if (!label) {
-
-      label =
-        document.createElement(
-          "span"
-        );
-
-      label.className =
-        "ace-menu-label";
-
-      button.appendChild(
-        label
-      );
-
-    }
-
-    label.textContent =
-      "Menu";
-
-  }
-
-
-  function positionStatus(){
-
-    if (
-      window.innerWidth >
-      850
-    ) {
-      return;
-    }
-
-    const avatar =
-      document.getElementById(
-        "aceMobileAvatarButton"
-      ) ||
-      document.querySelector(
-        "#aceMobileHeader .ace-mobile-avatar-button"
-      );
-
-    const status =
-      document.getElementById(
-        "aceConnectionBadge"
-      ) ||
-      document.querySelector(
-        ".ace-final-net-badge"
-      );
-
-    if (
-      !avatar ||
-      !status
-    ) {
-      return;
-    }
-
-    const rect =
-      avatar
-        .getBoundingClientRect();
-
-    status.classList.add(
-      "ace-final-net-badge"
-    );
-
-    status.style.setProperty(
-      "left",
-      (
-        rect.left +
-        rect.width /
-        2
-      ) +
-      "px",
-      "important"
-    );
-
-    status.style.setProperty(
-      "top",
-      Math.max(
-        20,
-        rect.top -
-        7
-      ) +
-      "px",
-      "important"
-    );
-
-    status.style.setProperty(
-      "right",
-      "auto",
-      "important"
-    );
-
-    status.style.setProperty(
-      "bottom",
-      "auto",
-      "important"
-    );
-
-  }
-
-
-  function apply(){
-
-    installStyle();
-
-    repairMenuLines();
-
-    positionStatus();
-
-  }
-
-
-  function schedule(){
-
-    apply();
-
-    [
-      100,
-      300,
-      700,
-      1300
-    ]
-      .forEach(
-        delay =>
-          setTimeout(
-            apply,
-            delay
-          )
-      );
-
-  }
-
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      schedule
-    );
-
-  } else {
-
-    schedule();
-
-  }
-
-
-  window.addEventListener(
-    "resize",
-    schedule
-  );
-
-  window.addEventListener(
-    "online",
-    schedule
-  );
-
-  window.addEventListener(
-    "offline",
-    schedule
-  );
-
-})();
-
-
-
-/* ============================================================
-   ACE - CABEÇALHO MOBILE PROFISSIONAL FINAL
-   Corrige SOMENTE o cabeçalho.
-   Não altera login, offline, sincronização, movimentações,
-   mural, botões inferiores, perfil ou instalação.
-   ============================================================ */
-
-(function aceHeaderProfessionalFinal(){
-
-  const STYLE_ID =
-    "ace-header-professional-final-v1";
-
-  function ensureStyle(){
-
-    if (
-      document.getElementById(
-        STYLE_ID
-      )
-    ) {
-      return;
-    }
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-    style.id =
-      STYLE_ID;
-
-    style.textContent = `
-
-      @media(max-width:850px){
-
-        /* ===== ÁREA AZUL ===== */
-
-        .ace-header-v6{
-          position:relative !important;
-          height:158px !important;
-          min-height:158px !important;
-          padding:0 !important;
-          overflow:visible !important;
-        }
-
-        .ace-header-v6 > *:not(#aceMobileHeader){
-          display:none !important;
-        }
-
-        #aceMobileHeader{
-          position:absolute !important;
-          inset:0 !important;
-          z-index:60 !important;
-
-          display:grid !important;
-
-          grid-template-columns:
-            84px
-            minmax(0,1fr)
-            36px !important;
-
-          grid-template-rows:
-            92px
-            58px !important;
-
-          column-gap:10px !important;
-
-          width:100% !important;
-          height:158px !important;
-
-          box-sizing:border-box !important;
-
-          padding:
-            4px
-            12px
-            4px
-            12px !important;
-
-          color:#fff !important;
-
-          overflow:visible !important;
-        }
-
-
-        /* ===== LOGO ===== */
-
-        #aceMobileHeader
-        .ace-mobile-logo{
-          grid-column:1 !important;
-          grid-row:1 !important;
-
-          width:80px !important;
-          height:80px !important;
-
-          max-width:80px !important;
-          max-height:80px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          object-fit:contain !important;
-
-          align-self:center !important;
-          justify-self:center !important;
-
-          transform:none !important;
-        }
-
-
-        /* ===== TÍTULO ===== */
-
-        #aceMobileHeader
-        .ace-mobile-brand{
-          grid-column:2 / 4 !important;
-          grid-row:1 !important;
-
-          display:flex !important;
-          flex-direction:column !important;
-
-          align-items:flex-start !important;
-          justify-content:center !important;
-
-          min-width:0 !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          transform:none !important;
-
-          overflow:visible !important;
-
-          text-align:left !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-brand-title{
-          display:block !important;
-
-          width:100% !important;
-
-          margin:0 !important;
-
-          color:#fff !important;
-
-          font-size:26px !important;
-          font-weight:950 !important;
-          line-height:1.02 !important;
-          letter-spacing:-.6px !important;
-
-          text-align:left !important;
-
-          white-space:nowrap !important;
-          overflow:visible !important;
-          text-overflow:clip !important;
-
-          text-shadow:
-            0
-            1px
-            2px
-            rgba(0,0,0,.12) !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-brand-subtitle{
-          display:block !important;
-
-          width:100% !important;
-
-          margin-top:8px !important;
-
-          color:
-            rgba(
-              255,
-              255,
-              255,
-              .94
-            ) !important;
-
-          font-size:16px !important;
-          font-weight:800 !important;
-          line-height:1.05 !important;
-
-          text-align:left !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* ===== MENU ESQUERDO ===== */
-
-        #aceMobileHeader
-        .ace-mobile-menu-button{
-          grid-column:1 !important;
-          grid-row:2 !important;
-
-          display:flex !important;
-          flex-direction:row !important;
-
-          align-items:center !important;
-          justify-content:flex-start !important;
-
-          gap:8px !important;
-
-          width:82px !important;
-          height:44px !important;
-
-          margin:0 !important;
-          padding:
-            0
-            9px !important;
-
-          align-self:center !important;
-          justify-self:center !important;
-
-          border:0 !important;
-          border-radius:12px !important;
-
-          background:
-            rgba(
-              255,
-              255,
-              255,
-              .10
-            ) !important;
-
-          box-shadow:none !important;
-
-          transform:none !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-lines{
-          display:flex !important;
-          flex-direction:column !important;
-
-          gap:4px !important;
-
-          width:24px !important;
-
-          flex:
-            0
-            0
-            24px !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-lines
-        span{
-          display:block !important;
-
-          width:24px !important;
-          height:3px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          border:0 !important;
-          border-radius:999px !important;
-
-          background:#fff !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-menu-button
-        .ace-menu-label{
-          display:block !important;
-
-          color:#fff !important;
-
-          font-size:12px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-        }
-
-
-        /* ===== USUÁRIO À DIREITA ===== */
-
-        #aceMobileHeader
-        .ace-mobile-user{
-          grid-column:2 / 4 !important;
-          grid-row:2 !important;
-
-          position:relative !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:flex-end !important;
-
-          gap:8px !important;
-
-          min-width:0 !important;
-
-          align-self:center !important;
-
-          padding-right:38px !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-user-name{
-          display:block !important;
-
-          max-width:150px !important;
-
-          overflow:hidden !important;
-
-          color:#fff !important;
-
-          font-size:12px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          text-align:right !important;
-
-          text-overflow:ellipsis !important;
-          white-space:nowrap !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-avatar-button{
-          position:relative !important;
-
-          display:block !important;
-
-          flex:
-            0
-            0
-            44px !important;
-
-          width:44px !important;
-          height:44px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          overflow:hidden !important;
-
-          border:
-            2px
-            solid
-            rgba(
-              255,
-              255,
-              255,
-              .92
-            ) !important;
-
-          border-radius:50% !important;
-
-          background:#fff !important;
-
-          transform:none !important;
-        }
-
-        #aceMobileHeader
-        .ace-mobile-avatar-button
-        .ace-profile-avatar{
-          width:100% !important;
-          height:100% !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          font-size:20px !important;
-        }
-
-
-        /* ===== 3 PONTINHOS ===== */
-
-        #aceMobileHeader
-        .ace-mobile-more{
-          grid-column:3 !important;
-          grid-row:2 !important;
-
-          position:absolute !important;
-          right:11px !important;
-          bottom:11px !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          width:28px !important;
-          height:40px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          border:0 !important;
-
-          color:#fff !important;
-
-          font-size:27px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          background:transparent !important;
-
-          transform:none !important;
-        }
-
-
-        /* ===== ONLINE / OFFLINE PEQUENO ===== */
-
-        #aceConnectionBadge.ace-header-net-badge,
-        .ace-header-net-badge{
-          position:absolute !important;
-
-          top:-13px !important;
-          right:51px !important;
-
-          left:auto !important;
-          bottom:auto !important;
-
-          z-index:100 !important;
-
-          display:flex !important;
-
-          align-items:center !important;
-          justify-content:center !important;
-
-          gap:3px !important;
-
-          width:auto !important;
-          min-width:0 !important;
-
-          height:17px !important;
-
-          margin:0 !important;
-
-          padding:
-            1px
-            6px !important;
-
-          border-width:1px !important;
-          border-style:solid !important;
-
-          border-radius:999px !important;
-
-          font-size:8px !important;
-          font-weight:900 !important;
-          line-height:1 !important;
-
-          white-space:nowrap !important;
-
-          box-shadow:
-            0
-            2px
-            5px
-            rgba(
-              0,
-              0,
-              0,
-              .10
-            ) !important;
-
-          transform:none !important;
-
-          pointer-events:none !important;
-        }
-
-        #aceConnectionBadge.ace-header-net-badge
-        .ace-net-dot,
-        .ace-header-net-badge
-        .ace-net-dot{
-          width:5px !important;
-          height:5px !important;
-
-          flex:
-            0
-            0
-            5px !important;
-
-          border-radius:50% !important;
-        }
-
-
-        /* ===== TELAS ESTREITAS ===== */
-
-        @media(max-width:390px){
-
-          #aceMobileHeader{
-            grid-template-columns:
-              74px
-              minmax(0,1fr)
-              32px !important;
-
-            column-gap:7px !important;
-
-            padding-left:9px !important;
-            padding-right:9px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-logo{
-            width:70px !important;
-            height:70px !important;
-
-            max-width:70px !important;
-            max-height:70px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-brand-title{
-            font-size:22px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-brand-subtitle{
-            font-size:14px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-menu-button{
-            width:72px !important;
-            padding:
-              0
-              7px !important;
-            gap:6px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-menu-button
-          .ace-menu-label{
-            font-size:11px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-user{
-            padding-right:34px !important;
-          }
-
-          #aceMobileHeader
-          .ace-mobile-user-name{
-            max-width:118px !important;
-            font-size:11px !important;
-          }
-
-          #aceConnectionBadge.ace-header-net-badge,
-          .ace-header-net-badge{
-            right:48px !important;
-          }
-
-        }
-
-      }
-
-    `;
-
-    document.head.appendChild(
-      style
-    );
-
-  }
-
-
-  function repairMenu(){
-
-    const button =
-      document.querySelector(
-        "#aceMobileHeader .ace-mobile-menu-button"
-      );
-
-    if (!button) {
-      return;
-    }
-
-    let lines =
-      button.querySelector(
-        ".ace-menu-lines"
-      );
-
-    if (!lines) {
-
-      lines =
-        document.createElement(
-          "span"
-        );
-
-      lines.className =
-        "ace-menu-lines";
-
-      button.prepend(
-        lines
-      );
-
-    }
-
-    lines.innerHTML =
-      "<span></span><span></span><span></span>";
-
-    let label =
-      button.querySelector(
-        ".ace-menu-label"
-      );
-
-    if (!label) {
-
-      label =
-        document.createElement(
-          "span"
-        );
-
-      label.className =
-        "ace-menu-label";
-
-      button.appendChild(
-        label
-      );
-
-    }
-
-    label.textContent =
-      "Menu";
-
-  }
-
-
-  function placeStatusInsideUser(){
-
-    if (
-      window.innerWidth >
-      850
-    ) {
-      return;
-    }
-
-    const user =
-      document.querySelector(
-        "#aceMobileHeader .ace-mobile-user"
-      );
-
-    const status =
-      document.getElementById(
-        "aceConnectionBadge"
-      ) ||
-      [
-        ...document.querySelectorAll(
-          "div,span"
-        )
-      ].find(
-        el => {
-
-          const t =
-            String(
-              el.textContent ||
-              ""
-            )
-              .trim()
-              .toLowerCase();
-
-          return (
-            (
-              t === "online" ||
-              t === "offline"
-            ) &&
-            el.children.length <= 2
-          );
-
-        }
-      );
-
-    if (
-      !user ||
-      !status
-    ) {
-      return;
-    }
-
-    if (
-      status.parentElement !==
-      user
-    ) {
-
-      user.appendChild(
-        status
-      );
-
-    }
-
-    status.classList.add(
-      "ace-header-net-badge"
-    );
-
-    status.style.removeProperty(
-      "left"
-    );
-
-    status.style.removeProperty(
-      "right"
-    );
-
-    status.style.removeProperty(
-      "top"
-    );
-
-    status.style.removeProperty(
-      "bottom"
-    );
-
-    status.style.removeProperty(
-      "transform"
-    );
-
-  }
-
-
-  function apply(){
-
-    ensureStyle();
-
-    repairMenu();
-
-    placeStatusInsideUser();
-
-  }
-
-
-  function schedule(){
-
-    apply();
-
-    [
-      100,
-      300,
-      700,
-      1300
-    ]
-      .forEach(
-        delay =>
-          setTimeout(
-            apply,
-            delay
-          )
-      );
-
-  }
-
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      schedule
-    );
-
-  } else {
-
-    schedule();
-
-  }
-
-  window.addEventListener(
-    "resize",
-    schedule
-  );
-
-  window.addEventListener(
-    "online",
-    schedule
-  );
-
-  window.addEventListener(
-    "offline",
-    schedule
-  );
-
-})();
-
-
-
-/* ============================================================
-   ACE - CABEÇALHO MOBILE RECONSTRUÍDO
-   Corrige exclusivamente o cabeçalho visual no celular.
-   Não altera lógica de login, offline, sincronização,
-   movimentações, mural, barra inferior ou instalação.
-   ============================================================ */
-
-(function aceRebuildMobileHeaderClean(){
-
-  const STYLE_ID = "ace-clean-header-style-v1";
-
-  function ensureStyle(){
-
-    if (document.getElementById(STYLE_ID)) return;
-
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-
-    style.textContent = `
-
-      @media(max-width:850px){
-
-        .ace-header-v6{
-          position:relative !important;
-          height:166px !important;
-          min-height:166px !important;
+          height:164px !important;
+          min-height:164px !important;
           padding:0 !important;
           overflow:visible !important;
         }
@@ -27673,82 +23756,87 @@ startAuth();
           z-index:50 !important;
 
           display:grid !important;
-          grid-template-columns:88px minmax(0,1fr) auto !important;
-          grid-template-rows:96px 62px !important;
+          grid-template-columns:88px minmax(0,1fr) 34px !important;
+          grid-template-rows:96px 60px !important;
 
           width:100% !important;
-          height:166px !important;
+          height:164px !important;
 
           box-sizing:border-box !important;
-          padding:5px 12px !important;
+          padding:4px 12px !important;
 
           column-gap:10px !important;
           row-gap:0 !important;
 
           align-items:center !important;
           color:#fff !important;
-
           overflow:visible !important;
         }
 
-        /* LOGO */
-        #aceMobileHeader .ace-clean-logo{
+        /* Logo proporcional */
+        #aceMobileHeader .ace-mobile-logo{
           grid-column:1 !important;
           grid-row:1 !important;
 
           width:82px !important;
           height:82px !important;
-
-          object-fit:contain !important;
-
-          justify-self:start !important;
-          align-self:center !important;
+          max-width:82px !important;
+          max-height:82px !important;
 
           margin:0 !important;
           padding:0 !important;
 
+          object-fit:contain !important;
+          justify-self:center !important;
+          align-self:center !important;
+
           transform:none !important;
         }
 
-        /* TÍTULO */
-        #aceMobileHeader .ace-clean-brand{
+        /* Título */
+        #aceMobileHeader .ace-mobile-brand{
           grid-column:2 / 4 !important;
           grid-row:1 !important;
 
-          min-width:0 !important;
-
           display:flex !important;
           flex-direction:column !important;
-          justify-content:center !important;
           align-items:flex-start !important;
+          justify-content:center !important;
 
-          text-align:left !important;
-
+          min-width:0 !important;
           margin:0 !important;
-          padding:0 4px 0 0 !important;
+          padding:0 2px 0 0 !important;
+
+          overflow:visible !important;
+          transform:none !important;
+          text-align:left !important;
         }
 
-        #aceMobileHeader .ace-clean-title{
+        #aceMobileHeader .ace-mobile-brand-title{
+          display:block !important;
           width:100% !important;
+
+          margin:0 !important;
 
           color:#fff !important;
 
-          font-size:26px !important;
+          font-size:25px !important;
           font-weight:950 !important;
-          line-height:1.02 !important;
-          letter-spacing:-.55px !important;
+          line-height:1.03 !important;
+          letter-spacing:-.5px !important;
 
           white-space:nowrap !important;
           overflow:visible !important;
           text-overflow:clip !important;
 
-          margin:0 !important;
+          text-align:left !important;
         }
 
-        #aceMobileHeader .ace-clean-subtitle{
+        #aceMobileHeader .ace-mobile-brand-subtitle{
+          display:block !important;
           width:100% !important;
 
-          margin-top:8px !important;
+          margin:8px 0 0 0 !important;
 
           color:rgba(255,255,255,.94) !important;
 
@@ -27757,50 +23845,49 @@ startAuth();
           line-height:1.05 !important;
 
           white-space:nowrap !important;
+          text-align:left !important;
         }
 
-        /* BOTÃO MENU */
-        #aceMobileHeader .ace-clean-menu{
+        /* =====================================================
+           BOTÃO MENU - sem alterar DOM
+           Os 3 traços são os spans originais.
+           ===================================================== */
+
+        #aceMobileHeader .ace-mobile-menu-button{
           grid-column:1 !important;
           grid-row:2 !important;
+
+          position:relative !important;
+
+          display:flex !important;
+          flex-direction:column !important;
+          align-items:flex-start !important;
+          justify-content:center !important;
+
+          gap:4px !important;
 
           width:84px !important;
           height:44px !important;
 
-          display:flex !important;
-          flex-direction:row !important;
-          align-items:center !important;
-          justify-content:center !important;
-
-          gap:8px !important;
-
           margin:0 !important;
           padding:0 9px !important;
+
+          justify-self:center !important;
+          align-self:center !important;
 
           border:0 !important;
           border-radius:12px !important;
 
           background:rgba(255,255,255,.10) !important;
 
-          color:#fff !important;
-          cursor:pointer !important;
+          transform:none !important;
+          overflow:visible !important;
         }
 
-        #aceMobileHeader .ace-clean-hamburger{
-          width:26px !important;
-          flex:0 0 26px !important;
-
-          display:flex !important;
-          flex-direction:column !important;
-          justify-content:center !important;
-
-          gap:4px !important;
-        }
-
-        #aceMobileHeader .ace-clean-hamburger i{
+        #aceMobileHeader .ace-mobile-menu-button > span{
           display:block !important;
 
-          width:26px !important;
+          width:25px !important;
           height:3px !important;
 
           margin:0 !important;
@@ -27810,9 +23897,21 @@ startAuth();
           border-radius:999px !important;
 
           background:#fff !important;
+
+          flex:none !important;
+          transform:none !important;
         }
 
-        #aceMobileHeader .ace-clean-menu-text{
+        #aceMobileHeader .ace-mobile-menu-button::after{
+          content:"Menu";
+
+          position:absolute !important;
+
+          left:42px !important;
+          top:50% !important;
+
+          transform:translateY(-50%) !important;
+
           color:#fff !important;
 
           font-size:12px !important;
@@ -27822,15 +23921,17 @@ startAuth();
           white-space:nowrap !important;
         }
 
-        /* USUÁRIO */
-        #aceMobileHeader .ace-clean-account{
-          grid-column:2 / 4 !important;
+        /* =====================================================
+           USUÁRIO
+           ===================================================== */
+
+        #aceMobileHeader .ace-mobile-user{
+          grid-column:2 !important;
           grid-row:2 !important;
 
           position:relative !important;
 
           display:flex !important;
-          flex-direction:row !important;
           align-items:center !important;
           justify-content:flex-end !important;
 
@@ -27839,10 +23940,14 @@ startAuth();
           min-width:0 !important;
 
           margin:0 !important;
-          padding:0 !important;
+          padding:0 2px 0 0 !important;
+
+          align-self:center !important;
         }
 
-        #aceMobileHeader .ace-clean-user-name{
+        #aceMobileHeader .ace-mobile-user-name{
+          display:block !important;
+
           max-width:155px !important;
 
           overflow:hidden !important;
@@ -27858,31 +23963,29 @@ startAuth();
           text-align:right !important;
         }
 
-        #aceMobileHeader .ace-clean-avatar{
+        #aceMobileHeader .ace-mobile-avatar-button{
           position:relative !important;
 
-          width:46px !important;
-          height:46px !important;
-          flex:0 0 46px !important;
+          display:block !important;
 
-          display:flex !important;
-          align-items:center !important;
-          justify-content:center !important;
+          width:44px !important;
+          height:44px !important;
+          flex:0 0 44px !important;
 
-          padding:0 !important;
           margin:0 !important;
+          padding:0 !important;
 
           overflow:hidden !important;
 
-          border:2px solid rgba(255,255,255,.95) !important;
+          border:2px solid rgba(255,255,255,.94) !important;
           border-radius:50% !important;
 
           background:#fff !important;
 
-          cursor:pointer !important;
+          transform:none !important;
         }
 
-        #aceMobileHeader .ace-clean-avatar .ace-profile-avatar{
+        #aceMobileHeader .ace-mobile-avatar-button .ace-profile-avatar{
           width:100% !important;
           height:100% !important;
 
@@ -27893,36 +23996,46 @@ startAuth();
           font-size:20px !important;
         }
 
-        #aceMobileHeader .ace-clean-more{
-          width:30px !important;
-          height:42px !important;
-          flex:0 0 30px !important;
+        /* 3 pontinhos */
+        #aceMobileHeader .ace-mobile-more{
+          grid-column:3 !important;
+          grid-row:2 !important;
 
           display:flex !important;
           align-items:center !important;
           justify-content:center !important;
 
-          padding:0 !important;
+          width:30px !important;
+          height:44px !important;
+
           margin:0 !important;
+          padding:0 !important;
+
+          align-self:center !important;
+          justify-self:end !important;
 
           border:0 !important;
           background:transparent !important;
 
           color:#fff !important;
 
-          font-size:28px !important;
+          font-size:27px !important;
           font-weight:900 !important;
           line-height:1 !important;
 
-          cursor:pointer !important;
+          transform:none !important;
         }
 
-        /* STATUS ONLINE/OFFLINE */
-        #aceMobileHeader .ace-clean-net{
+        /* =====================================================
+           STATUS ONLINE / OFFLINE
+           pequeno e preso acima do avatar
+           ===================================================== */
+
+        #${NET_ID}{
           position:absolute !important;
 
-          right:38px !important;
-          top:-16px !important;
+          right:0 !important;
+          top:-20px !important;
 
           display:flex !important;
           align-items:center !important;
@@ -27930,6 +24043,8 @@ startAuth();
 
           gap:3px !important;
 
+          width:auto !important;
+          min-width:0 !important;
           height:17px !important;
 
           padding:1px 6px !important;
@@ -27943,10 +24058,12 @@ startAuth();
 
           white-space:nowrap !important;
 
+          box-shadow:0 2px 5px rgba(0,0,0,.10) !important;
+
           pointer-events:none !important;
         }
 
-        #aceMobileHeader .ace-clean-net .ace-net-dot{
+        #${NET_ID} .ace-net-dot{
           width:5px !important;
           height:5px !important;
           flex:0 0 5px !important;
@@ -27954,86 +24071,121 @@ startAuth();
           border-radius:50% !important;
         }
 
-        #aceMobileHeader .ace-clean-net.is-online{
+        #${NET_ID}.is-online{
           color:#087c3a !important;
           border-color:#8dd7aa !important;
           background:rgba(241,255,246,.97) !important;
         }
 
-        #aceMobileHeader .ace-clean-net.is-online .ace-net-dot{
+        #${NET_ID}.is-online .ace-net-dot{
           background:#74b72e !important;
         }
 
-        #aceMobileHeader .ace-clean-net.is-offline{
+        #${NET_ID}.is-offline{
           color:#a85b00 !important;
           border-color:#f2c06b !important;
           background:rgba(255,248,232,.97) !important;
         }
 
-        #aceMobileHeader .ace-clean-net.is-offline .ace-net-dot{
+        #${NET_ID}.is-offline .ace-net-dot{
           background:#f39a0a !important;
         }
 
-        /* DROPDOWN */
+        /* Esconde o badge flutuante antigo apenas no celular.
+           A lógica offline continua existindo normalmente. */
+        body > #aceConnectionBadge{
+          display:none !important;
+        }
+
+        /* Dropdown */
         #aceMobileHeader .ace-account-dropdown{
           top:150px !important;
           right:10px !important;
         }
 
+        /* =====================================================
+           MURAL
+           ===================================================== */
+
+        .ace-mural-title{
+          font-size:27px !important;
+          line-height:1.05 !important;
+        }
+
+        /* =====================================================
+           BARRA INFERIOR - mantém os ícones aprovados
+           ===================================================== */
+
+        #aceMobileBottomNav .ace-bottom-item .icon{
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          width:34px !important;
+          height:34px !important;
+
+          font-size:25px !important;
+          line-height:1 !important;
+
+          border-radius:11px !important;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item .label{
+          font-size:11px !important;
+          font-weight:900 !important;
+        }
+
         @media(max-width:390px){
 
           #aceMobileHeader{
-            grid-template-columns:76px minmax(0,1fr) auto !important;
+            grid-template-columns:76px minmax(0,1fr) 30px !important;
+
             column-gap:7px !important;
+
             padding-left:9px !important;
             padding-right:9px !important;
           }
 
-          #aceMobileHeader .ace-clean-logo{
+          #aceMobileHeader .ace-mobile-logo{
             width:72px !important;
             height:72px !important;
+
+            max-width:72px !important;
+            max-height:72px !important;
           }
 
-          #aceMobileHeader .ace-clean-title{
-            font-size:22px !important;
+          #aceMobileHeader .ace-mobile-brand-title{
+            font-size:21px !important;
           }
 
-          #aceMobileHeader .ace-clean-subtitle{
+          #aceMobileHeader .ace-mobile-brand-subtitle{
             font-size:14px !important;
           }
 
-          #aceMobileHeader .ace-clean-menu{
-            width:74px !important;
-            padding:0 7px !important;
-            gap:6px !important;
+          #aceMobileHeader .ace-mobile-menu-button{
+            width:72px !important;
+            padding-left:7px !important;
+            padding-right:7px !important;
           }
 
-          #aceMobileHeader .ace-clean-hamburger{
-            width:22px !important;
-            flex:0 0 22px !important;
-          }
-
-          #aceMobileHeader .ace-clean-hamburger i{
+          #aceMobileHeader .ace-mobile-menu-button > span{
             width:22px !important;
           }
 
-          #aceMobileHeader .ace-clean-menu-text{
+          #aceMobileHeader .ace-mobile-menu-button::after{
+            left:35px !important;
             font-size:11px !important;
           }
 
-          #aceMobileHeader .ace-clean-user-name{
+          #aceMobileHeader .ace-mobile-user-name{
             max-width:116px !important;
             font-size:11px !important;
           }
 
-          #aceMobileHeader .ace-clean-avatar{
-            width:43px !important;
-            height:43px !important;
-            flex:0 0 43px !important;
-          }
-
-          #aceMobileHeader .ace-clean-net{
-            right:35px !important;
+          #aceMobileHeader .ace-mobile-avatar-button{
+            width:42px !important;
+            height:42px !important;
+            flex:0 0 42px !important;
           }
         }
       }
@@ -28043,213 +24195,47 @@ startAuth();
     document.head.appendChild(style);
   }
 
-  function rebuildHeader(){
+  function ensureNetBadge(){
 
-    const header =
-      document.querySelector(".ace-header-v6");
-
-    if (!header) return;
-
-    let mobileHeader =
-      document.getElementById("aceMobileHeader");
-
-    if (!mobileHeader){
-
-      mobileHeader =
-        document.createElement("div");
-
-      mobileHeader.id =
-        "aceMobileHeader";
-
-      header.appendChild(mobileHeader);
-    }
-
-    const name =
-      typeof getCurrentDisplayName === "function"
-        ? getCurrentDisplayName()
-        : "Usuário";
-
-    mobileHeader.innerHTML = `
-
-      <img
-        class="ace-clean-logo"
-        src="ace-cesta.png"
-        alt="ACE"
-      >
-
-      <div class="ace-clean-brand">
-        <div class="ace-clean-title">
-          ACE - Ação de Cestas
-        </div>
-        <div class="ace-clean-subtitle">
-          Controle de Alimentos
-        </div>
-      </div>
-
-      <button
-        id="aceCleanMenuButton"
-        class="ace-clean-menu"
-        type="button"
-        aria-label="Abrir menu"
-      >
-        <span class="ace-clean-hamburger">
-          <i></i>
-          <i></i>
-          <i></i>
-        </span>
-        <span class="ace-clean-menu-text">
-          Menu
-        </span>
-      </button>
-
-      <div class="ace-clean-account">
-
-        <span class="ace-clean-user-name">
-          Usuário: ${typeof esc === "function" ? esc(name) : name}
-        </span>
-
-        <button
-          id="aceCleanAvatarButton"
-          class="ace-clean-avatar"
-          type="button"
-          title="Minha conta"
-        >
-          <span
-            class="ace-profile-avatar"
-            data-ace-user-avatar
-          >
-            👤
-          </span>
-        </button>
-
-        <button
-          id="aceCleanMoreButton"
-          class="ace-clean-more"
-          type="button"
-          aria-label="Mais opções"
-        >
-          ⋮
-        </button>
-
-        <div
-          id="aceCleanNetBadge"
-          class="ace-clean-net"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="ace-net-dot"></span>
-          <span class="ace-clean-net-text"></span>
-        </div>
-
-      </div>
-
-      <div
-        id="aceAccountDropdown"
-        class="ace-account-dropdown"
-      >
-
-        <button
-          id="aceAccountProfile"
-          type="button"
-        >
-          👤 Minha conta
-        </button>
-
-        <button
-          id="aceAccountSync"
-          type="button"
-        >
-          🔄 Sincronizar dados
-        </button>
-
-        <button
-          id="aceAccountAbout"
-          type="button"
-        >
-          ℹ️ Sobre o aplicativo
-        </button>
-
-        <button
-          id="aceAccountLogout"
-          class="logout"
-          type="button"
-        >
-          🚪 Sair
-        </button>
-
-      </div>
-    `;
-
-    const menuButton =
-      document.getElementById(
-        "aceCleanMenuButton"
+    const user =
+      document.querySelector(
+        "#aceMobileHeader .ace-mobile-user"
       );
 
-    if (menuButton){
+    if (!user) return null;
 
-      menuButton.onclick =
-        typeof openAceMobileDrawer === "function"
-          ? openAceMobileDrawer
-          : null;
-    }
-
-    const avatarButton =
+    let badge =
       document.getElementById(
-        "aceCleanAvatarButton"
+        NET_ID
       );
 
-    if (avatarButton){
+    if (!badge){
 
-      avatarButton.onclick =
-        typeof openAceMyAccount === "function"
-          ? openAceMyAccount
-          : null;
-    }
+      badge =
+        document.createElement(
+          "div"
+        );
 
-    const moreButton =
-      document.getElementById(
-        "aceCleanMoreButton"
+      badge.id =
+        NET_ID;
+
+      badge.innerHTML = `
+        <span class="ace-net-dot"></span>
+        <span class="ace-net-text"></span>
+      `;
+
+      user.appendChild(
+        badge
       );
-
-    if (moreButton){
-
-      moreButton.onclick =
-        function(event){
-
-          event.stopPropagation();
-
-          if (
-            typeof toggleAceAccountMenu ===
-            "function"
-          ){
-            toggleAceAccountMenu();
-          }
-        };
     }
 
-    if (
-      typeof setupAceAccountMenuEvents ===
-      "function"
-    ){
-      setupAceAccountMenuEvents();
-    }
-
-    if (
-      typeof updateAceAvatarElements ===
-      "function"
-    ){
-      updateAceAvatarElements();
-    }
-
-    updateNetworkBadge();
+    return badge;
   }
 
-  function updateNetworkBadge(){
+  function updateNetwork(){
 
     const badge =
-      document.getElementById(
-        "aceCleanNetBadge"
-      );
+      ensureNetBadge();
 
     if (!badge) return;
 
@@ -28268,7 +24254,7 @@ startAuth();
 
     const text =
       badge.querySelector(
-        ".ace-clean-net-text"
+        ".ace-net-text"
       );
 
     if (text){
@@ -28280,11 +24266,52 @@ startAuth();
     }
   }
 
+  function setBottomIcons(){
+
+    const bottom =
+      document.getElementById(
+        "aceMobileBottomNav"
+      );
+
+    if (!bottom) return;
+
+    const icons = {
+      mural:"📣",
+      inicio:"🏠",
+      entrada:"➕",
+      saida:"📤"
+    };
+
+    Object.entries(icons)
+      .forEach(([target, value]) => {
+
+        const icon =
+          bottom.querySelector(
+            `[data-ace-target="${target}"] .icon`
+          );
+
+        if (icon){
+          icon.textContent =
+            value;
+        }
+      });
+
+    const more =
+      bottom.querySelector(
+        "#aceBottomMore .icon"
+      );
+
+    if (more){
+      more.textContent =
+        "🟪";
+    }
+  }
+
   function apply(){
 
     ensureStyle();
-    rebuildHeader();
-    updateNetworkBadge();
+    updateNetwork();
+    setBottomIcons();
   }
 
   function schedule(){
@@ -28292,8 +24319,8 @@ startAuth();
     apply();
 
     [
-      200,
-      600,
+      150,
+      500,
       1200
     ].forEach(
       delay =>
@@ -28321,701 +24348,17 @@ startAuth();
 
   window.addEventListener(
     "online",
-    updateNetworkBadge
+    updateNetwork
   );
 
   window.addEventListener(
     "offline",
-    updateNetworkBadge
+    updateNetwork
   );
 
   window.addEventListener(
     "resize",
-    function(){
-      if (
-        window.innerWidth <=
-        850
-      ){
-        updateNetworkBadge();
-      }
-    }
-  );
-
-})();
-
-
-
-/* ============================================================
-   ACE - CABEÇALHO MOBILE FIXO / ESTÁVEL
-   Impede que renders posteriores recriem o cabeçalho antigo.
-   Somente cabeçalho visual.
-   ============================================================ */
-
-(function aceKeepCleanHeaderStable(){
-
-  const STYLE_ID =
-    "ace-stable-clean-header-style-v1";
-
-  let rebuilding =
-    false;
-
-  function ensureStableStyle(){
-
-    if (
-      document.getElementById(
-        STYLE_ID
-      )
-    ) {
-      return;
-    }
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-    style.id =
-      STYLE_ID;
-
-    style.textContent = `
-
-      @media(max-width:850px){
-
-        /* Oculta qualquer badge antigo que fique solto pela tela.
-           O cabeçalho usa seu próprio indicador. */
-        body > #aceConnectionBadge{
-          display:none !important;
-        }
-
-        #aceMobileHeader{
-          contain:layout style !important;
-        }
-
-        #aceMobileHeader .ace-clean-title,
-        #aceMobileHeader .ace-clean-subtitle,
-        #aceMobileHeader .ace-clean-logo,
-        #aceMobileHeader .ace-clean-menu,
-        #aceMobileHeader .ace-clean-account{
-          visibility:visible !important;
-          opacity:1 !important;
-        }
-
-      }
-
-    `;
-
-    document.head.appendChild(
-      style
-    );
-  }
-
-
-  function currentDisplayName(){
-
-    try {
-
-      if (
-        typeof getCurrentDisplayName ===
-        "function"
-      ) {
-
-        return (
-          getCurrentDisplayName() ||
-          "Usuário"
-        );
-
-      }
-
-    } catch {}
-
-    return "Usuário";
-  }
-
-
-  function safeText(
-    value
-  ){
-
-    try {
-
-      if (
-        typeof esc ===
-        "function"
-      ) {
-
-        return esc(
-          value
-        );
-
-      }
-
-    } catch {}
-
-    return String(
-      value ?? ""
-    )
-      .replaceAll(
-        "&",
-        "&amp;"
-      )
-      .replaceAll(
-        "<",
-        "&lt;"
-      )
-      .replaceAll(
-        ">",
-        "&gt;"
-      )
-      .replaceAll(
-        '"',
-        "&quot;"
-      );
-  }
-
-
-  function buildStableHeader(){
-
-    if (
-      rebuilding ||
-      window.innerWidth >
-      850
-    ) {
-      return;
-    }
-
-    const header =
-      document.querySelector(
-        ".ace-header-v6"
-      );
-
-    if (!header) {
-      return;
-    }
-
-    rebuilding =
-      true;
-
-    try {
-
-      let mobileHeader =
-        document.getElementById(
-          "aceMobileHeader"
-        );
-
-      if (!mobileHeader) {
-
-        mobileHeader =
-          document.createElement(
-            "div"
-          );
-
-        mobileHeader.id =
-          "aceMobileHeader";
-
-        header.appendChild(
-          mobileHeader
-        );
-
-      }
-
-
-      const isClean =
-        mobileHeader
-          .querySelector(
-            ".ace-clean-brand"
-          ) &&
-        mobileHeader
-          .querySelector(
-            ".ace-clean-menu"
-          ) &&
-        mobileHeader
-          .querySelector(
-            ".ace-clean-account"
-          );
-
-
-      if (!isClean) {
-
-        const name =
-          currentDisplayName();
-
-        mobileHeader.innerHTML = `
-
-          <img
-            class="ace-clean-logo"
-            src="ace-cesta.png"
-            alt="ACE"
-          >
-
-          <div class="ace-clean-brand">
-
-            <div class="ace-clean-title">
-              ACE - Ação de Cestas
-            </div>
-
-            <div class="ace-clean-subtitle">
-              Controle de Alimentos
-            </div>
-
-          </div>
-
-
-          <button
-            id="aceCleanMenuButton"
-            class="ace-clean-menu"
-            type="button"
-            aria-label="Abrir menu"
-          >
-
-            <span class="ace-clean-hamburger">
-              <i></i>
-              <i></i>
-              <i></i>
-            </span>
-
-            <span class="ace-clean-menu-text">
-              Menu
-            </span>
-
-          </button>
-
-
-          <div class="ace-clean-account">
-
-            <span class="ace-clean-user-name">
-              Usuário: ${safeText(name)}
-            </span>
-
-
-            <button
-              id="aceCleanAvatarButton"
-              class="ace-clean-avatar"
-              type="button"
-              title="Minha conta"
-            >
-
-              <span
-                class="ace-profile-avatar"
-                data-ace-user-avatar
-              >
-                👤
-              </span>
-
-            </button>
-
-
-            <button
-              id="aceCleanMoreButton"
-              class="ace-clean-more"
-              type="button"
-              aria-label="Mais opções"
-            >
-              ⋮
-            </button>
-
-
-            <div
-              id="aceCleanNetBadge"
-              class="ace-clean-net"
-              role="status"
-              aria-live="polite"
-            >
-
-              <span
-                class="ace-net-dot"
-              ></span>
-
-              <span
-                class="ace-clean-net-text"
-              ></span>
-
-            </div>
-
-          </div>
-
-
-          <div
-            id="aceAccountDropdown"
-            class="ace-account-dropdown"
-          >
-
-            <button
-              id="aceAccountProfile"
-              type="button"
-            >
-              👤 Minha conta
-            </button>
-
-            <button
-              id="aceAccountSync"
-              type="button"
-            >
-              🔄 Sincronizar dados
-            </button>
-
-            <button
-              id="aceAccountAbout"
-              type="button"
-            >
-              ℹ️ Sobre o aplicativo
-            </button>
-
-            <button
-              id="aceAccountLogout"
-              class="logout"
-              type="button"
-            >
-              🚪 Sair
-            </button>
-
-          </div>
-
-        `;
-
-      } else {
-
-        const userName =
-          mobileHeader
-            .querySelector(
-              ".ace-clean-user-name"
-            );
-
-        if (userName) {
-
-          userName.textContent =
-            "Usuário: " +
-            currentDisplayName();
-
-        }
-
-      }
-
-
-      const menuButton =
-        document.getElementById(
-          "aceCleanMenuButton"
-        );
-
-      if (menuButton) {
-
-        menuButton.onclick =
-          (
-            typeof openAceMobileDrawer ===
-            "function"
-          )
-            ? openAceMobileDrawer
-            : null;
-
-      }
-
-
-      const avatarButton =
-        document.getElementById(
-          "aceCleanAvatarButton"
-        );
-
-      if (avatarButton) {
-
-        avatarButton.onclick =
-          (
-            typeof openAceMyAccount ===
-            "function"
-          )
-            ? openAceMyAccount
-            : null;
-
-      }
-
-
-      const moreButton =
-        document.getElementById(
-          "aceCleanMoreButton"
-        );
-
-      if (moreButton) {
-
-        moreButton.onclick =
-          function(
-            event
-          ){
-
-            event.stopPropagation();
-
-            if (
-              typeof toggleAceAccountMenu ===
-              "function"
-            ) {
-
-              toggleAceAccountMenu();
-
-            }
-
-          };
-
-      }
-
-
-      if (
-        typeof setupAceAccountMenuEvents ===
-        "function"
-      ) {
-
-        setupAceAccountMenuEvents();
-
-      }
-
-
-      if (
-        typeof updateAceAvatarElements ===
-        "function"
-      ) {
-
-        updateAceAvatarElements();
-
-      }
-
-
-      updateCleanNetworkBadge();
-
-    } finally {
-
-      rebuilding =
-        false;
-
-    }
-
-  }
-
-
-  function updateCleanNetworkBadge(){
-
-    const badge =
-      document.getElementById(
-        "aceCleanNetBadge"
-      );
-
-    if (!badge) {
-      return;
-    }
-
-    const online =
-      navigator.onLine;
-
-    badge.classList.toggle(
-      "is-online",
-      online
-    );
-
-    badge.classList.toggle(
-      "is-offline",
-      !online
-    );
-
-    const text =
-      badge.querySelector(
-        ".ace-clean-net-text"
-      );
-
-    if (text) {
-
-      text.textContent =
-        online
-          ? "Online"
-          : "Offline";
-
-    }
-
-  }
-
-
-  function enforce(){
-
-    ensureStableStyle();
-
-    buildStableHeader();
-
-    updateCleanNetworkBadge();
-
-  }
-
-
-  function schedule(){
-
-    enforce();
-
-    [
-      80,
-      220,
-      500,
-      1000,
-      1800,
-      3000
-    ]
-      .forEach(
-        delay =>
-          setTimeout(
-            enforce,
-            delay
-          )
-      );
-
-  }
-
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      schedule
-    );
-
-  } else {
-
-    schedule();
-
-  }
-
-
-  window.addEventListener(
-    "online",
-    () => {
-
-      updateCleanNetworkBadge();
-
-      setTimeout(
-        enforce,
-        60
-      );
-
-    }
-  );
-
-
-  window.addEventListener(
-    "offline",
-    () => {
-
-      updateCleanNetworkBadge();
-
-      setTimeout(
-        enforce,
-        60
-      );
-
-    }
-  );
-
-
-  window.addEventListener(
-    "resize",
-    enforce
-  );
-
-
-  /* Se qualquer render interno substituir ou deformar o
-     #aceMobileHeader, ele é reconstruído imediatamente. */
-  const observer =
-    new MutationObserver(
-      mutations => {
-
-        if (
-          rebuilding ||
-          window.innerWidth >
-          850
-        ) {
-          return;
-        }
-
-        let shouldRepair =
-          false;
-
-        for (
-          const mutation
-          of mutations
-        ) {
-
-          if (
-            mutation.type ===
-              "childList" ||
-            mutation.type ===
-              "attributes"
-          ) {
-
-            const header =
-              document.getElementById(
-                "aceMobileHeader"
-              );
-
-            if (
-              !header ||
-              !header.querySelector(
-                ".ace-clean-brand"
-              ) ||
-              !header.querySelector(
-                ".ace-clean-menu"
-              ) ||
-              !header.querySelector(
-                ".ace-clean-account"
-              )
-            ) {
-
-              shouldRepair =
-                true;
-
-              break;
-
-            }
-
-          }
-
-        }
-
-        if (
-          shouldRepair
-        ) {
-
-          clearTimeout(
-            window
-              .__aceStableHeaderRepair
-          );
-
-          window
-            .__aceStableHeaderRepair =
-            setTimeout(
-              enforce,
-              20
-            );
-
-        }
-
-      }
-    );
-
-
-  setTimeout(
-    () => {
-
-      observer.observe(
-        document.body,
-        {
-          childList:
-            true,
-          subtree:
-            true,
-          attributes:
-            true,
-          attributeFilter: [
-            "class",
-            "style"
-          ]
-        }
-      );
-
-    },
-    250
+    schedule
   );
 
 })();
