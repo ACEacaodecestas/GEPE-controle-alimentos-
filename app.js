@@ -23846,3 +23846,238 @@ startAuth();
 
 })();
 
+
+
+/* ============================================================
+   ACE - AJUSTE VISUAL DO CABEÇALHO + TÍTULO MURAL
+   Somente layout. Não altera funções do aplicativo.
+   ============================================================ */
+(function aceHeaderVisualAdjustment(){
+  const STYLE_ID = "ace-header-visual-adjustment-v3";
+
+  function apply(){
+    if (document.getElementById(STYLE_ID)) return;
+
+    const st = document.createElement("style");
+    st.id = STYLE_ID;
+    st.textContent = `
+      /* Título principal mais forte e maior */
+      @media (max-width: 850px){
+        .ace-mobile-header-title,
+        .mobile-header-title,
+        .app-header-title,
+        .header-title,
+        header h1 {
+          font-size: clamp(27px, 7.2vw, 38px) !important;
+          line-height: 1.05 !important;
+          font-weight: 900 !important;
+          letter-spacing: -0.6px !important;
+        }
+
+        .ace-mobile-header-subtitle,
+        .mobile-header-subtitle,
+        .app-header-subtitle,
+        .header-subtitle,
+        header h2 {
+          font-size: clamp(18px, 4.7vw, 25px) !important;
+          line-height: 1.12 !important;
+          font-weight: 800 !important;
+        }
+
+        /* Logo maior e alinhada ao bloco ACE */
+        .ace-mobile-header-logo,
+        .mobile-header-logo,
+        .app-header-logo,
+        .header-logo,
+        header img[src*="ace-cesta"],
+        header img[src*="logo"] {
+          width: 132px !important;
+          height: 132px !important;
+          max-width: 132px !important;
+          max-height: 132px !important;
+          object-fit: contain !important;
+        }
+
+        /* Mural ACE menor que o título principal */
+        #mural h1,
+        #mural h2,
+        .mural-title,
+        .mural-title h1,
+        .mural-title h2,
+        [class*="mural"] h1,
+        [class*="mural"] h2 {
+          font-size: clamp(25px, 6.4vw, 32px) !important;
+          line-height: 1.08 !important;
+          font-weight: 900 !important;
+        }
+      }
+    `;
+    document.head.appendChild(st);
+
+    /* Ajuste dirigido pelo texto para funcionar mesmo se os nomes
+       das classes do cabeçalho variarem entre versões. */
+    const all = [...document.querySelectorAll("h1,h2,h3,div,span,strong")];
+
+    const aceTitle = all.find(el =>
+      /ACE\s*-\s*Ação de Cestas/i.test((el.textContent || "").trim()) &&
+      el.children.length <= 4
+    );
+
+    if (aceTitle){
+      aceTitle.style.setProperty("font-size", "clamp(27px, 7.2vw, 38px)", "important");
+      aceTitle.style.setProperty("font-weight", "900", "important");
+      aceTitle.style.setProperty("line-height", "1.05", "important");
+
+      const header = aceTitle.closest("header") ||
+                     aceTitle.closest('[class*="header"]') ||
+                     aceTitle.parentElement?.parentElement;
+
+      if (header){
+        const imgs = [...header.querySelectorAll("img")];
+        const logo = imgs.find(img =>
+          /ace|cesta|logo/i.test((img.getAttribute("src") || "") + " " + (img.alt || ""))
+        ) || imgs[0];
+
+        if (logo){
+          logo.style.setProperty("width", "132px", "important");
+          logo.style.setProperty("height", "132px", "important");
+          logo.style.setProperty("max-width", "132px", "important");
+          logo.style.setProperty("max-height", "132px", "important");
+          logo.style.setProperty("object-fit", "contain", "important");
+          logo.style.setProperty("transform", "translateY(-5px)", "important");
+        }
+      }
+    }
+
+    const muralTitle = all.find(el =>
+      /^Mural ACE$/i.test((el.textContent || "").trim())
+    );
+
+    if (muralTitle){
+      muralTitle.style.setProperty("font-size", "clamp(25px, 6.4vw, 32px)", "important");
+      muralTitle.style.setProperty("line-height", "1.08", "important");
+      muralTitle.style.setProperty("font-weight", "900", "important");
+    }
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", apply);
+  } else {
+    apply();
+  }
+
+  /* reaplica após renderizações internas */
+  setTimeout(apply, 400);
+  setTimeout(apply, 1200);
+})();
+
+
+
+/* ============================================================
+   ACE - STATUS ONLINE/OFFLINE MENOR ACIMA DO ÍCONE DO USUÁRIO
+   Somente posição/tamanho visual. Não altera lógica offline.
+   ============================================================ */
+(function aceMoveConnectionStatus(){
+  const STYLE_ID = "ace-status-user-position-v1";
+
+  function apply(){
+    if (!document.getElementById(STYLE_ID)){
+      const st = document.createElement("style");
+      st.id = STYLE_ID;
+      st.textContent = `
+        @media (max-width: 850px){
+          /* O status será posicionado via JS relativo ao ícone */
+          .ace-status-above-user {
+            position: fixed !important;
+            z-index: 9998 !important;
+            width: auto !important;
+            min-width: 0 !important;
+            padding: 3px 8px !important;
+            border-radius: 999px !important;
+            font-size: 10px !important;
+            line-height: 1.15 !important;
+            font-weight: 800 !important;
+            white-space: nowrap !important;
+            margin: 0 !important;
+            box-shadow: 0 2px 7px rgba(0,0,0,.14) !important;
+            transform: translate(-50%, -100%) !important;
+          }
+
+          .ace-status-above-user::before {
+            width: 6px !important;
+            height: 6px !important;
+            min-width: 6px !important;
+            min-height: 6px !important;
+          }
+        }
+      `;
+      document.head.appendChild(st);
+    }
+
+    const candidates = [...document.querySelectorAll("div,span,p,strong")];
+    const status = candidates.find(el => {
+      const t = (el.textContent || "").trim().toLowerCase();
+      return (t === "online" || t === "offline") && el.children.length <= 2;
+    });
+    if (!status) return;
+
+    const header = [...document.querySelectorAll("header,[class*='header'],[class*='topbar']")]
+      .find(el => /Usuário\s*:/i.test(el.textContent || "")) ||
+      [...document.querySelectorAll("div,section")].find(el =>
+        /Usuário\s*:/i.test(el.textContent || "") &&
+        el.querySelector("img,button,[class*='avatar'],[class*='user']")
+      );
+
+    if (!header) return;
+
+    const userText = [...header.querySelectorAll("div,span,strong,p")].find(el =>
+      /Usuário\s*:/i.test((el.textContent || "").trim())
+    );
+
+    let icon = header.querySelector(
+      ".user-avatar,.avatar,.profile-avatar,.user-icon,[class*='avatar'],[class*='profile'] img"
+    );
+
+    if (!icon && userText){
+      const rectText = userText.getBoundingClientRect();
+      const possible = [...header.querySelectorAll("img,button,svg,[class*='user']")];
+      icon = possible
+        .map(el => ({el, r: el.getBoundingClientRect()}))
+        .filter(x => x.r.width > 25 && x.r.height > 25 && x.r.left >= rectText.left)
+        .sort((a,b) => a.r.left - b.r.left)[0]?.el;
+    }
+
+    if (!icon) return;
+
+    const r = icon.getBoundingClientRect();
+    status.classList.add("ace-status-above-user");
+
+    /* Centraliza imediatamente acima do avatar */
+    status.style.setProperty("left", `${r.left + r.width/2}px`, "important");
+    status.style.setProperty("top", `${Math.max(18, r.top - 5)}px`, "important");
+  }
+
+  function schedule(){
+    apply();
+    setTimeout(apply, 250);
+    setTimeout(apply, 700);
+    setTimeout(apply, 1400);
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", schedule);
+  } else {
+    schedule();
+  }
+
+  window.addEventListener("resize", apply);
+  window.addEventListener("online", () => setTimeout(apply, 50));
+  window.addEventListener("offline", () => setTimeout(apply, 50));
+
+  const obs = new MutationObserver(() => {
+    clearTimeout(window.__aceStatusMoveTimer);
+    window.__aceStatusMoveTimer = setTimeout(apply, 80);
+  });
+  setTimeout(() => obs.observe(document.body, {childList:true, subtree:true}), 300);
+})();
+
