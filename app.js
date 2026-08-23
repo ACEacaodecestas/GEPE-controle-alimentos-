@@ -17218,6 +17218,10 @@ function ensureAceInstallOverlayStyles() {
 }
 
 
+let aceInstallOverlayShownAt = 0;
+let aceInstallAccepted = false;
+
+
 function showAceInstallingOverlay() {
 
   ensureAceInstallOverlayStyles();
@@ -17275,18 +17279,61 @@ function showAceInstallingOverlay() {
     overlay
   );
 
-}
-
-
-function hideAceInstallingOverlay() {
-
-  document
-    .getElementById(
-      "aceInstallOverlay"
-    )
-    ?.remove();
+  aceInstallOverlayShownAt =
+    Date.now();
 
 }
+
+
+function hideAceInstallingOverlay(
+  force = false
+) {
+
+  const close =
+    () => {
+      document
+        .getElementById(
+          "aceInstallOverlay"
+        )
+        ?.remove();
+
+      aceInstallAccepted =
+        false;
+    };
+
+
+  if (force) {
+    close();
+    return;
+  }
+
+
+  const minimumVisibleMs =
+    1400;
+
+  const elapsed =
+    Date.now() -
+    aceInstallOverlayShownAt;
+
+
+  if (
+    aceInstallOverlayShownAt &&
+    elapsed < minimumVisibleMs
+  ) {
+
+    setTimeout(
+      close,
+      minimumVisibleMs - elapsed
+    );
+
+    return;
+  }
+
+
+  close();
+
+}
+
 
 
 function setupPWA() {
@@ -17389,6 +17436,12 @@ function setupPWA() {
 
           try {
 
+            aceInstallAccepted =
+              false;
+
+            showAceInstallingOverlay();
+
+
             await deferredPrompt
               .prompt();
 
@@ -17406,11 +17459,14 @@ function setupPWA() {
               installBtn.disabled =
                 true;
 
-              showAceInstallingOverlay();
+              aceInstallAccepted =
+                true;
 
             } else {
 
-              hideAceInstallingOverlay();
+              hideAceInstallingOverlay(
+                true
+              );
 
             }
 
@@ -17421,7 +17477,9 @@ function setupPWA() {
 
           } catch (error) {
 
-            hideAceInstallingOverlay();
+            hideAceInstallingOverlay(
+              true
+            );
 
             console.warn(
               "ACE - erro ao iniciar instalação:",
@@ -17507,6 +17565,12 @@ function setupPWA() {
 
           if (deferredPrompt) {
 
+            aceInstallAccepted =
+              false;
+
+            showAceInstallingOverlay();
+
+
             await deferredPrompt
               .prompt();
 
@@ -17524,11 +17588,14 @@ function setupPWA() {
               installBtn.disabled =
                 true;
 
-              showAceInstallingOverlay();
+              aceInstallAccepted =
+                true;
 
             } else {
 
-              hideAceInstallingOverlay();
+              hideAceInstallingOverlay(
+                true
+              );
 
             }
 
@@ -17548,7 +17615,9 @@ function setupPWA() {
             "📲 Instalar";
 
 
-          hideAceInstallingOverlay();
+          hideAceInstallingOverlay(
+            true
+          );
 
           console.warn(
             "ACE - instalação não liberada pelo navegador:",
@@ -17585,6 +17654,19 @@ function setupPWA() {
 
       }
 
+
+      // O evento appinstalled confirma que o navegador terminou.
+      // Mantemos a tela por um tempo mínimo para ela realmente
+      // ser percebida no celular, evitando que apareça e suma
+      // antes de o navegador conseguir desenhá-la.
+      if (
+        aceInstallAccepted &&
+        !document.getElementById(
+          "aceInstallOverlay"
+        )
+      ) {
+        showAceInstallingOverlay();
+      }
 
       hideAceInstallingOverlay();
 
@@ -17765,7 +17847,7 @@ function ensureMuralAceStyles() {
 
     .ace-mural-meta{
       display:flex;
-      justify-content:space-between;
+      justify-content:flex-end;
       align-items:center;
       gap:10px;
       margin-bottom:8px;
@@ -18030,24 +18112,38 @@ function ensureMuralAceStyles() {
         width:100%;
         min-height:0;
         max-height:none;
-        aspect-ratio:16/9;
-        background:#000;
+        overflow:visible;
       }
 
-      .ace-mural-media video,
-      .ace-mural-media iframe{
+      .ace-mural-media-video,
+      .ace-mural-media-iframe{
+        aspect-ratio:16/10;
+        background:#000;
+        overflow:hidden;
+      }
+
+      .ace-mural-media-video video,
+      .ace-mural-media-iframe iframe{
+        display:block;
         width:100%;
         height:100%;
         max-height:none;
-        aspect-ratio:16/9;
         object-fit:contain;
         background:#000;
       }
 
-      .ace-mural-media img{
+      .ace-mural-media-image{
+        background:#eef4f8;
+        overflow:visible;
+      }
+
+      .ace-mural-media-image img{
+        display:block;
         width:100%;
-        max-height:68vh;
+        height:auto;
+        max-height:none;
         object-fit:contain;
+        background:#eef4f8;
       }
 
       .ace-mural-empty{
@@ -18601,7 +18697,7 @@ function renderMuralAce() {
                       ? (
                           youtubeEmbed
                             ? `
-                                <div class="ace-mural-media">
+                                <div class="ace-mural-media ace-mural-media-iframe">
                                   <iframe
                                     src="${esc(youtubeEmbed)}"
                                     title="${esc(post.titulo || "Vídeo do Mural ACE")}"
@@ -18614,7 +18710,7 @@ function renderMuralAce() {
                             : (
                                 type === "video"
                                   ? `
-                                      <div class="ace-mural-media">
+                                      <div class="ace-mural-media ace-mural-media-video">
                                         <video
                                           controls
                                           preload="metadata"
@@ -18623,7 +18719,7 @@ function renderMuralAce() {
                                       </div>
                                     `
                                   : `
-                                      <div class="ace-mural-media">
+                                      <div class="ace-mural-media ace-mural-media-image">
                                         <img
                                           src="${esc(post.arquivo_url)}"
                                           alt="${esc(post.titulo || "Imagem do Mural ACE")}"
@@ -18645,14 +18741,6 @@ function renderMuralAce() {
                       <div class="ace-mural-body">
 
                         <div class="ace-mural-meta">
-
-                          <span class="ace-mural-badge">
-                            ${
-                              type === "video"
-                                ? "🎥 Vídeo"
-                                : "🖼️ Imagem"
-                            }
-                          </span>
 
                           <span>
                             ${
@@ -20613,4 +20701,5 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
+
 
