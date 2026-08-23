@@ -28343,3 +28343,680 @@ startAuth();
 
 })();
 
+
+
+/* ============================================================
+   ACE - CABEÇALHO MOBILE FIXO / ESTÁVEL
+   Impede que renders posteriores recriem o cabeçalho antigo.
+   Somente cabeçalho visual.
+   ============================================================ */
+
+(function aceKeepCleanHeaderStable(){
+
+  const STYLE_ID =
+    "ace-stable-clean-header-style-v1";
+
+  let rebuilding =
+    false;
+
+  function ensureStableStyle(){
+
+    if (
+      document.getElementById(
+        STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      STYLE_ID;
+
+    style.textContent = `
+
+      @media(max-width:850px){
+
+        /* Oculta qualquer badge antigo que fique solto pela tela.
+           O cabeçalho usa seu próprio indicador. */
+        body > #aceConnectionBadge{
+          display:none !important;
+        }
+
+        #aceMobileHeader{
+          contain:layout style !important;
+        }
+
+        #aceMobileHeader .ace-clean-title,
+        #aceMobileHeader .ace-clean-subtitle,
+        #aceMobileHeader .ace-clean-logo,
+        #aceMobileHeader .ace-clean-menu,
+        #aceMobileHeader .ace-clean-account{
+          visibility:visible !important;
+          opacity:1 !important;
+        }
+
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+  }
+
+
+  function currentDisplayName(){
+
+    try {
+
+      if (
+        typeof getCurrentDisplayName ===
+        "function"
+      ) {
+
+        return (
+          getCurrentDisplayName() ||
+          "Usuário"
+        );
+
+      }
+
+    } catch {}
+
+    return "Usuário";
+  }
+
+
+  function safeText(
+    value
+  ){
+
+    try {
+
+      if (
+        typeof esc ===
+        "function"
+      ) {
+
+        return esc(
+          value
+        );
+
+      }
+
+    } catch {}
+
+    return String(
+      value ?? ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      );
+  }
+
+
+  function buildStableHeader(){
+
+    if (
+      rebuilding ||
+      window.innerWidth >
+      850
+    ) {
+      return;
+    }
+
+    const header =
+      document.querySelector(
+        ".ace-header-v6"
+      );
+
+    if (!header) {
+      return;
+    }
+
+    rebuilding =
+      true;
+
+    try {
+
+      let mobileHeader =
+        document.getElementById(
+          "aceMobileHeader"
+        );
+
+      if (!mobileHeader) {
+
+        mobileHeader =
+          document.createElement(
+            "div"
+          );
+
+        mobileHeader.id =
+          "aceMobileHeader";
+
+        header.appendChild(
+          mobileHeader
+        );
+
+      }
+
+
+      const isClean =
+        mobileHeader
+          .querySelector(
+            ".ace-clean-brand"
+          ) &&
+        mobileHeader
+          .querySelector(
+            ".ace-clean-menu"
+          ) &&
+        mobileHeader
+          .querySelector(
+            ".ace-clean-account"
+          );
+
+
+      if (!isClean) {
+
+        const name =
+          currentDisplayName();
+
+        mobileHeader.innerHTML = `
+
+          <img
+            class="ace-clean-logo"
+            src="ace-cesta.png"
+            alt="ACE"
+          >
+
+          <div class="ace-clean-brand">
+
+            <div class="ace-clean-title">
+              ACE - Ação de Cestas
+            </div>
+
+            <div class="ace-clean-subtitle">
+              Controle de Alimentos
+            </div>
+
+          </div>
+
+
+          <button
+            id="aceCleanMenuButton"
+            class="ace-clean-menu"
+            type="button"
+            aria-label="Abrir menu"
+          >
+
+            <span class="ace-clean-hamburger">
+              <i></i>
+              <i></i>
+              <i></i>
+            </span>
+
+            <span class="ace-clean-menu-text">
+              Menu
+            </span>
+
+          </button>
+
+
+          <div class="ace-clean-account">
+
+            <span class="ace-clean-user-name">
+              Usuário: ${safeText(name)}
+            </span>
+
+
+            <button
+              id="aceCleanAvatarButton"
+              class="ace-clean-avatar"
+              type="button"
+              title="Minha conta"
+            >
+
+              <span
+                class="ace-profile-avatar"
+                data-ace-user-avatar
+              >
+                👤
+              </span>
+
+            </button>
+
+
+            <button
+              id="aceCleanMoreButton"
+              class="ace-clean-more"
+              type="button"
+              aria-label="Mais opções"
+            >
+              ⋮
+            </button>
+
+
+            <div
+              id="aceCleanNetBadge"
+              class="ace-clean-net"
+              role="status"
+              aria-live="polite"
+            >
+
+              <span
+                class="ace-net-dot"
+              ></span>
+
+              <span
+                class="ace-clean-net-text"
+              ></span>
+
+            </div>
+
+          </div>
+
+
+          <div
+            id="aceAccountDropdown"
+            class="ace-account-dropdown"
+          >
+
+            <button
+              id="aceAccountProfile"
+              type="button"
+            >
+              👤 Minha conta
+            </button>
+
+            <button
+              id="aceAccountSync"
+              type="button"
+            >
+              🔄 Sincronizar dados
+            </button>
+
+            <button
+              id="aceAccountAbout"
+              type="button"
+            >
+              ℹ️ Sobre o aplicativo
+            </button>
+
+            <button
+              id="aceAccountLogout"
+              class="logout"
+              type="button"
+            >
+              🚪 Sair
+            </button>
+
+          </div>
+
+        `;
+
+      } else {
+
+        const userName =
+          mobileHeader
+            .querySelector(
+              ".ace-clean-user-name"
+            );
+
+        if (userName) {
+
+          userName.textContent =
+            "Usuário: " +
+            currentDisplayName();
+
+        }
+
+      }
+
+
+      const menuButton =
+        document.getElementById(
+          "aceCleanMenuButton"
+        );
+
+      if (menuButton) {
+
+        menuButton.onclick =
+          (
+            typeof openAceMobileDrawer ===
+            "function"
+          )
+            ? openAceMobileDrawer
+            : null;
+
+      }
+
+
+      const avatarButton =
+        document.getElementById(
+          "aceCleanAvatarButton"
+        );
+
+      if (avatarButton) {
+
+        avatarButton.onclick =
+          (
+            typeof openAceMyAccount ===
+            "function"
+          )
+            ? openAceMyAccount
+            : null;
+
+      }
+
+
+      const moreButton =
+        document.getElementById(
+          "aceCleanMoreButton"
+        );
+
+      if (moreButton) {
+
+        moreButton.onclick =
+          function(
+            event
+          ){
+
+            event.stopPropagation();
+
+            if (
+              typeof toggleAceAccountMenu ===
+              "function"
+            ) {
+
+              toggleAceAccountMenu();
+
+            }
+
+          };
+
+      }
+
+
+      if (
+        typeof setupAceAccountMenuEvents ===
+        "function"
+      ) {
+
+        setupAceAccountMenuEvents();
+
+      }
+
+
+      if (
+        typeof updateAceAvatarElements ===
+        "function"
+      ) {
+
+        updateAceAvatarElements();
+
+      }
+
+
+      updateCleanNetworkBadge();
+
+    } finally {
+
+      rebuilding =
+        false;
+
+    }
+
+  }
+
+
+  function updateCleanNetworkBadge(){
+
+    const badge =
+      document.getElementById(
+        "aceCleanNetBadge"
+      );
+
+    if (!badge) {
+      return;
+    }
+
+    const online =
+      navigator.onLine;
+
+    badge.classList.toggle(
+      "is-online",
+      online
+    );
+
+    badge.classList.toggle(
+      "is-offline",
+      !online
+    );
+
+    const text =
+      badge.querySelector(
+        ".ace-clean-net-text"
+      );
+
+    if (text) {
+
+      text.textContent =
+        online
+          ? "Online"
+          : "Offline";
+
+    }
+
+  }
+
+
+  function enforce(){
+
+    ensureStableStyle();
+
+    buildStableHeader();
+
+    updateCleanNetworkBadge();
+
+  }
+
+
+  function schedule(){
+
+    enforce();
+
+    [
+      80,
+      220,
+      500,
+      1000,
+      1800,
+      3000
+    ]
+      .forEach(
+        delay =>
+          setTimeout(
+            enforce,
+            delay
+          )
+      );
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      schedule
+    );
+
+  } else {
+
+    schedule();
+
+  }
+
+
+  window.addEventListener(
+    "online",
+    () => {
+
+      updateCleanNetworkBadge();
+
+      setTimeout(
+        enforce,
+        60
+      );
+
+    }
+  );
+
+
+  window.addEventListener(
+    "offline",
+    () => {
+
+      updateCleanNetworkBadge();
+
+      setTimeout(
+        enforce,
+        60
+      );
+
+    }
+  );
+
+
+  window.addEventListener(
+    "resize",
+    enforce
+  );
+
+
+  /* Se qualquer render interno substituir ou deformar o
+     #aceMobileHeader, ele é reconstruído imediatamente. */
+  const observer =
+    new MutationObserver(
+      mutations => {
+
+        if (
+          rebuilding ||
+          window.innerWidth >
+          850
+        ) {
+          return;
+        }
+
+        let shouldRepair =
+          false;
+
+        for (
+          const mutation
+          of mutations
+        ) {
+
+          if (
+            mutation.type ===
+              "childList" ||
+            mutation.type ===
+              "attributes"
+          ) {
+
+            const header =
+              document.getElementById(
+                "aceMobileHeader"
+              );
+
+            if (
+              !header ||
+              !header.querySelector(
+                ".ace-clean-brand"
+              ) ||
+              !header.querySelector(
+                ".ace-clean-menu"
+              ) ||
+              !header.querySelector(
+                ".ace-clean-account"
+              )
+            ) {
+
+              shouldRepair =
+                true;
+
+              break;
+
+            }
+
+          }
+
+        }
+
+        if (
+          shouldRepair
+        ) {
+
+          clearTimeout(
+            window
+              .__aceStableHeaderRepair
+          );
+
+          window
+            .__aceStableHeaderRepair =
+            setTimeout(
+              enforce,
+              20
+            );
+
+        }
+
+      }
+    );
+
+
+  setTimeout(
+    () => {
+
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true,
+          subtree:
+            true,
+          attributes:
+            true,
+          attributeFilter: [
+            "class",
+            "style"
+          ]
+        }
+      );
+
+    },
+    250
+  );
+
+})();
+
