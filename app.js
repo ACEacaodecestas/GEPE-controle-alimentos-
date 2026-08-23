@@ -25073,3 +25073,945 @@ startAuth();
   setTimeout(apply, 1400);
 })();
 
+
+
+/* ============================================================
+   ACE - REFINO VISUAL MOBILE
+   Corrige SOMENTE:
+   - altura do cabeçalho azul
+   - posição/tamanho de título e subtítulo
+   - botão ☰ Menu
+   - posição do Online/Offline
+   - ícones coloridos da barra inferior
+
+   NÃO altera:
+   - login
+   - login offline multiusuário
+   - movimentações
+   - fila offline
+   - sincronização
+   - mural
+   - perfil
+   - instalação
+   ============================================================ */
+
+(function aceMobileVisualRefinement(){
+
+  const STYLE_ID =
+    "ace-mobile-visual-refinement-v1";
+
+
+  function ensureStyles(){
+
+    if (
+      document.getElementById(
+        STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      STYLE_ID;
+
+
+    style.textContent = `
+
+      @media(max-width:850px){
+
+        /* =====================================================
+           CABEÇALHO MAIS ALTO
+           ===================================================== */
+
+        .ace-header-v6{
+          height:168px !important;
+          min-height:168px !important;
+          padding:0 !important;
+          overflow:visible !important;
+        }
+
+
+        #aceMobileHeader{
+          height:168px !important;
+
+          grid-template-columns:
+            92px
+            minmax(0,1fr)
+            49px
+            34px !important;
+
+          grid-template-rows:
+            100px
+            60px !important;
+
+          column-gap:5px !important;
+
+          padding:
+            4px
+            11px
+            4px
+            11px !important;
+        }
+
+
+        /* =====================================================
+           LOGO PROPORCIONAL
+           ===================================================== */
+
+        #aceMobileHeader
+        .ace-mobile-logo{
+
+          grid-column:1 !important;
+          grid-row:1 !important;
+
+          width:86px !important;
+          height:86px !important;
+
+          max-width:86px !important;
+          max-height:86px !important;
+
+          object-fit:contain !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          transform:none !important;
+
+          justify-self:start !important;
+          align-self:center !important;
+        }
+
+
+        /* =====================================================
+           TÍTULO
+           ===================================================== */
+
+        #aceMobileHeader
+        .ace-mobile-brand{
+
+          grid-column:
+            2 / 5 !important;
+
+          grid-row:1 !important;
+
+          display:flex !important;
+
+          flex-direction:column !important;
+
+          align-items:center !important;
+
+          justify-content:center !important;
+
+          min-width:0 !important;
+
+          padding:
+            0
+            3px
+            0
+            0 !important;
+
+          transform:
+            translateX(
+              -5px
+            ) !important;
+
+          overflow:visible !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-brand-title{
+
+          width:100% !important;
+
+          color:#fff !important;
+
+          font-size:24px !important;
+
+          font-weight:950 !important;
+
+          line-height:1.03 !important;
+
+          letter-spacing:
+            -.55px !important;
+
+          text-align:center !important;
+
+          white-space:nowrap !important;
+
+          overflow:visible !important;
+
+          text-overflow:clip !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-brand-subtitle{
+
+          width:100% !important;
+
+          margin-top:7px !important;
+
+          color:
+            rgba(
+              255,
+              255,
+              255,
+              .96
+            ) !important;
+
+          font-size:16px !important;
+
+          font-weight:850 !important;
+
+          line-height:1.05 !important;
+
+          text-align:center !important;
+
+          white-space:nowrap !important;
+        }
+
+
+        /* =====================================================
+           ☰ MENU
+           ===================================================== */
+
+        #aceMobileHeader
+        .ace-mobile-menu-button{
+
+          grid-column:1 !important;
+          grid-row:2 !important;
+
+          display:flex !important;
+
+          flex-direction:row !important;
+
+          align-items:center !important;
+
+          justify-content:flex-start !important;
+
+          gap:8px !important;
+
+          width:88px !important;
+          height:44px !important;
+
+          margin:0 !important;
+
+          padding:
+            0
+            9px !important;
+
+          border:0 !important;
+
+          border-radius:12px !important;
+
+          background:
+            rgba(
+              255,
+              255,
+              255,
+              .10
+            ) !important;
+
+          transform:none !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-menu-button
+        .ace-menu-lines{
+
+          display:flex !important;
+
+          flex-direction:column !important;
+
+          gap:4px !important;
+
+          flex:0 0 auto !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-menu-button
+        .ace-menu-lines
+        span{
+
+          display:block !important;
+
+          width:25px !important;
+
+          height:3px !important;
+
+          border-radius:
+            999px !important;
+
+          background:#fff !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-menu-button
+        .ace-menu-label{
+
+          display:block !important;
+
+          color:#fff !important;
+
+          font-size:13px !important;
+
+          font-weight:900 !important;
+
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+        }
+
+
+        /* =====================================================
+           USUÁRIO
+           ===================================================== */
+
+        #aceMobileHeader
+        .ace-mobile-user{
+
+          grid-column:
+            2 / 4 !important;
+
+          grid-row:2 !important;
+
+          display:flex !important;
+
+          align-items:center !important;
+
+          justify-content:flex-end !important;
+
+          gap:8px !important;
+
+          min-width:0 !important;
+
+          padding-right:4px !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-user-name{
+
+          max-width:160px !important;
+
+          color:#fff !important;
+
+          font-size:12px !important;
+
+          font-weight:900 !important;
+
+          line-height:1 !important;
+
+          text-align:right !important;
+
+          white-space:nowrap !important;
+
+          overflow:hidden !important;
+
+          text-overflow:
+            ellipsis !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-avatar-button{
+
+          flex:
+            0 0 44px !important;
+
+          width:44px !important;
+          height:44px !important;
+
+          padding:0 !important;
+
+          border:
+            2px
+            solid
+            rgba(
+              255,
+              255,
+              255,
+              .92
+            ) !important;
+
+          border-radius:50% !important;
+
+          background:#fff !important;
+
+          overflow:hidden !important;
+        }
+
+
+        #aceMobileHeader
+        .ace-mobile-more{
+
+          grid-column:4 !important;
+          grid-row:2 !important;
+
+          width:34px !important;
+          height:44px !important;
+
+          font-size:28px !important;
+
+          color:#fff !important;
+
+          background:
+            transparent !important;
+        }
+
+
+        /* =====================================================
+           ONLINE / OFFLINE
+           PEQUENO E ACIMA DO AVATAR
+           ===================================================== */
+
+        #aceConnectionBadge,
+        #aceConnectionBadge.ace-final-net-badge,
+        .ace-final-net-badge,
+        .ace-status-above-user{
+
+          position:fixed !important;
+
+          z-index:1000500 !important;
+
+          width:auto !important;
+
+          min-width:0 !important;
+
+          height:18px !important;
+
+          padding:
+            1px
+            6px !important;
+
+          gap:3px !important;
+
+          border-width:1px !important;
+
+          border-radius:
+            999px !important;
+
+          font-size:8px !important;
+
+          font-weight:900 !important;
+
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+
+          box-shadow:
+            0
+            2px
+            6px
+            rgba(
+              0,
+              0,
+              0,
+              .12
+            ) !important;
+
+          pointer-events:none !important;
+
+          transform:
+            translate(
+              -50%,
+              -100%
+            ) !important;
+        }
+
+
+        #aceConnectionBadge
+        .ace-net-dot,
+        .ace-final-net-badge
+        .ace-net-dot,
+        .ace-status-above-user
+        .ace-net-dot{
+
+          width:5px !important;
+          height:5px !important;
+
+          flex:
+            0
+            0
+            5px !important;
+
+          border-radius:50% !important;
+        }
+
+
+        /* =====================================================
+           BARRA INFERIOR
+           ===================================================== */
+
+        #aceMobileBottomNav{
+
+          min-height:78px !important;
+
+          padding:
+            6px
+            4px
+            calc(
+              6px +
+              env(
+                safe-area-inset-bottom
+              )
+            ) !important;
+        }
+
+
+        #aceMobileBottomNav
+        .ace-bottom-item{
+
+          gap:4px !important;
+
+          min-height:64px !important;
+
+          padding:
+            4px
+            2px !important;
+        }
+
+
+        #aceMobileBottomNav
+        .ace-bottom-item
+        .icon{
+
+          display:flex !important;
+
+          align-items:center !important;
+
+          justify-content:center !important;
+
+          width:34px !important;
+
+          height:34px !important;
+
+          font-size:25px !important;
+
+          line-height:1 !important;
+
+          border-radius:11px !important;
+        }
+
+
+        #aceMobileBottomNav
+        .ace-bottom-item
+        .label{
+
+          font-size:11px !important;
+
+          font-weight:900 !important;
+        }
+
+
+        #aceMobileBottomNav
+        .ace-bottom-item.active{
+
+          background:
+            #eaf4fd !important;
+        }
+
+
+        /* cores dos ícones */
+
+        #aceMobileBottomNav
+        [data-ace-target="mural"]
+        .icon{
+
+          background:
+            #fff0f2 !important;
+        }
+
+
+        #aceMobileBottomNav
+        [data-ace-target="inicio"]
+        .icon{
+
+          background:
+            #e9f4ff !important;
+        }
+
+
+        #aceMobileBottomNav
+        [data-ace-target="entrada"]
+        .icon{
+
+          background:
+            #eaf9ef !important;
+        }
+
+
+        #aceMobileBottomNav
+        [data-ace-target="saida"]
+        .icon{
+
+          background:
+            #fff0e9 !important;
+        }
+
+
+        #aceMobileBottomNav
+        #aceBottomMore
+        .icon{
+
+          background:
+            #f2ebff !important;
+        }
+
+
+        /* =====================================================
+           TELAS ESTREITAS
+           ===================================================== */
+
+        @media(max-width:390px){
+
+          #aceMobileHeader{
+
+            grid-template-columns:
+              82px
+              minmax(0,1fr)
+              46px
+              32px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-logo{
+
+            width:76px !important;
+            height:76px !important;
+
+            max-width:76px !important;
+            max-height:76px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-brand-title{
+
+            font-size:21px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-brand-subtitle{
+
+            font-size:14px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-user-name{
+
+            max-width:125px !important;
+
+            font-size:11px !important;
+          }
+
+        }
+
+      }
+
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  function replaceBottomIcons(){
+
+    const bottom =
+      document.getElementById(
+        "aceMobileBottomNav"
+      );
+
+
+    if (!bottom) {
+      return;
+    }
+
+
+    const map = {
+
+      mural:
+        "📣",
+
+      inicio:
+        "🏠",
+
+      entrada:
+        "➕",
+
+      saida:
+        "📤"
+
+    };
+
+
+    Object.entries(
+      map
+    )
+      .forEach(
+        (
+          [
+            target,
+            icon
+          ]
+        ) => {
+
+          const item =
+            bottom.querySelector(
+              `[data-ace-target="${target}"]`
+            );
+
+
+          const iconElement =
+            item
+              ?.querySelector(
+                ".icon"
+              );
+
+
+          if (
+            iconElement
+          ) {
+
+            iconElement
+              .textContent =
+              icon;
+
+          }
+
+        }
+      );
+
+
+    const moreIcon =
+      bottom
+        .querySelector(
+          "#aceBottomMore .icon"
+        );
+
+
+    if (
+      moreIcon
+    ) {
+
+      moreIcon
+        .textContent =
+        "🟪";
+
+    }
+
+  }
+
+
+  function positionStatus(){
+
+    const avatar =
+      document.getElementById(
+        "aceMobileAvatarButton"
+      ) ||
+      document.querySelector(
+        ".ace-mobile-avatar-button"
+      );
+
+
+    const status =
+      document.getElementById(
+        "aceConnectionBadge"
+      ) ||
+      [
+        ...document
+          .querySelectorAll(
+            "div,span"
+          )
+      ]
+        .find(
+          element => {
+
+            const text =
+              String(
+                element.textContent ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+
+            return (
+              (
+                text ===
+                  "online" ||
+                text ===
+                  "offline"
+              ) &&
+              element.children
+                .length <=
+                2
+            );
+
+          }
+        );
+
+
+    if (
+      !avatar ||
+      !status ||
+      window.innerWidth >
+        850
+    ) {
+      return;
+    }
+
+
+    const rect =
+      avatar
+        .getBoundingClientRect();
+
+
+    status.classList.add(
+      "ace-final-net-badge"
+    );
+
+
+    status.style.setProperty(
+      "left",
+      (
+        rect.left +
+        rect.width /
+        2
+      ) +
+      "px",
+      "important"
+    );
+
+
+    status.style.setProperty(
+      "top",
+      Math.max(
+        24,
+        rect.top -
+        5
+      ) +
+      "px",
+      "important"
+    );
+
+
+    status.style.setProperty(
+      "right",
+      "auto",
+      "important"
+    );
+
+
+    status.style.setProperty(
+      "bottom",
+      "auto",
+      "important"
+    );
+
+  }
+
+
+  function apply(){
+
+    ensureStyles();
+
+    replaceBottomIcons();
+
+    positionStatus();
+
+  }
+
+
+  function schedule(){
+
+    apply();
+
+
+    [
+      120,
+      350,
+      800,
+      1500
+    ]
+      .forEach(
+        delay =>
+          setTimeout(
+            apply,
+            delay
+          )
+      );
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      schedule
+    );
+
+  } else {
+
+    schedule();
+
+  }
+
+
+  window.addEventListener(
+    "resize",
+    schedule
+  );
+
+
+  window.addEventListener(
+    "online",
+    schedule
+  );
+
+
+  window.addEventListener(
+    "offline",
+    schedule
+  );
+
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+
+      if (
+        !document.hidden
+      ) {
+
+        schedule();
+
+      }
+
+    }
+  );
+
+})();
+
