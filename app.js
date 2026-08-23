@@ -24081,3 +24081,766 @@ startAuth();
   setTimeout(() => obs.observe(document.body, {childList:true, subtree:true}), 300);
 })();
 
+
+
+/* ============================================================
+   ACE - CORREÇÃO FINAL DO CABEÇALHO MOBILE
+   Somente visual.
+   NÃO altera login, offline, sincronização, movimentações,
+   menu lateral, perfil, mural ou instalação.
+   ============================================================ */
+(function aceFinalMobileHeaderFix(){
+
+  const STYLE_ID =
+    "ace-final-mobile-header-fix-v1";
+
+
+  function getHeader(){
+
+    return (
+      document.getElementById(
+        "aceMobileHeader"
+      ) ||
+      document.querySelector(
+        ".ace-header-v6"
+      )
+    );
+
+  }
+
+
+  function getAvatar(){
+
+    return (
+      document.getElementById(
+        "aceMobileAvatarButton"
+      ) ||
+      document.querySelector(
+        ".ace-mobile-avatar-button"
+      )
+    );
+
+  }
+
+
+  function getStatus(){
+
+    return (
+      document.getElementById(
+        "aceConnectionBadge"
+      ) ||
+      [...document.querySelectorAll(
+        "div,span"
+      )].find(
+        element => {
+
+          const text =
+            String(
+              element.textContent || ""
+            )
+              .trim()
+              .toLowerCase();
+
+          return (
+            (
+              text === "online" ||
+              text === "offline"
+            ) &&
+            element.children.length <= 2
+          );
+
+        }
+      ) ||
+      null
+    );
+
+  }
+
+
+  function ensureStyles(){
+
+    if (
+      document.getElementById(
+        STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      STYLE_ID;
+
+
+    style.textContent = `
+
+      @media(max-width:850px){
+
+        /* -----------------------------------------------
+           CABEÇALHO
+           ----------------------------------------------- */
+
+        .ace-header-v6{
+          position:relative !important;
+          height:148px !important;
+          min-height:148px !important;
+          padding:0 !important;
+          overflow:visible !important;
+        }
+
+        .ace-header-v6 > *:not(#aceMobileHeader){
+          display:none !important;
+        }
+
+        #aceMobileHeader{
+          position:absolute !important;
+          inset:0 !important;
+          z-index:40 !important;
+
+          display:grid !important;
+
+          grid-template-columns:
+            92px
+            minmax(0,1fr)
+            48px
+            34px !important;
+
+          grid-template-rows:
+            88px
+            52px !important;
+
+          column-gap:8px !important;
+          row-gap:0 !important;
+
+          align-items:center !important;
+
+          width:100% !important;
+          height:148px !important;
+
+          box-sizing:border-box !important;
+
+          padding:
+            5px
+            11px
+            3px
+            11px !important;
+
+          overflow:visible !important;
+
+          color:#fff !important;
+        }
+
+
+        /* -----------------------------------------------
+           LOGO
+           - proporcional
+           - não invade o botão ☰
+           ----------------------------------------------- */
+
+        #aceMobileHeader .ace-mobile-logo{
+          grid-column:1 !important;
+          grid-row:1 !important;
+
+          display:block !important;
+
+          width:86px !important;
+          height:86px !important;
+
+          max-width:86px !important;
+          max-height:86px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          justify-self:start !important;
+          align-self:center !important;
+
+          object-fit:contain !important;
+
+          transform:none !important;
+        }
+
+
+        /* -----------------------------------------------
+           TÍTULO
+           ----------------------------------------------- */
+
+        #aceMobileHeader .ace-mobile-brand{
+          grid-column:2 / 5 !important;
+          grid-row:1 !important;
+
+          display:flex !important;
+          flex-direction:column !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          min-width:0 !important;
+
+          margin:0 !important;
+          padding:
+            1px
+            3px
+            0
+            0 !important;
+
+          overflow:visible !important;
+
+          text-align:center !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-brand-title{
+          display:block !important;
+
+          width:100% !important;
+
+          margin:0 !important;
+
+          overflow:visible !important;
+
+          color:#fff !important;
+
+          font-size:23px !important;
+          font-weight:950 !important;
+          line-height:1.04 !important;
+          letter-spacing:-.45px !important;
+
+          text-align:center !important;
+
+          white-space:nowrap !important;
+          text-overflow:clip !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-brand-subtitle{
+          display:block !important;
+
+          width:100% !important;
+
+          margin-top:6px !important;
+
+          color:rgba(
+            255,
+            255,
+            255,
+            .94
+          ) !important;
+
+          font-size:15px !important;
+          font-weight:850 !important;
+          line-height:1.05 !important;
+
+          text-align:center !important;
+
+          white-space:nowrap !important;
+        }
+
+
+        /* -----------------------------------------------
+           LINHA DE BAIXO
+           ----------------------------------------------- */
+
+        #aceMobileHeader .ace-mobile-menu-button{
+          grid-column:1 !important;
+          grid-row:2 !important;
+
+          display:flex !important;
+          flex-direction:column !important;
+
+          align-items:center !important;
+          justify-content:center !important;
+
+          gap:5px !important;
+
+          width:48px !important;
+          height:42px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          justify-self:start !important;
+
+          border:0 !important;
+          border-radius:10px !important;
+
+          background:rgba(
+            255,
+            255,
+            255,
+            .10
+          ) !important;
+
+          transform:none !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-menu-button span{
+          display:block !important;
+
+          width:27px !important;
+          height:3px !important;
+
+          border-radius:999px !important;
+
+          background:#fff !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-user{
+          grid-column:2 / 4 !important;
+          grid-row:2 !important;
+
+          display:flex !important;
+
+          align-items:center !important;
+          justify-content:flex-end !important;
+
+          gap:8px !important;
+
+          min-width:0 !important;
+
+          padding-right:3px !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-user-name{
+          display:block !important;
+
+          max-width:160px !important;
+
+          overflow:hidden !important;
+
+          color:#fff !important;
+
+          font-size:12px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          text-align:right !important;
+
+          text-overflow:ellipsis !important;
+          white-space:nowrap !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-avatar-button{
+          display:block !important;
+
+          position:relative !important;
+
+          flex:0 0 43px !important;
+
+          width:43px !important;
+          height:43px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          overflow:hidden !important;
+
+          border:
+            2px
+            solid
+            rgba(
+              255,
+              255,
+              255,
+              .90
+            ) !important;
+
+          border-radius:50% !important;
+
+          background:#fff !important;
+
+          transform:none !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-avatar-button
+        .ace-profile-avatar{
+          width:100% !important;
+          height:100% !important;
+
+          display:flex !important;
+
+          align-items:center !important;
+          justify-content:center !important;
+
+          font-size:20px !important;
+        }
+
+
+        #aceMobileHeader .ace-mobile-more{
+          grid-column:4 !important;
+          grid-row:2 !important;
+
+          display:flex !important;
+
+          align-items:center !important;
+          justify-content:center !important;
+
+          width:34px !important;
+          height:42px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          border:0 !important;
+
+          background:transparent !important;
+
+          color:#fff !important;
+
+          font-size:28px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          transform:none !important;
+        }
+
+
+        /* -----------------------------------------------
+           ONLINE / OFFLINE
+           - pequeno
+           - acima do avatar
+           - sem sobrepor título
+           ----------------------------------------------- */
+
+        #aceConnectionBadge.ace-final-net-badge,
+        .ace-final-net-badge{
+          position:fixed !important;
+
+          z-index:1000500 !important;
+
+          display:flex !important;
+
+          align-items:center !important;
+          justify-content:center !important;
+
+          gap:4px !important;
+
+          min-width:0 !important;
+          width:auto !important;
+
+          height:21px !important;
+
+          margin:0 !important;
+          padding:
+            2px
+            7px !important;
+
+          border-width:1px !important;
+          border-style:solid !important;
+
+          border-radius:999px !important;
+
+          font-size:9px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+
+          box-shadow:
+            0
+            2px
+            6px
+            rgba(
+              0,
+              0,
+              0,
+              .12
+            ) !important;
+
+          transform:
+            translate(
+              -50%,
+              -100%
+            ) !important;
+
+          pointer-events:none !important;
+        }
+
+
+        #aceConnectionBadge.ace-final-net-badge
+        .ace-net-dot,
+        .ace-final-net-badge
+        .ace-net-dot{
+          width:6px !important;
+          height:6px !important;
+
+          flex:
+            0
+            0
+            6px !important;
+
+          border-radius:50% !important;
+        }
+
+
+        /* -----------------------------------------------
+           MURAL ACE menor que o título principal
+           ----------------------------------------------- */
+
+        .ace-mural-title{
+          font-size:27px !important;
+          line-height:1.05 !important;
+        }
+
+
+        /* -----------------------------------------------
+           TELAS MAIS ESTREITAS
+           ----------------------------------------------- */
+
+        @media(max-width:390px){
+
+          #aceMobileHeader{
+            grid-template-columns:
+              80px
+              minmax(0,1fr)
+              45px
+              32px !important;
+          }
+
+
+          #aceMobileHeader .ace-mobile-logo{
+            width:76px !important;
+            height:76px !important;
+
+            max-width:76px !important;
+            max-height:76px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-brand-title{
+            font-size:20px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-brand-subtitle{
+            font-size:13px !important;
+          }
+
+
+          #aceMobileHeader
+          .ace-mobile-user-name{
+            max-width:128px !important;
+            font-size:11px !important;
+          }
+
+        }
+
+      }
+
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  function positionStatus(){
+
+    const status =
+      getStatus();
+
+    const avatar =
+      getAvatar();
+
+
+    if (
+      !status ||
+      !avatar ||
+      window.innerWidth >
+        850
+    ) {
+      return;
+    }
+
+
+    const rect =
+      avatar.getBoundingClientRect();
+
+
+    status.classList.add(
+      "ace-final-net-badge"
+    );
+
+
+    status.style.setProperty(
+      "left",
+      (
+        rect.left +
+        (
+          rect.width /
+          2
+        )
+      ) +
+      "px",
+      "important"
+    );
+
+
+    status.style.setProperty(
+      "top",
+      Math.max(
+        24,
+        rect.top -
+        7
+      ) +
+      "px",
+      "important"
+    );
+
+
+    status.style.setProperty(
+      "right",
+      "auto",
+      "important"
+    );
+
+
+    status.style.setProperty(
+      "bottom",
+      "auto",
+      "important"
+    );
+
+  }
+
+
+  function apply(){
+
+    ensureStyles();
+
+    positionStatus();
+
+  }
+
+
+  function schedule(){
+
+    apply();
+
+
+    [
+      80,
+      250,
+      600,
+      1200
+    ]
+      .forEach(
+        delay =>
+          setTimeout(
+            apply,
+            delay
+          )
+      );
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      schedule
+    );
+
+  } else {
+
+    schedule();
+
+  }
+
+
+  window.addEventListener(
+    "resize",
+    schedule
+  );
+
+
+  window.addEventListener(
+    "online",
+    schedule
+  );
+
+
+  window.addEventListener(
+    "offline",
+    schedule
+  );
+
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+
+      if (
+        !document.hidden
+      ) {
+        schedule();
+      }
+
+    }
+  );
+
+
+  const observer =
+    new MutationObserver(
+      () => {
+
+        clearTimeout(
+          window
+            .__aceFinalHeaderTimer
+        );
+
+
+        window
+          .__aceFinalHeaderTimer =
+          setTimeout(
+            apply,
+            80
+          );
+
+      }
+    );
+
+
+  setTimeout(
+    () => {
+
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true,
+          subtree:
+            true,
+          attributes:
+            true,
+          attributeFilter: [
+            "class"
+          ]
+        }
+      );
+
+    },
+    350
+  );
+
+})();
+
