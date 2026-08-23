@@ -21628,28 +21628,159 @@ function openAceMobileDrawer() {
 }
 
 
-function activateAceOriginalTab(
-  page
+function findAceOriginalTab(
+  target
 ) {
 
-  const original =
-    document.querySelector(
-      `.tabs .tab[data-page="${CSS.escape(
-        page
-      )}"]`
+  const normalizedTarget =
+    normalizeAceText(
+      target || ""
     );
 
 
-  if (original) {
+  const tabs =
+    Array.from(
+      document.querySelectorAll(
+        ".tabs .tab"
+      )
+    );
 
-    original.click();
+
+  const byPage =
+    tabs.find(
+      tab =>
+        normalizeAceText(
+          tab.dataset?.page || ""
+        ) ===
+        normalizedTarget
+    );
+
+
+  if (byPage) {
+    return byPage;
+  }
+
+
+  const rules = {
+
+    mural:
+      [
+        "mural ace",
+        "mural"
+      ],
+
+    inicio:
+      [
+        "inicio"
+      ],
+
+    entrada:
+      [
+        "entrada"
+      ],
+
+    saida:
+      [
+        "saida perda",
+        "saida",
+        "perda"
+      ],
+
+    presenca:
+      [
+        "presenca"
+      ],
+
+    historico:
+      [
+        "historico"
+      ],
+
+    estoque:
+      [
+        "estoque"
+      ],
+
+    relatorio:
+      [
+        "relatorio"
+      ],
+
+    cadastro:
+      [
+        "cadastro"
+      ]
+
+  };
+
+
+  const aliases =
+    rules[
+      normalizedTarget
+    ] || [
+      normalizedTarget
+    ];
+
+
+  return (
+    tabs.find(
+      tab => {
+
+        const label =
+          normalizeAceText(
+            tab.textContent || ""
+          );
+
+
+        return aliases.some(
+          alias =>
+            label.includes(
+              normalizeAceText(
+                alias
+              )
+            )
+        );
+
+      }
+    ) ||
+    null
+  );
+
+}
+
+
+function activateAceOriginalTab(
+  target
+) {
+
+  const original =
+    findAceOriginalTab(
+      target
+    );
+
+
+  if (!original) {
+
+    console.warn(
+      "ACE: aba não encontrada:",
+      target
+    );
+
+    return;
 
   }
 
 
+  original.click();
+
+
   closeAceMobileDrawer();
 
-  updateAceMobileNavigationState();
+
+  setTimeout(
+    updateAceMobileNavigationState,
+    30
+  );
 
 }
 
@@ -21753,28 +21884,60 @@ function updateAceMobileNavigationState() {
 
   const active =
     document.querySelector(
-      ".tabs .tab.active[data-page]"
+      ".tabs .tab.active"
     );
 
 
-  const page =
-    active
-      ?.dataset
-      ?.page ||
-    "";
+  const activeText =
+    normalizeAceText(
+      active?.textContent ||
+      ""
+    );
+
+
+  const activePage =
+    normalizeAceText(
+      active?.dataset?.page ||
+      ""
+    );
 
 
   document
     .querySelectorAll(
-      ".ace-bottom-item[data-ace-page]"
+      ".ace-bottom-item[data-ace-target]"
     )
     .forEach(
       button => {
 
+        const target =
+          button.dataset
+            .aceTarget;
+
+
+        const tab =
+          findAceOriginalTab(
+            target
+          );
+
+
+        const matches =
+          Boolean(
+            tab &&
+            (
+              tab === active ||
+              normalizeAceText(
+                tab.dataset?.page || ""
+              ) === activePage ||
+              normalizeAceText(
+                tab.textContent || ""
+              ) === activeText
+            )
+          );
+
+
         button.classList.toggle(
           "active",
-          button.dataset.acePage ===
-            page
+          matches
         );
 
       }
@@ -21798,7 +21961,7 @@ function setupAceBottomNavigation() {
 
   bottom
     .querySelectorAll(
-      "[data-ace-page]"
+      "[data-ace-target]"
     )
     .forEach(
       button => {
@@ -21806,26 +21969,32 @@ function setupAceBottomNavigation() {
         button.onclick =
           () =>
             activateAceOriginalTab(
-              button.dataset.acePage
+              button.dataset
+                .aceTarget
             );
 
       }
     );
 
 
-  document
-    .getElementById(
+  const moreButton =
+    document.getElementById(
       "aceBottomMore"
-    )
-    ?.addEventListener(
-      "click",
-      openAceMobileDrawer
     );
+
+
+  if (moreButton) {
+
+    moreButton.onclick =
+      openAceMobileDrawer;
+
+  }
 
 
   updateAceMobileNavigationState();
 
 }
+
 
 
 // ------------------------------------------------------------
@@ -22003,8 +22172,8 @@ function ensureAceProfessionalLayoutStyles() {
 
       .ace-header-v6{
         position:relative !important;
-        min-height:112px !important;
-        height:112px !important;
+        min-height:108px !important;
+        height:108px !important;
         padding:0 !important;
         overflow:visible !important;
       }
@@ -22014,131 +22183,161 @@ function ensureAceProfessionalLayoutStyles() {
       }
 
       #aceMobileHeader{
-        display:grid;
-        grid-template-columns:42px 54px minmax(0,1fr) auto auto;
-        align-items:center;
-        column-gap:9px;
-        width:100%;
-        height:112px;
-        box-sizing:border-box;
-        padding:12px 13px;
-        color:#fff;
+        position:absolute !important;
+        inset:0 !important;
+        z-index:50 !important;
+        display:grid !important;
+        grid-template-columns:40px 48px minmax(0,1fr) auto 32px !important;
+        grid-template-rows:1fr !important;
+        align-items:center !important;
+        column-gap:8px !important;
+        width:100% !important;
+        height:108px !important;
+        box-sizing:border-box !important;
+        padding:10px 12px !important;
+        color:#fff !important;
+        background:linear-gradient(
+          180deg,
+          rgba(5,67,116,.18),
+          rgba(3,48,88,.06)
+        ) !important;
       }
 
       .ace-mobile-menu-button{
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:center;
-        gap:5px;
-        width:40px;
-        height:40px;
-        border:0;
-        border-radius:11px;
-        background:rgba(255,255,255,.08);
-        cursor:pointer;
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:center !important;
+        justify-content:center !important;
+        gap:5px !important;
+        width:40px !important;
+        height:40px !important;
+        padding:0 !important;
+        border:0 !important;
+        border-radius:10px !important;
+        background:rgba(255,255,255,.10) !important;
+        cursor:pointer !important;
       }
 
       .ace-mobile-menu-button span{
-        width:23px;
-        height:2.5px;
-        border-radius:99px;
-        background:#fff;
+        display:block !important;
+        width:23px !important;
+        height:2.5px !important;
+        border-radius:99px !important;
+        background:#fff !important;
       }
 
       .ace-mobile-logo{
-        width:54px;
-        height:54px;
-        object-fit:contain;
+        display:block !important;
+        width:48px !important;
+        height:48px !important;
+        object-fit:contain !important;
       }
 
       .ace-mobile-brand{
-        min-width:0;
+        display:block !important;
+        min-width:0 !important;
+        overflow:hidden !important;
       }
 
       .ace-mobile-brand-title{
-        overflow:hidden;
-        color:#fff;
-        font-size:16px;
-        font-weight:900;
-        line-height:1.18;
-        text-overflow:ellipsis;
-        white-space:nowrap;
+        display:block !important;
+        overflow:hidden !important;
+        color:#fff !important;
+        font-size:14px !important;
+        font-weight:900 !important;
+        line-height:1.15 !important;
+        text-overflow:ellipsis !important;
+        white-space:nowrap !important;
       }
 
       .ace-mobile-brand-subtitle{
-        margin-top:3px;
-        overflow:hidden;
-        color:rgba(255,255,255,.86);
-        font-size:12px;
-        line-height:1.1;
-        text-overflow:ellipsis;
-        white-space:nowrap;
+        display:block !important;
+        margin-top:3px !important;
+        overflow:hidden !important;
+        color:rgba(255,255,255,.90) !important;
+        font-size:10px !important;
+        font-weight:700 !important;
+        line-height:1.1 !important;
+        text-overflow:ellipsis !important;
+        white-space:nowrap !important;
       }
 
       .ace-mobile-user{
-        display:flex;
-        align-items:center;
-        gap:7px;
-        min-width:0;
+        display:flex !important;
+        align-items:center !important;
+        justify-content:flex-end !important;
+        gap:6px !important;
+        min-width:0 !important;
       }
 
       .ace-mobile-user-name{
-        display:none;
-        max-width:112px;
-        overflow:hidden;
-        color:#fff;
-        font-size:11px;
-        font-weight:800;
-        text-overflow:ellipsis;
-        white-space:nowrap;
+        display:block !important;
+        max-width:82px !important;
+        overflow:hidden !important;
+        color:#fff !important;
+        font-size:10px !important;
+        font-weight:900 !important;
+        line-height:1.1 !important;
+        text-align:right !important;
+        text-overflow:ellipsis !important;
+        white-space:nowrap !important;
       }
 
       .ace-mobile-avatar-button{
-        width:38px;
-        height:38px;
-        padding:0;
-        border:2px solid rgba(255,255,255,.76);
-        border-radius:50%;
-        background:rgba(255,255,255,.96);
-        cursor:pointer;
+        display:block !important;
+        flex:0 0 38px !important;
+        width:38px !important;
+        height:38px !important;
+        padding:0 !important;
+        overflow:hidden !important;
+        border:2px solid rgba(255,255,255,.86) !important;
+        border-radius:50% !important;
+        background:#fff !important;
+        cursor:pointer !important;
       }
 
       .ace-mobile-avatar-button .ace-profile-avatar{
-        width:100%;
-        height:100%;
-        font-size:20px;
+        display:flex !important;
+        width:100% !important;
+        height:100% !important;
+        align-items:center !important;
+        justify-content:center !important;
+        font-size:19px !important;
       }
 
       .ace-mobile-more{
-        width:34px;
-        height:40px;
-        padding:0;
-        border:0;
-        border-radius:9px;
-        background:transparent;
-        color:#fff;
-        font-size:27px;
-        line-height:1;
-        cursor:pointer;
+        display:flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        width:32px !important;
+        height:40px !important;
+        padding:0 !important;
+        border:0 !important;
+        border-radius:9px !important;
+        background:transparent !important;
+        color:#fff !important;
+        font-size:28px !important;
+        font-weight:900 !important;
+        line-height:1 !important;
+        cursor:pointer !important;
       }
 
       .ace-account-dropdown{
-        position:absolute;
-        top:82px;
-        right:12px;
-        z-index:1000300;
-        display:none;
-        width:230px;
-        overflow:hidden;
-        border:1px solid #d7e1e8;
-        border-radius:15px;
-        background:#fff;
-        box-shadow:0 18px 48px rgba(0,34,64,.25);
+        position:absolute !important;
+        top:77px !important;
+        right:10px !important;
+        z-index:1000300 !important;
+        display:none !important;
+        width:230px !important;
+        overflow:hidden !important;
+        border:1px solid #d7e1e8 !important;
+        border-radius:15px !important;
+        background:#fff !important;
+        box-shadow:0 18px 48px rgba(0,34,64,.25) !important;
       }
 
       .ace-account-dropdown.show{
-        display:block;
+        display:block !important;
         animation:aceDropdownIn .16s ease-out;
       }
 
@@ -22154,32 +22353,32 @@ function ensureAceProfessionalLayoutStyles() {
       }
 
       .ace-account-dropdown button{
-        display:flex;
-        align-items:center;
-        width:100%;
-        min-height:48px;
-        padding:10px 15px;
-        border:0;
-        border-bottom:1px solid #edf2f5;
-        background:#fff;
-        color:#173750;
-        text-align:left;
-        font:inherit;
-        font-size:14px;
-        font-weight:800;
-        cursor:pointer;
+        display:flex !important;
+        align-items:center !important;
+        width:100% !important;
+        min-height:48px !important;
+        padding:10px 15px !important;
+        border:0 !important;
+        border-bottom:1px solid #edf2f5 !important;
+        background:#fff !important;
+        color:#173750 !important;
+        text-align:left !important;
+        font:inherit !important;
+        font-size:14px !important;
+        font-weight:800 !important;
+        cursor:pointer !important;
       }
 
       .ace-account-dropdown button:last-child{
-        border-bottom:0;
+        border-bottom:0 !important;
       }
 
       .ace-account-dropdown button:hover{
-        background:#f4f8fb;
+        background:#f4f8fb !important;
       }
 
       .ace-account-dropdown .logout{
-        color:#cf2f25;
+        color:#cf2f25 !important;
       }
 
 
@@ -22378,14 +22577,14 @@ function ensureAceProfessionalLayoutStyles() {
       .ace-mural-media{
         min-height:0 !important;
         height:auto !important;
-        max-height:260px !important;
+        max-height:340px !important;
         background:#f2f6f9 !important;
       }
 
       .ace-mural-media img{
         width:100% !important;
         height:auto !important;
-        max-height:260px !important;
+        max-height:340px !important;
         object-fit:contain !important;
       }
 
@@ -22434,8 +22633,8 @@ function ensureAceProfessionalLayoutStyles() {
         z-index:1000100;
         display:grid;
         grid-template-columns:repeat(5,1fr);
-        min-height:67px;
-        padding:6px 5px calc(6px + env(safe-area-inset-bottom));
+        min-height:76px;
+        padding:7px 5px calc(7px + env(safe-area-inset-bottom));
         border-top:1px solid #dce5ec;
         background:rgba(255,255,255,.97);
         box-shadow:0 -8px 28px rgba(20,54,82,.10);
@@ -22447,9 +22646,10 @@ function ensureAceProfessionalLayoutStyles() {
         flex-direction:column;
         align-items:center;
         justify-content:center;
-        gap:3px;
+        gap:5px;
         min-width:0;
-        padding:4px 2px;
+        min-height:62px;
+        padding:5px 2px;
         border:0;
         border-radius:11px;
         background:transparent;
@@ -22459,15 +22659,15 @@ function ensureAceProfessionalLayoutStyles() {
       }
 
       .ace-bottom-item .icon{
-        font-size:21px;
+        font-size:27px;
         line-height:1;
       }
 
       .ace-bottom-item .label{
         overflow:hidden;
         max-width:100%;
-        font-size:10px;
-        font-weight:800;
+        font-size:12px;
+        font-weight:900;
         text-overflow:ellipsis;
         white-space:nowrap;
       }
@@ -22487,17 +22687,7 @@ function ensureAceProfessionalLayoutStyles() {
       }
 
     }
-
-
-    @media(min-width:560px) and (max-width:850px){
-
-      .ace-mobile-user-name{
-        display:block;
-      }
-
-    }
-
-  `;
+`;
 
 
   document.head.appendChild(
@@ -22674,6 +22864,56 @@ function setupProfessionalMobileLayout() {
   }
 
 
+  // Atualiza sempre os textos do cabeçalho.
+  // Assim o nome do usuário e o título aparecem mesmo quando
+  // o layout já havia sido criado antes do login terminar.
+  const mobileBrandTitle =
+    mobileHeader.querySelector(
+      ".ace-mobile-brand-title"
+    );
+
+  const mobileBrandSubtitle =
+    mobileHeader.querySelector(
+      ".ace-mobile-brand-subtitle"
+    );
+
+  const mobileUserName =
+    mobileHeader.querySelector(
+      ".ace-mobile-user-name"
+    );
+
+
+  if (mobileBrandTitle) {
+    mobileBrandTitle.textContent =
+      "ACE - Ação de Cestas";
+  }
+
+
+  if (mobileBrandSubtitle) {
+    mobileBrandSubtitle.textContent =
+      "Controle de Alimentos";
+  }
+
+
+  if (mobileUserName) {
+    mobileUserName.textContent =
+      "Usuário: " +
+      getCurrentDisplayName();
+  }
+
+
+  // Garante que o cabeçalho mobile esteja dentro do cabeçalho
+  // principal mesmo se algum render anterior o tiver movido.
+  if (
+    mobileHeader.parentElement !==
+    header
+  ) {
+    header.appendChild(
+      mobileHeader
+    );
+  }
+
+
   if (
     !document.getElementById(
       "aceMobileDrawerBackdrop"
@@ -22805,7 +23045,7 @@ function setupProfessionalMobileLayout() {
       <button
         class="ace-bottom-item"
         type="button"
-        data-ace-page="muralAce"
+        data-ace-target="mural"
       >
         <span class="icon">📣</span>
         <span class="label">Mural ACE</span>
@@ -22814,7 +23054,7 @@ function setupProfessionalMobileLayout() {
       <button
         class="ace-bottom-item"
         type="button"
-        data-ace-page="inicio"
+        data-ace-target="inicio"
       >
         <span class="icon">⌂</span>
         <span class="label">Início</span>
@@ -22823,7 +23063,7 @@ function setupProfessionalMobileLayout() {
       <button
         class="ace-bottom-item"
         type="button"
-        data-ace-page="entrada"
+        data-ace-target="entrada"
       >
         <span class="icon">▣</span>
         <span class="label">Entrada</span>
@@ -22832,7 +23072,7 @@ function setupProfessionalMobileLayout() {
       <button
         class="ace-bottom-item"
         type="button"
-        data-ace-page="movimentos"
+        data-ace-target="saida"
       >
         <span class="icon">▱</span>
         <span class="label">Saída/Perda</span>
@@ -23432,5 +23672,4 @@ async function startAuth() {
 // ============================================================
 
 startAuth();
-
 
