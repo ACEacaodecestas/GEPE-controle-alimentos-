@@ -24844,3 +24844,232 @@ startAuth();
 
 })();
 
+
+
+/* ============================================================
+   ACE - AJUSTE FINO: TÍTULO MAIS PRÓXIMO DA LOGO
+   + TÍTULO UM POUCO MAIOR
+   Somente visual. Não altera nenhuma função.
+   ============================================================ */
+(function aceHeaderTitleFineTune(){
+  const ID = "ace-header-title-fine-tune-v2";
+
+  function apply(){
+    if (!document.getElementById(ID)){
+      const style = document.createElement("style");
+      style.id = ID;
+      style.textContent = `
+        @media(max-width:850px){
+
+          /* Dá mais espaço horizontal ao título e o aproxima da logo */
+          #aceMobileHeader{
+            grid-template-columns:
+              92px
+              minmax(0,1fr)
+              48px
+              34px !important;
+
+            column-gap:2px !important;
+          }
+
+          /* Bloco do título deslocado para a esquerda */
+          #aceMobileHeader .ace-mobile-brand{
+            grid-column:2 / 5 !important;
+            transform:translateX(-9px) !important;
+            padding-right:0 !important;
+          }
+
+          /* Título principal maior */
+          #aceMobileHeader .ace-mobile-brand-title{
+            font-size:25px !important;
+            font-weight:950 !important;
+            letter-spacing:-0.65px !important;
+            line-height:1.02 !important;
+          }
+
+          /* Subtítulo acompanha o título para a esquerda */
+          #aceMobileHeader .ace-mobile-brand-subtitle{
+            font-size:15px !important;
+            margin-top:6px !important;
+          }
+
+          /* Mantém o status pequeno e claramente acima do avatar */
+          #aceConnectionBadge.ace-final-net-badge,
+          .ace-final-net-badge{
+            height:18px !important;
+            padding:1px 6px !important;
+            gap:3px !important;
+            font-size:8px !important;
+            line-height:1 !important;
+          }
+
+          #aceConnectionBadge.ace-final-net-badge .ace-net-dot,
+          .ace-final-net-badge .ace-net-dot{
+            width:5px !important;
+            height:5px !important;
+            flex:0 0 5px !important;
+          }
+        }
+
+        @media(max-width:390px){
+          #aceMobileHeader .ace-mobile-brand{
+            transform:translateX(-7px) !important;
+          }
+
+          #aceMobileHeader .ace-mobile-brand-title{
+            font-size:22px !important;
+          }
+
+          #aceMobileHeader .ace-mobile-brand-subtitle{
+            font-size:13px !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    /* reposiciona o status para ficar acima do avatar,
+       longe da linha "Controle de Alimentos" */
+    const avatar =
+      document.getElementById("aceMobileAvatarButton") ||
+      document.querySelector(".ace-mobile-avatar-button");
+
+    const status =
+      document.getElementById("aceConnectionBadge") ||
+      [...document.querySelectorAll("div,span")].find(el => {
+        const t = String(el.textContent || "").trim().toLowerCase();
+        return (t === "online" || t === "offline") && el.children.length <= 2;
+      });
+
+    if (avatar && status && window.innerWidth <= 850){
+      const r = avatar.getBoundingClientRect();
+
+      status.classList.add("ace-final-net-badge");
+
+      status.style.setProperty(
+        "left",
+        `${r.left + r.width / 2}px`,
+        "important"
+      );
+
+      /* Mais perto do avatar, sem encostar no subtítulo */
+      status.style.setProperty(
+        "top",
+        `${Math.max(24, r.top - 3)}px`,
+        "important"
+      );
+
+      status.style.setProperty("right", "auto", "important");
+      status.style.setProperty("bottom", "auto", "important");
+    }
+  }
+
+  function schedule(){
+    apply();
+    setTimeout(apply, 150);
+    setTimeout(apply, 500);
+    setTimeout(apply, 1000);
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", schedule);
+  } else {
+    schedule();
+  }
+
+  window.addEventListener("resize", schedule);
+  window.addEventListener("online", schedule);
+  window.addEventListener("offline", schedule);
+})();
+
+
+
+/* ============================================================
+   ACE - TEXTO "MENU" AO LADO DO BOTÃO DE 3 TRAÇOS
+   Somente visual. Não altera a função do botão.
+   ============================================================ */
+(function aceAddMenuLabel(){
+  const STYLE_ID = "ace-menu-label-v1";
+
+  function apply(){
+    const button =
+      document.querySelector("#aceMobileHeader .ace-mobile-menu-button") ||
+      document.querySelector(".ace-mobile-menu-button");
+
+    if (!button) return;
+
+    if (!document.getElementById(STYLE_ID)){
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = `
+        @media(max-width:850px){
+          #aceMobileHeader .ace-mobile-menu-button,
+          .ace-mobile-menu-button{
+            width:86px !important;
+            height:42px !important;
+            flex-direction:row !important;
+            gap:7px !important;
+            padding:0 9px !important;
+            justify-content:flex-start !important;
+          }
+
+          .ace-menu-lines{
+            display:flex !important;
+            flex-direction:column !important;
+            gap:4px !important;
+            flex:0 0 auto !important;
+          }
+
+          .ace-menu-lines span{
+            display:block !important;
+            width:24px !important;
+            height:3px !important;
+            border-radius:999px !important;
+            background:#fff !important;
+          }
+
+          .ace-menu-label{
+            display:inline-block !important;
+            color:#fff !important;
+            font-size:12px !important;
+            font-weight:900 !important;
+            line-height:1 !important;
+            white-space:nowrap !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    if (button.querySelector(".ace-menu-label")) return;
+
+    /* Agrupa apenas os três traços já existentes */
+    const spans = [...button.children].filter(
+      el => el.tagName === "SPAN"
+    );
+
+    if (spans.length >= 3){
+      const lines = document.createElement("span");
+      lines.className = "ace-menu-lines";
+
+      spans.slice(0,3).forEach(span => lines.appendChild(span));
+      button.insertBefore(lines, button.firstChild);
+    }
+
+    const label = document.createElement("span");
+    label.className = "ace-menu-label";
+    label.textContent = "Menu";
+    button.appendChild(label);
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", apply);
+  } else {
+    apply();
+  }
+
+  setTimeout(apply, 250);
+  setTimeout(apply, 700);
+  setTimeout(apply, 1400);
+})();
+
