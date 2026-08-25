@@ -1,3 +1,4 @@
+
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
 // V7 + SUPABASE AUTH
@@ -152,6 +153,585 @@ let aceOfflineSyncRunning =
 
 const ACE_OFFLINE_STATUS_ID =
   "aceOfflineStatus";
+
+
+// ============================================================
+// REDE NATIVA / OFFLINE REAL
+// ============================================================
+//
+// No Android WebView, aceIsOnline() pode demorar ou até informar
+// "online" mesmo depois que o Wi-Fi/dados móveis foram desligados.
+// Por isso o app passa a usar @capacitor/network quando disponível.
+//
+// aceIsOnline() é a única fonte de verdade usada pelo aplicativo.
+// ============================================================
+
+let aceNetworkOnline =
+  navigator.onLine !== false;
+
+let aceNetworkMonitoringStarted =
+  false;
+
+
+function aceIsOnline() {
+  return aceNetworkOnline === true;
+}
+
+
+function isAceNetworkError(error) {
+
+  const message =
+    String(
+      error?.message ||
+      error ||
+      ""
+    )
+      .toLowerCase();
+
+
+  return (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("networkerror") ||
+    message.includes("load failed") ||
+    message.includes("connection") ||
+    message.includes("internet") ||
+    message.includes("offline") ||
+    message.includes("timeout") ||
+    message.includes("timed out")
+  );
+
+}
+
+
+
+let aceNetworkNoticeOpen = false;
+let aceNetworkNoticeQueuedState = null;
+
+// Evita aviso duplicado de "Conexão restabelecida" quando
+// Capacitor Network + eventos do WebView chegam quase juntos.
+let aceLastOnlineNoticeAt = 0;
+const ACE_ONLINE_NOTICE_COOLDOWN_MS = 10000;
+
+
+function showAceNetworkNotice(
+  online
+) {
+
+  const state =
+    online
+      ? "online"
+      : "offline";
+
+
+  // O Android/WebView pode disparar mais de um evento de retorno
+  // da internet em sequência. Mostra o aviso ONLINE apenas uma vez.
+  if (online) {
+
+    const now =
+      Date.now();
+
+    if (
+      now -
+        aceLastOnlineNoticeAt <
+      ACE_ONLINE_NOTICE_COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    aceLastOnlineNoticeAt =
+      now;
+
+  }
+
+
+  if (
+    aceNetworkNoticeOpen
+  ) {
+
+    // Se já existe um aviso aberto, guarda somente uma mudança REAL
+    // de estado. Nunca enfileira o mesmo aviso duas vezes.
+    if (
+      aceNetworkNoticeQueuedState !==
+      state
+    ) {
+      aceNetworkNoticeQueuedState =
+        state;
+    }
+
+    return;
+  }
+
+
+  aceNetworkNoticeOpen =
+    true;
+
+
+  const old =
+    document.getElementById(
+      "aceNetworkNoticeModal"
+    );
+
+
+  if (old) {
+    old.remove();
+  }
+
+
+  const overlay =
+    document.createElement(
+      "div"
+    );
+
+
+  overlay.id =
+    "aceNetworkNoticeModal";
+
+
+  const title =
+    online
+      ? "✅ Conexão restabelecida"
+      : "📶 Modo offline";
+
+
+  const message =
+    online
+      ? (
+          "A conexão com a internet foi normalizada.\n\n" +
+          "O aplicativo está online novamente. " +
+          "As movimentações pendentes serão sincronizadas automaticamente."
+        )
+      : (
+          "Você está sem internet.\n\n" +
+          "O aplicativo continuará funcionando no modo offline. " +
+          "As entradas, saídas e perdas realizadas agora serão salvas neste aparelho.\n\n" +
+          "Quando a internet retornar, as movimentações pendentes serão sincronizadas automaticamente."
+        );
+
+
+  overlay.innerHTML = `
+    <div
+      class="ace-modal-box"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="ace-modal-title">
+        ${esc(title)}
+      </div>
+
+      <div class="ace-modal-message">
+        ${esc(message).replace(/\n/g, "<br>")}
+      </div>
+
+      <div class="ace-modal-actions">
+        <button
+          type="button"
+          class="ace-network-notice-ok"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  `;
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.textContent = `
+    #aceNetworkNoticeModal{
+      position:fixed;
+      inset:0;
+      z-index:1000002;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.62);
+      backdrop-filter:blur(3px);
+    }
+
+    #aceNetworkNoticeModal .ace-modal-box{
+      width:min(520px,calc(100vw - 40px));
+      max-height:calc(100vh - 40px);
+      overflow:auto;
+      box-sizing:border-box;
+      padding:28px 30px 24px;
+      border-radius:18px;
+      background:#5da5e6;
+      color:#fff;
+      box-shadow:0 18px 50px rgba(0,0,0,.35);
+      text-align:center;
+      font-family:inherit;
+    }
+
+    #aceNetworkNoticeModal .ace-modal-title{
+      margin-bottom:18px;
+      font-size:25px;
+      font-weight:900;
+      color:#fff;
+    }
+
+    #aceNetworkNoticeModal .ace-modal-message{
+      font-size:17px;
+      line-height:1.55;
+      text-align:left;
+      color:#fff;
+    }
+
+    #aceNetworkNoticeModal .ace-modal-actions{
+      display:flex;
+      justify-content:center;
+      margin-top:24px;
+    }
+
+    #aceNetworkNoticeModal .ace-network-notice-ok{
+      min-width:125px;
+      padding:11px 24px;
+      border:1px solid #0756a0;
+      border-radius:9px;
+      background:#0756a0;
+      color:#fff;
+      font-size:16px;
+      font-weight:800;
+      cursor:pointer;
+    }
+  `;
+
+
+  overlay.appendChild(
+    style
+  );
+
+
+  document.body.appendChild(
+    overlay
+  );
+
+
+  const close =
+    () => {
+
+      overlay.remove();
+
+      aceNetworkNoticeOpen =
+        false;
+
+
+      const queued =
+        aceNetworkNoticeQueuedState;
+
+
+      aceNetworkNoticeQueuedState =
+        null;
+
+
+      // Se a rede mudou enquanto o aviso estava aberto,
+      // mostra depois SOMENTE o estado final e somente se ele
+      // ainda for o estado real atual.
+      if (
+        queued === "online" &&
+        aceIsOnline()
+      ) {
+
+        setTimeout(
+          () =>
+            showAceNetworkNotice(
+              true
+            ),
+          80
+        );
+
+      } else if (
+        queued === "offline" &&
+        !aceIsOnline()
+      ) {
+
+        setTimeout(
+          () =>
+            showAceNetworkNotice(
+              false
+            ),
+          80
+        );
+
+      }
+
+    };
+
+
+  overlay
+    .querySelector(
+      ".ace-network-notice-ok"
+    )
+    .onclick =
+      close;
+
+}
+
+
+function setAceNetworkState(
+  online,
+  emitEvent = false
+) {
+
+  const next =
+    Boolean(online);
+
+  const previous =
+    aceNetworkOnline;
+
+  const changed =
+    previous !== next;
+
+
+  aceNetworkOnline =
+    next;
+
+
+  // Atualiza os indicadores imediatamente.
+  try {
+    updateOfflineStatusBadge();
+  } catch {}
+
+
+  try {
+
+    const mini =
+      document.getElementById(
+        "aceHeaderNetMini"
+      );
+
+
+    if (mini) {
+
+      mini.classList.toggle(
+        "is-online",
+        next
+      );
+
+      mini.classList.toggle(
+        "is-offline",
+        !next
+      );
+
+
+      const text =
+        mini.querySelector(
+          ".ace-net-text"
+        );
+
+
+      if (text) {
+
+        text.textContent =
+          next
+            ? "Online"
+            : "Offline";
+
+      }
+
+    }
+
+  } catch {}
+
+
+  // AVISOS:
+  // - aparece UMA VEZ quando ONLINE -> OFFLINE
+  // - aparece UMA VEZ quando OFFLINE -> ONLINE
+  // - ambos possuem SOMENTE botão OK
+  if (
+    changed &&
+    currentUser?.id &&
+    appStarted
+  ) {
+
+    showAceNetworkNotice(
+      next
+    );
+
+  }
+
+
+  if (
+    emitEvent &&
+    changed
+  ) {
+
+    window.dispatchEvent(
+      new Event(
+        next
+          ? "online"
+          : "offline"
+      )
+    );
+
+  }
+
+}
+
+
+async function refreshAceNetworkState() {
+
+  try {
+
+    const Network =
+      window.Capacitor
+        ?.Plugins
+        ?.Network;
+
+
+    if (
+      Network?.getStatus
+    ) {
+
+      const status =
+        await Network.getStatus();
+
+      setAceNetworkState(
+        Boolean(
+          status?.connected
+        ),
+        false
+      );
+
+      return aceIsOnline();
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível consultar a rede nativa:",
+      error
+    );
+
+  }
+
+
+  setAceNetworkState(
+    navigator.onLine !== false,
+    false
+  );
+
+
+  return aceIsOnline();
+
+}
+
+
+async function setupAceNetworkMonitoring() {
+
+  if (
+    aceNetworkMonitoringStarted
+  ) {
+    return;
+  }
+
+
+  aceNetworkMonitoringStarted =
+    true;
+
+
+  // Estado inicial real antes do login.
+  await refreshAceNetworkState();
+
+
+  // Eventos padrão do navegador continuam como fallback.
+  window.addEventListener(
+    "online",
+    () => {
+      setAceNetworkState(
+        true,
+        false
+      );
+    }
+  );
+
+
+  window.addEventListener(
+    "offline",
+    () => {
+      setAceNetworkState(
+        false,
+        false
+      );
+    }
+  );
+
+
+  // Android / Capacitor: detecta a troca de rede imediatamente.
+  try {
+
+    const Network =
+      window.Capacitor
+        ?.Plugins
+        ?.Network;
+
+
+    if (
+      Network?.addListener
+    ) {
+
+      await Network.addListener(
+        "networkStatusChange",
+        status => {
+
+          setAceNetworkState(
+            Boolean(
+              status?.connected
+            ),
+            true
+          );
+
+        }
+      );
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: monitor nativo de rede não pôde ser iniciado:",
+      error
+    );
+
+  }
+
+
+  // Reconfere periodicamente porque alguns aparelhos Android
+  // podem atrasar o evento do WebView ao desligar/ligar a rede.
+  setInterval(
+    () => {
+      refreshAceNetworkState();
+    },
+    1000
+  );
+
+
+  // Também atualiza assim que o usuário volta para o app.
+  window.addEventListener(
+    "focus",
+    refreshAceNetworkState
+  );
+
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (
+        document.visibilityState ===
+        "visible"
+      ) {
+        refreshAceNetworkState();
+      }
+    }
+  );
+
+}
 
 
 function saveOfflineSnapshot(snapshot) {
@@ -1697,7 +2277,7 @@ async function syncOfflineQueue() {
 
   if (
     aceOfflineSyncRunning ||
-    !navigator.onLine ||
+    !aceIsOnline() ||
     !currentUser?.id
   ) {
     return {
@@ -1738,7 +2318,7 @@ async function syncOfflineQueue() {
 
     while (
       queue.length &&
-      navigator.onLine
+      aceIsOnline()
     ) {
 
       const item =
@@ -1895,7 +2475,15 @@ function updateOfflineStatusBadge() {
       .length;
 
 
-  if (navigator.onLine) {
+  // No celular usamos apenas o indicador pequeno do cabeçalho.
+  // Evita aparecer um segundo badge flutuante sobre a tela.
+  badge.style.display =
+    window.innerWidth <= 850
+      ? "none"
+      : "flex";
+
+
+  if (aceIsOnline()) {
     badge.textContent =
       pending
         ? `🟢 Online · ${pending} pendente(s)`
@@ -1924,14 +2512,16 @@ function setupOfflineStatus() {
 
       updateOfflineStatusBadge();
 
-      showAceSuccess(
-        "✅ Conexão restabelecida."
-      );
+      // O aviso de retorno da internet é controlado exclusivamente
+      // por setAceNetworkState(). Aqui fazemos apenas a sincronização.
 
 
-      // Primeiro envia tudo que foi feito offline.
-      // Só depois baixa novamente o estado oficial do Supabase.
+      // Atualiza primeiro a identificação dos usuários.
+      // Depois envia o que foi feito offline e baixa os dados oficiais.
       try {
+
+        await syncCurrentUserProfile();
+        await loadAceUsersDirectory();
 
         const syncResult =
           await syncOfflineQueue();
@@ -1992,9 +2582,8 @@ function setupOfflineStatus() {
     "offline",
     () => {
       updateOfflineStatusBadge();
-      showAceSuccess(
-        "🟠 Você está offline. O app continuará usando os últimos dados sincronizados."
-      );
+      // A mensagem principal do modo offline é exibida por
+      // setAceNetworkState(), apenas uma vez na mudança de estado.
     }
   );
 }
@@ -2033,6 +2622,282 @@ function getCurrentDisplayName() {
   return currentUser?.email || "Usuário não identificado";
 }
 
+function getCurrentFirstName() {
+  const fullName = String(
+    getCurrentDisplayName() || ""
+  ).trim();
+
+  if (!fullName) {
+    return "Usuário";
+  }
+
+  return fullName.split(/\s+/)[0];
+}
+
+
+const ACE_USERS_DIRECTORY_KEY =
+  "ace_usuarios_directory_v1";
+
+let aceUsersDirectory = {};
+
+
+function loadAceUsersDirectoryLocal() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        ACE_USERS_DIRECTORY_KEY
+      );
+
+    const parsed =
+      raw
+        ? JSON.parse(raw)
+        : {};
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : {};
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível ler o diretório local de usuários:",
+      error
+    );
+
+    return {};
+  }
+
+}
+
+
+function saveAceUsersDirectoryLocal(
+  directory
+) {
+
+  try {
+
+    localStorage.setItem(
+      ACE_USERS_DIRECTORY_KEY,
+      JSON.stringify(
+        directory || {}
+      )
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível salvar o diretório local de usuários:",
+      error
+    );
+
+  }
+
+}
+
+
+async function syncCurrentUserProfile() {
+
+  if (
+    !aceIsOnline() ||
+    !currentUser?.id
+  ) {
+    return;
+  }
+
+
+  const fullName =
+    String(
+      currentUser?.user_metadata?.nome ||
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.name ||
+      getCurrentDisplayName() ||
+      ""
+    ).trim();
+
+
+  const email =
+    String(
+      currentUser?.email ||
+      ""
+    ).trim();
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from(
+        "usuarios"
+      )
+      .upsert(
+        {
+          id:
+            currentUser.id,
+          nome:
+            fullName ||
+            email ||
+            "Usuário",
+          email:
+            email ||
+            null
+        },
+        {
+          onConflict:
+            "id"
+        }
+      );
+
+
+  if (error) {
+
+    console.warn(
+      "ACE: não foi possível registrar o usuário na tabela usuarios:",
+      error
+    );
+
+  }
+
+}
+
+
+async function loadAceUsersDirectory() {
+
+  // Primeiro carrega a cópia local para o modo offline.
+  aceUsersDirectory =
+    loadAceUsersDirectoryLocal();
+
+
+  if (
+    !aceIsOnline()
+  ) {
+    return aceUsersDirectory;
+  }
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from(
+          "usuarios"
+        )
+        .select(
+          "id, nome, email"
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const directory = {};
+
+
+    (
+      Array.isArray(data)
+        ? data
+        : []
+    ).forEach(
+      user => {
+
+        if (
+          !user?.id
+        ) {
+          return;
+        }
+
+
+        directory[
+          String(user.id)
+        ] = {
+          nome:
+            String(
+              user.nome ||
+              ""
+            ).trim(),
+          email:
+            String(
+              user.email ||
+              ""
+            ).trim()
+        };
+
+      }
+    );
+
+
+    aceUsersDirectory =
+      directory;
+
+
+    saveAceUsersDirectoryLocal(
+      directory
+    );
+
+
+    return directory;
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível carregar a tabela usuarios:",
+      error
+    );
+
+
+    return aceUsersDirectory;
+  }
+
+}
+
+
+function getAceUserNameFromDirectory(
+  userId
+) {
+
+  const id =
+    String(
+      userId ||
+      ""
+    ).trim();
+
+
+  if (!id) {
+    return "";
+  }
+
+
+  const user =
+    aceUsersDirectory?.[id] ||
+    loadAceUsersDirectoryLocal()?.[id];
+
+
+  const name =
+    String(
+      user?.nome ||
+      ""
+    ).trim();
+
+
+  if (name) {
+    return name;
+  }
+
+
+  return "";
+}
+
+
 function rememberCurrentUser() {
   if (!currentUser?.id) return;
 
@@ -2062,7 +2927,21 @@ function getMovementUserName(item) {
     return item.usuarioNome;
   }
 
-  // 3) Tenta localizar o nome pelo ID salvo localmente.
+
+  // 3) Procura no cadastro CENTRAL de usuários do Supabase.
+  // Isso permite identificar Abimael e qualquer outro usuário
+  // mesmo quando a movimentação foi feita em outro celular.
+  const centralName =
+    getAceUserNameFromDirectory(
+      userId
+    );
+
+  if (centralName) {
+    return centralName;
+  }
+
+
+  // 4) Compatibilidade: tenta localizar o nome pelo mapa local antigo.
   try {
     const raw = localStorage.getItem("ace_usuarios_nomes_v1");
     const users = raw ? JSON.parse(raw) : {};
@@ -2074,7 +2953,70 @@ function getMovementUserName(item) {
     console.warn("ACE: não foi possível consultar nomes locais:", error);
   }
 
-  // 4) Registros históricos do usuário Tavares tiveram o usuario_id
+
+  // 5) Procura o mesmo usuário em outros registros já carregados.
+  // Se algum deles possuir usuarioNome, reaproveita e memoriza.
+  if (userId && db) {
+
+    const candidates = [
+      ...(db.entries || []),
+      ...(db.movements || []),
+      ...(db.basketOutputs || [])
+    ];
+
+    const known =
+      candidates.find(
+        row =>
+          String(
+            row?.usuarioId || ""
+          ) ===
+          String(userId) &&
+          String(
+            row?.usuarioNome || ""
+          ).trim()
+      );
+
+
+    if (known?.usuarioNome) {
+
+      const name =
+        String(
+          known.usuarioNome
+        ).trim();
+
+      try {
+        const key =
+          "ace_usuarios_nomes_v1";
+
+        const raw =
+          localStorage.getItem(
+            key
+          );
+
+        const users =
+          raw
+            ? JSON.parse(raw)
+            : {};
+
+        users[userId] =
+          name;
+
+        localStorage.setItem(
+          key,
+          JSON.stringify(users)
+        );
+
+      } catch {
+        // segue normalmente
+      }
+
+      return name;
+    }
+
+  }
+
+
+  // 6) Registros históricos do usuário Tavares tiveram o usuario_id
   // apagado no Supabase quando a conta antiga foi excluída com SET NULL.
   // Esses lançamentos antigos devem continuar identificados como Tavares,
   // e NÃO assumir o nome do usuário atualmente logado.
@@ -2469,7 +3411,13 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         qty: Number(e.quantidade || 0),
         originId: Number(e.origem_id),
         usuarioId: e.usuario_id || null,
-        usuarioNome: e.usuario_nome || e.usuarioNome || null,
+        usuarioNome:
+          e.usuario_nome ||
+          e.usuarioNome ||
+          getAceUserNameFromDirectory(
+            e.usuario_id
+          ) ||
+          null,
         note:
           e.observacao ||
           e.obs ||
@@ -2492,7 +3440,13 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         qty: Number(s.quantidade || 0),
         originId: Number(s.origem_id),
         usuarioId: s.usuario_id || null,
-        usuarioNome: s.usuario_nome || s.usuarioNome || null,
+        usuarioNome:
+          s.usuario_nome ||
+          s.usuarioNome ||
+          getAceUserNameFromDirectory(
+            s.usuario_id
+          ) ||
+          null,
         reasonId:
           reasons.find(
             r =>
@@ -2523,7 +3477,13 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         qty: Number(p.quantidade || 0),
         originId: Number(p.origem_id),
         usuarioId: p.usuario_id || null,
-        usuarioNome: p.usuario_nome || p.usuarioNome || null,
+        usuarioNome:
+          p.usuario_nome ||
+          p.usuarioNome ||
+          getAceUserNameFromDirectory(
+            p.usuario_id
+          ) ||
+          null,
         reasonId:
           reasons.find(
             r =>
@@ -2587,6 +3547,13 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         receivedBy: cs.recebido_por || "",
         date: cs.data_saida,
         usuarioId: cs.usuario_id || null,
+        usuarioNome:
+          cs.usuario_nome ||
+          cs.usuarioNome ||
+          getAceUserNameFromDirectory(
+            cs.usuario_id
+          ) ||
+          null,
         composition:
           cs.composicao || [],
         createdAt:
@@ -2612,6 +3579,11 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         basketType: h.tipo_cesta || "—",
         note: h.observacao || "",
         usuarioId: h.usuario_id || null,
+        usuarioNome:
+          getAceUserNameFromDirectory(
+            h.usuario_id
+          ) ||
+          null,
         createdAt:
           h.created_at ||
           `${h.data || isoToday()}T00:00:00Z`
@@ -2675,7 +3647,7 @@ function save() {
 
 async function reloadFromSupabase(showToast = false) {
 
-  if (!navigator.onLine) {
+  if (!aceIsOnline()) {
 
     const offlineDb =
       loadOfflineSnapshot();
@@ -3533,7 +4505,7 @@ async function insertEntry({
 
 
   if (
-    !navigator.onLine
+    !aceIsOnline()
   ) {
 
     applyLocalEntry({
@@ -3565,37 +4537,82 @@ async function insertEntry({
   }
 
 
-  const {
-    error
-  } =
-    await supabaseClient
-      .from(
-        "entradas"
-      )
-      .insert(
-        entryRow
-      );
+  try {
+
+    const {
+      error
+    } =
+      await supabaseClient
+        .from(
+          "entradas"
+        )
+        .insert(
+          entryRow
+        );
 
 
-  if (error) {
-    throw error;
-  }
+    if (error) {
+      throw error;
+    }
 
 
-  const {
-    error: historyError
-  } =
-    await supabaseClient
-      .from(
-        "historico_movimentacoes"
-      )
-      .insert(
+    const {
+      error: historyError
+    } =
+      await supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .insert(
+          historyRow
+        );
+
+
+    if (historyError) {
+      throw historyError;
+    }
+
+
+  } catch (error) {
+
+    if (
+      !isAceNetworkError(error)
+    ) {
+      throw error;
+    }
+
+
+    // A rede caiu durante a gravação.
+    // Mantém o lançamento no aparelho e sincroniza depois.
+    setAceNetworkState(
+      false,
+      true
+    );
+
+
+    applyLocalEntry({
+      id:
+        entryId,
+      historyId,
+      date,
+      originId,
+      foodId,
+      qty:
+        Number(
+          qty
+        ),
+      note
+    });
+
+
+    enqueueOfflineOperation(
+      "entry",
+      {
+        entryRow,
         historyRow
-      );
+      }
+    );
 
-
-  if (historyError) {
-    throw historyError;
   }
 
 }
@@ -3722,7 +4739,7 @@ async function insertMovement({
 
 
   if (
-    !navigator.onLine
+    !aceIsOnline()
   ) {
 
     applyLocalMovement({
@@ -3757,37 +4774,85 @@ async function insertMovement({
   }
 
 
-  const {
-    error
-  } =
-    await supabaseClient
-      .from(
-        table
-      )
-      .insert(
-        row
-      );
+  try {
+
+    const {
+      error
+    } =
+      await supabaseClient
+        .from(
+          table
+        )
+        .insert(
+          row
+        );
 
 
-  if (error) {
-    throw error;
-  }
+    if (error) {
+      throw error;
+    }
 
 
-  const {
-    error: historyError
-  } =
-    await supabaseClient
-      .from(
-        "historico_movimentacoes"
-      )
-      .insert(
+    const {
+      error: historyError
+    } =
+      await supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .insert(
+          historyRow
+        );
+
+
+    if (historyError) {
+      throw historyError;
+    }
+
+
+  } catch (error) {
+
+    if (
+      !isAceNetworkError(error)
+    ) {
+      throw error;
+    }
+
+
+    // A rede caiu durante a saída/perda.
+    // Registra localmente e coloca na fila de sincronização.
+    setAceNetworkState(
+      false,
+      true
+    );
+
+
+    applyLocalMovement({
+      id:
+        movementId,
+      historyId,
+      date,
+      type,
+      originId,
+      foodId,
+      qty:
+        Number(
+          qty
+        ),
+      reasonName,
+      note
+    });
+
+
+    enqueueOfflineOperation(
+      "movement",
+      {
+        table,
+        row,
         historyRow
-      );
+      }
+    );
 
-
-  if (historyError) {
-    throw historyError;
   }
 
 }
@@ -3906,7 +4971,7 @@ async function setAttendance(
 ) {
 
   if (
-    !navigator.onLine
+    !aceIsOnline()
   ) {
 
     const attendanceId =
@@ -5328,11 +6393,11 @@ function createSignupScreen() {
       <form id="signupForm">
 
         <label>
-          Nome
+          Nome Completo
           <input
             id="signupName"
             type="text"
-            placeholder="Digite seu nome"
+            placeholder="Digite seu nome completo"
             autocomplete="name"
             required
           >
@@ -5520,7 +6585,7 @@ async function signupUser(e) {
   if (!name) {
 
     error.textContent =
-      "Digite seu nome.";
+      "Digite seu nome completo.";
 
     error.classList.add("show");
 
@@ -5772,6 +6837,9 @@ async function loginUser(e) {
 
   e.preventDefault();
 
+  // Confere a conectividade REAL do Android antes de autenticar.
+  await refreshAceNetworkState();
+
   const email =
     document.getElementById("loginEmail").value.trim();
 
@@ -5812,7 +6880,7 @@ async function loginUser(e) {
     // A senha nunca é salva localmente.
     // ========================================================
 
-    if (!navigator.onLine) {
+    if (!aceIsOnline()) {
 
       const offlineUser =
         loadOfflineUser(
@@ -5908,6 +6976,83 @@ async function loginUser(e) {
   } catch (err) {
 
     console.error(err);
+
+
+    // A internet pode cair entre o clique em Entrar e a resposta
+    // do Supabase. Nesse caso, tenta o acesso offline automaticamente.
+    if (
+      isAceNetworkError(err)
+    ) {
+
+      setAceNetworkState(
+        false,
+        true
+      );
+
+
+      try {
+
+        const offlineUser =
+          loadOfflineUser(
+            email
+          );
+
+        const offlineDb =
+          loadOfflineSnapshot();
+
+        const validCredential =
+          await verifyOfflineCredentials(
+            email,
+            password
+          );
+
+
+        if (
+          offlineUser &&
+          offlineDb &&
+          validCredential &&
+          String(
+            offlineUser.email || ""
+          )
+            .trim()
+            .toLowerCase() ===
+          email.toLowerCase()
+        ) {
+
+          currentUser =
+            offlineUser;
+
+          localStorage.setItem(
+            ACE_OFFLINE_LOGOUT_KEY,
+            "0"
+          );
+
+          document
+            .getElementById(
+              "loginScreen"
+            )
+            ?.remove();
+
+          loading.textContent =
+            "";
+
+          await initApp();
+
+          return;
+
+        }
+
+      } catch (offlineError) {
+
+        console.warn(
+          "ACE: tentativa de login offline após queda da rede falhou:",
+          offlineError
+        );
+
+      }
+
+    }
+
 
     error.textContent =
       traduzirErroLogin(err);
@@ -6087,7 +7232,7 @@ function addUserBar() {
   bar.innerHTML = `
 
     <span class="user-email" title="${esc(getCurrentDisplayName())}">
-      Usuário: ${esc(getCurrentDisplayName())}
+      ${esc(getCurrentFirstName())}
     </span>
 
     <button
@@ -7925,6 +9070,18 @@ function renderEntries() {
               )
           ],
           [
+            "Usuário",
+            x =>
+              esc(
+                getMovementUserName({
+                  usuarioId:
+                    x.usuarioId,
+                  usuarioNome:
+                    x.usuarioNome
+                })
+              )
+          ],
+          [
             "Obs.",
             x =>
               esc(
@@ -9060,7 +10217,33 @@ function renderReport() {
     );
 
 
+  const reportPeriodText =
+    start && end
+      ? `${fmtDate(start)} a ${fmtDate(end)}`
+      : start
+        ? `A partir de ${fmtDate(start)}`
+        : end
+          ? `Até ${fmtDate(end)}`
+          : "Todo o período";
+
+
   const html = `
+
+    <div
+      class="ace-report-period"
+      style="
+        margin-bottom:12px;
+        padding:12px 16px;
+        border-radius:10px;
+        background:#eef6fc;
+        border:1px solid #cbdfea;
+        color:#0b3a63;
+        font-weight:900;
+      "
+    >
+      📅 Período do relatório:
+      ${esc(reportPeriodText)}
+    </div>
 
     <div style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:#f2f7fb;border:1px solid #d9e6f0;">
       <strong>👤 Usuário logado:</strong>
@@ -10066,15 +11249,27 @@ function ensureReportSignatureStyles() {
     }
 
     .ace-report-pdf-only-signature{
-      margin-top:28px;
+      margin-top:0;
+      padding-top:12px;
+      padding-bottom:40px;
+      min-height:230px;
+      page-break-before:always;
+      break-before:page;
       page-break-inside:avoid;
       break-inside:avoid;
+      overflow:visible !important;
     }
 
     .ace-report-pdf-signature-line{
       margin-top:10px;
       color:#344054;
       font-size:14px;
+      line-height:1.5;
+      min-height:24px;
+      display:block;
+      overflow:visible !important;
+      page-break-inside:avoid;
+      break-inside:avoid;
     }
 
     @media(max-width:700px){
@@ -10548,7 +11743,7 @@ function buildReportPdfElement() {
     <div
       style="
         width:100%;
-        height:130px;
+        height:105px;
         display:flex;
         align-items:center;
         justify-content:center;
@@ -10561,7 +11756,7 @@ function buildReportPdfElement() {
         alt="Assinatura"
         style="
           max-width:95%;
-          max-height:120px;
+          max-height:95px;
           object-fit:contain;
         "
       >
@@ -10821,6 +12016,41 @@ async function generateSignedReportPDF() {
       });
 
 
+    // Evita corte de linhas e cabeçalhos entre duas páginas.
+    element
+      .querySelectorAll(
+        "thead"
+      )
+      .forEach(node => {
+        node.style.display =
+          "table-header-group";
+      });
+
+
+    element
+      .querySelectorAll(
+        "tr"
+      )
+      .forEach(row => {
+        row.style.pageBreakInside =
+          "avoid";
+        row.style.breakInside =
+          "avoid";
+      });
+
+
+    element
+      .querySelectorAll(
+        "h3"
+      )
+      .forEach(title => {
+        title.style.pageBreakAfter =
+          "avoid";
+        title.style.breakAfter =
+          "avoid";
+      });
+
+
     // Quebra textos longos dentro das células em vez de cortar.
     element
       .querySelectorAll(
@@ -10946,8 +12176,13 @@ async function generateSignedReportPDF() {
           "css",
           "legacy"
         ],
+        before: [
+          ".ace-report-pdf-only-signature"
+        ],
         avoid: [
           "tr",
+          "thead",
+          "h3",
           ".ace-report-pdf-only-signature"
         ]
       }
@@ -11057,35 +12292,116 @@ async function generateSignedReportPDF() {
 
 }
 
+async function blobToBase64ForAce(blob) {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onloadend = () => {
+      const result = String(reader.result || "");
+      const commaIndex = result.indexOf(",");
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+
+    reader.onerror = () =>
+      reject(
+        reader.error ||
+          new Error("Não foi possível preparar o PDF para compartilhamento.")
+      );
+
+    reader.readAsDataURL(blob);
+  });
+}
+
+
 async function shareSignedReportPDF() {
 
   if (
     !lastGeneratedReportPdfBlob ||
     !lastGeneratedReportPdfName
   ) {
-
     await showAceConfirm(
       "Primeiro gere o PDF do relatório.",
       "Compartilhar relatório"
     );
-
     return;
   }
 
 
-  const file =
-    new File(
-      [
-        lastGeneratedReportPdfBlob
-      ],
-      lastGeneratedReportPdfName,
-      {
-        type: "application/pdf"
-      }
-    );
-
-
   try {
+
+    const CapacitorGlobal =
+      window.Capacitor;
+
+    const Filesystem =
+      CapacitorGlobal?.Plugins?.Filesystem;
+
+    const Share =
+      CapacitorGlobal?.Plugins?.Share;
+
+    const isNative =
+      Boolean(
+        CapacitorGlobal?.isNativePlatform?.()
+      );
+
+
+    // APK Android: usa compartilhamento NATIVO.
+    if (
+      isNative &&
+      Filesystem &&
+      Share
+    ) {
+
+      const base64Data =
+        await blobToBase64ForAce(
+          lastGeneratedReportPdfBlob
+        );
+
+      const safeFileName =
+        String(
+          lastGeneratedReportPdfName ||
+          "relatorio_ACE.pdf"
+        ).replace(
+          /[^\w.\-]+/g,
+          "_"
+        );
+
+      const saved =
+        await Filesystem.writeFile({
+          path: safeFileName,
+          data: base64Data,
+          directory: "CACHE",
+          recursive: true
+        });
+
+      const fileUri =
+        saved?.uri;
+
+      if (!fileUri) {
+        throw new Error(
+          "O Android não retornou o endereço do PDF."
+        );
+      }
+
+      await Share.share({
+        title: "Relatório ACE",
+        text: "Relatório ACE assinado.",
+        files: [fileUri],
+        dialogTitle: "Compartilhar relatório ACE"
+      });
+
+      return;
+    }
+
+
+    // Web/PWA: tenta o compartilhamento padrão do navegador.
+    const file =
+      new File(
+        [lastGeneratedReportPdfBlob],
+        lastGeneratedReportPdfName,
+        {
+          type: "application/pdf"
+        }
+      );
 
     if (
       navigator.share &&
@@ -11096,20 +12412,17 @@ async function shareSignedReportPDF() {
         })
       )
     ) {
-
       await navigator.share({
-        title:
-          "Relatório ACE",
-        text:
-          "Relatório ACE assinado.",
-        files:
-          [file]
+        title: "Relatório ACE",
+        text: "Relatório ACE assinado.",
+        files: [file]
       });
 
       return;
     }
 
 
+    // Último recurso: baixa o PDF.
     const url =
       URL.createObjectURL(
         lastGeneratedReportPdfBlob
@@ -11127,26 +12440,28 @@ async function shareSignedReportPDF() {
     a.remove();
 
     setTimeout(
-      () =>
-        URL.revokeObjectURL(
-          url
-        ),
+      () => URL.revokeObjectURL(url),
       2000
     );
 
-
     await showAceConfirm(
-      "Seu navegador não permite compartilhar o PDF diretamente.\n\n" +
-      "O arquivo foi baixado para você enviar pelo WhatsApp, e-mail ou outro aplicativo.",
+      "Este ambiente não oferece compartilhamento direto de arquivos.\n\n" +
+        "O PDF foi baixado no aparelho.",
       "📤 Compartilhar relatório"
     );
 
-
   } catch (error) {
 
+    const message =
+      String(
+        error?.message ||
+        ""
+      ).toLowerCase();
+
     if (
-      error?.name ===
-      "AbortError"
+      error?.name === "AbortError" ||
+      message.includes("canceled") ||
+      message.includes("cancelled")
     ) {
       return;
     }
@@ -11158,17 +12473,14 @@ async function shareSignedReportPDF() {
 
     await showAceConfirm(
       "Não foi possível compartilhar o PDF.\n\n" +
-      (
-        error?.message ||
-        "Erro desconhecido."
-      ),
+        (
+          error?.message ||
+          "Erro desconhecido."
+        ),
       "❌ Erro ao compartilhar"
     );
-
   }
-
 }
-
 
 
 function exportCSV() {
@@ -15706,7 +17018,7 @@ async function registerManualBasketOutput({
 
 
   if (
-    !navigator.onLine
+    !aceIsOnline()
   ) {
 
     const localBasketId =
@@ -16046,7 +17358,7 @@ async function registerBasketOutput({
 
 
   if (
-    !navigator.onLine
+    !aceIsOnline()
   ) {
 
     applyLocalBasketOutput({
@@ -18398,7 +19710,7 @@ async function loadMuralAcePosts() {
   // Usa a última cópia do Mural salva neste aparelho.
   // ==========================================================
 
-  if (!navigator.onLine) {
+  if (!aceIsOnline()) {
 
     muralAcePosts =
       loadOfflineMuralPosts();
@@ -20297,12 +21609,15 @@ function getAceMobileMenuIcon(
     );
 
 
+  // Menu lateral dos 3 traços:
+  // usa símbolos monocromáticos.
+  // Os emojis coloridos ficam SOMENTE na barra inferior.
   if (
     value.includes(
       "mural"
     )
   ) {
-    return "📣";
+    return "◈";
   }
 
   if (
@@ -20640,7 +21955,7 @@ async function aceUploadAvatarBlob(
 
   if (
     !currentUser?.id ||
-    !navigator.onLine
+    !aceIsOnline()
   ) {
     return false;
   }
@@ -20809,7 +22124,7 @@ async function aceSaveAvatarFile(
 
 
     if (
-      navigator.onLine
+      aceIsOnline()
     ) {
 
       await aceUploadAvatarBlob(
@@ -20924,7 +22239,7 @@ function aceDataUrlToBlob(
 async function aceSyncPendingAvatar() {
 
   if (
-    !navigator.onLine ||
+    !aceIsOnline() ||
     !currentUser?.id
   ) {
     return;
@@ -21212,7 +22527,7 @@ function openAceMyAccount() {
 
 
         if (
-          navigator.onLine &&
+          aceIsOnline() &&
           currentUser?.id
         ) {
 
@@ -21288,7 +22603,7 @@ function openAceMyAccount() {
 async function aceManualSync() {
 
   if (
-    !navigator.onLine
+    !aceIsOnline()
   ) {
 
     showAceSuccess(
@@ -22809,8 +24124,8 @@ function setupProfessionalMobileLayout() {
       <div class="ace-mobile-user">
 
         <div class="ace-mobile-user-name">
-          Usuário: ${esc(
-            getCurrentDisplayName()
+          ${esc(
+            getCurrentFirstName()
           )}
         </div>
 
@@ -22935,8 +24250,7 @@ function setupProfessionalMobileLayout() {
 
   if (mobileUserName) {
     mobileUserName.textContent =
-      "Usuário: " +
-      getCurrentDisplayName();
+      getCurrentFirstName();
   }
 
 
@@ -23094,7 +24408,7 @@ function setupProfessionalMobileLayout() {
         type="button"
         data-ace-target="inicio"
       >
-        <span class="icon">⌂</span>
+        <span class="icon">🏠</span>
         <span class="label">Início</span>
       </button>
 
@@ -23103,7 +24417,7 @@ function setupProfessionalMobileLayout() {
         type="button"
         data-ace-target="entrada"
       >
-        <span class="icon">▣</span>
+        <span class="icon">➕</span>
         <span class="label">Entrada</span>
       </button>
 
@@ -23112,7 +24426,7 @@ function setupProfessionalMobileLayout() {
         type="button"
         data-ace-target="saida"
       >
-        <span class="icon">▱</span>
+        <span class="icon">📤</span>
         <span class="label">Saída/Perda</span>
       </button>
 
@@ -23121,7 +24435,7 @@ function setupProfessionalMobileLayout() {
         class="ace-bottom-item"
         type="button"
       >
-        <span class="icon">▦</span>
+        <span class="icon">🟪</span>
         <span class="label">Mais</span>
       </button>
 
@@ -23258,7 +24572,16 @@ async function initApp() {
 
   try {
 
-    if (navigator.onLine) {
+    await refreshAceNetworkState();
+
+
+    if (aceIsOnline()) {
+
+      // Garante que o usuário logado exista no cadastro central
+      // e carrega os nomes de TODOS os usuários para identificar
+      // corretamente movimentações feitas em outros aparelhos.
+      await syncCurrentUserProfile();
+      await loadAceUsersDirectory();
 
       const pendingSync =
         await syncOfflineQueue();
@@ -23433,6 +24756,10 @@ async function initApp() {
 
 async function startAuth() {
 
+  // Inicializa primeiro a detecção nativa de rede.
+  // Isso evita tentar Supabase quando o aparelho já está offline.
+  await setupAceNetworkMonitoring();
+
   createLoginScreen();
 
   // Garante o botão mesmo se uma versão anterior do HTML
@@ -23449,7 +24776,7 @@ async function startAuth() {
   // o celular está sem internet.
   // ==========================================================
 
-  if (!navigator.onLine) {
+  if (!aceIsOnline()) {
 
     const offlineUser =
       loadOfflineUser();
@@ -24034,8 +25361,9 @@ startAuth();
         #${NET_ID}{
           position:absolute !important;
 
-          right:0 !important;
-          top:-20px !important;
+          /* indicador preso no canto direito, ACIMA dos 3 pontinhos */
+          right:2px !important;
+          top:69px !important;
 
           display:flex !important;
           align-items:center !important;
@@ -24045,14 +25373,14 @@ startAuth();
 
           width:auto !important;
           min-width:0 !important;
-          height:17px !important;
+          height:16px !important;
 
-          padding:1px 6px !important;
+          padding:1px 5px !important;
 
           border:1px solid !important;
           border-radius:999px !important;
 
-          font-size:8px !important;
+          font-size:7px !important;
           font-weight:900 !important;
           line-height:1 !important;
 
@@ -24061,6 +25389,7 @@ startAuth();
           box-shadow:0 2px 5px rgba(0,0,0,.10) !important;
 
           pointer-events:none !important;
+          z-index:80 !important;
         }
 
         #${NET_ID} .ace-net-dot{
@@ -24197,12 +25526,12 @@ startAuth();
 
   function ensureNetBadge(){
 
-    const user =
-      document.querySelector(
-        "#aceMobileHeader .ace-mobile-user"
+    const mobileHeader =
+      document.getElementById(
+        "aceMobileHeader"
       );
 
-    if (!user) return null;
+    if (!mobileHeader) return null;
 
     let badge =
       document.getElementById(
@@ -24223,8 +25552,13 @@ startAuth();
         <span class="ace-net-dot"></span>
         <span class="ace-net-text"></span>
       `;
+    }
 
-      user.appendChild(
+    if (
+      badge.parentElement !==
+      mobileHeader
+    ) {
+      mobileHeader.appendChild(
         badge
       );
     }
@@ -24240,7 +25574,7 @@ startAuth();
     if (!badge) return;
 
     const online =
-      navigator.onLine;
+      aceIsOnline();
 
     badge.classList.toggle(
       "is-online",
@@ -24363,3 +25697,811 @@ startAuth();
 
 })();
 
+
+
+
+
+
+// ============================================================
+// ACE - AJUSTE MOBILE DO MURAL
+//
+// 1) Mantém TODA a lógica Online/Offline existente.
+// 2) Move o botão Menu PARA FORA do cabeçalho azul.
+// 3) Reserva uma faixa branca exclusiva para o Menu.
+// 4) Aumenta de verdade a área do vídeo do Mural.
+// ============================================================
+
+(function aceMuralMenuAndVideoStableFix(){
+
+  const STYLE_ID =
+    "ace-mural-menu-video-stable-fix-v2";
+
+  const MENU_HOST_ID =
+    "aceMenuOutsideHost";
+
+
+  function ensureStyle(){
+
+    if (
+      document.getElementById(
+        STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      STYLE_ID;
+
+
+    style.textContent = `
+
+      @media(max-width:850px){
+
+        /* =====================================================
+           FAIXA BRANCA EXCLUSIVA DO MENU
+           ===================================================== */
+
+        #${MENU_HOST_ID}{
+          width:100% !important;
+          height:68px !important;
+
+          box-sizing:border-box !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:flex-start !important;
+
+          padding:10px 16px !important;
+
+          background:#f4f8fb !important;
+
+          position:relative !important;
+          z-index:45 !important;
+        }
+
+
+        #${MENU_HOST_ID} .ace-mobile-menu-button{
+          position:relative !important;
+
+          left:auto !important;
+          right:auto !important;
+          top:auto !important;
+          bottom:auto !important;
+
+          grid-column:auto !important;
+          grid-row:auto !important;
+
+          width:112px !important;
+          height:46px !important;
+
+          margin:0 !important;
+          padding:0 10px !important;
+
+          display:flex !important;
+          flex-direction:column !important;
+          align-items:flex-start !important;
+          justify-content:center !important;
+
+          gap:4px !important;
+
+          border:1px solid #d2dee8 !important;
+          border-radius:13px !important;
+
+          background:#ffffff !important;
+
+          box-shadow:
+            0 5px 14px
+            rgba(20,54,82,.10) !important;
+
+          overflow:visible !important;
+          transform:none !important;
+        }
+
+
+        #${MENU_HOST_ID} .ace-mobile-menu-button > span{
+          display:block !important;
+
+          width:25px !important;
+          height:3px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          border:0 !important;
+          border-radius:999px !important;
+
+          background:#0b4b7a !important;
+
+          flex:none !important;
+          transform:none !important;
+        }
+
+
+        #${MENU_HOST_ID} .ace-mobile-menu-button::after{
+          content:"Menu" !important;
+
+          position:absolute !important;
+
+          left:43px !important;
+          top:50% !important;
+
+          transform:
+            translateY(-50%) !important;
+
+          color:#0b4b7a !important;
+
+          font-size:13px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+        }
+
+
+        /* =====================================================
+           MURAL - VÍDEO GRANDE
+
+           O vídeo passa a ocupar uma área bem maior do card,
+           semelhante à área marcada pelo usuário.
+           ===================================================== */
+
+        .ace-mural-card
+        .ace-mural-media.ace-mural-media-video{
+          width:100% !important;
+
+          height:54vh !important;
+          min-height:390px !important;
+          max-height:610px !important;
+
+          aspect-ratio:auto !important;
+
+          display:block !important;
+
+          overflow:hidden !important;
+
+          background:#000 !important;
+        }
+
+
+        .ace-mural-card
+        .ace-mural-media.ace-mural-media-video
+        > video{
+          display:block !important;
+
+          width:100% !important;
+          height:100% !important;
+
+          min-width:100% !important;
+          min-height:100% !important;
+
+          max-width:none !important;
+          max-height:none !important;
+
+          aspect-ratio:auto !important;
+
+          object-fit:contain !important;
+
+          background:#000 !important;
+        }
+
+
+        /* Vídeo incorporado por link */
+        .ace-mural-card
+        .ace-mural-media.ace-mural-media-iframe{
+          width:100% !important;
+
+          height:54vh !important;
+          min-height:390px !important;
+          max-height:610px !important;
+
+          aspect-ratio:auto !important;
+
+          display:block !important;
+
+          overflow:hidden !important;
+
+          background:#000 !important;
+        }
+
+
+        .ace-mural-card
+        .ace-mural-media.ace-mural-media-iframe
+        > iframe{
+          display:block !important;
+
+          width:100% !important;
+          height:100% !important;
+
+          min-height:100% !important;
+          max-height:none !important;
+
+          aspect-ratio:auto !important;
+
+          border:0 !important;
+
+          background:#000 !important;
+        }
+
+
+        @media(max-width:390px){
+
+          #${MENU_HOST_ID}{
+            height:64px !important;
+            padding-left:12px !important;
+            padding-right:12px !important;
+          }
+
+
+          #${MENU_HOST_ID}
+          .ace-mobile-menu-button{
+            width:108px !important;
+            height:44px !important;
+          }
+
+
+          #${MENU_HOST_ID}
+          .ace-mobile-menu-button::after{
+            left:41px !important;
+            font-size:12px !important;
+          }
+
+
+          .ace-mural-card
+          .ace-mural-media.ace-mural-media-video,
+          .ace-mural-card
+          .ace-mural-media.ace-mural-media-iframe{
+            height:52vh !important;
+            min-height:360px !important;
+          }
+
+        }
+
+      }
+
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  function moveMenuOutsideHeader(){
+
+    const header =
+      document.querySelector(
+        ".ace-header-v6"
+      );
+
+    const mobileHeader =
+      document.getElementById(
+        "aceMobileHeader"
+      );
+
+
+    if (
+      !header ||
+      !mobileHeader
+    ) {
+      return;
+    }
+
+
+    const menuButton =
+      document.getElementById(
+        "aceMobileMenuButton"
+      );
+
+
+    if (!menuButton) {
+      return;
+    }
+
+
+    let host =
+      document.getElementById(
+        MENU_HOST_ID
+      );
+
+
+    if (!host) {
+
+      host =
+        document.createElement(
+          "div"
+        );
+
+      host.id =
+        MENU_HOST_ID;
+
+
+      // Coloca a faixa EXATAMENTE depois da área azul.
+      header.insertAdjacentElement(
+        "afterend",
+        host
+      );
+
+    }
+
+
+    if (
+      menuButton.parentElement !==
+      host
+    ) {
+
+      host.appendChild(
+        menuButton
+      );
+
+    }
+
+  }
+
+
+  function apply(){
+
+    ensureStyle();
+
+    moveMenuOutsideHeader();
+
+  }
+
+
+  function schedule(){
+
+    apply();
+
+
+    [
+      100,
+      300,
+      700,
+      1400
+    ].forEach(
+      delay =>
+        setTimeout(
+          apply,
+          delay
+        )
+    );
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      schedule
+    );
+
+  } else {
+
+    schedule();
+
+  }
+
+
+  // O app redesenha algumas áreas durante a navegação.
+  // Reaplica apenas a posição do Menu caso necessário.
+  const observer =
+    new MutationObserver(
+      () => {
+        moveMenuOutsideHeader();
+      }
+    );
+
+
+  observer.observe(
+    document.documentElement,
+    {
+      childList:true,
+      subtree:true
+    }
+  );
+
+
+  window.addEventListener(
+    "resize",
+    schedule
+  );
+
+})();
+
+
+
+
+// ============================================================
+// ACE - CORREÇÃO PONTUAL
+// SOMENTE:
+// 1) Restaurar indicador Online/Offline no cabeçalho
+// 2) Imagens do Mural com o MESMO tamanho do vídeo
+// ============================================================
+
+(function aceRestoreNetAndEqualMediaSize(){
+
+  const STYLE_ID =
+    "ace-restore-net-equal-media-v1";
+
+  const NET_ID =
+    "aceHeaderNetMini";
+
+
+  function ensureStyle(){
+
+    if (
+      document.getElementById(
+        STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      STYLE_ID;
+
+
+    style.textContent = `
+
+      @media(max-width:850px){
+
+        /* =====================================================
+           ONLINE / OFFLINE
+           exatamente no cabeçalho, acima dos 3 pontinhos
+           ===================================================== */
+
+        #${NET_ID}{
+          position:absolute !important;
+
+          right:2px !important;
+          top:69px !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          gap:3px !important;
+
+          width:auto !important;
+          min-width:0 !important;
+          height:16px !important;
+
+          padding:1px 5px !important;
+
+          border:1px solid !important;
+          border-radius:999px !important;
+
+          font-size:7px !important;
+          font-weight:900 !important;
+          line-height:1 !important;
+
+          white-space:nowrap !important;
+
+          box-shadow:0 2px 5px rgba(0,0,0,.10) !important;
+
+          pointer-events:none !important;
+          z-index:999 !important;
+          visibility:visible !important;
+          opacity:1 !important;
+        }
+
+
+        #${NET_ID} .ace-net-dot{
+          width:5px !important;
+          height:5px !important;
+          flex:0 0 5px !important;
+          border-radius:50% !important;
+        }
+
+
+        #${NET_ID}.is-online{
+          color:#087c3a !important;
+          border-color:#8dd7aa !important;
+          background:rgba(241,255,246,.97) !important;
+        }
+
+
+        #${NET_ID}.is-online .ace-net-dot{
+          background:#74b72e !important;
+        }
+
+
+        #${NET_ID}.is-offline{
+          color:#a85b00 !important;
+          border-color:#f2c06b !important;
+          background:rgba(255,248,232,.97) !important;
+        }
+
+
+        #${NET_ID}.is-offline .ace-net-dot{
+          background:#f39a0a !important;
+        }
+
+
+        /* =====================================================
+           IMAGEM = MESMO TAMANHO DO VÍDEO
+           ===================================================== */
+
+        .ace-mural-card
+        .ace-mural-media.ace-mural-media-image{
+          width:100% !important;
+
+          height:54vh !important;
+          min-height:390px !important;
+          max-height:610px !important;
+
+          aspect-ratio:auto !important;
+
+          display:flex !important;
+          align-items:center !important;
+          justify-content:center !important;
+
+          overflow:hidden !important;
+
+          background:#eef4f8 !important;
+        }
+
+
+        .ace-mural-card
+        .ace-mural-media.ace-mural-media-image
+        > img{
+          display:block !important;
+
+          width:100% !important;
+          height:100% !important;
+
+          min-width:100% !important;
+          min-height:100% !important;
+
+          max-width:none !important;
+          max-height:none !important;
+
+          aspect-ratio:auto !important;
+
+          object-fit:contain !important;
+
+          background:#eef4f8 !important;
+        }
+
+
+        @media(max-width:390px){
+
+          .ace-mural-card
+          .ace-mural-media.ace-mural-media-image{
+            height:52vh !important;
+            min-height:360px !important;
+          }
+
+        }
+
+      }
+
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  function ensureNetworkBadge(){
+
+    const mobileHeader =
+      document.getElementById(
+        "aceMobileHeader"
+      );
+
+
+    if (!mobileHeader) {
+      return null;
+    }
+
+
+    let badge =
+      document.getElementById(
+        NET_ID
+      );
+
+
+    if (!badge){
+
+      badge =
+        document.createElement(
+          "div"
+        );
+
+
+      badge.id =
+        NET_ID;
+
+
+      badge.innerHTML = `
+        <span class="ace-net-dot"></span>
+        <span class="ace-net-text"></span>
+      `;
+
+    }
+
+
+    if (
+      badge.parentElement !==
+      mobileHeader
+    ) {
+
+      mobileHeader.appendChild(
+        badge
+      );
+
+    }
+
+
+    return badge;
+
+  }
+
+
+  function updateNetworkBadge(){
+
+    ensureStyle();
+
+
+    const badge =
+      ensureNetworkBadge();
+
+
+    if (!badge) {
+      return;
+    }
+
+
+    let online = true;
+
+
+    try {
+
+      online =
+        typeof aceIsOnline ===
+          "function"
+          ? aceIsOnline()
+          : navigator.onLine !== false;
+
+    } catch {
+
+      online =
+        navigator.onLine !== false;
+
+    }
+
+
+    badge.classList.toggle(
+      "is-online",
+      online
+    );
+
+
+    badge.classList.toggle(
+      "is-offline",
+      !online
+    );
+
+
+    const label =
+      badge.querySelector(
+        ".ace-net-text"
+      );
+
+
+    if (label){
+
+      label.textContent =
+        online
+          ? "Online"
+          : "Offline";
+
+    }
+
+  }
+
+
+  function schedule(){
+
+    updateNetworkBadge();
+
+
+    [
+      100,
+      300,
+      700,
+      1200
+    ].forEach(
+      delay =>
+        setTimeout(
+          updateNetworkBadge,
+          delay
+        )
+    );
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      schedule
+    );
+
+  } else {
+
+    schedule();
+
+  }
+
+
+  window.addEventListener(
+    "online",
+    updateNetworkBadge
+  );
+
+
+  window.addEventListener(
+    "offline",
+    updateNetworkBadge
+  );
+
+
+  window.addEventListener(
+    "focus",
+    updateNetworkBadge
+  );
+
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+
+      if (
+        document.visibilityState ===
+        "visible"
+      ) {
+
+        updateNetworkBadge();
+
+      }
+
+    }
+  );
+
+
+  // Reforço visual: não altera a lógica offline já existente.
+  setInterval(
+    updateNetworkBadge,
+    500
+  );
+
+})();
