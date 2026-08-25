@@ -7260,6 +7260,29 @@ function ensureAceDesktopAccountStyles() {
       }
 
 
+      .ace-desktop-logout-visible{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        min-height:44px;
+        padding:0 16px;
+        border:1px solid rgba(255,255,255,.45);
+        border-radius:10px;
+        background:rgba(255,255,255,.12);
+        color:#fff;
+        font:inherit;
+        font-size:14px;
+        font-weight:900;
+        cursor:pointer;
+        white-space:nowrap;
+      }
+
+
+      .ace-desktop-logout-visible:hover{
+        background:rgba(255,255,255,.22);
+      }
+
+
       .ace-desktop-account-dropdown{
         position:absolute;
         top:54px;
@@ -7377,6 +7400,22 @@ function setupAceDesktopAccountMenuEvents() {
       openAceMyAccount;
 
   }
+
+
+  document
+    .getElementById(
+      "aceDesktopLogoutVisible"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceDesktopAccountMenu();
+
+        logoutUser();
+
+      }
+    );
 
 
   document
@@ -7583,6 +7622,16 @@ function addUserBar() {
       title="Mais opções"
     >
       ⋮
+    </button>
+
+
+    <button
+      id="aceDesktopLogoutVisible"
+      class="ace-desktop-logout-visible"
+      type="button"
+      title="Sair"
+    >
+      🚪 Sair
     </button>
 
 
