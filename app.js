@@ -7193,11 +7193,18 @@ function ensureAceDesktopAccountStyles() {
     @media(min-width:851px){
 
       #userBar{
-        position:relative;
+        position:absolute !important;
+        right:72px !important;
+        bottom:28px !important;
+        top:auto !important;
+        left:auto !important;
+
         display:flex;
         align-items:center;
         justify-content:flex-end;
         gap:9px;
+
+        margin:0 !important;
         overflow:visible;
         z-index:80;
       }
