@@ -208,11 +208,6 @@ function isAceNetworkError(error) {
 let aceNetworkNoticeOpen = false;
 let aceNetworkNoticeQueuedState = null;
 
-// Evita aviso duplicado de "Conexão restabelecida" quando
-// Capacitor Network + eventos do WebView chegam quase juntos.
-let aceLastOnlineNoticeAt = 0;
-const ACE_ONLINE_NOTICE_COOLDOWN_MS = 10000;
-
 
 function showAceNetworkNotice(
   online
@@ -224,40 +219,14 @@ function showAceNetworkNotice(
       : "offline";
 
 
-  // O Android/WebView pode disparar mais de um evento de retorno
-  // da internet em sequência. Mostra o aviso ONLINE apenas uma vez.
-  if (online) {
-
-    const now =
-      Date.now();
-
-    if (
-      now -
-        aceLastOnlineNoticeAt <
-      ACE_ONLINE_NOTICE_COOLDOWN_MS
-    ) {
-      return;
-    }
-
-    aceLastOnlineNoticeAt =
-      now;
-
-  }
-
-
   if (
     aceNetworkNoticeOpen
   ) {
 
-    // Se já existe um aviso aberto, guarda somente uma mudança REAL
-    // de estado. Nunca enfileira o mesmo aviso duas vezes.
-    if (
-      aceNetworkNoticeQueuedState !==
-      state
-    ) {
-      aceNetworkNoticeQueuedState =
-        state;
-    }
+    // Se a rede mudou enquanto a mensagem anterior ainda está aberta,
+    // guarda somente o estado MAIS RECENTE.
+    aceNetworkNoticeQueuedState =
+      state;
 
     return;
   }
@@ -7198,17 +7167,362 @@ function updateAceHeaderBranding() {
 }
 
 
+function ensureAceDesktopAccountStyles() {
+
+  if (
+    document.getElementById(
+      "aceDesktopAccountStyles"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceDesktopAccountStyles";
+
+
+  style.textContent = `
+
+    @media(min-width:851px){
+
+      #userBar{
+        position:relative;
+        display:flex;
+        align-items:center;
+        justify-content:flex-end;
+        gap:9px;
+        overflow:visible;
+        z-index:80;
+      }
+
+
+      #userBar .user-email{
+        display:inline-flex;
+        align-items:center;
+        font-size:13px;
+        font-weight:800;
+        color:#fff;
+        opacity:1;
+      }
+
+
+      .ace-desktop-avatar-button{
+        display:block;
+        flex:0 0 46px;
+        width:46px;
+        height:46px;
+        padding:0;
+        overflow:hidden;
+        border:2px solid rgba(255,255,255,.95);
+        border-radius:50%;
+        background:#fff;
+        cursor:pointer;
+        box-shadow:0 4px 12px rgba(0,0,0,.14);
+      }
+
+
+      .ace-desktop-avatar-button .ace-profile-avatar{
+        display:flex;
+        width:100%;
+        height:100%;
+        align-items:center;
+        justify-content:center;
+        font-size:23px;
+      }
+
+
+      .ace-desktop-more{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:34px;
+        height:44px;
+        padding:0;
+        border:0;
+        border-radius:9px;
+        background:transparent;
+        color:#fff;
+        font-size:32px;
+        line-height:1;
+        cursor:pointer;
+      }
+
+
+      .ace-desktop-more:hover{
+        background:rgba(255,255,255,.12);
+      }
+
+
+      .ace-desktop-account-dropdown{
+        position:absolute;
+        top:54px;
+        right:0;
+        z-index:1000900;
+        display:none;
+        width:255px;
+        overflow:hidden;
+        border:1px solid #dce6ed;
+        border-radius:14px;
+        background:#fff;
+        box-shadow:0 18px 45px rgba(0,35,65,.24);
+      }
+
+
+      .ace-desktop-account-dropdown.show{
+        display:block;
+      }
+
+
+      .ace-desktop-account-dropdown button{
+        display:flex;
+        align-items:center;
+        width:100%;
+        min-height:48px;
+        padding:10px 15px;
+        border:0;
+        border-bottom:1px solid #edf2f5;
+        background:#fff;
+        color:#173750;
+        text-align:left;
+        font:inherit;
+        font-size:14px;
+        font-weight:800;
+        cursor:pointer;
+      }
+
+
+      .ace-desktop-account-dropdown button:hover{
+        background:#f4f8fb;
+      }
+
+
+      .ace-desktop-account-dropdown button:last-child{
+        border-bottom:0;
+      }
+
+
+      .ace-desktop-account-dropdown .logout{
+        color:#cf2f25;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function closeAceDesktopAccountMenu() {
+
+  document
+    .getElementById(
+      "aceDesktopAccountDropdown"
+    )
+    ?.classList.remove(
+      "show"
+    );
+
+}
+
+
+function setupAceDesktopAccountMenuEvents() {
+
+  const more =
+    document.getElementById(
+      "aceDesktopAccountMore"
+    );
+
+
+  if (more) {
+
+    more.onclick =
+      event => {
+
+        event.stopPropagation();
+
+        document
+          .getElementById(
+            "aceDesktopAccountDropdown"
+          )
+          ?.classList.toggle(
+            "show"
+          );
+
+      };
+
+  }
+
+
+  const avatar =
+    document.getElementById(
+      "aceDesktopAvatarButton"
+    );
+
+
+  if (avatar) {
+
+    avatar.onclick =
+      openAceMyAccount;
+
+  }
+
+
+  document
+    .getElementById(
+      "aceDesktopAccountProfile"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceDesktopAccountMenu();
+
+        openAceMyAccount();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceDesktopAccountSync"
+    )
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        closeAceDesktopAccountMenu();
+
+        await aceManualSync();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceDesktopAccountInstall"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceDesktopAccountMenu();
+
+        document
+          .getElementById(
+            "installBtn"
+          )
+          ?.click();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceDesktopAccountAbout"
+    )
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        closeAceDesktopAccountMenu();
+
+        await showAceConfirm(
+          "ACE - Ação de Cestas\n\n" +
+          "Controle de Alimentos\n\n" +
+          "Aplicativo para controle de estoque, movimentações, presenças, cestas e informativos da equipe.",
+          "ℹ️ Sobre o aplicativo"
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "aceDesktopAccountLogout"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceDesktopAccountMenu();
+
+        logoutUser();
+
+      }
+    );
+
+
+  if (
+    document.body.dataset
+      .aceDesktopAccountGlobalBound !==
+    "1"
+  ) {
+
+    document.body.dataset
+      .aceDesktopAccountGlobalBound =
+      "1";
+
+
+    document.addEventListener(
+      "click",
+      event => {
+
+        if (
+          !event.target.closest(
+            "#aceDesktopAccountDropdown"
+          ) &&
+          !event.target.closest(
+            "#aceDesktopAccountMore"
+          )
+        ) {
+
+          closeAceDesktopAccountMenu();
+
+        }
+
+      }
+    );
+
+  }
+
+}
+
+
 function addUserBar() {
 
   const header =
-    document.querySelector(".ace-header-v6");
+    document.querySelector(
+      ".ace-header-v6"
+    );
 
-  if (!header || !currentUser) {
+
+  if (
+    !header ||
+    !currentUser
+  ) {
     return;
   }
 
 
   updateAceHeaderBranding();
+
+  ensureAceDesktopAccountStyles();
 
 
   const oldBar =
@@ -7222,41 +7536,121 @@ function addUserBar() {
   }
 
 
-  const bar = document.createElement("div");
+  const bar =
+    document.createElement(
+      "div"
+    );
 
-  bar.id = "userBar";
 
-  bar.className = "user-bar";
+  bar.id =
+    "userBar";
+
+  bar.className =
+    "user-bar";
 
 
   bar.innerHTML = `
 
-    <span class="user-email" title="${esc(getCurrentDisplayName())}">
+    <span
+      class="user-email"
+      title="${esc(getCurrentDisplayName())}"
+    >
       ${esc(getCurrentFirstName())}
     </span>
 
+
     <button
-      id="logoutBtn"
-      class="logout-btn"
+      id="aceDesktopAvatarButton"
+      class="ace-desktop-avatar-button"
       type="button"
+      title="Minha conta"
+      aria-label="Minha conta"
     >
-      🚪 Sair
+      <span
+        class="ace-profile-avatar"
+        data-ace-user-avatar
+      >
+        👤
+      </span>
     </button>
+
+
+    <button
+      id="aceDesktopAccountMore"
+      class="ace-desktop-more"
+      type="button"
+      aria-label="Mais opções"
+      title="Mais opções"
+    >
+      ⋮
+    </button>
+
+
+    <div
+      id="aceDesktopAccountDropdown"
+      class="ace-desktop-account-dropdown"
+    >
+
+      <button
+        id="aceDesktopAccountProfile"
+        type="button"
+      >
+        👤 Minha conta
+      </button>
+
+      <button
+        id="aceDesktopAccountSync"
+        type="button"
+      >
+        🔄 Sincronizar dados
+      </button>
+
+      ${
+        document.getElementById(
+          "installBtn"
+        )
+          ? `
+              <button
+                id="aceDesktopAccountInstall"
+                type="button"
+              >
+                📲 Instalar aplicativo
+              </button>
+            `
+          : ""
+      }
+
+      <button
+        id="aceDesktopAccountAbout"
+        type="button"
+      >
+        ℹ️ Sobre o aplicativo
+      </button>
+
+      <button
+        id="aceDesktopAccountLogout"
+        class="logout"
+        type="button"
+      >
+        🚪 Sair
+      </button>
+
+    </div>
 
   `;
 
 
-  header.appendChild(bar);
+  header.appendChild(
+    bar
+  );
 
 
-  document
-    .getElementById("logoutBtn")
-    .addEventListener(
-      "click",
-      logoutUser
-    );
+  setupAceDesktopAccountMenuEvents();
+
+  updateAceAvatarElements();
 
 }
+
 
 // ============================================================
 // MODAL PERSONALIZADO - CONFIRMAÇÕES
@@ -9938,6 +10332,39 @@ function renderStock() {
 // ============================================================
 // 15. RELATÓRIO
 // ============================================================
+
+function clearGeneratedReport() {
+
+  const reportResult =
+    document.getElementById(
+      "reportResult"
+    );
+
+
+  if (reportResult) {
+
+    reportResult.innerHTML =
+      "";
+
+  }
+
+
+  reportSignatureHasInk =
+    false;
+
+  lastGeneratedReportPdfBlob =
+    null;
+
+  lastGeneratedReportPdfName =
+    "";
+
+
+  toast(
+    "Relatório limpo."
+  );
+
+}
+
 
 function renderReport() {
 
@@ -13920,6 +14347,60 @@ function bindEvents() {
 
   const exportCSVButton = document.getElementById("exportCSV");
   if (exportCSVButton) exportCSVButton.addEventListener("click", exportCSV);
+
+
+  // Botão Limpar relatório:
+  // limpa somente a visualização gerada, sem excluir dados.
+  let clearReportButton =
+    document.getElementById(
+      "clearReport"
+    );
+
+
+  if (
+    !clearReportButton &&
+    exportCSVButton
+  ) {
+
+    clearReportButton =
+      exportCSVButton.cloneNode(
+        true
+      );
+
+    clearReportButton.id =
+      "clearReport";
+
+    clearReportButton.type =
+      "button";
+
+    clearReportButton.textContent =
+      "🧹 Limpar relatório";
+
+    exportCSVButton.insertAdjacentElement(
+      "afterend",
+      clearReportButton
+    );
+
+  }
+
+
+  if (
+    clearReportButton &&
+    clearReportButton.dataset
+      .aceBound !==
+    "1"
+  ) {
+
+    clearReportButton.dataset
+      .aceBound =
+      "1";
+
+    clearReportButton.addEventListener(
+      "click",
+      clearGeneratedReport
+    );
+
+  }
 
 
   ensurePersonExtraFields();
@@ -22363,7 +22844,11 @@ function openAceMyAccount() {
           id="aceChoosePhoto"
           type="button"
         >
-          🖼️ Escolher da galeria
+          ${
+            window.innerWidth > 850
+              ? "📤 Adicionar foto (Upload)"
+              : "🖼️ Escolher da galeria"
+          }
         </button>
 
         <button
