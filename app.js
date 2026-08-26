@@ -12582,6 +12582,146 @@ async function generateSignedReportPDF() {
       });
 
 
+    // ========================================================
+    // PDF - LARGURAS ESPECÍFICAS DAS COLUNAS
+    //
+    // Dá mais espaço para "Usuário" e principalmente "Obs.",
+    // evitando que as observações sejam cortadas no PDF.
+    // Esta alteração vale SOMENTE para a cópia usada no PDF.
+    // ========================================================
+
+    element
+      .querySelectorAll(
+        "table"
+      )
+      .forEach(tableNode => {
+
+        const headers =
+          Array.from(
+            tableNode.querySelectorAll(
+              "thead th"
+            )
+          ).map(
+            th =>
+              String(
+                th.textContent || ""
+              )
+                .trim()
+                .toLowerCase()
+          );
+
+
+        const applyWidths =
+          widths => {
+
+            widths.forEach(
+              (width, index) => {
+
+                tableNode
+                  .querySelectorAll(
+                    `tr > *:nth-child(${index + 1})`
+                  )
+                  .forEach(cell => {
+
+                    cell.style.width =
+                      width;
+
+                    cell.style.maxWidth =
+                      "none";
+
+                    cell.style.minWidth =
+                      "0";
+
+                    cell.style.height =
+                      "auto";
+
+                    cell.style.maxHeight =
+                      "none";
+
+                    cell.style.overflow =
+                      "visible";
+
+                    cell.style.whiteSpace =
+                      "normal";
+
+                    cell.style.wordBreak =
+                      "break-word";
+
+                    cell.style.overflowWrap =
+                      "break-word";
+
+                    cell.style.lineHeight =
+                      "1.35";
+
+                  });
+
+              }
+            );
+
+          };
+
+
+        // Entradas:
+        // Data | Origem | Alimento | Qtd | Usuário | Obs.
+        if (
+          headers.length === 6 &&
+          headers.includes(
+            "usuário"
+          ) &&
+          headers.includes(
+            "obs."
+          ) &&
+          !headers.includes(
+            "tipo"
+          )
+        ) {
+
+          applyWidths([
+            "9%",
+            "12%",
+            "15%",
+            "7%",
+            "18%",
+            "39%"
+          ]);
+
+        }
+
+
+        // Saídas e perdas:
+        // Data | Tipo | Origem | Alimento | Qtd | Motivo | Usuário | Obs.
+        if (
+          headers.length === 8 &&
+          headers.includes(
+            "tipo"
+          ) &&
+          headers.includes(
+            "motivo"
+          ) &&
+          headers.includes(
+            "usuário"
+          ) &&
+          headers.includes(
+            "obs."
+          )
+        ) {
+
+          applyWidths([
+            "9%",
+            "8%",
+            "11%",
+            "14%",
+            "6%",
+            "10%",
+            "17%",
+            "25%"
+          ]);
+
+        }
+
+      });
+
+
     // Evita qualquer conteúdo horizontal ultrapassando a página.
     element
       .querySelectorAll(
