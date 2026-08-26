@@ -13833,6 +13833,10 @@ function buildHistoryRows() {
       row.originId ?? "",
       row.foodId ?? "",
       basketType,
+      row.usuarioId ||
+        row.usuario_id ||
+        row.usuarioNome ||
+        "",
       isCommunity
         ? `comunidade:${receiverKey}`
         : "nao-comunidade"
@@ -14010,6 +14014,15 @@ function renderHistory() {
         [
           "Tipo de cesta",
           x => esc(x.basketType || "—")
+        ],
+
+        [
+          "Usuário",
+          x =>
+            esc(
+              getMovementUserName(x) ||
+              "Usuário não identificado"
+            )
         ],
 
         [
