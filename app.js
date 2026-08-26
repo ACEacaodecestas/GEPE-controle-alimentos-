@@ -10867,6 +10867,14 @@ function renderReport() {
                 x => fmt(x.qty)
               ],
               [
+                "Usuário",
+                x =>
+                  esc(
+                    getMovementUserName(x) ||
+                    "Usuário não identificado"
+                  )
+              ],
+              [
                 "Obs.",
                 x =>
                   esc(
@@ -10937,6 +10945,21 @@ function renderReport() {
                       db.reasons,
                       x.reasonId
                     )
+                  )
+              ],
+              [
+                "Usuário",
+                x =>
+                  esc(
+                    getMovementUserName(x) ||
+                    "Usuário não identificado"
+                  )
+              ],
+              [
+                "Obs.",
+                x =>
+                  esc(
+                    x.note || ""
                   )
               ]
             ],
