@@ -20670,20 +20670,6 @@ function renderBasketWithdrawalHistory() {
               esc(
                 row.note || ""
               )
-          ],
-          [
-            "Ações",
-            row => `
-
-              <button
-                type="button"
-                class="ace-mounted-stock-btn ace-mounted-stock-view"
-                data-view-withdrawal-composition="${row.id}"
-              >
-                👁️ Ver composição
-              </button>
-
-            `
           ]
         ],
         null
@@ -20766,20 +20752,6 @@ function renderBasketAdjustmentHistory() {
               esc(
                 row.note || ""
               )
-          ],
-          [
-            "Ações",
-            row => `
-
-              <button
-                type="button"
-                class="ace-mounted-stock-btn ace-mounted-stock-view"
-                data-view-adjustment-composition="${row.id}"
-              >
-                👁️ Ver composição
-              </button>
-
-            `
           ]
         ],
         null
@@ -22612,46 +22584,6 @@ function bindMountedBasketStockActions(
               Number(
                 button.dataset
                   .viewMountedBasket
-              )
-            );
-
-      }
-    );
-
-
-  module
-    ?.querySelectorAll(
-      "[data-view-withdrawal-composition]"
-    )
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            openWithdrawalBasketComposition(
-              Number(
-                button.dataset
-                  .viewWithdrawalComposition
-              )
-            );
-
-      }
-    );
-
-
-  module
-    ?.querySelectorAll(
-      "[data-view-adjustment-composition]"
-    )
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            openAdjustmentBasketComposition(
-              Number(
-                button.dataset
-                  .viewAdjustmentComposition
               )
             );
 
