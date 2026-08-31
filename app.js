@@ -15382,6 +15382,29 @@ function setupBulkEntryForm() {
 }
 
 
+
+function getBulkEntryFoodName(
+  item
+) {
+
+  const food =
+    (db.foods || [])
+      .find(
+        row =>
+          String(row.id) ===
+          String(item.foodId)
+      );
+
+
+  return (
+    food?.name ||
+    item.foodName ||
+    "Alimento não identificado"
+  );
+
+}
+
+
 function renderBulkEntryDraft() {
 
   const list =
@@ -15444,7 +15467,11 @@ function renderBulkEntryDraft() {
               <div class="ace-bulk-item-main">
 
                 <div class="ace-bulk-item-title">
-                  ${esc(item.foodName)}
+                  ${esc(
+                    getBulkEntryFoodName(
+                      item
+                    )
+                  )}
                   — ${fmt(item.qty)}
                 </div>
 
@@ -15655,11 +15682,28 @@ async function addOrUpdateBulkEntryItem() {
   }
 
 
-  const foodName =
-    getName(
-      db.foods,
-      Number(foodId)
+  const selectedFood =
+    (db.foods || [])
+      .find(
+        item =>
+          String(item.id) ===
+          String(foodId)
+      );
+
+
+  if (!selectedFood) {
+
+    await showAceConfirm(
+      "Não foi possível identificar o alimento selecionado.\n\nSelecione novamente o alimento.",
+      "⚠️ Alimento não identificado"
     );
+
+    return;
+  }
+
+
+  const foodName =
+    selectedFood.name;
 
 
   if (aceBulkEntryEditingId) {
@@ -15675,10 +15719,10 @@ async function addOrUpdateBulkEntryItem() {
     if (item) {
 
       item.foodId =
-        Number(foodId);
+        selectedFood.id;
 
       item.foodName =
-        foodName;
+        selectedFood.name;
 
       item.qty =
         qty;
@@ -15697,15 +15741,17 @@ async function addOrUpdateBulkEntryItem() {
   }
 
 
-  // Se o mesmo alimento já estiver na lista COM A MESMA
-  // observação, apenas incrementa a quantidade.
+  // ========================================================
+  // REGRA DO LOTE:
+  // Só incrementa quando for EXATAMENTE o mesmo alimento.
+  // Alimentos diferentes SEMPRE criam linhas diferentes.
+  // ========================================================
+
   const existing =
     aceBulkEntryDraft.find(
       item =>
-        Number(item.foodId) ===
-          Number(foodId) &&
-        String(item.note || "") ===
-          note
+        String(item.foodId) ===
+        String(selectedFood.id)
     );
 
 
@@ -15717,14 +15763,52 @@ async function addOrUpdateBulkEntryItem() {
       ) +
       qty;
 
+
+    // Observação é facultativa.
+    // Se o mesmo alimento receber uma nova observação,
+    // preservamos as informações sem criar outra linha.
+    if (note) {
+
+      const currentNote =
+        String(
+          existing.note || ""
+        ).trim();
+
+
+      if (!currentNote) {
+
+        existing.note =
+          note;
+
+      } else if (
+        currentNote !== note &&
+        !currentNote
+          .split(" | ")
+          .includes(note)
+      ) {
+
+        existing.note =
+          `${currentNote} | ${note}`;
+
+      }
+
+    }
+
+
+    // Garante que o nome permaneça correto no Resumo.
+    existing.foodName =
+      selectedFood.name;
+
+
   } else {
 
     aceBulkEntryDraft.push({
       id:
         uid(),
       foodId:
-        Number(foodId),
-      foodName,
+        selectedFood.id,
+      foodName:
+        selectedFood.name,
       qty,
       note
     });
