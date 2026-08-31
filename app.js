@@ -15261,7 +15261,7 @@ function setupBulkEntryForm() {
           <input
             id="entryNote"
             type="text"
-            placeholder="Opcional"
+            placeholder="Obrigatória"
           >
 
         </div>
@@ -15290,7 +15290,7 @@ function setupBulkEntryForm() {
 
 
         <div class="ace-bulk-help">
-          A origem vale para toda a entrada. A observação é individual de cada alimento e aparecerá em <b>Entradas do dia</b>.
+          Todos os campos são obrigatórios. A origem vale para toda a entrada. A observação é individual de cada alimento e aparecerá em <b>Entradas do dia</b>.
         </div>
 
       </div>
@@ -15578,6 +15578,16 @@ function resetBulkEntryItemEditor() {
 
 function addOrUpdateBulkEntryItem() {
 
+  const date =
+    document.getElementById(
+      "entryDate"
+    )?.value;
+
+  const originId =
+    document.getElementById(
+      "entryOrigin"
+    )?.value;
+
   const foodId =
     document.getElementById(
       "entryFood"
@@ -15598,14 +15608,53 @@ function addOrUpdateBulkEntryItem() {
     ).trim();
 
 
+  if (!date) {
+
+    showAceSuccess(
+      "⚠️ Preencha a Data."
+    );
+
+    return;
+  }
+
+
+  if (!originId) {
+
+    showAceSuccess(
+      "⚠️ Selecione a Origem."
+    );
+
+    return;
+  }
+
+
+  if (!foodId) {
+
+    showAceSuccess(
+      "⚠️ Selecione o Alimento."
+    );
+
+    return;
+  }
+
+
   if (
-    !foodId ||
     !Number.isFinite(qty) ||
     qty <= 0
   ) {
 
-    toast(
-      "Selecione o alimento e informe uma quantidade válida."
+    showAceSuccess(
+      "⚠️ Informe uma Quantidade válida."
+    );
+
+    return;
+  }
+
+
+  if (!note) {
+
+    showAceSuccess(
+      "⚠️ Preencha a Observação."
     );
 
     return;
