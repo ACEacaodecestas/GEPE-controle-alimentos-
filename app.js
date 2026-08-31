@@ -30399,6 +30399,193 @@ function buildAceMobileDrawer() {
 // NAVEGAÇÃO INFERIOR
 // ------------------------------------------------------------
 
+function getAceBottomMenuMeta(
+  label,
+  page
+) {
+
+  const value =
+    normalizeAceText(
+      `${label || ""} ${page || ""}`
+    );
+
+
+  if (value.includes("mural")) {
+    return {
+      icon: "📣",
+      color: "mural"
+    };
+  }
+
+
+  if (value.includes("inicio")) {
+    return {
+      icon: "🏠",
+      color: "inicio"
+    };
+  }
+
+
+  if (value.includes("entrada")) {
+    return {
+      icon: "➕",
+      color: "entrada"
+    };
+  }
+
+
+  if (
+    value.includes("saida") ||
+    value.includes("perda")
+  ) {
+    return {
+      icon: "📤",
+      color: "saida"
+    };
+  }
+
+
+  if (value.includes("presenca")) {
+    return {
+      icon: "👥",
+      color: "presenca"
+    };
+  }
+
+
+  if (value.includes("historico")) {
+    return {
+      icon: "📋",
+      color: "historico"
+    };
+  }
+
+
+  if (value.includes("cesta")) {
+    return {
+      icon: "🧺",
+      color: "cestas"
+    };
+  }
+
+
+  if (value.includes("estoque")) {
+    return {
+      icon: "🏬",
+      color: "estoque"
+    };
+  }
+
+
+  if (value.includes("relatorio")) {
+    return {
+      icon: "📄",
+      color: "relatorio"
+    };
+  }
+
+
+  if (value.includes("cadastro")) {
+    return {
+      icon: "⚙️",
+      color: "cadastro"
+    };
+  }
+
+
+  return {
+    icon: "🔹",
+    color: "padrao"
+  };
+
+}
+
+
+function buildAceScrollableBottomNavigation() {
+
+  const bottom =
+    document.getElementById(
+      "aceMobileBottomNav"
+    );
+
+
+  if (!bottom) {
+    return;
+  }
+
+
+  const tabs =
+    Array.from(
+      document.querySelectorAll(
+        ".tabs .tab[data-page]"
+      )
+    );
+
+
+  bottom.innerHTML =
+    tabs
+      .map(
+        tab => {
+
+          const page =
+            String(
+              tab.dataset.page || ""
+            );
+
+          const rawLabel =
+            String(
+              tab.textContent || ""
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
+
+          const cleanLabel =
+            rawLabel
+              .replace(
+                /^[^\p{L}\p{N}]+/u,
+                ""
+              )
+              .trim();
+
+          const meta =
+            getAceBottomMenuMeta(
+              cleanLabel,
+              page
+            );
+
+
+          return `
+
+            <button
+              class="ace-bottom-item"
+              type="button"
+              data-ace-target="${esc(page)}"
+              data-ace-color="${esc(meta.color)}"
+              title="${esc(cleanLabel)}"
+            >
+
+              <span class="icon">
+                ${meta.icon}
+              </span>
+
+              <span class="label">
+                ${esc(cleanLabel)}
+              </span>
+
+            </button>
+
+          `;
+
+        }
+      )
+      .join("");
+
+}
+
+
 function updateAceMobileNavigationState() {
 
   const active =
@@ -30459,6 +30646,31 @@ function updateAceMobileNavigationState() {
           matches
         );
 
+
+        if (
+          matches &&
+          window.matchMedia(
+            "(max-width:850px)"
+          ).matches
+        ) {
+
+          requestAnimationFrame(
+            () => {
+
+              button.scrollIntoView({
+                behavior:
+                  "smooth",
+                block:
+                  "nearest",
+                inline:
+                  "center"
+              });
+
+            }
+          );
+
+        }
+
       }
     );
 
@@ -30494,20 +30706,6 @@ function setupAceBottomNavigation() {
 
       }
     );
-
-
-  const moreButton =
-    document.getElementById(
-      "aceBottomMore"
-    );
-
-
-  if (moreButton) {
-
-    moreButton.onclick =
-      openAceMobileDrawer;
-
-  }
 
 
   updateAceMobileNavigationState();
@@ -31188,50 +31386,120 @@ function ensureAceProfessionalLayoutStyles() {
         right:0;
         bottom:0;
         z-index:1000100;
-        display:grid;
-        grid-template-columns:repeat(5,1fr);
+        display:flex;
+        align-items:stretch;
+        gap:3px;
         min-height:76px;
-        padding:7px 5px calc(7px + env(safe-area-inset-bottom));
+        padding:7px 7px calc(7px + env(safe-area-inset-bottom));
+        overflow-x:auto;
+        overflow-y:hidden;
+        overscroll-behavior-x:contain;
+        scroll-behavior:smooth;
+        scroll-snap-type:x proximity;
+        -webkit-overflow-scrolling:touch;
+        scrollbar-width:none;
         border-top:1px solid #dce5ec;
-        background:rgba(255,255,255,.97);
+        background:rgba(255,255,255,.98);
         box-shadow:0 -8px 28px rgba(20,54,82,.10);
         backdrop-filter:blur(10px);
       }
 
+      #aceMobileBottomNav::-webkit-scrollbar{
+        display:none;
+      }
+
       .ace-bottom-item{
         display:flex;
+        flex:0 0 84px;
         flex-direction:column;
         align-items:center;
         justify-content:center;
-        gap:5px;
-        min-width:0;
+        gap:4px;
+        min-width:84px;
         min-height:62px;
-        padding:5px 2px;
+        padding:5px 4px;
+        scroll-snap-align:center;
         border:0;
-        border-radius:11px;
+        border-radius:12px;
         background:transparent;
         color:#3d566d;
         font:inherit;
         cursor:pointer;
+        touch-action:pan-x;
       }
 
       .ace-bottom-item .icon{
-        font-size:27px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:38px;
+        height:34px;
+        border-radius:11px;
+        font-size:24px;
         line-height:1;
+        transition:transform .15s ease;
       }
 
       .ace-bottom-item .label{
         overflow:hidden;
+        width:100%;
         max-width:100%;
-        font-size:12px;
+        font-size:10.5px;
         font-weight:900;
+        line-height:1.1;
+        text-align:center;
         text-overflow:ellipsis;
         white-space:nowrap;
+      }
+
+      .ace-bottom-item[data-ace-color="mural"] .icon{
+        background:#e8f5ff;
+      }
+
+      .ace-bottom-item[data-ace-color="inicio"] .icon{
+        background:#fff4dd;
+      }
+
+      .ace-bottom-item[data-ace-color="entrada"] .icon{
+        background:#eef0f3;
+      }
+
+      .ace-bottom-item[data-ace-color="saida"] .icon{
+        background:#fff0e4;
+      }
+
+      .ace-bottom-item[data-ace-color="presenca"] .icon{
+        background:#f3eaff;
+      }
+
+      .ace-bottom-item[data-ace-color="historico"] .icon{
+        background:#fff5e6;
+      }
+
+      .ace-bottom-item[data-ace-color="cestas"] .icon{
+        background:#edf8e8;
+      }
+
+      .ace-bottom-item[data-ace-color="estoque"] .icon{
+        background:#e9f4ff;
+      }
+
+      .ace-bottom-item[data-ace-color="relatorio"] .icon{
+        background:#fff0f4;
+      }
+
+      .ace-bottom-item[data-ace-color="cadastro"] .icon{
+        background:#f1ecff;
       }
 
       .ace-bottom-item.active{
         background:#eaf4fd;
         color:#0756a0;
+        box-shadow:inset 0 0 0 1px #d5e8f7;
+      }
+
+      .ace-bottom-item.active .icon{
+        transform:translateY(-1px) scale(1.06);
       }
 
 
@@ -31581,13 +31849,15 @@ function setupProfessionalMobileLayout() {
   }
 
 
-  if (
-    !document.getElementById(
+  let bottom =
+    document.getElementById(
       "aceMobileBottomNav"
-    )
-  ) {
+    );
 
-    const bottom =
+
+  if (!bottom) {
+
+    bottom =
       document.createElement(
         "nav"
       );
@@ -31595,62 +31865,16 @@ function setupProfessionalMobileLayout() {
     bottom.id =
       "aceMobileBottomNav";
 
-
-    bottom.innerHTML = `
-
-      <button
-        class="ace-bottom-item"
-        type="button"
-        data-ace-target="mural"
-      >
-        <span class="icon">📣</span>
-        <span class="label">Mural ACE</span>
-      </button>
-
-      <button
-        class="ace-bottom-item"
-        type="button"
-        data-ace-target="inicio"
-      >
-        <span class="icon">🏠</span>
-        <span class="label">Início</span>
-      </button>
-
-      <button
-        class="ace-bottom-item"
-        type="button"
-        data-ace-target="entrada"
-      >
-        <span class="icon">➕</span>
-        <span class="label">Entrada</span>
-      </button>
-
-      <button
-        class="ace-bottom-item"
-        type="button"
-        data-ace-target="saida"
-      >
-        <span class="icon">📤</span>
-        <span class="label">Saída/Perda</span>
-      </button>
-
-      <button
-        id="aceBottomMore"
-        class="ace-bottom-item"
-        type="button"
-      >
-        <span class="icon">🟪</span>
-        <span class="label">Mais</span>
-      </button>
-
-    `;
-
-
     document.body.appendChild(
       bottom
     );
 
   }
+
+
+  // Mostra TODOS os menus existentes na barra inferior.
+  // A barra é horizontal e pode ser arrastada com o dedo.
+  buildAceScrollableBottomNavigation();
 
 
   buildAceMobileDrawer();
