@@ -19645,6 +19645,60 @@ function ensureMountedBasketStockStyles() {
       white-space:nowrap;
     }
 
+    .ace-mounted-stock-view{
+      border:1px solid #7a5af8;
+      background:#f5f3ff;
+      color:#5925dc;
+    }
+
+    .ace-composition-modal-list{
+      margin-top:12px;
+      border:1px solid #e3e9ef;
+      border-radius:10px;
+      overflow:hidden;
+    }
+
+    .ace-composition-modal-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:12px;
+      align-items:center;
+      padding:11px 13px;
+      border-bottom:1px solid #e6ebf0;
+      background:#fff;
+    }
+
+    .ace-composition-modal-row:last-child{
+      border-bottom:0;
+    }
+
+    .ace-composition-modal-food{
+      color:#17324d;
+      font-weight:800;
+    }
+
+    .ace-composition-modal-qty{
+      color:#0b3a63;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .ace-composition-modal-total{
+      margin-top:12px;
+      padding:11px 13px;
+      border-radius:9px;
+      background:#eef6fb;
+      color:#0b3a63;
+      font-weight:900;
+    }
+
+    .ace-composition-section-title{
+      margin:15px 0 8px;
+      color:#0b3a63;
+      font-size:17px;
+      font-weight:900;
+    }
+
     .ace-mounted-stock-edit{
       border:1px solid #0b4b7a;
       background:#fff;
@@ -19956,6 +20010,421 @@ function getFilteredBasketAdjustments() {
 }
 
 
+
+function normalizeBasketCompositionForView(
+  composition
+) {
+
+  return (composition || [])
+    .map(
+      item => {
+
+        const foodId =
+          Number(
+            item.alimento_id ??
+            item.foodId ??
+            item.alimentoId ??
+            0
+          );
+
+        const qty =
+          Number(
+            item.quantidade_por_cesta ??
+            item.qty ??
+            item.quantidade ??
+            0
+          );
+
+        const foodName =
+          String(
+            item.alimento ??
+            item.foodName ??
+            ""
+          ).trim() ||
+          getName(
+            db.foods,
+            foodId
+          ) ||
+          "Alimento não identificado";
+
+
+        return {
+          foodId,
+          foodName,
+          qty
+        };
+
+      }
+    )
+    .filter(
+      item =>
+        item.foodName &&
+        Number.isFinite(
+          item.qty
+        ) &&
+        item.qty > 0
+    );
+
+}
+
+
+function renderBasketCompositionRows(
+  composition
+) {
+
+  const items =
+    normalizeBasketCompositionForView(
+      composition
+    );
+
+
+  if (!items.length) {
+
+    return `
+      <div class="empty">
+        Composição não disponível.
+      </div>
+    `;
+
+  }
+
+
+  const total =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.qty || 0
+        ),
+      0
+    );
+
+
+  return `
+
+    <div class="ace-composition-modal-list">
+
+      ${
+        items
+          .slice()
+          .sort(
+            (a,b) =>
+              String(
+                a.foodName
+              ).localeCompare(
+                String(
+                  b.foodName
+                ),
+                "pt-BR"
+              )
+          )
+          .map(
+            item => `
+
+              <div class="ace-composition-modal-row">
+
+                <div class="ace-composition-modal-food">
+                  ${esc(item.foodName)}
+                </div>
+
+                <div class="ace-composition-modal-qty">
+                  ${fmt(item.qty)} por cesta
+                </div>
+
+              </div>
+
+            `
+          )
+          .join("")
+      }
+
+    </div>
+
+    <div class="ace-composition-modal-total">
+      Total: ${fmt(total)} item(ns) por cesta
+    </div>
+
+  `;
+
+}
+
+
+function openBasketCompositionModal({
+  title,
+  destination = "",
+  availableQty = null,
+  qty = null,
+  responsible = "",
+  composition = [],
+  oldComposition = null,
+  newComposition = null,
+  adjustmentType = ""
+}) {
+
+  closeMountedBasketModal();
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+  modal.id =
+    "aceMountedBasketModal";
+
+  modal.className =
+    "ace-stock-modal";
+
+
+  const infoParts = [];
+
+
+  if (destination) {
+    infoParts.push(
+      `Destino: ${esc(destination)}`
+    );
+  }
+
+
+  if (
+    availableQty != null
+  ) {
+    infoParts.push(
+      `Disponível: <b>${fmt(availableQty)}</b>`
+    );
+  }
+
+
+  if (
+    qty != null
+  ) {
+    infoParts.push(
+      `Quantidade: <b>${fmt(qty)}</b>`
+    );
+  }
+
+
+  if (responsible) {
+    infoParts.push(
+      `Responsável: ${esc(responsible)}`
+    );
+  }
+
+
+  let compositionHtml = "";
+
+
+  if (
+    oldComposition !== null ||
+    newComposition !== null
+  ) {
+
+    const isEdit =
+      adjustmentType === "edicao";
+
+
+    if (isEdit) {
+
+      compositionHtml = `
+
+        <div class="ace-composition-section-title">
+          Antes da edição
+        </div>
+
+        ${renderBasketCompositionRows(
+          oldComposition || []
+        )}
+
+        <div class="ace-composition-section-title">
+          Depois da edição
+        </div>
+
+        ${renderBasketCompositionRows(
+          newComposition || []
+        )}
+
+      `;
+
+    } else {
+
+      compositionHtml = `
+
+        <div class="ace-composition-section-title">
+          Composição da cesta
+        </div>
+
+        ${renderBasketCompositionRows(
+          newComposition ||
+          oldComposition ||
+          []
+        )}
+
+      `;
+
+    }
+
+  } else {
+
+    compositionHtml =
+      renderBasketCompositionRows(
+        composition
+      );
+
+  }
+
+
+  modal.innerHTML = `
+
+    <div class="ace-stock-modal-box">
+
+      <div class="ace-stock-modal-title">
+        👁️ ${esc(title)}
+      </div>
+
+      ${
+        infoParts.length
+          ? `
+            <div class="ace-stock-modal-info">
+              ${infoParts.join("<br>")}
+            </div>
+          `
+          : ""
+      }
+
+      ${compositionHtml}
+
+      <div class="ace-stock-modal-actions">
+
+        <button
+          type="button"
+          class="ace-stock-confirm"
+          onclick="closeMountedBasketModal()"
+        >
+          Fechar
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+}
+
+
+function openMountedBasketComposition(
+  stockId
+) {
+
+  const stock =
+    getMountedBasketStockById(
+      stockId
+    );
+
+
+  if (!stock) {
+    toast(
+      "Estoque de cesta não encontrado."
+    );
+    return;
+  }
+
+
+  openBasketCompositionModal({
+    title:
+      `Composição — ${stock.basketName}`,
+    destination:
+      stock.destination,
+    availableQty:
+      stock.availableQty,
+    composition:
+      stock.composition
+  });
+
+}
+
+
+function openWithdrawalBasketComposition(
+  withdrawalId
+) {
+
+  const row =
+    (db?.basketWithdrawals || [])
+      .find(
+        item =>
+          Number(item.id) ===
+          Number(withdrawalId)
+      );
+
+
+  if (!row) {
+    toast(
+      "Retirada não encontrada."
+    );
+    return;
+  }
+
+
+  openBasketCompositionModal({
+    title:
+      `Composição — ${row.basketName}`,
+    destination:
+      row.destination,
+    qty:
+      row.qty,
+    responsible:
+      row.responsible,
+    composition:
+      row.composition
+  });
+
+}
+
+
+function openAdjustmentBasketComposition(
+  adjustmentId
+) {
+
+  const row =
+    (db?.basketAdjustments || [])
+      .find(
+        item =>
+          Number(item.id) ===
+          Number(adjustmentId)
+      );
+
+
+  if (!row) {
+    toast(
+      "Ajuste não encontrado."
+    );
+    return;
+  }
+
+
+  openBasketCompositionModal({
+    title:
+      row.type === "estorno"
+        ? "Composição do estorno"
+        : "Composição da edição",
+    qty:
+      row.qty,
+    oldComposition:
+      row.oldComposition,
+    newComposition:
+      row.newComposition,
+    adjustmentType:
+      row.type
+  });
+
+}
+
+
 function renderMountedBasketStockTable() {
 
   const rows =
@@ -20042,15 +20511,24 @@ function renderMountedBasketStockTable() {
 
                   <td>
 
-                    ${
-                      finalized
-                        ? `
-                          <span class="ace-mounted-final">
-                            ✅ Finalizado
-                          </span>
-                        `
-                        : `
-                          <div class="ace-mounted-stock-actions">
+                    <div class="ace-mounted-stock-actions">
+
+                      <button
+                        type="button"
+                        class="ace-mounted-stock-btn ace-mounted-stock-view"
+                        data-view-mounted-basket="${row.id}"
+                      >
+                        👁️ Ver composição
+                      </button>
+
+                      ${
+                        finalized
+                          ? `
+                            <span class="ace-mounted-final">
+                              ✅ Finalizado
+                            </span>
+                          `
+                          : `
 
                             <button
                               type="button"
@@ -20076,9 +20554,10 @@ function renderMountedBasketStockTable() {
                               ↩️ Estornar
                             </button>
 
-                          </div>
-                        `
-                    }
+                          `
+                      }
+
+                    </div>
 
                   </td>
 
@@ -20175,6 +20654,20 @@ function renderBasketWithdrawalHistory() {
               esc(
                 row.note || ""
               )
+          ],
+          [
+            "Ações",
+            row => `
+
+              <button
+                type="button"
+                class="ace-mounted-stock-btn ace-mounted-stock-view"
+                data-view-withdrawal-composition="${row.id}"
+              >
+                👁️ Ver composição
+              </button>
+
+            `
           ]
         ],
         null
@@ -20257,6 +20750,20 @@ function renderBasketAdjustmentHistory() {
               esc(
                 row.note || ""
               )
+          ],
+          [
+            "Ações",
+            row => `
+
+              <button
+                type="button"
+                class="ace-mounted-stock-btn ace-mounted-stock-view"
+                data-view-adjustment-composition="${row.id}"
+              >
+                👁️ Ver composição
+              </button>
+
+            `
           ]
         ],
         null
@@ -22075,6 +22582,66 @@ function bindBasketHistoryFilters(
 function bindMountedBasketStockActions(
   module
 ) {
+
+  module
+    ?.querySelectorAll(
+      "[data-view-mounted-basket]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openMountedBasketComposition(
+              Number(
+                button.dataset
+                  .viewMountedBasket
+              )
+            );
+
+      }
+    );
+
+
+  module
+    ?.querySelectorAll(
+      "[data-view-withdrawal-composition]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openWithdrawalBasketComposition(
+              Number(
+                button.dataset
+                  .viewWithdrawalComposition
+              )
+            );
+
+      }
+    );
+
+
+  module
+    ?.querySelectorAll(
+      "[data-view-adjustment-composition]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openAdjustmentBasketComposition(
+              Number(
+                button.dataset
+                  .viewAdjustmentComposition
+              )
+            );
+
+      }
+    );
+
 
   module
     ?.querySelectorAll(
