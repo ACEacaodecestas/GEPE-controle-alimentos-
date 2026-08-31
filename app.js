@@ -14793,20 +14793,34 @@ function ensureBulkEntryStyles() {
   style.textContent = `
 
     #entryForm.ace-bulk-entry-form{
+      display:block !important;
+      width:100% !important;
+      max-width:none !important;
+      min-width:0 !important;
+      grid-column:1 / -1 !important;
       padding:0 !important;
+      margin:0 !important;
       border:0 !important;
       background:transparent !important;
       box-shadow:none !important;
+      box-sizing:border-box !important;
     }
 
     .ace-bulk-entry-shell{
-      display:grid;
-      grid-template-columns:minmax(0,1fr) minmax(420px,.95fr);
-      gap:18px;
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+      width:100% !important;
+      max-width:none !important;
+      min-width:0 !important;
+      gap:20px;
       align-items:start;
+      box-sizing:border-box;
     }
 
     .ace-bulk-entry-panel{
+      width:100% !important;
+      max-width:none !important;
+      min-width:0 !important;
       border:1px solid #d7e0e8;
       border-radius:16px;
       background:#fff;
@@ -14823,8 +14837,9 @@ function ensureBulkEntryStyles() {
     }
 
     .ace-bulk-grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+      width:100% !important;
       gap:14px;
     }
 
@@ -15037,10 +15052,10 @@ function ensureBulkEntryStyles() {
       line-height:1.4;
     }
 
-    @media(max-width:980px){
+    @media(max-width:1050px){
 
       .ace-bulk-entry-shell{
-        grid-template-columns:1fr;
+        grid-template-columns:1fr !important;
       }
 
       .ace-bulk-items{
@@ -15128,6 +15143,26 @@ function setupBulkEntryForm() {
   form.classList.add(
     "ace-bulk-entry-form"
   );
+
+  // Remove limitações do formulário antigo que estavam
+  // comprimindo a nova interface em uma coluna estreita.
+  form.style.display = "block";
+  form.style.width = "100%";
+  form.style.maxWidth = "none";
+  form.style.minWidth = "0";
+  form.style.gridColumn = "1 / -1";
+  form.style.boxSizing = "border-box";
+
+  // Se o formulário estiver dentro de uma grade antiga,
+  // faz o contêiner ocupar toda a largura disponível.
+  const formParent =
+    form.parentElement;
+
+  if (formParent) {
+    formParent.style.width = "100%";
+    formParent.style.maxWidth = "none";
+    formParent.style.minWidth = "0";
+  }
 
 
   form.innerHTML = `
