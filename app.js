@@ -15261,7 +15261,7 @@ function setupBulkEntryForm() {
           <input
             id="entryNote"
             type="text"
-            placeholder="Obrigatória"
+            placeholder="Opcional"
           >
 
         </div>
@@ -15290,7 +15290,7 @@ function setupBulkEntryForm() {
 
 
         <div class="ace-bulk-help">
-          Todos os campos são obrigatórios. A origem vale para toda a entrada. A observação é individual de cada alimento e aparecerá em <b>Entradas do dia</b>.
+          Data, origem, alimento e quantidade são obrigatórios. A observação é facultativa e, quando preenchida, aparecerá em <b>Entradas do dia</b>.
         </div>
 
       </div>
@@ -15576,7 +15576,7 @@ function resetBulkEntryItemEditor() {
 }
 
 
-function addOrUpdateBulkEntryItem() {
+async function addOrUpdateBulkEntryItem() {
 
   const date =
     document.getElementById(
@@ -15610,8 +15610,9 @@ function addOrUpdateBulkEntryItem() {
 
   if (!date) {
 
-    showAceSuccess(
-      "⚠️ Preencha a Data."
+    await showAceConfirm(
+      "O campo Data é obrigatório.\n\nPreencha a data antes de adicionar o alimento.",
+      "⚠️ Campo obrigatório"
     );
 
     return;
@@ -15620,8 +15621,9 @@ function addOrUpdateBulkEntryItem() {
 
   if (!originId) {
 
-    showAceSuccess(
-      "⚠️ Selecione a Origem."
+    await showAceConfirm(
+      "O campo Origem é obrigatório.\n\nSelecione Piedade ou Água Fria antes de adicionar o alimento.",
+      "⚠️ Campo obrigatório"
     );
 
     return;
@@ -15630,8 +15632,9 @@ function addOrUpdateBulkEntryItem() {
 
   if (!foodId) {
 
-    showAceSuccess(
-      "⚠️ Selecione o Alimento."
+    await showAceConfirm(
+      "O campo Alimento é obrigatório.\n\nSelecione um alimento antes de adicionar à entrada.",
+      "⚠️ Campo obrigatório"
     );
 
     return;
@@ -15643,18 +15646,9 @@ function addOrUpdateBulkEntryItem() {
     qty <= 0
   ) {
 
-    showAceSuccess(
-      "⚠️ Informe uma Quantidade válida."
-    );
-
-    return;
-  }
-
-
-  if (!note) {
-
-    showAceSuccess(
-      "⚠️ Preencha a Observação."
+    await showAceConfirm(
+      "O campo Quantidade é obrigatório.\n\nInforme uma quantidade maior que zero.",
+      "⚠️ Campo obrigatório"
     );
 
     return;
@@ -15664,7 +15658,7 @@ function addOrUpdateBulkEntryItem() {
   const foodName =
     getName(
       db.foods,
-      foodId
+      Number(foodId)
     );
 
 
