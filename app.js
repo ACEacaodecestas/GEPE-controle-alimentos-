@@ -3675,6 +3675,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
             : [],
         status:
           row.status || "disponivel",
+        hiddenHistory:
+          row.oculto_historico === true,
         date:
           row.data_montagem,
         usuarioId:
@@ -9336,6 +9338,16 @@ function ensureEntryHistoryControls() {
   if (entryHistoryTitle) {
     entryHistoryTitle.textContent =
       "Histórico do dia";
+
+    // Mesmo tamanho visual do Histórico de Saída/Perda.
+    entryHistoryTitle.style.fontSize =
+      "24px";
+
+    entryHistoryTitle.style.fontWeight =
+      "900";
+
+    entryHistoryTitle.style.color =
+      "#102a43";
   }
 
 
@@ -19502,6 +19514,91 @@ function ensureMountedBasketStockStyles() {
       line-height:1.45;
     }
 
+    .ace-basket-history-controls{
+      display:flex;
+      align-items:flex-end;
+      gap:10px;
+      flex-wrap:wrap;
+      margin:14px 0 16px;
+    }
+
+    .ace-basket-history-filter-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:215px;
+      color:#102a43;
+      font-weight:900;
+      font-size:14px;
+    }
+
+    .ace-basket-history-filter-field input{
+      min-height:48px;
+      padding:9px 12px;
+      border:1px solid #cfd9e2;
+      border-radius:9px;
+      background:#fff;
+      color:#172b3a;
+      font:inherit;
+      font-weight:800;
+      box-sizing:border-box;
+    }
+
+    .ace-basket-history-control-btn{
+      min-height:48px;
+      padding:9px 16px;
+      border-radius:9px;
+      font-size:14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-basket-history-clear-btn{
+      border:1px solid #0756a0;
+      background:#fff;
+      color:#0756a0;
+    }
+
+    .ace-basket-history-delete-btn{
+      border:1px solid #ef4444;
+      background:#fff7f6;
+      color:#d92d20;
+    }
+
+    .ace-mounted-stock-total{
+      margin-left:auto;
+      min-height:48px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:9px 16px;
+      border-radius:999px;
+      background:#eef6fb;
+      color:#0b3a63;
+      font-weight:900;
+      white-space:nowrap;
+      box-sizing:border-box;
+    }
+
+    @media(max-width:700px){
+
+      .ace-basket-history-controls{
+        align-items:stretch;
+      }
+
+      .ace-basket-history-filter-field,
+      .ace-basket-history-filter-field input,
+      .ace-basket-history-control-btn{
+        width:100%;
+      }
+
+      .ace-mounted-stock-total{
+        width:100%;
+        margin-left:0;
+      }
+
+    }
+
     .ace-mounted-stock-table{
       overflow:auto;
       max-height:620px;
@@ -19758,21 +19855,111 @@ function ensureMountedBasketStockStyles() {
 }
 
 
+
+let aceMountedStockDateFilter =
+  "";
+
+let aceBasketWithdrawalDateFilter =
+  "";
+
+let aceBasketAdjustmentDateFilter =
+  "";
+
+
+function getFilteredMountedBasketStock() {
+
+  return (db?.basketStock || [])
+    .filter(
+      row =>
+        !row.hiddenHistory &&
+        (
+          !aceMountedStockDateFilter ||
+          row.date ===
+            aceMountedStockDateFilter
+        )
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        String(
+          b.createdAt || ""
+        ).localeCompare(
+          String(
+            a.createdAt || ""
+          )
+        )
+    );
+
+}
+
+
+function getMountedBasketAvailableTotal() {
+
+  return getFilteredMountedBasketStock()
+    .reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.availableQty || 0
+        ),
+      0
+    );
+
+}
+
+
+function getFilteredBasketWithdrawals() {
+
+  return (db?.basketWithdrawals || [])
+    .filter(
+      row =>
+        !aceBasketWithdrawalDateFilter ||
+        row.date ===
+          aceBasketWithdrawalDateFilter
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        String(
+          b.createdAt || ""
+        ).localeCompare(
+          String(
+            a.createdAt || ""
+          )
+        )
+    );
+
+}
+
+
+function getFilteredBasketAdjustments() {
+
+  return (db?.basketAdjustments || [])
+    .filter(
+      row =>
+        !aceBasketAdjustmentDateFilter ||
+        row.date ===
+          aceBasketAdjustmentDateFilter
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        String(
+          b.createdAt || ""
+        ).localeCompare(
+          String(
+            a.createdAt || ""
+          )
+        )
+    );
+
+}
+
+
 function renderMountedBasketStockTable() {
 
   const rows =
-    (db?.basketStock || [])
-      .slice()
-      .sort(
-        (a, b) =>
-          String(
-            b.createdAt || ""
-          ).localeCompare(
-            String(
-              a.createdAt || ""
-            )
-          )
-      );
+    getFilteredMountedBasketStock();
 
 
   if (!rows.length) {
@@ -19916,18 +20103,7 @@ function renderMountedBasketStockTable() {
 function renderBasketWithdrawalHistory() {
 
   const rows =
-    (db?.basketWithdrawals || [])
-      .slice()
-      .sort(
-        (a, b) =>
-          String(
-            b.createdAt || ""
-          ).localeCompare(
-            String(
-              a.createdAt || ""
-            )
-          )
-      );
+    getFilteredBasketWithdrawals();
 
 
   if (!rows.length) {
@@ -20014,18 +20190,7 @@ function renderBasketWithdrawalHistory() {
 function renderBasketAdjustmentHistory() {
 
   const rows =
-    (db?.basketAdjustments || [])
-      .slice()
-      .sort(
-        (a, b) =>
-          String(
-            b.createdAt || ""
-          ).localeCompare(
-            String(
-              a.createdAt || ""
-            )
-          )
-      );
+    getFilteredBasketAdjustments();
 
 
   if (!rows.length) {
@@ -20328,6 +20493,11 @@ function openMountedBasketWithdrawalModal(
         }
 
 
+        // Fecha a janela "Dar saída da cesta" ANTES de abrir
+        // a confirmação. Antes, a confirmação ficava atrás dela.
+        closeMountedBasketModal();
+
+
         const confirmed =
           await showAceConfirm(
             `Confirmar a retirada de ${qty} cesta(s)?\n\n` +
@@ -20342,6 +20512,52 @@ function openMountedBasketWithdrawalModal(
         if (
           confirmed === false
         ) {
+
+          // Se o usuário voltar/cancelar a confirmação,
+          // reabre a tela de retirada e restaura os dados.
+          openMountedBasketWithdrawalModal(
+            stock.id
+          );
+
+
+          requestAnimationFrame(
+            () => {
+
+              const qtyInput =
+                document.getElementById(
+                  "mountedBasketWithdrawalQty"
+                );
+
+              const responsibleInput =
+                document.getElementById(
+                  "mountedBasketWithdrawalResponsible"
+                );
+
+              const noteInput =
+                document.getElementById(
+                  "mountedBasketWithdrawalNote"
+                );
+
+
+              if (qtyInput) {
+                qtyInput.value =
+                  String(qty);
+              }
+
+              if (responsibleInput) {
+                responsibleInput.value =
+                  responsible;
+              }
+
+              if (noteInput) {
+                noteInput.value =
+                  note;
+              }
+
+            }
+          );
+
+
           return;
         }
 
@@ -20376,8 +20592,6 @@ function openMountedBasketWithdrawalModal(
             throw error;
           }
 
-
-          closeMountedBasketModal();
 
           await reloadFromSupabase();
 
@@ -21358,6 +21572,506 @@ function openMountedBasketEditModal(
 }
 
 
+
+async function deleteMountedBasketStockHistory() {
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceConfirm(
+      "Esta operação precisa ser feita com internet.",
+      "🟠 Operação online"
+    );
+
+    return;
+  }
+
+
+  const date =
+    aceMountedStockDateFilter;
+
+
+  const finalizedRows =
+    (db?.basketStock || [])
+      .filter(
+        row =>
+          Number(
+            row.availableQty || 0
+          ) === 0 &&
+          !row.hiddenHistory &&
+          (
+            !date ||
+            row.date === date
+          )
+      );
+
+
+  if (!finalizedRows.length) {
+
+    await showAceConfirm(
+      "Não há lotes finalizados para excluir deste histórico.",
+      "ℹ️ Histórico"
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    await showAceConfirm(
+      `${date ? `Excluir os lotes FINALIZADOS de ${fmtDate(date)}?` : "Excluir todos os lotes FINALIZADOS exibidos?"}\n\n` +
+      `As cestas que ainda possuem saldo disponível NÃO serão apagadas.\n` +
+      `Os históricos de retirada, ajustes e estornos também NÃO serão alterados.`,
+      "🗑️ Excluir Histórico"
+    );
+
+
+  if (
+    confirmed === false
+  ) {
+    return;
+  }
+
+
+  try {
+
+    let query =
+      supabaseClient
+        .from(
+          "cestas_estoque"
+        )
+        .update({
+          oculto_historico:
+            true
+        })
+        .eq(
+          "quantidade_disponivel",
+          0
+        )
+        .eq(
+          "oculto_historico",
+          false
+        );
+
+
+    if (date) {
+      query =
+        query.eq(
+          "data_montagem",
+          date
+        );
+    }
+
+
+    const {
+      error
+    } =
+      await query;
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    await reloadFromSupabase();
+
+    renderAll();
+
+
+    showAceSuccess(
+      "Histórico de cestas finalizadas excluído com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR HISTÓRICO DO ESTOQUE DE CESTAS:",
+      error
+    );
+
+
+    await showAceConfirm(
+      error?.message ||
+      "Não foi possível excluir o histórico.",
+      "❌ Erro"
+    );
+
+  }
+
+}
+
+
+async function deleteBasketWithdrawalHistory() {
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceConfirm(
+      "Esta operação precisa ser feita com internet.",
+      "🟠 Operação online"
+    );
+
+    return;
+  }
+
+
+  const date =
+    aceBasketWithdrawalDateFilter;
+
+
+  const rows =
+    getFilteredBasketWithdrawals();
+
+
+  if (!rows.length) {
+
+    await showAceConfirm(
+      "Não há registros de retirada para excluir.",
+      "ℹ️ Histórico"
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    await showAceConfirm(
+      date
+        ? `Excluir o histórico de retiradas de ${fmtDate(date)}?\n\nIsso não altera o estoque de cestas.`
+        : "Excluir TODO o histórico de retiradas?\n\nIsso não altera o estoque de cestas.",
+      "🗑️ Excluir Histórico"
+    );
+
+
+  if (
+    confirmed === false
+  ) {
+    return;
+  }
+
+
+  try {
+
+    let query =
+      supabaseClient
+        .from(
+          "cestas_retiradas"
+        )
+        .delete()
+        .gte(
+          "id",
+          0
+        );
+
+
+    if (date) {
+      query =
+        query.eq(
+          "data_retirada",
+          date
+        );
+    }
+
+
+    const {
+      error
+    } =
+      await query;
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    await reloadFromSupabase();
+
+    renderAll();
+
+
+    showAceSuccess(
+      "Histórico de retiradas excluído com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR HISTÓRICO DE RETIRADAS:",
+      error
+    );
+
+
+    await showAceConfirm(
+      error?.message ||
+      "Não foi possível excluir o histórico de retiradas.",
+      "❌ Erro"
+    );
+
+  }
+
+}
+
+
+async function deleteBasketAdjustmentHistory() {
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceConfirm(
+      "Esta operação precisa ser feita com internet.",
+      "🟠 Operação online"
+    );
+
+    return;
+  }
+
+
+  const date =
+    aceBasketAdjustmentDateFilter;
+
+
+  const rows =
+    getFilteredBasketAdjustments();
+
+
+  if (!rows.length) {
+
+    await showAceConfirm(
+      "Não há registros de ajustes ou estornos para excluir.",
+      "ℹ️ Histórico"
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    await showAceConfirm(
+      date
+        ? `Excluir o histórico de ajustes/estornos de ${fmtDate(date)}?\n\nIsso não altera o estoque principal nem o estoque de cestas.`
+        : "Excluir TODO o histórico de ajustes/estornos?\n\nIsso não altera os estoques.",
+      "🗑️ Excluir Histórico"
+    );
+
+
+  if (
+    confirmed === false
+  ) {
+    return;
+  }
+
+
+  try {
+
+    let query =
+      supabaseClient
+        .from(
+          "cestas_ajustes"
+        )
+        .delete()
+        .gte(
+          "id",
+          0
+        );
+
+
+    if (date) {
+      query =
+        query.eq(
+          "data_ajuste",
+          date
+        );
+    }
+
+
+    const {
+      error
+    } =
+      await query;
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    await reloadFromSupabase();
+
+    renderAll();
+
+
+    showAceSuccess(
+      "Histórico de ajustes e estornos excluído com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR HISTÓRICO DE AJUSTES:",
+      error
+    );
+
+
+    await showAceConfirm(
+      error?.message ||
+      "Não foi possível excluir o histórico de ajustes e estornos.",
+      "❌ Erro"
+    );
+
+  }
+
+}
+
+
+function bindBasketHistoryFilters(
+  module
+) {
+
+  const mountedDate =
+    module?.querySelector(
+      "#mountedBasketStockDateFilter"
+    );
+
+  const withdrawalDate =
+    module?.querySelector(
+      "#basketWithdrawalDateFilter"
+    );
+
+  const adjustmentDate =
+    module?.querySelector(
+      "#basketAdjustmentDateFilter"
+    );
+
+
+  mountedDate?.addEventListener(
+    "change",
+    () => {
+
+      aceMountedStockDateFilter =
+        mountedDate.value || "";
+
+      renderBasketModule();
+
+    }
+  );
+
+
+  withdrawalDate?.addEventListener(
+    "change",
+    () => {
+
+      aceBasketWithdrawalDateFilter =
+        withdrawalDate.value || "";
+
+      renderBasketModule();
+
+    }
+  );
+
+
+  adjustmentDate?.addEventListener(
+    "change",
+    () => {
+
+      aceBasketAdjustmentDateFilter =
+        adjustmentDate.value || "";
+
+      renderBasketModule();
+
+    }
+  );
+
+
+  module
+    ?.querySelector(
+      "#mountedBasketStockClearFilter"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        aceMountedStockDateFilter =
+          "";
+
+        renderBasketModule();
+
+      }
+    );
+
+
+  module
+    ?.querySelector(
+      "#basketWithdrawalClearFilter"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        aceBasketWithdrawalDateFilter =
+          "";
+
+        renderBasketModule();
+
+      }
+    );
+
+
+  module
+    ?.querySelector(
+      "#basketAdjustmentClearFilter"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        aceBasketAdjustmentDateFilter =
+          "";
+
+        renderBasketModule();
+
+      }
+    );
+
+
+  module
+    ?.querySelector(
+      "#mountedBasketStockDeleteHistory"
+    )
+    ?.addEventListener(
+      "click",
+      deleteMountedBasketStockHistory
+    );
+
+
+  module
+    ?.querySelector(
+      "#basketWithdrawalDeleteHistory"
+    )
+    ?.addEventListener(
+      "click",
+      deleteBasketWithdrawalHistory
+    );
+
+
+  module
+    ?.querySelector(
+      "#basketAdjustmentDeleteHistory"
+    )
+    ?.addEventListener(
+      "click",
+      deleteBasketAdjustmentHistory
+    );
+
+}
+
+
 function bindMountedBasketStockActions(
   module
 ) {
@@ -21750,6 +22464,41 @@ function renderBasketModule() {
         editar, dar saída ou estornar.
       </div>
 
+      <div class="ace-basket-history-controls">
+
+        <label class="ace-basket-history-filter-field">
+          Filtrar por data
+
+          <input
+            id="mountedBasketStockDateFilter"
+            type="date"
+            value="${esc(aceMountedStockDateFilter)}"
+          >
+        </label>
+
+        <button
+          id="mountedBasketStockClearFilter"
+          type="button"
+          class="ace-basket-history-control-btn ace-basket-history-clear-btn"
+        >
+          Limpar filtro
+        </button>
+
+        <button
+          id="mountedBasketStockDeleteHistory"
+          type="button"
+          class="ace-basket-history-control-btn ace-basket-history-delete-btn"
+        >
+          🗑️ Excluir Histórico
+        </button>
+
+        <div class="ace-mounted-stock-total">
+          Total de cestas disponíveis:
+          &nbsp;${fmt(getMountedBasketAvailableTotal())}
+        </div>
+
+      </div>
+
       ${renderMountedBasketStockTable()}
 
     </div>
@@ -21761,6 +22510,36 @@ function renderBasketModule() {
         🚚 Histórico de retiradas de cestas
       </h3>
 
+      <div class="ace-basket-history-controls">
+
+        <label class="ace-basket-history-filter-field">
+          Filtrar por data
+
+          <input
+            id="basketWithdrawalDateFilter"
+            type="date"
+            value="${esc(aceBasketWithdrawalDateFilter)}"
+          >
+        </label>
+
+        <button
+          id="basketWithdrawalClearFilter"
+          type="button"
+          class="ace-basket-history-control-btn ace-basket-history-clear-btn"
+        >
+          Limpar filtro
+        </button>
+
+        <button
+          id="basketWithdrawalDeleteHistory"
+          type="button"
+          class="ace-basket-history-control-btn ace-basket-history-delete-btn"
+        >
+          🗑️ Excluir Histórico
+        </button>
+
+      </div>
+
       ${renderBasketWithdrawalHistory()}
 
     </div>
@@ -21771,6 +22550,36 @@ function renderBasketModule() {
       <h3>
         ↩️ Histórico de ajustes e estornos
       </h3>
+
+      <div class="ace-basket-history-controls">
+
+        <label class="ace-basket-history-filter-field">
+          Filtrar por data
+
+          <input
+            id="basketAdjustmentDateFilter"
+            type="date"
+            value="${esc(aceBasketAdjustmentDateFilter)}"
+          >
+        </label>
+
+        <button
+          id="basketAdjustmentClearFilter"
+          type="button"
+          class="ace-basket-history-control-btn ace-basket-history-clear-btn"
+        >
+          Limpar filtro
+        </button>
+
+        <button
+          id="basketAdjustmentDeleteHistory"
+          type="button"
+          class="ace-basket-history-control-btn ace-basket-history-delete-btn"
+        >
+          🗑️ Excluir Histórico
+        </button>
+
+      </div>
 
       ${renderBasketAdjustmentHistory()}
 
@@ -22372,6 +23181,10 @@ function renderBasketModule() {
 
 
   bindMountedBasketStockActions(
+    module
+  );
+
+  bindBasketHistoryFilters(
     module
   );
 
