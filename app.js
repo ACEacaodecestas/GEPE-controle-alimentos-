@@ -9552,9 +9552,123 @@ function bindEntryActionButtons() {
                 button.dataset.entryEdit
               );
 
-            editEntry?.(
-              id
-            );
+            const entry =
+              (db.entries || [])
+                .find(
+                  item =>
+                    Number(item.id) === id
+                );
+
+            if (!entry) {
+              return;
+            }
+
+            // Tenta primeiro usar a função existente do aplicativo.
+            if (
+              typeof editEntry === "function"
+            ) {
+
+              editEntry(id);
+
+            } else {
+
+              // Fallback seguro: preenche diretamente o formulário de Entrada.
+              const form =
+                document.getElementById(
+                  "entryForm"
+                );
+
+              const dateInput =
+                form?.querySelector(
+                  '[name="date"]'
+                ) ||
+                document.getElementById(
+                  "entryDate"
+                );
+
+              const originInput =
+                form?.querySelector(
+                  '[name="origin"]'
+                ) ||
+                document.getElementById(
+                  "entryOrigin"
+                );
+
+              const foodInput =
+                form?.querySelector(
+                  '[name="food"]'
+                ) ||
+                document.getElementById(
+                  "entryFood"
+                );
+
+              const qtyInput =
+                form?.querySelector(
+                  '[name="qty"]'
+                ) ||
+                document.getElementById(
+                  "entryQty"
+                );
+
+              const noteInput =
+                form?.querySelector(
+                  '[name="note"]'
+                ) ||
+                document.getElementById(
+                  "entryNote"
+                );
+
+
+              if (dateInput) {
+                dateInput.value =
+                  entry.date || "";
+              }
+
+              if (originInput) {
+                originInput.value =
+                  String(
+                    entry.originId ?? ""
+                  );
+              }
+
+              if (foodInput) {
+                foodInput.value =
+                  String(
+                    entry.foodId ?? ""
+                  );
+              }
+
+              if (qtyInput) {
+                qtyInput.value =
+                  String(
+                    entry.qty ?? ""
+                  );
+              }
+
+              if (noteInput) {
+                noteInput.value =
+                  entry.note || "";
+              }
+
+              if (form) {
+                form.dataset.editingId =
+                  String(id);
+              }
+            }
+
+
+            const target =
+              document.getElementById(
+                "entryForm"
+              ) ||
+              document.querySelector(
+                "#entrada form, [data-entry-form]"
+              );
+
+            target?.scrollIntoView({
+              behavior: "smooth",
+              block: "start"
+            });
 
           }
         );
@@ -9589,7 +9703,8 @@ function bindEntryActionButtons() {
 
             const confirmed =
               await showAceConfirm(
-                "Tem certeza que deseja excluir esta entrada?",
+                "Tem certeza que deseja excluir esta entrada?\n\n" +
+                "A quantidade desta entrada será retirada do estoque.",
                 "🗑️ Excluir entrada"
               );
 
