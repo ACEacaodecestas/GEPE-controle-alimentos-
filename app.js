@@ -14757,48 +14757,1345 @@ function nav() {
 }
 
 
+
+// ============================================================
+// ENTRADA DE ALIMENTOS EM LOTE
+// ============================================================
+//
+// Fluxo:
+// 1. Escolhe Data e Origem uma única vez.
+// 2. Adiciona vários alimentos com quantidade e observação.
+// 3. Confere tudo no resumo.
+// 4. Só então registra toda a entrada.
+// ============================================================
+
+let aceBulkEntryDraft = [];
+let aceBulkEntryEditingId = null;
+
+
+function ensureBulkEntryStyles() {
+
+  if (
+    document.getElementById(
+      "aceBulkEntryStyle"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "aceBulkEntryStyle";
+
+  style.textContent = `
+
+    #entryForm.ace-bulk-entry-form{
+      padding:0 !important;
+      border:0 !important;
+      background:transparent !important;
+      box-shadow:none !important;
+    }
+
+    .ace-bulk-entry-shell{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(420px,.95fr);
+      gap:18px;
+      align-items:start;
+    }
+
+    .ace-bulk-entry-panel{
+      border:1px solid #d7e0e8;
+      border-radius:16px;
+      background:#fff;
+      padding:20px;
+      box-shadow:0 10px 30px rgba(20,45,70,.06);
+      box-sizing:border-box;
+    }
+
+    .ace-bulk-entry-panel h3{
+      margin:0 0 16px;
+      color:#0b3a63;
+      font-size:22px;
+      font-weight:900;
+    }
+
+    .ace-bulk-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+
+    .ace-bulk-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:0;
+    }
+
+    .ace-bulk-field.full{
+      grid-column:1 / -1;
+    }
+
+    .ace-bulk-field label{
+      font-weight:900;
+      color:#243b53;
+      font-size:14px;
+    }
+
+    .ace-bulk-field input,
+    .ace-bulk-field select{
+      width:100%;
+      min-height:52px;
+      padding:10px 13px;
+      box-sizing:border-box;
+      border:1px solid #cfd9e2;
+      border-radius:10px;
+      background:#fff;
+      color:#172b3a;
+      font:inherit;
+      font-weight:700;
+    }
+
+    .ace-bulk-add-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 155px;
+      gap:12px;
+      align-items:end;
+    }
+
+    .ace-bulk-note-row{
+      margin-top:12px;
+    }
+
+    .ace-bulk-add-actions{
+      display:flex;
+      gap:9px;
+      margin-top:14px;
+      flex-wrap:wrap;
+    }
+
+    .ace-bulk-btn{
+      min-height:46px;
+      border-radius:10px;
+      padding:10px 15px;
+      font-size:15px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-bulk-btn-primary{
+      border:1px solid #0b4b7a;
+      background:#0b4b7a;
+      color:#fff;
+    }
+
+    .ace-bulk-btn-secondary{
+      border:1px solid #0b4b7a;
+      background:#fff;
+      color:#0b4b7a;
+    }
+
+    .ace-bulk-btn-danger{
+      border:1px solid #f2b8b5;
+      background:#fff5f4;
+      color:#b42318;
+    }
+
+    .ace-bulk-summary-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:12px;
+    }
+
+    .ace-bulk-summary-title{
+      color:#0b3a63;
+      font-size:22px;
+      font-weight:900;
+    }
+
+    .ace-bulk-summary-badge{
+      border-radius:999px;
+      background:#eef4f8;
+      color:#0b3a63;
+      padding:7px 11px;
+      font-size:13px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .ace-bulk-empty{
+      padding:34px 16px;
+      border:1px dashed #b8c8d6;
+      border-radius:12px;
+      color:#667085;
+      text-align:center;
+      background:#fafcfd;
+    }
+
+    .ace-bulk-items{
+      display:flex;
+      flex-direction:column;
+      gap:9px;
+      max-height:430px;
+      overflow:auto;
+      padding-right:3px;
+    }
+
+    .ace-bulk-item{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:12px;
+      align-items:center;
+      padding:12px 13px;
+      border:1px solid #e2e8ef;
+      border-radius:11px;
+      background:#f8fafc;
+    }
+
+    .ace-bulk-item-main{
+      min-width:0;
+    }
+
+    .ace-bulk-item-title{
+      color:#17324d;
+      font-size:16px;
+      font-weight:900;
+    }
+
+    .ace-bulk-item-meta{
+      margin-top:4px;
+      color:#667085;
+      font-size:13px;
+      line-height:1.35;
+      overflow-wrap:anywhere;
+    }
+
+    .ace-bulk-item-actions{
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+
+    .ace-bulk-mini-btn{
+      width:36px;
+      height:36px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:8px;
+      background:#fff;
+      cursor:pointer;
+      font-size:15px;
+    }
+
+    .ace-bulk-mini-edit{
+      border:1px solid #0b4b7a;
+      color:#0b4b7a;
+    }
+
+    .ace-bulk-mini-delete{
+      border:1px solid #ef4444;
+      color:#d92d20;
+    }
+
+    .ace-bulk-total{
+      margin-top:14px;
+      padding:12px 14px;
+      border-radius:10px;
+      background:#eef6fb;
+      color:#0b3a63;
+      font-weight:900;
+    }
+
+    .ace-bulk-register{
+      width:100%;
+      margin-top:14px;
+      min-height:54px;
+      border:0;
+      border-radius:11px;
+      background:#0b4b7a;
+      color:#fff;
+      font-size:17px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-bulk-register:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .ace-bulk-help{
+      margin-top:10px;
+      color:#667085;
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    @media(max-width:980px){
+
+      .ace-bulk-entry-shell{
+        grid-template-columns:1fr;
+      }
+
+      .ace-bulk-items{
+        max-height:360px;
+      }
+
+    }
+
+    @media(max-width:650px){
+
+      .ace-bulk-entry-panel{
+        padding:15px;
+        border-radius:13px;
+      }
+
+      .ace-bulk-grid{
+        grid-template-columns:1fr;
+      }
+
+      .ace-bulk-field.full{
+        grid-column:auto;
+      }
+
+      .ace-bulk-add-row{
+        grid-template-columns:1fr;
+      }
+
+      .ace-bulk-add-actions{
+        flex-direction:column;
+      }
+
+      .ace-bulk-btn{
+        width:100%;
+      }
+
+      .ace-bulk-summary-head{
+        align-items:flex-start;
+        flex-direction:column;
+      }
+
+      .ace-bulk-item{
+        grid-template-columns:1fr;
+      }
+
+      .ace-bulk-item-actions{
+        justify-content:flex-end;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function setupBulkEntryForm() {
+
+  ensureBulkEntryStyles();
+
+
+  const form =
+    document.getElementById(
+      "entryForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  if (
+    form.dataset.aceBulkReady === "1"
+  ) {
+    return;
+  }
+
+
+  form.dataset.aceBulkReady = "1";
+  form.classList.add(
+    "ace-bulk-entry-form"
+  );
+
+
+  form.innerHTML = `
+
+    <div class="ace-bulk-entry-shell">
+
+      <div class="ace-bulk-entry-panel">
+
+        <h3>
+          ➕ Adicionar alimentos
+        </h3>
+
+        <div class="ace-bulk-grid">
+
+          <div class="ace-bulk-field">
+
+            <label for="entryDate">
+              Data
+            </label>
+
+            <input
+              id="entryDate"
+              type="date"
+              value="${esc(isoToday())}"
+            >
+
+          </div>
+
+          <div class="ace-bulk-field">
+
+            <label for="entryOrigin">
+              Origem
+            </label>
+
+            <select
+              id="entryOrigin"
+            >
+              <option value="">
+                Selecione...
+              </option>
+            </select>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="ace-bulk-add-row"
+          style="margin-top:14px;"
+        >
+
+          <div class="ace-bulk-field">
+
+            <label for="entryFood">
+              Alimento
+            </label>
+
+            <select
+              id="entryFood"
+            >
+              <option value="">
+                Selecione...
+              </option>
+            </select>
+
+          </div>
+
+          <div class="ace-bulk-field">
+
+            <label for="entryQty">
+              Quantidade
+            </label>
+
+            <input
+              id="entryQty"
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="Ex.: 20"
+            >
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="ace-bulk-field ace-bulk-note-row"
+        >
+
+          <label for="entryNote">
+            Observação
+          </label>
+
+          <input
+            id="entryNote"
+            type="text"
+            placeholder="Opcional"
+          >
+
+        </div>
+
+
+        <div class="ace-bulk-add-actions">
+
+          <button
+            id="bulkEntryAdd"
+            class="ace-bulk-btn ace-bulk-btn-primary"
+            type="button"
+          >
+            ➕ Adicionar à entrada
+          </button>
+
+          <button
+            id="bulkEntryCancelEdit"
+            class="ace-bulk-btn ace-bulk-btn-secondary"
+            type="button"
+            style="display:none;"
+          >
+            Cancelar edição
+          </button>
+
+        </div>
+
+
+        <div class="ace-bulk-help">
+          A origem vale para toda a entrada. A observação é individual de cada alimento e aparecerá em <b>Entradas do dia</b>.
+        </div>
+
+      </div>
+
+
+      <div class="ace-bulk-entry-panel">
+
+        <div class="ace-bulk-summary-head">
+
+          <div class="ace-bulk-summary-title">
+            🧾 Resumo da entrada
+          </div>
+
+          <div
+            id="bulkEntryCount"
+            class="ace-bulk-summary-badge"
+          >
+            0 itens
+          </div>
+
+        </div>
+
+
+        <div
+          id="bulkEntryList"
+          class="ace-bulk-items"
+        ></div>
+
+
+        <div
+          id="bulkEntryTotal"
+          class="ace-bulk-total"
+        >
+          0 unidades
+        </div>
+
+
+        <button
+          id="bulkEntryRegister"
+          class="ace-bulk-register"
+          type="submit"
+          disabled
+        >
+          ✅ Registrar entrada completa
+        </button>
+
+
+        <button
+          id="bulkEntryClear"
+          class="ace-bulk-btn ace-bulk-btn-danger"
+          type="button"
+          style="width:100%;margin-top:9px;"
+        >
+          🗑️ Limpar lista
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  // Popula os selects imediatamente.
+  populateSelect(
+    "entryOrigin",
+    db.origins
+  );
+
+  populateSelect(
+    "entryFood",
+    db.foods
+  );
+
+
+  const date =
+    document.getElementById(
+      "entryDate"
+    );
+
+  if (date) {
+    date.value =
+      isoToday();
+  }
+
+
+  renderBulkEntryDraft();
+
+}
+
+
+function renderBulkEntryDraft() {
+
+  const list =
+    document.getElementById(
+      "bulkEntryList"
+    );
+
+  const count =
+    document.getElementById(
+      "bulkEntryCount"
+    );
+
+  const total =
+    document.getElementById(
+      "bulkEntryTotal"
+    );
+
+  const register =
+    document.getElementById(
+      "bulkEntryRegister"
+    );
+
+
+  if (!list) {
+    return;
+  }
+
+
+  const totalUnits =
+    aceBulkEntryDraft.reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.qty || 0
+        ),
+      0
+    );
+
+
+  if (!aceBulkEntryDraft.length) {
+
+    list.innerHTML = `
+
+      <div class="ace-bulk-empty">
+        Nenhum alimento adicionado ainda.<br>
+        Escolha um alimento, informe a quantidade e clique em <b>Adicionar à entrada</b>.
+      </div>
+
+    `;
+
+  } else {
+
+    list.innerHTML =
+      aceBulkEntryDraft
+        .map(
+          item => `
+
+            <div class="ace-bulk-item">
+
+              <div class="ace-bulk-item-main">
+
+                <div class="ace-bulk-item-title">
+                  ${esc(item.foodName)}
+                  — ${fmt(item.qty)}
+                </div>
+
+                <div class="ace-bulk-item-meta">
+                  ${
+                    item.note
+                      ? `Obs.: ${esc(item.note)}`
+                      : "Sem observação"
+                  }
+                </div>
+
+              </div>
+
+              <div class="ace-bulk-item-actions">
+
+                <button
+                  type="button"
+                  class="ace-bulk-mini-btn ace-bulk-mini-edit"
+                  data-bulk-entry-edit="${esc(item.id)}"
+                  title="Editar item"
+                >
+                  ✏️
+                </button>
+
+                <button
+                  type="button"
+                  class="ace-bulk-mini-btn ace-bulk-mini-delete"
+                  data-bulk-entry-delete="${esc(item.id)}"
+                  title="Remover item"
+                >
+                  🗑️
+                </button>
+
+              </div>
+
+            </div>
+
+          `
+        )
+        .join("");
+
+  }
+
+
+  if (count) {
+
+    count.textContent =
+      `${aceBulkEntryDraft.length} ${
+        aceBulkEntryDraft.length === 1
+          ? "item"
+          : "itens"
+      }`;
+
+  }
+
+
+  if (total) {
+
+    total.textContent =
+      `${fmt(totalUnits)} unidades no total`;
+
+  }
+
+
+  if (register) {
+
+    register.disabled =
+      aceBulkEntryDraft.length === 0;
+
+  }
+
+}
+
+
+function resetBulkEntryItemEditor() {
+
+  aceBulkEntryEditingId =
+    null;
+
+
+  const food =
+    document.getElementById(
+      "entryFood"
+    );
+
+  const qty =
+    document.getElementById(
+      "entryQty"
+    );
+
+  const note =
+    document.getElementById(
+      "entryNote"
+    );
+
+  const add =
+    document.getElementById(
+      "bulkEntryAdd"
+    );
+
+  const cancel =
+    document.getElementById(
+      "bulkEntryCancelEdit"
+    );
+
+
+  if (food) {
+    food.value = "";
+  }
+
+  if (qty) {
+    qty.value = "";
+  }
+
+  if (note) {
+    note.value = "";
+  }
+
+  if (add) {
+    add.textContent =
+      "➕ Adicionar à entrada";
+  }
+
+  if (cancel) {
+    cancel.style.display =
+      "none";
+  }
+
+}
+
+
+function addOrUpdateBulkEntryItem() {
+
+  const foodId =
+    document.getElementById(
+      "entryFood"
+    )?.value;
+
+  const qty =
+    Number(
+      document.getElementById(
+        "entryQty"
+      )?.value
+    );
+
+  const note =
+    String(
+      document.getElementById(
+        "entryNote"
+      )?.value || ""
+    ).trim();
+
+
+  if (
+    !foodId ||
+    !Number.isFinite(qty) ||
+    qty <= 0
+  ) {
+
+    toast(
+      "Selecione o alimento e informe uma quantidade válida."
+    );
+
+    return;
+  }
+
+
+  const foodName =
+    getName(
+      db.foods,
+      foodId
+    );
+
+
+  if (aceBulkEntryEditingId) {
+
+    const item =
+      aceBulkEntryDraft.find(
+        row =>
+          row.id ===
+          aceBulkEntryEditingId
+      );
+
+
+    if (item) {
+
+      item.foodId =
+        Number(foodId);
+
+      item.foodName =
+        foodName;
+
+      item.qty =
+        qty;
+
+      item.note =
+        note;
+
+    }
+
+
+    resetBulkEntryItemEditor();
+
+    renderBulkEntryDraft();
+
+    return;
+  }
+
+
+  // Se o mesmo alimento já estiver na lista COM A MESMA
+  // observação, apenas incrementa a quantidade.
+  const existing =
+    aceBulkEntryDraft.find(
+      item =>
+        Number(item.foodId) ===
+          Number(foodId) &&
+        String(item.note || "") ===
+          note
+    );
+
+
+  if (existing) {
+
+    existing.qty =
+      Number(
+        existing.qty || 0
+      ) +
+      qty;
+
+  } else {
+
+    aceBulkEntryDraft.push({
+      id:
+        uid(),
+      foodId:
+        Number(foodId),
+      foodName,
+      qty,
+      note
+    });
+
+  }
+
+
+  resetBulkEntryItemEditor();
+
+  renderBulkEntryDraft();
+
+}
+
+
+function editBulkEntryItem(
+  id
+) {
+
+  const item =
+    aceBulkEntryDraft.find(
+      row =>
+        row.id === id
+    );
+
+
+  if (!item) {
+    return;
+  }
+
+
+  aceBulkEntryEditingId =
+    id;
+
+
+  const food =
+    document.getElementById(
+      "entryFood"
+    );
+
+  const qty =
+    document.getElementById(
+      "entryQty"
+    );
+
+  const note =
+    document.getElementById(
+      "entryNote"
+    );
+
+  const add =
+    document.getElementById(
+      "bulkEntryAdd"
+    );
+
+  const cancel =
+    document.getElementById(
+      "bulkEntryCancelEdit"
+    );
+
+
+  if (food) {
+    food.value =
+      String(
+        item.foodId
+      );
+  }
+
+  if (qty) {
+    qty.value =
+      String(
+        item.qty
+      );
+  }
+
+  if (note) {
+    note.value =
+      item.note || "";
+  }
+
+  if (add) {
+    add.textContent =
+      "💾 Salvar alteração";
+  }
+
+  if (cancel) {
+    cancel.style.display =
+      "";
+  }
+
+
+  document
+    .getElementById(
+      "entryFood"
+    )
+    ?.scrollIntoView({
+      behavior:
+        "smooth",
+      block:
+        "center"
+    });
+
+}
+
+
+async function clearBulkEntryDraft(
+  ask = true
+) {
+
+  if (
+    !aceBulkEntryDraft.length
+  ) {
+
+    resetBulkEntryItemEditor();
+
+    return;
+  }
+
+
+  if (ask) {
+
+    const confirmed =
+      await showAceConfirm(
+        "Deseja limpar todos os alimentos que foram adicionados a esta entrada?\n\nNenhum estoque será alterado.",
+        "🗑️ Limpar lista"
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+  }
+
+
+  aceBulkEntryDraft = [];
+
+  resetBulkEntryItemEditor();
+
+  renderBulkEntryDraft();
+
+}
+
+
+function bindBulkEntryFormEvents() {
+
+  const form =
+    document.getElementById(
+      "entryForm"
+    );
+
+
+  if (
+    !form ||
+    form.dataset.aceBulkBound === "1"
+  ) {
+    return;
+  }
+
+
+  form.dataset.aceBulkBound =
+    "1";
+
+
+  document
+    .getElementById(
+      "bulkEntryAdd"
+    )
+    ?.addEventListener(
+      "click",
+      addOrUpdateBulkEntryItem
+    );
+
+
+  document
+    .getElementById(
+      "bulkEntryCancelEdit"
+    )
+    ?.addEventListener(
+      "click",
+      resetBulkEntryItemEditor
+    );
+
+
+  document
+    .getElementById(
+      "bulkEntryClear"
+    )
+    ?.addEventListener(
+      "click",
+      () =>
+        clearBulkEntryDraft(
+          true
+        )
+    );
+
+
+  document
+    .getElementById(
+      "bulkEntryList"
+    )
+    ?.addEventListener(
+      "click",
+      event => {
+
+        const editButton =
+          event.target.closest(
+            "[data-bulk-entry-edit]"
+          );
+
+        const deleteButton =
+          event.target.closest(
+            "[data-bulk-entry-delete]"
+          );
+
+
+        if (editButton) {
+
+          editBulkEntryItem(
+            editButton.dataset
+              .bulkEntryEdit
+          );
+
+          return;
+        }
+
+
+        if (deleteButton) {
+
+          aceBulkEntryDraft =
+            aceBulkEntryDraft.filter(
+              item =>
+                item.id !==
+                deleteButton.dataset
+                  .bulkEntryDelete
+            );
+
+          if (
+            aceBulkEntryEditingId ===
+            deleteButton.dataset
+              .bulkEntryDelete
+          ) {
+            resetBulkEntryItemEditor();
+          }
+
+          renderBulkEntryDraft();
+
+        }
+
+      }
+    );
+
+
+  form.addEventListener(
+    "submit",
+    async event => {
+
+      event.preventDefault();
+
+
+      const date =
+        document.getElementById(
+          "entryDate"
+        )?.value;
+
+      const originId =
+        document.getElementById(
+          "entryOrigin"
+        )?.value;
+
+
+      if (!date) {
+
+        toast(
+          "Informe a data da entrada."
+        );
+
+        return;
+      }
+
+
+      if (!originId) {
+
+        toast(
+          "Selecione a origem da entrada."
+        );
+
+        return;
+      }
+
+
+      if (
+        !aceBulkEntryDraft.length
+      ) {
+
+        toast(
+          "Adicione pelo menos um alimento à entrada."
+        );
+
+        return;
+      }
+
+
+      const originName =
+        getName(
+          db.origins,
+          originId
+        );
+
+
+      const totalUnits =
+        aceBulkEntryDraft.reduce(
+          (sum, item) =>
+            sum +
+            Number(
+              item.qty || 0
+            ),
+          0
+        );
+
+
+      const confirmed =
+        await showAceConfirm(
+          `Confira a entrada antes de registrar:\n\n` +
+          `Origem: ${originName}\n` +
+          `Tipos de alimentos: ${aceBulkEntryDraft.length}\n` +
+          `Quantidade total: ${fmt(totalUnits)}\n\n` +
+          `Depois de confirmar, todos os itens serão adicionados ao estoque.`,
+          "✅ Registrar entrada completa"
+        );
+
+
+      if (!confirmed) {
+        return;
+      }
+
+
+      const submit =
+        document.getElementById(
+          "bulkEntryRegister"
+        );
+
+
+      if (submit) {
+
+        submit.disabled =
+          true;
+
+        submit.textContent =
+          "⏳ Registrando...";
+
+      }
+
+
+      try {
+
+        // Faz uma cópia para a lista não mudar durante o registro.
+        const items =
+          aceBulkEntryDraft.map(
+            item => ({
+              ...item
+            })
+          );
+
+
+        for (const item of items) {
+
+          await insertEntry({
+            date,
+            originId,
+            foodId:
+              item.foodId,
+            qty:
+              item.qty,
+            note:
+              item.note || ""
+          });
+
+        }
+
+
+        if (
+          aceIsOnline()
+        ) {
+
+          await reloadFromSupabase();
+
+        }
+
+
+        aceBulkEntryDraft = [];
+
+        resetBulkEntryItemEditor();
+
+        renderAll();
+
+        renderBulkEntryDraft();
+
+
+        showAceSuccess(
+          `Entrada registrada com sucesso! ${items.length} item(ns) adicionados.`
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "ACE - ERRO NA ENTRADA EM LOTE:",
+          error
+        );
+
+
+        await showAceConfirm(
+          "Não foi possível concluir toda a entrada.\n\n" +
+          (
+            error?.message ||
+            "Verifique os dados e tente novamente."
+          ),
+          "❌ Erro ao registrar entrada"
+        );
+
+
+      } finally {
+
+        if (submit) {
+
+          submit.disabled =
+            aceBulkEntryDraft.length ===
+            0;
+
+          submit.textContent =
+            "✅ Registrar entrada completa";
+
+        }
+
+      }
+
+    }
+  );
+
+}
+
+
 // ============================================================
 // 19. EVENTOS DO APLICATIVO
 // ============================================================
 
 function bindEvents() {
 
-  const entryForm = document.getElementById("entryForm");
-
-  if (entryForm) {
-    entryForm.addEventListener("submit", async e => {
-      e.preventDefault();
-
-      const f = new FormData(e.target);
-      const date = f.get("date");
-      const originId = f.get("origin");
-      const foodId = f.get("foodId");
-      const qty = Number(f.get("qty"));
-      const note = String(f.get("note") || "").trim();
-
-      if (!date || !originId || !foodId || !Number.isFinite(qty) || qty <= 0) {
-        toast("Preencha os dados da entrada corretamente.");
-        return;
-      }
-
-      const submit = e.target.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-
-      try {
-        await insertEntry({ date, originId, foodId, qty, note });
-        await reloadFromSupabase();
-        e.target.reset();
-        document.getElementById("entryDate").value = isoToday();
-        renderEntries();
-        showAceSuccess("Entrada registrada com sucesso!");
-      } catch (error) {
-        console.error(error);
-        toast("Erro na entrada: " + (error?.message || "verifique o Supabase."));
-      } finally {
-        if (submit) submit.disabled = false;
-      }
-    });
-  }
+  bindBulkEntryFormEvents();
 
 
   const movementForm = document.getElementById("movementForm");
@@ -25570,6 +26867,9 @@ function renderAll() {
 
   renderHistory();
 
+  // Mantém o resumo da entrada em lote sincronizado.
+  renderBulkEntryDraft();
+
   if (
     typeof setupProfessionalMobileLayout ===
     "function"
@@ -25662,6 +26962,9 @@ async function initApp() {
     setupMuralAcePage();
 
     setupHistoryPage();
+
+    // Substitui o formulário antigo pela nova Entrada em lote.
+    setupBulkEntryForm();
 
     await loadMuralAcePosts();
 
