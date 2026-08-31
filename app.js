@@ -9418,7 +9418,227 @@ async function deleteEntryHistoryOnly() {
 }
 
 
+
+function ensureEntryActionsStyles() {
+
+  if (document.getElementById("aceEntryActionsStyle")) {
+    return;
+  }
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "aceEntryActionsStyle";
+
+  style.textContent = `
+
+    .ace-entry-actions{
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:7px;
+      white-space:nowrap;
+    }
+
+    .ace-entry-action-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      min-height:34px;
+      padding:7px 10px;
+      border-radius:8px;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-entry-edit-btn{
+      border:1px solid #0b4b7a;
+      background:#fff;
+      color:#0b4b7a;
+    }
+
+    .ace-entry-delete-btn{
+      border:1px solid #ef4444;
+      background:#fff;
+      color:#d92d20;
+    }
+
+    @media(max-width:700px){
+
+      .ace-entry-actions{
+        gap:5px;
+      }
+
+      .ace-entry-action-btn{
+        width:34px;
+        min-width:34px;
+        padding:6px;
+        font-size:0;
+      }
+
+      .ace-entry-action-btn .ace-action-icon{
+        font-size:16px;
+        line-height:1;
+      }
+
+    }
+
+  `;
+
+  document.head.appendChild(style);
+
+}
+
+
+function renderEntryActionsCell(entry) {
+
+  return `
+
+    <div class="ace-entry-actions">
+
+      <button
+        type="button"
+        class="ace-entry-action-btn ace-entry-edit-btn"
+        data-entry-edit="${entry.id}"
+        title="Editar entrada"
+      >
+        <span class="ace-action-icon">✏️</span>
+        <span class="ace-action-text">Editar</span>
+      </button>
+
+      <button
+        type="button"
+        class="ace-entry-action-btn ace-entry-delete-btn"
+        data-entry-delete="${entry.id}"
+        title="Excluir entrada"
+      >
+        <span class="ace-action-icon">🗑️</span>
+        <span class="ace-action-text">Excluir</span>
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+function bindEntryActionButtons() {
+
+  document
+    .querySelectorAll(
+      "[data-entry-edit]"
+    )
+    .forEach(
+      button => {
+
+        if (
+          button.dataset.bound === "1"
+        ) {
+          return;
+        }
+
+        button.dataset.bound = "1";
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            const id =
+              Number(
+                button.dataset.entryEdit
+              );
+
+            editEntry?.(
+              id
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      "[data-entry-delete]"
+    )
+    .forEach(
+      button => {
+
+        if (
+          button.dataset.bound === "1"
+        ) {
+          return;
+        }
+
+        button.dataset.bound = "1";
+
+        button.addEventListener(
+          "click",
+          async () => {
+
+            const id =
+              Number(
+                button.dataset.entryDelete
+              );
+
+            const confirmed =
+              await showAceConfirm(
+                "Tem certeza que deseja excluir esta entrada?",
+                "🗑️ Excluir entrada"
+              );
+
+            if (!confirmed) {
+              return;
+            }
+
+            try {
+
+              await deleteEntry(
+                id
+              );
+
+              db =
+                await loadFromSupabase();
+
+              renderAll();
+
+              showCenterSuccess?.(
+                "Entrada excluída com sucesso!"
+              );
+
+            } catch (error) {
+
+              console.error(
+                "ACE - ERRO AO EXCLUIR ENTRADA:",
+                error
+              );
+
+              await showAceConfirm(
+                error?.message ||
+                  "Não foi possível excluir a entrada.",
+                "❌ Erro"
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
 function renderEntries() {
+
+  ensureEntryActionsStyles();
 
   ensureEntryHistoryControls();
 
@@ -9549,13 +9769,23 @@ function renderEntries() {
               esc(
                 x.note || ""
               )
-          ]
+          ],
+        [
+          "Ações",
+          x =>
+            renderEntryActionsCell(
+              x
+            )
+        ]
         ],
         null
       );
 
   }
 
+
+
+  bindEntryActionButtons();
 }
 
 
@@ -27234,3 +27464,4 @@ startAuth();
   );
 
 })();
+
