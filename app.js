@@ -19632,8 +19632,14 @@ function ensureMountedBasketStockStyles() {
     .ace-mounted-stock-actions{
       display:flex;
       gap:7px;
-      flex-wrap:wrap;
+      flex-wrap:nowrap;
       align-items:center;
+      white-space:nowrap;
+    }
+
+    .ace-mounted-stock-table th:last-child,
+    .ace-mounted-stock-table td:last-child{
+      min-width:430px;
     }
 
     .ace-mounted-stock-btn{
@@ -19884,6 +19890,16 @@ function ensureMountedBasketStockStyles() {
     }
 
     @media(max-width:700px){
+
+      .ace-mounted-stock-actions{
+        flex-wrap:wrap;
+        white-space:normal;
+      }
+
+      .ace-mounted-stock-table th:last-child,
+      .ace-mounted-stock-table td:last-child{
+        min-width:260px;
+      }
 
       .ace-stock-modal-grid{
         grid-template-columns:1fr;
