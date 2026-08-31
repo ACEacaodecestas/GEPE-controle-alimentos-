@@ -1794,6 +1794,9 @@ function applyLocalBasketOutput({
   db.basketOutputs =
     db.basketOutputs || [];
 
+  db.basketStock =
+    db.basketStock || [];
+
   db.movements =
     db.movements || [];
 
@@ -1889,8 +1892,47 @@ function applyLocalBasketOutput({
   }
 
 
+  const localStockId =
+    newNumericId();
+
+
+  db.basketStock.unshift({
+    id:
+      localStockId,
+    basketId:
+      Number(
+        basketId
+      ),
+    basketName:
+      basketName || "",
+    basketImage:
+      basketImage || "",
+    destination:
+      destination || "",
+    mountedQty:
+      qtyCestas,
+    availableQty:
+      qtyCestas,
+    withdrawnQty:
+      0,
+    reversedQty:
+      0,
+    composition:
+      composition,
+    status:
+      "disponivel",
+    date:
+      today,
+    usuarioId:
+      userId,
+    createdAt:
+      new Date()
+        .toISOString()
+  });
+
+
   const movementNote =
-    `Cesta: ${basketName} | ${destination}` +
+    `Estoque de cestas #${localStockId} | Cesta: ${basketName} | Destino: ${destination}` +
     (
       destination ===
         "Comunidade" &&
@@ -2930,7 +2972,10 @@ function getMovementUserName(item) {
     const candidates = [
       ...(db.entries || []),
       ...(db.movements || []),
-      ...(db.basketOutputs || [])
+      ...(db.basketOutputs || []),
+      ...(db.basketStock || []),
+      ...(db.basketWithdrawals || []),
+      ...(db.basketAdjustments || [])
     ];
 
     const known =
@@ -3079,7 +3124,10 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     basketsResult,
     basketItemsResult,
     basketOutputsResult,
-    historyResult
+    historyResult,
+    basketStockResult,
+    basketWithdrawalsResult,
+    basketAdjustmentsResult
   ] = await Promise.all([
 
     supabaseClient
@@ -3149,6 +3197,27 @@ async function loadFromSupabase(allowJwtRefresh = true) {
       .select("*")
       .order("created_at", {
         ascending: false
+      }),
+
+    supabaseClient
+      .from("cestas_estoque")
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      }),
+
+    supabaseClient
+      .from("cestas_retiradas")
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      }),
+
+    supabaseClient
+      .from("cestas_ajustes")
+      .select("*")
+      .order("created_at", {
+        ascending: false
       })
 
   ]);
@@ -3169,7 +3238,10 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     ["cestas", basketsResult],
     ["cestas_itens", basketItemsResult],
     ["cestas_saidas", basketOutputsResult],
-    ["historico_movimentacoes", historyResult]
+    ["historico_movimentacoes", historyResult],
+    ["cestas_estoque", basketStockResult],
+    ["cestas_retiradas", basketWithdrawalsResult],
+    ["cestas_ajustes", basketAdjustmentsResult]
   ].find(([, result]) => result.error);
 
 
@@ -3336,6 +3408,15 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
   const historyRows =
     historyResult.data || [];
+
+  const basketStockRows =
+    basketStockResult.data || [];
+
+  const basketWithdrawalRows =
+    basketWithdrawalsResult.data || [];
+
+  const basketAdjustmentRows =
+    basketAdjustmentsResult.data || [];
 
   const reasons =
     loadLocalReasons();
@@ -3556,6 +3637,123 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         createdAt:
           h.created_at ||
           `${h.data || isoToday()}T00:00:00Z`
+      })),
+
+    basketStock:
+      basketStockRows.map(row => ({
+        id:
+          Number(row.id),
+        basketId:
+          row.cesta_id != null
+            ? Number(row.cesta_id)
+            : null,
+        basketName:
+          row.cesta_nome || "",
+        basketImage:
+          row.cesta_imagem || "",
+        destination:
+          row.destino || "",
+        mountedQty:
+          Number(
+            row.quantidade_montada || 0
+          ),
+        availableQty:
+          Number(
+            row.quantidade_disponivel || 0
+          ),
+        withdrawnQty:
+          Number(
+            row.quantidade_retirada || 0
+          ),
+        reversedQty:
+          Number(
+            row.quantidade_estornada || 0
+          ),
+        composition:
+          Array.isArray(row.composicao)
+            ? row.composicao
+            : [],
+        status:
+          row.status || "disponivel",
+        date:
+          row.data_montagem,
+        usuarioId:
+          row.usuario_id || null,
+        createdAt:
+          row.created_at ||
+          `${row.data_montagem || isoToday()}T00:00:00Z`,
+        updatedAt:
+          row.updated_at || null
+      })),
+
+    basketWithdrawals:
+      basketWithdrawalRows.map(row => ({
+        id:
+          Number(row.id),
+        stockId:
+          Number(row.estoque_cesta_id),
+        basketId:
+          row.cesta_id != null
+            ? Number(row.cesta_id)
+            : null,
+        basketName:
+          row.cesta_nome || "",
+        destination:
+          row.destino || "",
+        qty:
+          Number(row.quantidade || 0),
+        responsible:
+          row.responsavel || "",
+        note:
+          row.observacao || "",
+        composition:
+          Array.isArray(row.composicao)
+            ? row.composicao
+            : [],
+        date:
+          row.data_retirada,
+        usuarioId:
+          row.usuario_id || null,
+        createdAt:
+          row.created_at ||
+          `${row.data_retirada || isoToday()}T00:00:00Z`
+      })),
+
+    basketAdjustments:
+      basketAdjustmentRows.map(row => ({
+        id:
+          Number(row.id),
+        stockId:
+          Number(row.estoque_cesta_id),
+        type:
+          row.tipo || "",
+        qty:
+          row.quantidade != null
+            ? Number(row.quantidade)
+            : null,
+        reason:
+          row.motivo || "",
+        note:
+          row.observacao || "",
+        oldDestination:
+          row.destino_anterior || "",
+        newDestination:
+          row.destino_novo || "",
+        oldComposition:
+          Array.isArray(row.composicao_anterior)
+            ? row.composicao_anterior
+            : [],
+        newComposition:
+          Array.isArray(row.composicao_nova)
+            ? row.composicao_nova
+            : [],
+        date:
+          row.data_ajuste,
+        usuarioId:
+          row.usuario_id || null,
+        createdAt:
+          row.created_at ||
+          `${row.data_ajuste || isoToday()}T00:00:00Z`
       })),
 
     reasons
@@ -4362,7 +4560,8 @@ async function insertHistoryRecord({
   qty,
   reason = "—",
   basketType = "—",
-  note = ""
+  note = "",
+  basketStockId = null
 }) {
 
   const {
@@ -4390,7 +4589,11 @@ async function insertHistoryRecord({
         observacao:
           note || "",
         usuario_id:
-          getCurrentUserId()
+          getCurrentUserId(),
+        estoque_cesta_id:
+          basketStockId != null
+            ? Number(basketStockId)
+            : null
       });
 
 
@@ -8221,11 +8424,17 @@ function renderDashboard() {
 
 
   const cestasSaidas =
-    (db.basketOutputs || [])
-      .filter(x => x.date === date)
+    (db.basketWithdrawals || [])
+      .filter(
+        x =>
+          x.date === date
+      )
       .reduce(
         (total, x) =>
-          total + Number(x.basketQty || 0),
+          total +
+          Number(
+            x.qty || 0
+          ),
         0
       );
 
@@ -9098,6 +9307,36 @@ function ensureEntryHistoryControls() {
     );
 
   if (!tableEl) return;
+
+
+  // Renomeia somente o título visual desta janela.
+  const entryHistoryPanel =
+    tableEl.closest(
+      ".panel,.box,.card,section"
+    ) ||
+    tableEl.parentElement;
+
+
+  const entryHistoryTitle =
+    entryHistoryPanel
+      ? [...entryHistoryPanel.querySelectorAll(
+          "h1,h2,h3,h4"
+        )]
+          .find(
+            element =>
+              normalizeAceText(
+                element.textContent
+              ).includes(
+                "entradas do dia"
+              )
+          )
+      : null;
+
+
+  if (entryHistoryTitle) {
+    entryHistoryTitle.textContent =
+      "Histórico do dia";
+  }
 
 
   // ----------------------------------------------------------
@@ -10173,7 +10412,7 @@ function ensureMovementDayHistory() {
     <div class="movement-day-history-head">
 
       <h3 class="movement-day-history-title">
-        Saídas e perdas do dia
+        Histórico do dia
       </h3>
 
       <div id="movementDayTotal">
@@ -10866,7 +11105,7 @@ async function deleteMovementDayHistoryOnly() {
           "?\n\nO estoque NÃO será alterado."
         )
       : (
-          "Excluir TODO o histórico exibido em Saídas e perdas do dia?\n\n" +
+          "Excluir TODO o histórico exibido nesta janela?\n\n" +
           "O estoque NÃO será alterado."
         );
 
@@ -19218,9 +19457,1977 @@ function createBasketModuleContainer() {
 
 }
 
+
+function ensureMountedBasketStockStyles() {
+
+  if (
+    document.getElementById(
+      "aceMountedBasketStockStyle"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+  style.id =
+    "aceMountedBasketStockStyle";
+
+  style.textContent = `
+
+    .ace-mounted-stock{
+      margin-top:28px;
+      padding:20px;
+      border:1px solid #d7e0e8;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 10px 30px rgba(20,45,70,.06);
+    }
+
+    .ace-mounted-stock-title{
+      margin:0 0 5px;
+      color:#0b3a63;
+      font-size:25px;
+      font-weight:900;
+    }
+
+    .ace-mounted-stock-subtitle{
+      margin-bottom:16px;
+      color:#667085;
+      font-size:14px;
+      line-height:1.45;
+    }
+
+    .ace-mounted-stock-table{
+      overflow:auto;
+      max-height:620px;
+      border:1px solid #e3e9ef;
+      border-radius:11px;
+    }
+
+    .ace-mounted-stock-table table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:980px;
+    }
+
+    .ace-mounted-stock-table th,
+    .ace-mounted-stock-table td{
+      padding:12px 10px;
+      border-bottom:1px solid #e6ebf0;
+      text-align:left;
+      vertical-align:middle;
+    }
+
+    .ace-mounted-stock-table th{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:#f5f7f9;
+      color:#344054;
+      font-weight:900;
+    }
+
+    .ace-mounted-stock-actions{
+      display:flex;
+      gap:7px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .ace-mounted-stock-btn{
+      border-radius:8px;
+      padding:7px 10px;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    .ace-mounted-stock-edit{
+      border:1px solid #0b4b7a;
+      background:#fff;
+      color:#0b4b7a;
+    }
+
+    .ace-mounted-stock-withdraw{
+      border:1px solid #167a3d;
+      background:#ecfdf3;
+      color:#027a48;
+    }
+
+    .ace-mounted-stock-reverse{
+      border:1px solid #e04f3f;
+      background:#fff5f4;
+      color:#b42318;
+    }
+
+    .ace-mounted-stock-btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+
+    .ace-mounted-final{
+      display:inline-flex;
+      align-items:center;
+      padding:7px 10px;
+      border-radius:999px;
+      background:#eef4f8;
+      color:#475467;
+      font-weight:900;
+      font-size:13px;
+    }
+
+    .ace-basket-operation-history{
+      margin-top:20px;
+      padding:20px;
+      border:1px solid #d7e0e8;
+      border-radius:16px;
+      background:#fff;
+    }
+
+    .ace-basket-operation-history h3{
+      margin:0 0 14px;
+      color:#0b3a63;
+      font-size:21px;
+      font-weight:900;
+    }
+
+    .ace-basket-operation-scroll{
+      max-height:430px;
+      overflow:auto;
+    }
+
+    .ace-stock-modal{
+      position:fixed;
+      inset:0;
+      z-index:1001300;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(15,23,42,.55);
+    }
+
+    .ace-stock-modal-box{
+      width:min(720px,calc(100vw - 36px));
+      max-height:90vh;
+      overflow:auto;
+      box-sizing:border-box;
+      padding:22px;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 22px 70px rgba(0,0,0,.28);
+    }
+
+    .ace-stock-modal-title{
+      margin-bottom:15px;
+      color:#0b3a63;
+      font-size:23px;
+      font-weight:900;
+    }
+
+    .ace-stock-modal-info{
+      margin-bottom:14px;
+      padding:12px 14px;
+      border-radius:10px;
+      background:#eef6fb;
+      color:#344054;
+      line-height:1.5;
+    }
+
+    .ace-stock-modal-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    .ace-stock-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin-bottom:12px;
+      color:#344054;
+      font-weight:900;
+    }
+
+    .ace-stock-field input,
+    .ace-stock-field select{
+      width:100%;
+      min-height:48px;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border:1px solid #cfd9e2;
+      border-radius:9px;
+      background:#fff;
+      color:#172b3a;
+      font:inherit;
+    }
+
+    .ace-stock-modal-actions{
+      display:flex;
+      justify-content:flex-end;
+      gap:9px;
+      margin-top:16px;
+      flex-wrap:wrap;
+    }
+
+    .ace-stock-modal-actions button{
+      min-height:44px;
+      padding:9px 15px;
+      border-radius:9px;
+      font-size:14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-stock-confirm{
+      border:1px solid #0b4b7a;
+      background:#0b4b7a;
+      color:#fff;
+    }
+
+    .ace-stock-cancel{
+      border:1px solid #98a2b3;
+      background:#fff;
+      color:#344054;
+    }
+
+    .ace-stock-edit-items{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .ace-stock-edit-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 42px 54px 42px 42px;
+      gap:7px;
+      align-items:center;
+      padding:9px;
+      border:1px solid #e3e9ef;
+      border-radius:9px;
+      background:#f8fafc;
+    }
+
+    .ace-stock-edit-row button{
+      width:38px;
+      height:38px;
+      border-radius:8px;
+      border:1px solid #cfd9e2;
+      background:#fff;
+      cursor:pointer;
+      font-weight:900;
+    }
+
+    .ace-stock-edit-add{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:8px;
+      margin-top:12px;
+    }
+
+    @media(max-width:700px){
+
+      .ace-stock-modal-grid{
+        grid-template-columns:1fr;
+      }
+
+      .ace-stock-edit-row{
+        grid-template-columns:minmax(0,1fr) 38px 48px 38px 38px;
+      }
+
+      .ace-mounted-stock{
+        padding:14px;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function renderMountedBasketStockTable() {
+
+  const rows =
+    (db?.basketStock || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
+          )
+      );
+
+
+  if (!rows.length) {
+
+    return `
+      <div class="empty">
+        Nenhuma cesta montada no estoque.
+      </div>
+    `;
+
+  }
+
+
+  return `
+
+    <div class="ace-mounted-stock-table">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Data</th>
+            <th>Cesta</th>
+            <th>Destino</th>
+            <th>Montadas</th>
+            <th>Retiradas</th>
+            <th>Estornadas</th>
+            <th>Disponíveis</th>
+            <th>Ações</th>
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          ${
+            rows.map(row => {
+
+              const available =
+                Number(
+                  row.availableQty || 0
+                );
+
+              const finalized =
+                available <= 0;
+
+
+              return `
+
+                <tr>
+
+                  <td>
+                    ${esc(fmtDate(row.date))}
+                  </td>
+
+                  <td>
+                    <b>${esc(row.basketName)}</b>
+                  </td>
+
+                  <td>
+                    ${esc(row.destination)}
+                  </td>
+
+                  <td>
+                    ${fmt(row.mountedQty)}
+                  </td>
+
+                  <td>
+                    ${fmt(row.withdrawnQty)}
+                  </td>
+
+                  <td>
+                    ${fmt(row.reversedQty)}
+                  </td>
+
+                  <td>
+                    <b>${fmt(available)}</b>
+                  </td>
+
+                  <td>
+
+                    ${
+                      finalized
+                        ? `
+                          <span class="ace-mounted-final">
+                            ✅ Finalizado
+                          </span>
+                        `
+                        : `
+                          <div class="ace-mounted-stock-actions">
+
+                            <button
+                              type="button"
+                              class="ace-mounted-stock-btn ace-mounted-stock-edit"
+                              data-edit-mounted-basket="${row.id}"
+                            >
+                              ✏️ Editar
+                            </button>
+
+                            <button
+                              type="button"
+                              class="ace-mounted-stock-btn ace-mounted-stock-withdraw"
+                              data-withdraw-mounted-basket="${row.id}"
+                            >
+                              🚚 Dar saída
+                            </button>
+
+                            <button
+                              type="button"
+                              class="ace-mounted-stock-btn ace-mounted-stock-reverse"
+                              data-reverse-mounted-basket="${row.id}"
+                            >
+                              ↩️ Estornar
+                            </button>
+
+                          </div>
+                        `
+                    }
+
+                  </td>
+
+                </tr>
+
+              `;
+
+            }).join("")
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+}
+
+
+function renderBasketWithdrawalHistory() {
+
+  const rows =
+    (db?.basketWithdrawals || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
+          )
+      );
+
+
+  if (!rows.length) {
+
+    return `
+      <div class="empty">
+        Nenhuma retirada de cesta registrada.
+      </div>
+    `;
+
+  }
+
+
+  return `
+
+    <div class="ace-basket-operation-scroll">
+
+      ${table(
+        rows,
+        [
+          [
+            "Data",
+            row =>
+              fmtDate(
+                row.date
+              )
+          ],
+          [
+            "Cesta",
+            row =>
+              esc(
+                row.basketName
+              )
+          ],
+          [
+            "Destino",
+            row =>
+              esc(
+                row.destination
+              )
+          ],
+          [
+            "Qtd",
+            row =>
+              fmt(
+                row.qty
+              )
+          ],
+          [
+            "Responsável",
+            row =>
+              esc(
+                row.responsible
+              )
+          ],
+          [
+            "Usuário",
+            row =>
+              esc(
+                getMovementUserName(
+                  row
+                ) ||
+                "Usuário não identificado"
+              )
+          ],
+          [
+            "Obs.",
+            row =>
+              esc(
+                row.note || ""
+              )
+          ]
+        ],
+        null
+      )}
+
+    </div>
+
+  `;
+
+}
+
+
+function renderBasketAdjustmentHistory() {
+
+  const rows =
+    (db?.basketAdjustments || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
+          )
+      );
+
+
+  if (!rows.length) {
+
+    return `
+      <div class="empty">
+        Nenhum estorno ou edição registrado.
+      </div>
+    `;
+
+  }
+
+
+  return `
+
+    <div class="ace-basket-operation-scroll">
+
+      ${table(
+        rows,
+        [
+          [
+            "Data",
+            row =>
+              fmtDate(
+                row.date
+              )
+          ],
+          [
+            "Tipo",
+            row =>
+              row.type === "estorno"
+                ? "↩️ Estorno"
+                : "✏️ Edição"
+          ],
+          [
+            "Qtd.",
+            row =>
+              row.qty != null
+                ? fmt(
+                    row.qty
+                  )
+                : "—"
+          ],
+          [
+            "Motivo",
+            row =>
+              esc(
+                row.reason || "—"
+              )
+          ],
+          [
+            "Usuário",
+            row =>
+              esc(
+                getMovementUserName(
+                  row
+                ) ||
+                "Usuário não identificado"
+              )
+          ],
+          [
+            "Obs.",
+            row =>
+              esc(
+                row.note || ""
+              )
+          ]
+        ],
+        null
+      )}
+
+    </div>
+
+  `;
+
+}
+
+
+function closeMountedBasketModal() {
+
+  document
+    .getElementById(
+      "aceMountedBasketModal"
+    )
+    ?.remove();
+
+}
+
+
+function getMountedBasketStockById(
+  stockId
+) {
+
+  return (db?.basketStock || [])
+    .find(
+      row =>
+        Number(row.id) ===
+        Number(stockId)
+    ) || null;
+
+}
+
+
+function openMountedBasketWithdrawalModal(
+  stockId
+) {
+
+  closeMountedBasketModal();
+
+
+  const stock =
+    getMountedBasketStockById(
+      stockId
+    );
+
+
+  if (!stock) {
+    toast(
+      "Estoque de cesta não encontrado."
+    );
+    return;
+  }
+
+
+  if (
+    Number(
+      stock.availableQty || 0
+    ) <= 0
+  ) {
+    toast(
+      "Este lote já foi finalizado."
+    );
+    return;
+  }
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+  modal.id =
+    "aceMountedBasketModal";
+
+  modal.className =
+    "ace-stock-modal";
+
+  modal.innerHTML = `
+
+    <div class="ace-stock-modal-box">
+
+      <div class="ace-stock-modal-title">
+        🚚 Dar saída da cesta
+      </div>
+
+      <div class="ace-stock-modal-info">
+        <b>${esc(stock.basketName)}</b><br>
+        Destino: ${esc(stock.destination)}<br>
+        Disponível: <b>${fmt(stock.availableQty)}</b>
+      </div>
+
+      <label class="ace-stock-field">
+        Quantidade retirada
+
+        <input
+          id="mountedBasketWithdrawalQty"
+          type="number"
+          min="1"
+          max="${esc(String(stock.availableQty))}"
+          step="1"
+          inputmode="numeric"
+          value="1"
+        >
+      </label>
+
+      <label class="ace-stock-field">
+        Responsável pela retirada
+
+        <input
+          id="mountedBasketWithdrawalResponsible"
+          type="text"
+          placeholder="Nome do responsável"
+        >
+      </label>
+
+      <label class="ace-stock-field">
+        Observação
+
+        <input
+          id="mountedBasketWithdrawalNote"
+          type="text"
+          placeholder="Opcional"
+        >
+      </label>
+
+      <div class="ace-stock-modal-actions">
+
+        <button
+          id="mountedBasketWithdrawalConfirm"
+          type="button"
+          class="ace-stock-confirm"
+        >
+          ✅ Confirmar retirada
+        </button>
+
+        <button
+          type="button"
+          class="ace-stock-cancel"
+          onclick="closeMountedBasketModal()"
+        >
+          Cancelar
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  document
+    .getElementById(
+      "mountedBasketWithdrawalConfirm"
+    )
+    .onclick =
+      async () => {
+
+        const qty =
+          Number(
+            document
+              .getElementById(
+                "mountedBasketWithdrawalQty"
+              )
+              ?.value || 0
+          );
+
+        const responsible =
+          String(
+            document
+              .getElementById(
+                "mountedBasketWithdrawalResponsible"
+              )
+              ?.value || ""
+          ).trim();
+
+        const note =
+          String(
+            document
+              .getElementById(
+                "mountedBasketWithdrawalNote"
+              )
+              ?.value || ""
+          ).trim();
+
+
+        if (
+          !Number.isInteger(qty) ||
+          qty <= 0 ||
+          qty >
+            Number(
+              stock.availableQty
+            )
+        ) {
+
+          await showAceConfirm(
+            `Informe uma quantidade inteira entre 1 e ${stock.availableQty}.`,
+            "⚠️ Quantidade inválida"
+          );
+
+          return;
+        }
+
+
+        if (!responsible) {
+
+          await showAceConfirm(
+            "Informe o nome do responsável pela retirada.",
+            "⚠️ Campo obrigatório"
+          );
+
+          return;
+        }
+
+
+        if (
+          !aceIsOnline()
+        ) {
+
+          await showAceConfirm(
+            "A retirada de cestas precisa ser feita com internet para evitar baixa duplicada.",
+            "🟠 Operação online"
+          );
+
+          return;
+        }
+
+
+        const confirmed =
+          await showAceConfirm(
+            `Confirmar a retirada de ${qty} cesta(s)?\n\n` +
+            `Cesta: ${stock.basketName}\n` +
+            `Destino: ${stock.destination}\n` +
+            `Responsável: ${responsible}\n\n` +
+            `O estoque principal de alimentos NÃO será alterado novamente.`,
+            "🚚 Confirmar retirada"
+          );
+
+
+        if (
+          confirmed === false
+        ) {
+          return;
+        }
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabaseClient.rpc(
+              "ace_retirar_cesta_montada",
+              {
+                p_estoque_id:
+                  Number(
+                    stock.id
+                  ),
+                p_quantidade:
+                  qty,
+                p_responsavel:
+                  responsible,
+                p_observacao:
+                  note || null,
+                p_usuario_id:
+                  getCurrentUserId(),
+                p_data:
+                  isoToday()
+              }
+            );
+
+
+          if (error) {
+            throw error;
+          }
+
+
+          closeMountedBasketModal();
+
+          await reloadFromSupabase();
+
+          renderAll();
+
+
+          showAceSuccess(
+            "Retirada registrada com sucesso!"
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO NA RETIRADA DA CESTA:",
+            error
+          );
+
+
+          await showAceConfirm(
+            error?.message ||
+            "Não foi possível registrar a retirada.",
+            "❌ Erro"
+          );
+
+        }
+
+      };
+
+}
+
+
+function openMountedBasketReverseModal(
+  stockId
+) {
+
+  closeMountedBasketModal();
+
+
+  const stock =
+    getMountedBasketStockById(
+      stockId
+    );
+
+
+  if (!stock) {
+    toast(
+      "Estoque de cesta não encontrado."
+    );
+    return;
+  }
+
+
+  if (
+    Number(
+      stock.availableQty || 0
+    ) <= 0
+  ) {
+    toast(
+      "Este lote já foi finalizado."
+    );
+    return;
+  }
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+  modal.id =
+    "aceMountedBasketModal";
+
+  modal.className =
+    "ace-stock-modal";
+
+  modal.innerHTML = `
+
+    <div class="ace-stock-modal-box">
+
+      <div class="ace-stock-modal-title">
+        ↩️ Estornar cesta
+      </div>
+
+      <div class="ace-stock-modal-info">
+        <b>${esc(stock.basketName)}</b><br>
+        Destino: ${esc(stock.destination)}<br>
+        Disponível para estorno: <b>${fmt(stock.availableQty)}</b><br><br>
+        ⚠️ Os alimentos das cestas estornadas retornarão ao estoque principal.
+      </div>
+
+      <label class="ace-stock-field">
+        Quantidade a estornar
+
+        <input
+          id="mountedBasketReverseQty"
+          type="number"
+          min="1"
+          max="${esc(String(stock.availableQty))}"
+          step="1"
+          inputmode="numeric"
+          value="1"
+        >
+      </label>
+
+      <label class="ace-stock-field">
+        Motivo
+
+        <select id="mountedBasketReverseReason">
+          <option value="">
+            Selecione...
+          </option>
+          <option value="Montagem incorreta">
+            Montagem incorreta
+          </option>
+          <option value="Destino incorreto">
+            Destino incorreto
+          </option>
+          <option value="Quantidade incorreta">
+            Quantidade incorreta
+          </option>
+          <option value="Cesta desmontada">
+            Cesta desmontada
+          </option>
+          <option value="Outro">
+            Outro
+          </option>
+        </select>
+      </label>
+
+      <label class="ace-stock-field">
+        Observação
+
+        <input
+          id="mountedBasketReverseNote"
+          type="text"
+          placeholder="Opcional"
+        >
+      </label>
+
+      <div class="ace-stock-modal-actions">
+
+        <button
+          id="mountedBasketReverseConfirm"
+          type="button"
+          class="ace-stock-confirm"
+        >
+          ↩️ Confirmar estorno
+        </button>
+
+        <button
+          type="button"
+          class="ace-stock-cancel"
+          onclick="closeMountedBasketModal()"
+        >
+          Cancelar
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  document
+    .getElementById(
+      "mountedBasketReverseConfirm"
+    )
+    .onclick =
+      async () => {
+
+        const qty =
+          Number(
+            document
+              .getElementById(
+                "mountedBasketReverseQty"
+              )
+              ?.value || 0
+          );
+
+        const reason =
+          String(
+            document
+              .getElementById(
+                "mountedBasketReverseReason"
+              )
+              ?.value || ""
+          ).trim();
+
+        const note =
+          String(
+            document
+              .getElementById(
+                "mountedBasketReverseNote"
+              )
+              ?.value || ""
+          ).trim();
+
+
+        if (
+          !Number.isInteger(qty) ||
+          qty <= 0 ||
+          qty >
+            Number(
+              stock.availableQty
+            )
+        ) {
+
+          await showAceConfirm(
+            `Informe uma quantidade inteira entre 1 e ${stock.availableQty}.`,
+            "⚠️ Quantidade inválida"
+          );
+
+          return;
+        }
+
+
+        if (!reason) {
+
+          await showAceConfirm(
+            "Selecione o motivo do estorno.",
+            "⚠️ Campo obrigatório"
+          );
+
+          return;
+        }
+
+
+        if (
+          !aceIsOnline()
+        ) {
+
+          await showAceConfirm(
+            "O estorno precisa ser feito com internet para devolver corretamente os alimentos ao estoque.",
+            "🟠 Operação online"
+          );
+
+          return;
+        }
+
+
+        const confirmed =
+          await showAceConfirm(
+            `Tem certeza que deseja estornar ${qty} cesta(s)?\n\n` +
+            `Cesta: ${stock.basketName}\n` +
+            `Destino: ${stock.destination}\n\n` +
+            `Os alimentos retornarão automaticamente ao estoque principal.`,
+            "↩️ Confirmar estorno"
+          );
+
+
+        if (
+          confirmed === false
+        ) {
+          return;
+        }
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabaseClient.rpc(
+              "ace_estornar_cesta_montada",
+              {
+                p_estoque_id:
+                  Number(
+                    stock.id
+                  ),
+                p_quantidade:
+                  qty,
+                p_motivo:
+                  reason,
+                p_observacao:
+                  note || null,
+                p_usuario_id:
+                  getCurrentUserId(),
+                p_data:
+                  isoToday()
+              }
+            );
+
+
+          if (error) {
+            throw error;
+          }
+
+
+          closeMountedBasketModal();
+
+          await reloadFromSupabase();
+
+          renderAll();
+
+
+          showAceSuccess(
+            "Cesta estornada. Os alimentos retornaram ao estoque principal."
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO NO ESTORNO DE CESTA:",
+            error
+          );
+
+
+          await showAceConfirm(
+            error?.message ||
+            "Não foi possível estornar a cesta.",
+            "❌ Erro"
+          );
+
+        }
+
+      };
+
+}
+
+
+function normalizeMountedComposition(
+  composition
+) {
+
+  return (composition || [])
+    .map(
+      item => ({
+        foodId:
+          Number(
+            item.alimento_id ??
+            item.foodId
+          ),
+        qty:
+          Number(
+            item.quantidade_por_cesta ??
+            item.qty
+          )
+      })
+    )
+    .filter(
+      item =>
+        item.foodId &&
+        Number.isInteger(
+          item.qty
+        ) &&
+        item.qty > 0
+    );
+
+}
+
+
+function openMountedBasketEditModal(
+  stockId
+) {
+
+  closeMountedBasketModal();
+
+
+  const stock =
+    getMountedBasketStockById(
+      stockId
+    );
+
+
+  if (!stock) {
+    toast(
+      "Estoque de cesta não encontrado."
+    );
+    return;
+  }
+
+
+  if (
+    Number(
+      stock.availableQty || 0
+    ) <= 0
+  ) {
+    toast(
+      "Este lote já foi finalizado."
+    );
+    return;
+  }
+
+
+  let draft =
+    normalizeMountedComposition(
+      stock.composition
+    );
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+  modal.id =
+    "aceMountedBasketModal";
+
+  modal.className =
+    "ace-stock-modal";
+
+  modal.innerHTML = `
+
+    <div class="ace-stock-modal-box">
+
+      <div class="ace-stock-modal-title">
+        ✏️ Editar cesta montada
+      </div>
+
+      <div class="ace-stock-modal-info">
+        <b>${esc(stock.basketName)}</b><br>
+        Quantidade disponível que será alterada:
+        <b>${fmt(stock.availableQty)}</b><br><br>
+        ${
+          Number(
+            stock.withdrawnQty || 0
+          ) > 0
+            ? "Parte deste lote já foi retirada. O destino não poderá ser alterado."
+            : "O destino e a composição podem ser corrigidos."
+        }
+      </div>
+
+      <label class="ace-stock-field">
+        Destino
+
+        <input
+          id="mountedBasketEditDestination"
+          type="text"
+          value="${esc(stock.destination)}"
+          ${
+            Number(
+              stock.withdrawnQty || 0
+            ) > 0
+              ? "disabled"
+              : ""
+          }
+        >
+      </label>
+
+      <div class="ace-stock-field">
+        Composição das cestas disponíveis
+      </div>
+
+      <div
+        id="mountedBasketEditItems"
+        class="ace-stock-edit-items"
+      ></div>
+
+      <div class="ace-stock-edit-add">
+
+        <select id="mountedBasketEditAddFood">
+
+          <option value="">
+            + Adicionar alimento...
+          </option>
+
+          ${
+            (db.foods || [])
+              .slice()
+              .sort(
+                (a,b) =>
+                  String(
+                    a.name
+                  ).localeCompare(
+                    String(
+                      b.name
+                    ),
+                    "pt-BR"
+                  )
+              )
+              .map(
+                food => `
+                  <option value="${food.id}">
+                    ${esc(food.name)}
+                  </option>
+                `
+              )
+              .join("")
+          }
+
+        </select>
+
+        <button
+          id="mountedBasketEditAddFoodButton"
+          type="button"
+          class="ace-stock-confirm"
+        >
+          + Adicionar
+        </button>
+
+      </div>
+
+      <label class="ace-stock-field" style="margin-top:12px;">
+        Observação da edição
+
+        <input
+          id="mountedBasketEditNote"
+          type="text"
+          placeholder="Opcional"
+        >
+      </label>
+
+      <div class="ace-stock-modal-actions">
+
+        <button
+          id="mountedBasketEditConfirm"
+          type="button"
+          class="ace-stock-confirm"
+        >
+          💾 Salvar alteração
+        </button>
+
+        <button
+          type="button"
+          class="ace-stock-cancel"
+          onclick="closeMountedBasketModal()"
+        >
+          Cancelar
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  const renderDraft =
+    () => {
+
+      const list =
+        document
+          .getElementById(
+            "mountedBasketEditItems"
+          );
+
+
+      if (!list) {
+        return;
+      }
+
+
+      list.innerHTML =
+        draft.length
+          ? draft
+              .slice()
+              .sort(
+                (a,b) =>
+                  getName(
+                    db.foods,
+                    a.foodId
+                  ).localeCompare(
+                    getName(
+                      db.foods,
+                      b.foodId
+                    ),
+                    "pt-BR"
+                  )
+              )
+              .map(
+                item => `
+
+                  <div
+                    class="ace-stock-edit-row"
+                    data-mounted-edit-food="${item.foodId}"
+                  >
+
+                    <div>
+                      <b>
+                        ${esc(
+                          getName(
+                            db.foods,
+                            item.foodId
+                          )
+                        )}
+                      </b>
+                    </div>
+
+                    <button
+                      type="button"
+                      data-mounted-minus="${item.foodId}"
+                    >
+                      −
+                    </button>
+
+                    <div style="text-align:center;font-weight:900;">
+                      ${fmt(item.qty)}
+                    </div>
+
+                    <button
+                      type="button"
+                      data-mounted-plus="${item.foodId}"
+                    >
+                      +
+                    </button>
+
+                    <button
+                      type="button"
+                      data-mounted-remove="${item.foodId}"
+                      style="color:#b42318;"
+                    >
+                      ×
+                    </button>
+
+                  </div>
+
+                `
+              )
+              .join("")
+          : `
+            <div class="empty">
+              Nenhum alimento na cesta.
+            </div>
+          `;
+
+
+      list
+        .querySelectorAll(
+          "[data-mounted-minus]"
+        )
+        .forEach(
+          button => {
+
+            button.onclick =
+              () => {
+
+                const foodId =
+                  Number(
+                    button.dataset
+                      .mountedMinus
+                  );
+
+                const item =
+                  draft.find(
+                    row =>
+                      Number(
+                        row.foodId
+                      ) ===
+                      foodId
+                  );
+
+
+                if (!item) {
+                  return;
+                }
+
+
+                item.qty =
+                  Math.max(
+                    1,
+                    Number(
+                      item.qty
+                    ) -
+                    1
+                  );
+
+
+                renderDraft();
+
+              };
+
+          }
+        );
+
+
+      list
+        .querySelectorAll(
+          "[data-mounted-plus]"
+        )
+        .forEach(
+          button => {
+
+            button.onclick =
+              () => {
+
+                const foodId =
+                  Number(
+                    button.dataset
+                      .mountedPlus
+                  );
+
+                const item =
+                  draft.find(
+                    row =>
+                      Number(
+                        row.foodId
+                      ) ===
+                      foodId
+                  );
+
+
+                if (!item) {
+                  return;
+                }
+
+
+                item.qty =
+                  Number(
+                    item.qty
+                  ) +
+                  1;
+
+
+                renderDraft();
+
+              };
+
+          }
+        );
+
+
+      list
+        .querySelectorAll(
+          "[data-mounted-remove]"
+        )
+        .forEach(
+          button => {
+
+            button.onclick =
+              () => {
+
+                const foodId =
+                  Number(
+                    button.dataset
+                      .mountedRemove
+                  );
+
+
+                draft =
+                  draft.filter(
+                    row =>
+                      Number(
+                        row.foodId
+                      ) !==
+                      foodId
+                  );
+
+
+                renderDraft();
+
+              };
+
+          }
+        );
+
+    };
+
+
+  renderDraft();
+
+
+  document
+    .getElementById(
+      "mountedBasketEditAddFoodButton"
+    )
+    .onclick =
+      () => {
+
+        const foodId =
+          Number(
+            document
+              .getElementById(
+                "mountedBasketEditAddFood"
+              )
+              ?.value || 0
+          );
+
+
+        if (!foodId) {
+          toast(
+            "Selecione um alimento."
+          );
+          return;
+        }
+
+
+        if (
+          draft.some(
+            item =>
+              Number(
+                item.foodId
+              ) ===
+              foodId
+          )
+        ) {
+          toast(
+            "Esse alimento já está na cesta."
+          );
+          return;
+        }
+
+
+        draft.push({
+          foodId,
+          qty:
+            1
+        });
+
+
+        renderDraft();
+
+      };
+
+
+  document
+    .getElementById(
+      "mountedBasketEditConfirm"
+    )
+    .onclick =
+      async () => {
+
+        const destination =
+          String(
+            document
+              .getElementById(
+                "mountedBasketEditDestination"
+              )
+              ?.value ||
+              stock.destination
+          ).trim();
+
+        const note =
+          String(
+            document
+              .getElementById(
+                "mountedBasketEditNote"
+              )
+              ?.value || ""
+          ).trim();
+
+
+        if (!destination) {
+
+          await showAceConfirm(
+            "O destino é obrigatório.",
+            "⚠️ Campo obrigatório"
+          );
+
+          return;
+        }
+
+
+        if (!draft.length) {
+
+          await showAceConfirm(
+            "A cesta precisa possuir pelo menos um alimento.",
+            "⚠️ Composição inválida"
+          );
+
+          return;
+        }
+
+
+        if (
+          !aceIsOnline()
+        ) {
+
+          await showAceConfirm(
+            "A edição da cesta montada precisa ser feita com internet para ajustar o estoque com segurança.",
+            "🟠 Operação online"
+          );
+
+          return;
+        }
+
+
+        const newComposition =
+          draft.map(
+            item => ({
+              alimento_id:
+                Number(
+                  item.foodId
+                ),
+              alimento:
+                getName(
+                  db.foods,
+                  item.foodId
+                ),
+              quantidade_por_cesta:
+                Number(
+                  item.qty
+                )
+            })
+          );
+
+
+        const confirmed =
+          await showAceConfirm(
+            `Salvar a alteração das ${stock.availableQty} cesta(s) ainda disponíveis?\n\n` +
+            `Se algum alimento aumentar, será debitado do estoque principal.\n` +
+            `Se diminuir ou for removido, retornará ao estoque principal.\n\n` +
+            `As cestas que já foram retiradas NÃO serão alteradas.`,
+            "✏️ Confirmar edição"
+          );
+
+
+        if (
+          confirmed === false
+        ) {
+          return;
+        }
+
+
+        try {
+
+          const {
+            error
+          } =
+            await supabaseClient.rpc(
+              "ace_editar_cesta_montada",
+              {
+                p_estoque_id:
+                  Number(
+                    stock.id
+                  ),
+                p_destino:
+                  destination,
+                p_composicao_nova:
+                  newComposition,
+                p_observacao:
+                  note || null,
+                p_usuario_id:
+                  getCurrentUserId(),
+                p_data:
+                  isoToday()
+              }
+            );
+
+
+          if (error) {
+            throw error;
+          }
+
+
+          closeMountedBasketModal();
+
+          await reloadFromSupabase();
+
+          renderAll();
+
+
+          showAceSuccess(
+            "Cesta montada atualizada e estoque ajustado com sucesso!"
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO EDITAR CESTA MONTADA:",
+            error
+          );
+
+
+          await showAceConfirm(
+            error?.message ||
+            "Não foi possível editar a cesta.",
+            "❌ Erro"
+          );
+
+        }
+
+      };
+
+}
+
+
+function bindMountedBasketStockActions(
+  module
+) {
+
+  module
+    ?.querySelectorAll(
+      "[data-withdraw-mounted-basket]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openMountedBasketWithdrawalModal(
+              Number(
+                button.dataset
+                  .withdrawMountedBasket
+              )
+            );
+
+      }
+    );
+
+
+  module
+    ?.querySelectorAll(
+      "[data-reverse-mounted-basket]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openMountedBasketReverseModal(
+              Number(
+                button.dataset
+                  .reverseMountedBasket
+              )
+            );
+
+      }
+    );
+
+
+  module
+    ?.querySelectorAll(
+      "[data-edit-mounted-basket]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openMountedBasketEditModal(
+              Number(
+                button.dataset
+                  .editMountedBasket
+              )
+            );
+
+      }
+    );
+
+}
+
+
 function renderBasketModule() {
 
   ensureBasketStyles();
+  ensureMountedBasketStockStyles();
 
   const module =
     createBasketModuleContainer();
@@ -19239,12 +21446,13 @@ function renderBasketModule() {
   module.innerHTML = `
 
     <h2 class="ace-basket-module-title">
-      🧺 Saída por Cestas
+      🧺 Montagem de Cestas
     </h2>
 
     <div class="ace-basket-module-subtitle">
-      Escolha a cesta, informe o destino e a quantidade.
-      A origem do estoque é fixa em Água Fria.
+      Monte as cestas que ficarão separadas no galpão por destino.
+      Ao montar, os alimentos são debitados imediatamente do estoque principal
+      e a cesta entra no estoque de cestas montadas.
     </div>
 
     <div class="ace-basket-fixed-origin">
@@ -19327,7 +21535,7 @@ function renderBasketModule() {
                       class="ace-basket-edit"
                       data-edit-basket="${basket.id}"
                     >
-                      ✏️ Editar cesta
+                      ✏️ Editar modelo
                     </button>
 
                     <div class="ace-basket-fields">
@@ -19382,12 +21590,12 @@ function renderBasketModule() {
                       class="ace-basket-register"
                       data-register-basket="${basket.id}"
                     >
-                      🧺 Registrar saída
+                      🧺 Montar cesta
                     </button>
 
                     <div class="ace-basket-note">
-                      Ao registrar, os alimentos da cesta são
-                      debitados automaticamente do estoque de Água Fria.
+                      Ao montar, os alimentos são debitados do estoque principal
+                      e as cestas ficam disponíveis no estoque de cestas montadas.
                     </div>
 
                   </div>
@@ -19418,9 +21626,9 @@ function renderBasketModule() {
       </h3>
 
       <div class="ace-manual-basket-subtitle">
-        Monte uma cesta personalizada para esta saída.
-        Informe o nome, os alimentos, as quantidades e digite o destino.
-        Os itens serão debitados do estoque de Água Fria.
+        Monte uma cesta personalizada para deixar pronta no galpão.
+        Informe o nome, os alimentos, as quantidades e o destino.
+        Os itens serão debitados do estoque principal no momento da montagem.
       </div>
 
       <div class="ace-manual-basket-grid">
@@ -19523,50 +21731,51 @@ function renderBasketModule() {
         type="button"
         class="ace-manual-register"
       >
-        🧺 Registrar saída da cesta personalizada
+        🧺 Montar cesta personalizada
       </button>
 
     </div>
 
 
-    <div class="ace-basket-history">
 
-      <h3 class="ace-basket-history-title">
-        📋 Histórico de saída de cestas
+    <div class="ace-mounted-stock">
+
+      <h3 class="ace-mounted-stock-title">
+        📦 Estoque de cestas montadas
       </h3>
 
-      <div class="ace-basket-history-toolbar">
-        <label class="ace-basket-history-filter">
-          Filtrar por data
-          <input
-            id="basketHistoryDateFilter"
-            type="date"
-            value="${esc(window.aceBasketHistoryDateFilter || "")}"
-          >
-        </label>
-
-        <button
-          type="button"
-          id="basketHistoryClearFilter"
-          class="ace-basket-history-action ace-basket-history-clear"
-        >
-          Limpar filtro
-        </button>
-
-        <button
-          type="button"
-          id="basketHistoryDeleteAll"
-          class="ace-basket-history-action ace-basket-history-delete-all"
-        >
-          🗑️ Excluir Histórico
-        </button>
+      <div class="ace-mounted-stock-subtitle">
+        As cestas abaixo já foram montadas e os alimentos já foram debitados
+        do estoque principal. Enquanto houver saldo disponível, é possível
+        editar, dar saída ou estornar.
       </div>
 
-      <div class="ace-basket-history-list">
-        ${renderBasketHistoryRows()}
-      </div>
+      ${renderMountedBasketStockTable()}
 
     </div>
+
+
+    <div class="ace-basket-operation-history">
+
+      <h3>
+        🚚 Histórico de retiradas de cestas
+      </h3>
+
+      ${renderBasketWithdrawalHistory()}
+
+    </div>
+
+
+    <div class="ace-basket-operation-history">
+
+      <h3>
+        ↩️ Histórico de ajustes e estornos
+      </h3>
+
+      ${renderBasketAdjustmentHistory()}
+
+    </div>
+
 
   `;
 
@@ -19688,24 +21897,11 @@ function renderBasketModule() {
             );
 
           const receivedBy =
-            module.querySelector(
-              `[data-basket-received="${basketId}"]`
-            )?.value
-              ?.trim() || "";
+            "";
 
           if (!destination) {
             toast(
               "Selecione o destino da cesta."
-            );
-            return;
-          }
-
-          if (
-            destination === "Comunidade" &&
-            !receivedBy
-          ) {
-            toast(
-              "Informe o nome da pessoa que recebeu a cesta."
             );
             return;
           }
@@ -19722,15 +21918,10 @@ function renderBasketModule() {
 
           const confirmed =
             await showAceConfirm(
-              `Confirmar saída de ${qty} cesta(s) ${basket?.name || ""}?\n\n` +
-              `Origem: Água Fria\n` +
-              `Destino: ${destination}` +
-              (
-                destination === "Comunidade"
-                  ? `\nRecebido por: ${receivedBy}`
-                  : ""
-              ),
-              "🧺 Confirmar saída"
+              `Confirmar a montagem de ${qty} cesta(s) ${basket?.name || ""}?\n\n` +
+              `Destino: ${destination}\n\n` +
+              `Os alimentos serão debitados do estoque principal e as cestas entrarão no estoque de cestas montadas.`,
+              "🧺 Confirmar montagem"
             );
 
           // showAceConfirm do sistema pode não retornar boolean.
@@ -19758,13 +21949,13 @@ function renderBasketModule() {
             renderAll();
 
             showAceSuccess(
-              `${qty} cesta(s) ${basket?.name || ""} registrada(s) com sucesso!`
+              `${qty} cesta(s) ${basket?.name || ""} montada(s) e adicionada(s) ao estoque de cestas!`
             );
 
           } catch (error) {
 
             console.error(
-              "ACE - ERRO NA SAÍDA DE CESTA:",
+              "ACE - ERRO NA MONTAGEM DE CESTA:",
               error
             );
 
@@ -19789,7 +21980,7 @@ function renderBasketModule() {
             } else {
 
               toast(
-                "Erro na saída da cesta: " +
+                "Erro na montagem da cesta: " +
                 (
                   error?.message ||
                   "verifique o Supabase."
@@ -20085,11 +22276,11 @@ function renderBasketModule() {
 
         const confirmed =
           await showAceConfirm(
-            `Confirmar saída de ${basketQty} cesta(s) "${name}"?\n\n` +
-            `Origem: Água Fria\n` +
+            `Confirmar a montagem de ${basketQty} cesta(s) "${name}"?\n\n` +
             `Destino: ${destination}\n` +
-            `Itens diferentes: ${manualBasketItems.length}`,
-            "🧺 Confirmar cesta personalizada"
+            `Itens diferentes: ${manualBasketItems.length}\n\n` +
+            `Os alimentos serão debitados do estoque principal e as cestas entrarão no estoque de cestas montadas.`,
+            "🧺 Confirmar montagem personalizada"
           );
 
 
@@ -20124,7 +22315,7 @@ function renderBasketModule() {
 
 
           showAceSuccess(
-            `${basketQty} cesta(s) personalizada(s) "${name}" registrada(s) com sucesso!`
+            `${basketQty} cesta(s) personalizada(s) "${name}" montada(s) e adicionada(s) ao estoque de cestas!`
           );
 
 
@@ -20178,6 +22369,11 @@ function renderBasketModule() {
 
       }
     );
+
+
+  bindMountedBasketStockActions(
+    module
+  );
 
 
   const basketHistoryDateFilter =
@@ -21235,27 +23431,26 @@ async function registerBasketOutput({
 }) {
 
   const basket =
-    (db?.baskets || []).find(
-      x =>
-        Number(x.id) ===
-        Number(basketId)
-    );
+    (db?.baskets || [])
+      .find(
+        item =>
+          Number(item.id) ===
+          Number(basketId)
+      );
+
 
   if (!basket) {
-    throw new Error("Cesta não encontrada.");
-  }
-
-  const aguaFria =
-    getAguaFriaOrigin();
-
-  if (!aguaFria) {
     throw new Error(
-      "A origem Água Fria não foi encontrada."
+      "Cesta não encontrada."
     );
   }
 
+
   const items =
-    getBasketItems(basketId);
+    getBasketItems(
+      basketId
+    );
+
 
   if (!items.length) {
     throw new Error(
@@ -21263,11 +23458,17 @@ async function registerBasketOutput({
     );
   }
 
+
   const qtyCestas =
-    Number(basketQty);
+    Number(
+      basketQty
+    );
+
 
   if (
-    !Number.isInteger(qtyCestas) ||
+    !Number.isInteger(
+      qtyCestas
+    ) ||
     qtyCestas <= 0
   ) {
     throw new Error(
@@ -21275,81 +23476,113 @@ async function registerBasketOutput({
     );
   }
 
-  // Verifica o estoque de TODOS os alimentos antes de registrar.
-  const stock =
-    calcStock();
 
-  const shortages = [];
-
-  items.forEach(item => {
-
-    const required =
-      Number(item.qty) *
-      qtyCestas;
-
-    const available =
-      Number(
-        stock?.[aguaFria.id]?.[item.foodId] ||
-        stock?.[String(aguaFria.id)]?.[String(item.foodId)] ||
-        0
-      );
-
-    if (required > available) {
-      shortages.push({
-        foodName: item.foodName,
-        required,
-        available
-      });
-    }
-
-  });
-
-  if (shortages.length) {
-
-    const error =
-      new Error(
-        "Estoque insuficiente em Água Fria."
-      );
-
-    error.code =
-      "ACE_BASKET_STOCK_INSUFFICIENT";
-
-    error.shortages =
-      shortages;
-
-    error.basketName =
-      basket.name;
-
-    error.basketQty =
-      qtyCestas;
-
-    throw error;
-
+  if (!destination) {
+    throw new Error(
+      "Informe o destino da cesta."
+    );
   }
 
-  const userId =
-    getCurrentUserId();
-
-  const today =
-    isoToday();
 
   const composition =
-    items.map(item => ({
-      alimento_id:
-        Number(item.foodId),
-      alimento:
-        item.foodName,
-      quantidade_por_cesta:
-        Number(item.qty),
-      quantidade_total:
-        Number(item.qty) *
-        qtyCestas
-    }));
+    items.map(
+      item => ({
+        alimento_id:
+          Number(item.foodId),
+        alimento:
+          item.foodName,
+        quantidade_por_cesta:
+          Number(item.qty)
+      })
+    );
 
+
+  // --------------------------------------------------------
+  // OFFLINE
+  // Mantém a fila já existente.
+  // Quando a internet voltar, o RPC oficial cria o lote.
+  // --------------------------------------------------------
 
   if (
     !aceIsOnline()
   ) {
+
+    const aguaFria =
+      getAguaFriaOrigin();
+
+
+    if (!aguaFria) {
+      throw new Error(
+        "Origem Água Fria não encontrada."
+      );
+    }
+
+
+    const stock =
+      calcStock();
+
+    const shortages = [];
+
+
+    items.forEach(
+      item => {
+
+        const required =
+          Number(item.qty) *
+          qtyCestas;
+
+        const available =
+          Number(
+            stock?.[aguaFria.id]?.[
+              item.foodId
+            ] ||
+            0
+          );
+
+
+        if (
+          required >
+          available
+        ) {
+
+          shortages.push({
+            foodName:
+              item.foodName,
+            required,
+            available
+          });
+
+        }
+
+      }
+    );
+
+
+    if (
+      shortages.length
+    ) {
+
+      const error =
+        new Error(
+          "Estoque insuficiente em Água Fria."
+        );
+
+      error.code =
+        "ACE_BASKET_STOCK_INSUFFICIENT";
+
+      error.shortages =
+        shortages;
+
+      error.basketName =
+        basket.name;
+
+      error.basketQty =
+        qtyCestas;
+
+      throw error;
+
+    }
+
 
     applyLocalBasketOutput({
       basketId:
@@ -21363,7 +23596,8 @@ async function registerBasketOutput({
       basketQty:
         qtyCestas,
       destination,
-      receivedBy,
+      receivedBy:
+        "",
       items
     });
 
@@ -21376,7 +23610,8 @@ async function registerBasketOutput({
         basketQty:
           qtyCestas,
         destination,
-        receivedBy
+        receivedBy:
+          ""
       }
     );
 
@@ -21386,477 +23621,124 @@ async function registerBasketOutput({
   }
 
 
-  // ========================================================
-  // HISTÓRICO DA CESTA
-  //
-  // Se o MESMO usuário registrar novamente a MESMA cesta,
-  // no MESMO dia, para o MESMO destino, incrementa a
-  // quantidade_cestas em vez de criar outra linha.
-  // ========================================================
-
-  let basketHistoryQuery =
-    supabaseClient
-      .from("cestas_saidas")
-      .select(
-        "id, quantidade_cestas"
-      )
-      .eq(
-        "cesta_id",
-        Number(basket.id)
-      )
-      .eq(
-        "origem_id",
-        Number(aguaFria.id)
-      )
-      .eq(
-        "destino",
-        destination
-      )
-      .eq(
-        "data_saida",
-        today
-      )
-      .eq(
-        "usuario_id",
-        userId
-      );
-
-
-  if (
-    destination === "Comunidade"
-  ) {
-
-    basketHistoryQuery =
-      basketHistoryQuery.eq(
-        "recebido_por",
-        receivedBy
-      );
-
-  } else {
-
-    basketHistoryQuery =
-      basketHistoryQuery.is(
-        "recebido_por",
-        null
-      );
-
-  }
-
-
   const {
-    data: existingBasketRows,
-    error: basketFindError
+    data,
+    error
   } =
-    await basketHistoryQuery
-      .order(
-        "id",
-        {
-          ascending: true
-        }
-      );
-
-
-  if (basketFindError) {
-    throw basketFindError;
-  }
-
-
-  let basketOutputData =
-    null;
-
-  let basketWasInserted =
-    false;
-
-  let basketPreviousQty =
-    0;
-
-
-  if (
-    existingBasketRows?.length
-  ) {
-
-    const mainBasketRow =
-      existingBasketRows[0];
-
-    basketPreviousQty =
-      existingBasketRows.reduce(
-        (sum, row) =>
-          sum +
+    await supabaseClient.rpc(
+      "ace_montar_cesta",
+      {
+        p_cesta_id:
           Number(
-            row.quantidade_cestas ||
-            0
+            basket.id
           ),
-        0
-      );
-
-
-    const newBasketQty =
-      basketPreviousQty +
-      qtyCestas;
-
-
-    const {
-      error: basketUpdateError
-    } =
-      await supabaseClient
-        .from("cestas_saidas")
-        .update({
-          quantidade_cestas:
-            newBasketQty,
-          cesta_nome:
-            basket.name,
-          cesta_imagem:
-            getBasketImagePath(
-              basket
-            ),
-          composicao:
-            composition
-        })
-        .eq(
-          "id",
-          mainBasketRow.id
-        );
-
-
-    if (basketUpdateError) {
-      throw basketUpdateError;
-    }
-
-
-    // Remove duplicidades antigas do mesmo grupo,
-    // mantendo somente a primeira linha já incrementada.
-    const extraIds =
-      existingBasketRows
-        .slice(1)
-        .map(
-          row => row.id
-        );
-
-
-    if (extraIds.length) {
-
-      const {
-        error: basketDuplicatesError
-      } =
-        await supabaseClient
-          .from("cestas_saidas")
-          .delete()
-          .in(
-            "id",
-            extraIds
-          );
-
-
-      if (basketDuplicatesError) {
-        throw basketDuplicatesError;
+        p_cesta_nome:
+          basket.name,
+        p_cesta_imagem:
+          getBasketImagePath(
+            basket
+          ),
+        p_destino:
+          destination,
+        p_quantidade:
+          qtyCestas,
+        p_composicao:
+          composition,
+        p_usuario_id:
+          getCurrentUserId(),
+        p_data:
+          isoToday()
       }
-
-    }
-
-
-    basketOutputData = {
-      id:
-        mainBasketRow.id
-    };
-
-  } else {
-
-    const {
-      data: insertedBasket,
-      error: basketInsertError
-    } =
-      await supabaseClient
-        .from("cestas_saidas")
-        .insert({
-          cesta_id:
-            Number(basket.id),
-          cesta_nome:
-            basket.name,
-          cesta_imagem:
-            getBasketImagePath(
-              basket
-            ),
-          quantidade_cestas:
-            qtyCestas,
-          origem_id:
-            Number(aguaFria.id),
-          destino:
-            destination,
-          recebido_por:
-            destination ===
-              "Comunidade"
-              ? receivedBy
-              : null,
-          data_saida:
-            today,
-          usuario_id:
-            userId,
-          composicao:
-            composition
-        })
-        .select("id")
-        .single();
-
-
-    if (basketInsertError) {
-      throw basketInsertError;
-    }
-
-
-    basketOutputData =
-      insertedBasket;
-
-    basketWasInserted =
-      true;
-
-  }
-
-  // ========================================================
-  // MOVIMENTAÇÕES DOS ALIMENTOS
-  //
-  // Para cada alimento:
-  // se já existir uma movimentação da mesma cesta,
-  // usuário, dia e destino, INCREMENTA a quantidade.
-  // Não cria linhas repetidas.
-  // ========================================================
-
-  const movementNote =
-    `Cesta: ${basket.name} | ${destination}` +
-    (
-      destination === "Comunidade" &&
-      receivedBy
-        ? ` | Recebido por: ${receivedBy}`
-        : ""
     );
 
 
-  try {
+  if (error) {
 
-    for (
-      const item of items
-    ) {
+    const message =
+      error?.message ||
+      "Erro ao montar a cesta.";
 
-      const qtyToAdd =
-        Number(item.qty) *
-        qtyCestas;
-
-
-      const {
-        data: existingMovementRows,
-        error: movementFindError
-      } =
-        await supabaseClient
-          .from("saídas")
-          .select(
-            "id, quantidade"
-          )
-          .eq(
-            "data_saida",
-            today
-          )
-          .eq(
-            "alimento_id",
-            Number(item.foodId)
-          )
-          .eq(
-            "origem_id",
-            Number(aguaFria.id)
-          )
-          .eq(
-            "usuario_id",
-            userId
-          )
-          .eq(
-            "destino",
-            movementNote
-          )
-          .eq(
-            "motivo",
-            "Montagem de cesta"
-          )
-          .order(
-            "id",
-            {
-              ascending: true
-            }
-          );
-
-
-      if (movementFindError) {
-        throw movementFindError;
-      }
-
-
-      if (
-        existingMovementRows?.length
-      ) {
-
-        const mainMovement =
-          existingMovementRows[0];
-
-
-        const existingQty =
-          existingMovementRows.reduce(
-            (sum, row) =>
-              sum +
-              Number(
-                row.quantidade ||
-                0
-              ),
-            0
-          );
-
-
-        const {
-          error: movementUpdateError
-        } =
-          await supabaseClient
-            .from("saídas")
-            .update({
-              quantidade:
-                existingQty +
-                qtyToAdd
-            })
-            .eq(
-              "id",
-              mainMovement.id
-            );
-
-
-        if (movementUpdateError) {
-          throw movementUpdateError;
-        }
-
-
-        // Limpa duplicidades antigas desse mesmo alimento/cesta.
-        const extraMovementIds =
-          existingMovementRows
-            .slice(1)
-            .map(
-              row => row.id
-            );
-
-
-        if (
-          extraMovementIds.length
-        ) {
-
-          const {
-            error: movementDuplicatesError
-          } =
-            await supabaseClient
-              .from("saídas")
-              .delete()
-              .in(
-                "id",
-                extraMovementIds
-              );
-
-
-          if (movementDuplicatesError) {
-            throw movementDuplicatesError;
-          }
-
-        }
-
-      } else {
-
-        const {
-          error: movementInsertError
-        } =
-          await supabaseClient
-            .from("saídas")
-            .insert({
-              id:
-                newNumericId(),
-              data_saida:
-                today,
-              alimento_id:
-                Number(item.foodId),
-              quantidade:
-                qtyToAdd,
-              origem_id:
-                Number(aguaFria.id),
-              destino:
-                movementNote,
-              motivo:
-                "Montagem de cesta",
-              usuario_id:
-                userId
-            });
-
-
-        if (movementInsertError) {
-          throw movementInsertError;
-        }
-
-      }
-
-      await insertHistoryRecord({
-        date: today,
-        type: "saida",
-        originId:
-          aguaFria.id,
-        foodId:
-          item.foodId,
-        qty:
-          qtyToAdd,
-        reason:
-          "Cesta",
-        basketType:
-          basket.name,
-        note:
-          movementNote
-      });
-
-    }
-
-  } catch (movementsError) {
-
-    // --------------------------------------------------------
-    // Tenta restaurar o histórico da cesta caso haja falha
-    // nas movimentações, evitando deixar a contagem da cesta
-    // maior sem o correspondente débito dos alimentos.
-    // --------------------------------------------------------
 
     if (
-      basketOutputData?.id
+      normalizeAceText(
+        message
+      ).includes(
+        "estoque insuficiente"
+      )
     ) {
 
-      if (basketWasInserted) {
+      const stock =
+        calcStock();
 
-        await supabaseClient
-          .from("cestas_saidas")
-          .delete()
-          .eq(
-            "id",
-            basketOutputData.id
+      const aguaFria =
+        getAguaFriaOrigin();
+
+      const shortages =
+        items
+          .map(
+            item => {
+
+              const required =
+                Number(item.qty) *
+                qtyCestas;
+
+              const available =
+                Number(
+                  stock?.[
+                    aguaFria?.id
+                  ]?.[
+                    item.foodId
+                  ] ||
+                  0
+                );
+
+
+              return {
+                foodName:
+                  item.foodName,
+                required,
+                available
+              };
+
+            }
+          )
+          .filter(
+            item =>
+              item.required >
+              item.available
           );
 
-      } else {
 
-        await supabaseClient
-          .from("cestas_saidas")
-          .update({
-            quantidade_cestas:
-              basketPreviousQty
-          })
-          .eq(
-            "id",
-            basketOutputData.id
-          );
+      const err =
+        new Error(
+          message
+        );
 
-      }
+      err.code =
+        "ACE_BASKET_STOCK_INSUFFICIENT";
+
+      err.shortages =
+        shortages;
+
+      err.basketName =
+        basket.name;
+
+      err.basketQty =
+        qtyCestas;
+
+      throw err;
 
     }
 
 
-    throw movementsError;
+    throw error;
 
   }
 
-}
 
+  return data;
+
+}
 
 function closeBasketEditModal() {
 
