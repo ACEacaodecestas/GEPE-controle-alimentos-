@@ -8398,43 +8398,7 @@ function renderDashboard() {
                   )}
                 </b>
 
-                <div style="display:flex;align-items:center;gap:7px;flex:0 0 auto;">
-                  <button
-                    type="button"
-                    class="recent-edit-button"
-                    data-edit-recent="${esc(String(x.id))}"
-                    style="
-                      border:1px solid #0b3a63;
-                      background:#fff;
-                      color:#0b3a63;
-                      border-radius:7px;
-                      padding:5px 9px;
-                      font-size:12px;
-                      font-weight:900;
-                      cursor:pointer;
-                    "
-                  >
-                    ✏️ Editar
-                  </button>
 
-                  <button
-                    type="button"
-                    class="recent-delete-button"
-                    data-delete-recent="${esc(String(x.id))}"
-                    style="
-                      border:1px solid #dc2626;
-                      background:#fff;
-                      color:#dc2626;
-                      border-radius:7px;
-                      padding:5px 9px;
-                      font-size:12px;
-                      font-weight:900;
-                      cursor:pointer;
-                    "
-                  >
-                    🗑️ Excluir
-                  </button>
-                </div>
 
               </div>
 
@@ -8463,33 +8427,6 @@ function renderDashboard() {
           </div>
         `;
 
-    document
-      .querySelectorAll("[data-edit-recent]")
-      .forEach(button => {
-
-        button.addEventListener(
-          "click",
-          () =>
-            openRecentEditModal(
-              button.dataset.editRecent
-            )
-        );
-
-      });
-
-    document
-      .querySelectorAll("[data-delete-recent]")
-      .forEach(button => {
-
-        button.addEventListener(
-          "click",
-          () =>
-            deleteRecentLaunch(
-              button.dataset.deleteRecent
-            )
-        );
-
-      });
 
   }
 
@@ -9493,7 +9430,93 @@ function ensureEntryActionsStyles() {
 }
 
 
+
+function findRealEntryForHistory(historyItem) {
+
+  const candidates =
+    (db.entries || [])
+      .filter(
+        entry =>
+          entry.date === historyItem.date &&
+          Number(entry.originId) ===
+            Number(historyItem.originId) &&
+          Number(entry.foodId) ===
+            Number(historyItem.foodId) &&
+          Number(entry.qty) ===
+            Number(historyItem.qty) &&
+          String(entry.note || "") ===
+            String(historyItem.note || "") &&
+          (
+            !historyItem.usuarioId ||
+            String(entry.usuarioId || "") ===
+              String(historyItem.usuarioId || "")
+          )
+      );
+
+
+  if (!candidates.length) {
+    return null;
+  }
+
+
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+
+
+  const historyTime =
+    new Date(
+      historyItem.createdAt || 0
+    ).getTime();
+
+
+  return candidates
+    .slice()
+    .sort(
+      (a, b) => {
+
+        const aTime =
+          new Date(
+            a.createdAt || 0
+          ).getTime();
+
+        const bTime =
+          new Date(
+            b.createdAt || 0
+          ).getTime();
+
+        return (
+          Math.abs(aTime - historyTime) -
+          Math.abs(bTime - historyTime)
+        );
+
+      }
+    )[0] || null;
+
+}
+
+
 function renderEntryActionsCell(entry) {
+
+  const realEntry =
+    findRealEntryForHistory(
+      entry
+    );
+
+
+  if (!realEntry) {
+
+    return `
+      <span
+        title="Entrada original não localizada"
+        style="color:#98a2b3;"
+      >
+        —
+      </span>
+    `;
+
+  }
+
 
   return `
 
@@ -9502,7 +9525,7 @@ function renderEntryActionsCell(entry) {
       <button
         type="button"
         class="ace-entry-action-btn ace-entry-edit-btn"
-        data-entry-edit="${entry.id}"
+        data-entry-edit="${realEntry.id}"
         title="Editar entrada"
       >
         <span class="ace-action-icon">✏️</span>
@@ -9512,7 +9535,7 @@ function renderEntryActionsCell(entry) {
       <button
         type="button"
         class="ace-entry-action-btn ace-entry-delete-btn"
-        data-entry-delete="${entry.id}"
+        data-entry-delete="${realEntry.id}"
         title="Excluir entrada"
       >
         <span class="ace-action-icon">🗑️</span>
@@ -9548,127 +9571,13 @@ function bindEntryActionButtons() {
           () => {
 
             const id =
-              Number(
-                button.dataset.entryEdit
-              );
-
-            const entry =
-              (db.entries || [])
-                .find(
-                  item =>
-                    Number(item.id) === id
-                );
-
-            if (!entry) {
-              return;
-            }
-
-            // Tenta primeiro usar a função existente do aplicativo.
-            if (
-              typeof editEntry === "function"
-            ) {
-
-              editEntry(id);
-
-            } else {
-
-              // Fallback seguro: preenche diretamente o formulário de Entrada.
-              const form =
-                document.getElementById(
-                  "entryForm"
-                );
-
-              const dateInput =
-                form?.querySelector(
-                  '[name="date"]'
-                ) ||
-                document.getElementById(
-                  "entryDate"
-                );
-
-              const originInput =
-                form?.querySelector(
-                  '[name="origin"]'
-                ) ||
-                document.getElementById(
-                  "entryOrigin"
-                );
-
-              const foodInput =
-                form?.querySelector(
-                  '[name="food"]'
-                ) ||
-                document.getElementById(
-                  "entryFood"
-                );
-
-              const qtyInput =
-                form?.querySelector(
-                  '[name="qty"]'
-                ) ||
-                document.getElementById(
-                  "entryQty"
-                );
-
-              const noteInput =
-                form?.querySelector(
-                  '[name="note"]'
-                ) ||
-                document.getElementById(
-                  "entryNote"
-                );
+              button.dataset.entryEdit;
 
 
-              if (dateInput) {
-                dateInput.value =
-                  entry.date || "";
-              }
-
-              if (originInput) {
-                originInput.value =
-                  String(
-                    entry.originId ?? ""
-                  );
-              }
-
-              if (foodInput) {
-                foodInput.value =
-                  String(
-                    entry.foodId ?? ""
-                  );
-              }
-
-              if (qtyInput) {
-                qtyInput.value =
-                  String(
-                    entry.qty ?? ""
-                  );
-              }
-
-              if (noteInput) {
-                noteInput.value =
-                  entry.note || "";
-              }
-
-              if (form) {
-                form.dataset.editingId =
-                  String(id);
-              }
-            }
-
-
-            const target =
-              document.getElementById(
-                "entryForm"
-              ) ||
-              document.querySelector(
-                "#entrada form, [data-entry-form]"
-              );
-
-            target?.scrollIntoView({
-              behavior: "smooth",
-              block: "start"
-            });
+            // Usa a rotina de edição já existente e funcional.
+            openRecentEditModal(
+              id
+            );
 
           }
         );
@@ -9697,35 +9606,74 @@ function bindEntryActionButtons() {
           async () => {
 
             const id =
-              Number(
-                button.dataset.entryDelete
+              button.dataset.entryDelete;
+
+
+            const entry =
+              (db.entries || [])
+                .find(
+                  item =>
+                    String(item.id) ===
+                    String(id)
+                );
+
+
+            if (!entry) {
+
+              await showAceConfirm(
+                "A entrada original não foi localizada.",
+                "❌ Erro"
               );
+
+              return;
+            }
+
+
+            const foodName =
+              getName(
+                db.foods,
+                entry.foodId
+              );
+
 
             const confirmed =
               await showAceConfirm(
-                "Tem certeza que deseja excluir esta entrada?\n\n" +
-                "A quantidade desta entrada será retirada do estoque.",
+                `Tem certeza que deseja excluir esta entrada?\n\n` +
+                `${fmt(entry.qty)} — ${foodName}\n\n` +
+                `⚠️ ATENÇÃO: essa quantidade será RETIRADA do estoque.`,
                 "🗑️ Excluir entrada"
               );
+
 
             if (!confirmed) {
               return;
             }
 
+
             try {
 
               await deleteEntry(
-                id
+                entry.id
               );
 
-              db =
-                await loadFromSupabase();
+
+              // Remove também SOMENTE o registro correspondente
+              // da janela "Entradas do dia".
+              await deleteMatchingHistoryRecord(
+                entry,
+                true
+              );
+
+
+              await reloadFromSupabase();
 
               renderAll();
 
-              showCenterSuccess?.(
-                "Entrada excluída com sucesso!"
+
+              showAceSuccess(
+                "Entrada excluída. Quantidade retirada do estoque com sucesso."
               );
+
 
             } catch (error) {
 
@@ -9734,9 +9682,13 @@ function bindEntryActionButtons() {
                 error
               );
 
+
               await showAceConfirm(
-                error?.message ||
-                  "Não foi possível excluir a entrada.",
+                "Não foi possível excluir a entrada.\n\n" +
+                (
+                  error?.message ||
+                  "Erro desconhecido."
+                ),
                 "❌ Erro"
               );
 
@@ -9748,8 +9700,8 @@ function bindEntryActionButtons() {
       }
     );
 
-}
 
+}
 
 function renderEntries() {
 
