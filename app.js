@@ -8569,6 +8569,7 @@ ${stockText}`,
 
 function closeRecentEditModal() {
   document.getElementById("aceRecentEditModal")?.remove();
+  window.aceMovementHistoryEditingId = null;
 }
 
 function openRecentEditModal(id) {
@@ -8980,7 +8981,81 @@ async function saveRecentEdit(id, isEntry) {
         note
       });
 
+
+      const historyId =
+        Number(
+          window
+            .aceMovementHistoryEditingId ||
+          0
+        );
+
+
+      if (historyId) {
+
+        const reasonName =
+          db.reasons.find(
+            reason =>
+              String(
+                reason.id
+              ) ===
+              String(
+                reasonId
+              )
+          )?.name ||
+          reasonId ||
+          "—";
+
+
+        const {
+          error:
+            historyUpdateError
+        } =
+          await supabaseClient
+            .from(
+              "historico_movimentacoes"
+            )
+            .update({
+              data:
+                date,
+              tipo:
+                type,
+              origem_id:
+                Number(
+                  originId
+                ),
+              alimento_id:
+                Number(
+                  foodId
+                ),
+              quantidade:
+                Number(
+                  qty
+                ),
+              motivo:
+                reasonName,
+              tipo_cesta:
+                "—",
+              observacao:
+                note || ""
+            })
+            .eq(
+              "id",
+              historyId
+            );
+
+
+        if (
+          historyUpdateError
+        ) {
+          throw historyUpdateError;
+        }
+
+      }
+
     }
+
+    window.aceMovementHistoryEditingId =
+      null;
 
     document
       .getElementById("aceRecentEditModal")
@@ -9854,6 +9929,1119 @@ function renderEntries() {
 
 
   bindEntryActionButtons();
+}
+
+
+
+// ============================================================
+// HISTÓRICO DE SAÍDA / PERDA
+// Igual ao histórico de Entradas do dia.
+// Mostra somente Saídas e Perdas MANUAIS.
+// Cestas permanecem na aba Cestas.
+// ============================================================
+
+function ensureMovementDayHistory() {
+
+  if (
+    document.getElementById(
+      "movementDayHistory"
+    )
+  ) {
+    return;
+  }
+
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceMovementDayHistoryStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      "aceMovementDayHistoryStyle";
+
+    style.textContent = `
+
+      #movementDayHistory{
+        margin-top:22px;
+        padding:20px;
+        border:1px solid #d7e0e8;
+        border-radius:16px;
+        background:#fff;
+        box-shadow:0 10px 30px rgba(20,45,70,.06);
+      }
+
+      .movement-day-history-head{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        flex-wrap:wrap;
+        margin-bottom:14px;
+      }
+
+      .movement-day-history-title{
+        margin:0;
+        color:#102a43;
+        font-size:24px;
+        font-weight:900;
+      }
+
+      #movementDayTotal{
+        padding:7px 12px;
+        border-radius:999px;
+        background:#eef4f8;
+        color:#0b3a63;
+        font-weight:900;
+        white-space:nowrap;
+      }
+
+      #movementDayHistoryControls{
+        display:flex;
+        flex-wrap:wrap;
+        align-items:flex-end;
+        gap:12px;
+        margin:0 0 16px;
+      }
+
+      #movementDayHistoryControls .movement-history-field{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+        min-width:210px;
+        color:#102a43;
+        font-weight:900;
+      }
+
+      #movementDayHistoryControls input{
+        min-height:52px;
+        padding:10px 14px;
+        border:1px solid #cfd9e2;
+        border-radius:10px;
+        background:#fff;
+        color:#172b3a;
+        font:inherit;
+        font-weight:700;
+        box-sizing:border-box;
+      }
+
+      #movementDayHistoryControls button{
+        min-height:52px;
+        padding:10px 20px;
+        border-radius:10px;
+        font-size:15px;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+      #movementDayHistoryClear{
+        border:1px solid #0756a0;
+        background:#fff;
+        color:#0756a0;
+      }
+
+      #movementDayHistoryDelete{
+        border:1px solid #ef4444;
+        background:#fff;
+        color:#d92d20;
+      }
+
+      #movementDayHistoryTable{
+        max-height:530px;
+        overflow-y:auto;
+        overflow-x:auto;
+        scrollbar-gutter:stable;
+      }
+
+      #movementDayHistoryTable table{
+        width:100%;
+      }
+
+      #movementDayHistoryTable thead th{
+        position:sticky;
+        top:0;
+        z-index:2;
+        background:#f5f7f9;
+      }
+
+      #movementDayHistoryTable tbody tr{
+        height:48px;
+      }
+
+      .ace-movement-actions{
+        display:flex;
+        align-items:center;
+        gap:7px;
+        white-space:nowrap;
+      }
+
+      .ace-movement-action-btn{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:6px;
+        min-height:34px;
+        padding:7px 10px;
+        border-radius:8px;
+        font-size:13px;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+      .ace-movement-edit-btn{
+        border:1px solid #0b4b7a;
+        background:#fff;
+        color:#0b4b7a;
+      }
+
+      .ace-movement-delete-btn{
+        border:1px solid #ef4444;
+        background:#fff;
+        color:#d92d20;
+      }
+
+      @media(max-width:700px){
+
+        #movementDayHistory{
+          padding:15px;
+        }
+
+        #movementDayHistoryControls{
+          flex-direction:column;
+          align-items:stretch;
+        }
+
+        #movementDayHistoryControls .movement-history-field,
+        #movementDayHistoryControls input,
+        #movementDayHistoryControls button{
+          width:100%;
+        }
+
+        .ace-movement-actions{
+          gap:5px;
+        }
+
+        .ace-movement-action-btn{
+          width:34px;
+          min-width:34px;
+          padding:6px;
+          font-size:0;
+        }
+
+        .ace-movement-action-btn .ace-action-icon{
+          font-size:16px;
+          line-height:1;
+        }
+
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  const section =
+    document.createElement(
+      "section"
+    );
+
+  section.id =
+    "movementDayHistory";
+
+  section.innerHTML = `
+
+    <div class="movement-day-history-head">
+
+      <h3 class="movement-day-history-title">
+        Saídas e perdas do dia
+      </h3>
+
+      <div id="movementDayTotal">
+        Total: 0
+      </div>
+
+    </div>
+
+    <div id="movementDayHistoryControls">
+
+      <label class="movement-history-field">
+        Filtrar por data
+
+        <input
+          id="movementDayHistoryDate"
+          type="date"
+          value="${isoToday()}"
+        >
+      </label>
+
+      <button
+        id="movementDayHistoryClear"
+        type="button"
+      >
+        Limpar filtro
+      </button>
+
+      <button
+        id="movementDayHistoryDelete"
+        type="button"
+      >
+        🗑️ Excluir Histórico
+      </button>
+
+    </div>
+
+    <div
+      id="movementDayHistoryTable"
+    ></div>
+
+  `;
+
+
+  const formPanel =
+    form.closest(
+      ".panel,.box,.card"
+    ) ||
+    form.parentElement;
+
+
+  if (
+    formPanel?.parentElement
+  ) {
+
+    formPanel.insertAdjacentElement(
+      "afterend",
+      section
+    );
+
+  } else {
+
+    form.insertAdjacentElement(
+      "afterend",
+      section
+    );
+
+  }
+
+
+  document
+    .getElementById(
+      "movementDayHistoryDate"
+    )
+    ?.addEventListener(
+      "change",
+      renderMovementDayHistory
+    );
+
+
+  document
+    .getElementById(
+      "movementDayHistoryDate"
+    )
+    ?.addEventListener(
+      "input",
+      renderMovementDayHistory
+    );
+
+
+  document
+    .getElementById(
+      "movementDayHistoryClear"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        const input =
+          document.getElementById(
+            "movementDayHistoryDate"
+          );
+
+        if (input) {
+          input.value = "";
+        }
+
+        renderMovementDayHistory();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "movementDayHistoryDelete"
+    )
+    ?.addEventListener(
+      "click",
+      deleteMovementDayHistoryOnly
+    );
+
+}
+
+
+function isManualMovementHistoryRow(
+  row
+) {
+
+  if (
+    !row ||
+    ![
+      "saida",
+      "perda"
+    ].includes(
+      row.type
+    )
+  ) {
+    return false;
+  }
+
+
+  const reason =
+    normalizeAceText(
+      row.reason || ""
+    );
+
+
+  const basketType =
+    String(
+      row.basketType || ""
+    ).trim();
+
+
+  const isBasket =
+    reason === "cesta" ||
+    (
+      basketType &&
+      basketType !== "—"
+    );
+
+
+  return !isBasket;
+
+}
+
+
+function findRealMovementForHistory(
+  historyItem
+) {
+
+  const candidates =
+    (db.movements || [])
+      .filter(
+        movement =>
+          movement.type ===
+            historyItem.type &&
+          movement.date ===
+            historyItem.date &&
+          Number(
+            movement.originId
+          ) ===
+            Number(
+              historyItem.originId
+            ) &&
+          Number(
+            movement.foodId
+          ) ===
+            Number(
+              historyItem.foodId
+            ) &&
+          Number(
+            movement.qty
+          ) ===
+            Number(
+              historyItem.qty
+            ) &&
+          String(
+            movement.note || ""
+          ) ===
+            String(
+              historyItem.note || ""
+            ) &&
+          (
+            !historyItem.usuarioId ||
+            String(
+              movement.usuarioId || ""
+            ) ===
+              String(
+                historyItem.usuarioId || ""
+              )
+          )
+      );
+
+
+  if (!candidates.length) {
+    return null;
+  }
+
+
+  if (
+    candidates.length === 1
+  ) {
+    return candidates[0];
+  }
+
+
+  const historyTime =
+    new Date(
+      historyItem.createdAt || 0
+    ).getTime();
+
+
+  return candidates
+    .slice()
+    .sort(
+      (a, b) => {
+
+        const aTime =
+          new Date(
+            a.createdAt || 0
+          ).getTime();
+
+        const bTime =
+          new Date(
+            b.createdAt || 0
+          ).getTime();
+
+        return (
+          Math.abs(
+            aTime -
+            historyTime
+          ) -
+          Math.abs(
+            bTime -
+            historyTime
+          )
+        );
+
+      }
+    )[0] || null;
+
+}
+
+
+function renderMovementHistoryActionsCell(
+  historyItem
+) {
+
+  const movement =
+    findRealMovementForHistory(
+      historyItem
+    );
+
+
+  if (!movement) {
+
+    return `
+      <span
+        title="Movimentação original não localizada"
+        style="color:#98a2b3;"
+      >
+        —
+      </span>
+    `;
+
+  }
+
+
+  return `
+
+    <div class="ace-movement-actions">
+
+      <button
+        type="button"
+        class="ace-movement-action-btn ace-movement-edit-btn"
+        data-movement-history-edit="${esc(String(movement.id))}"
+        data-movement-history-id="${esc(String(historyItem.id))}"
+        title="Editar movimentação"
+      >
+        <span class="ace-action-icon">✏️</span>
+        <span class="ace-action-text">Editar</span>
+      </button>
+
+      <button
+        type="button"
+        class="ace-movement-action-btn ace-movement-delete-btn"
+        data-movement-history-delete="${esc(String(movement.id))}"
+        data-movement-history-id="${esc(String(historyItem.id))}"
+        title="Excluir movimentação"
+      >
+        <span class="ace-action-icon">🗑️</span>
+        <span class="ace-action-text">Excluir</span>
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+function bindMovementHistoryActions() {
+
+  document
+    .querySelectorAll(
+      "[data-movement-history-edit]"
+    )
+    .forEach(
+      button => {
+
+        if (
+          button.dataset.bound === "1"
+        ) {
+          return;
+        }
+
+
+        button.dataset.bound = "1";
+
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            window.aceMovementHistoryEditingId =
+              Number(
+                button.dataset
+                  .movementHistoryId
+              );
+
+
+            openRecentEditModal(
+              button.dataset
+                .movementHistoryEdit
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      "[data-movement-history-delete]"
+    )
+    .forEach(
+      button => {
+
+        if (
+          button.dataset.bound === "1"
+        ) {
+          return;
+        }
+
+
+        button.dataset.bound = "1";
+
+
+        button.addEventListener(
+          "click",
+          async () => {
+
+            const movementId =
+              button.dataset
+                .movementHistoryDelete;
+
+            const historyId =
+              Number(
+                button.dataset
+                  .movementHistoryId
+              );
+
+
+            const movement =
+              (db.movements || [])
+                .find(
+                  item =>
+                    String(
+                      item.id
+                    ) ===
+                    String(
+                      movementId
+                    )
+                );
+
+
+            if (!movement) {
+
+              await showAceConfirm(
+                "A movimentação original não foi localizada.",
+                "❌ Erro"
+              );
+
+              return;
+            }
+
+
+            const foodName =
+              getName(
+                db.foods,
+                movement.foodId
+              );
+
+
+            const confirmed =
+              await showAceConfirm(
+                `Tem certeza que deseja excluir esta ${
+                  movement.type === "perda"
+                    ? "perda"
+                    : "saída"
+                }?\n\n` +
+                `${fmt(movement.qty)} — ${foodName}\n\n` +
+                "⚠️ A quantidade será DEVOLVIDA ao estoque.",
+                "🗑️ Excluir movimentação"
+              );
+
+
+            if (!confirmed) {
+              return;
+            }
+
+
+            try {
+
+              await deleteMovement(
+                movement.id
+              );
+
+
+              const {
+                error:
+                  historyDeleteError
+              } =
+                await supabaseClient
+                  .from(
+                    "historico_movimentacoes"
+                  )
+                  .delete()
+                  .eq(
+                    "id",
+                    historyId
+                  );
+
+
+              if (
+                historyDeleteError
+              ) {
+                throw historyDeleteError;
+              }
+
+
+              await reloadFromSupabase();
+
+              renderAll();
+
+
+              showAceSuccess(
+                "Movimentação excluída. Quantidade devolvida ao estoque com sucesso!"
+              );
+
+
+            } catch (error) {
+
+              console.error(
+                "ACE - ERRO AO EXCLUIR SAÍDA/PERDA:",
+                error
+              );
+
+
+              await showAceConfirm(
+                "Não foi possível excluir a movimentação.\n\n" +
+                (
+                  error?.message ||
+                  "Erro desconhecido."
+                ),
+                "❌ Erro"
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+function renderMovementDayHistory() {
+
+  ensureMovementDayHistory();
+
+
+  const target =
+    document.getElementById(
+      "movementDayHistoryTable"
+    );
+
+
+  if (!target) {
+    return;
+  }
+
+
+  const date =
+    document.getElementById(
+      "movementDayHistoryDate"
+    )?.value || "";
+
+
+  const rows =
+    (db.history || [])
+      .filter(
+        row =>
+          isManualMovementHistoryRow(
+            row
+          ) &&
+          (
+            !date ||
+            row.date === date
+          )
+      )
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt || ""
+          ).localeCompare(
+            String(
+              a.createdAt || ""
+            )
+          )
+      );
+
+
+  const total =
+    rows.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.qty || 0
+        ),
+      0
+    );
+
+
+  const totalEl =
+    document.getElementById(
+      "movementDayTotal"
+    );
+
+
+  if (totalEl) {
+    totalEl.textContent =
+      `Total: ${fmt(total)}`;
+  }
+
+
+  target.innerHTML =
+    table(
+      rows,
+      [
+
+        [
+          "Data",
+          x =>
+            fmtDate(
+              x.date
+            )
+        ],
+
+        [
+          "Tipo",
+          x =>
+            x.type === "perda"
+              ? `<span class="pill red">Perda</span>`
+              : `<span class="pill blue">Saída</span>`
+        ],
+
+        [
+          "Origem",
+          x =>
+            esc(
+              getName(
+                db.origins,
+                x.originId
+              )
+            )
+        ],
+
+        [
+          "Alimento",
+          x =>
+            esc(
+              getName(
+                db.foods,
+                x.foodId
+              )
+            )
+        ],
+
+        [
+          "Qtd",
+          x =>
+            fmt(
+              x.qty
+            )
+        ],
+
+        [
+          "Motivo",
+          x =>
+            esc(
+              x.reason || "—"
+            )
+        ],
+
+        [
+          "Usuário",
+          x =>
+            esc(
+              getMovementUserName(
+                x
+              ) ||
+              "Usuário não identificado"
+            )
+        ],
+
+        [
+          "Obs.",
+          x =>
+            esc(
+              x.note || ""
+            )
+        ],
+
+        [
+          "Ações",
+          x =>
+            renderMovementHistoryActionsCell(
+              x
+            )
+        ]
+
+      ],
+      null
+    );
+
+
+  bindMovementHistoryActions();
+
+}
+
+
+async function deleteMovementDayHistoryOnly() {
+
+  const date =
+    document.getElementById(
+      "movementDayHistoryDate"
+    )?.value || "";
+
+
+  const message =
+    date
+      ? (
+          "Excluir apenas o histórico de SAÍDAS/PERDAS da data " +
+          fmtDate(date) +
+          "?\n\nO estoque NÃO será alterado."
+        )
+      : (
+          "Excluir TODO o histórico exibido em Saídas e perdas do dia?\n\n" +
+          "O estoque NÃO será alterado."
+        );
+
+
+  const ok =
+    await showAceConfirm(
+      message,
+      "🗑️ Excluir histórico de saída/perda"
+    );
+
+
+  if (!ok) {
+    return;
+  }
+
+
+  const button =
+    document.getElementById(
+      "movementDayHistoryDelete"
+    );
+
+
+  if (button) {
+
+    button.disabled = true;
+    button.textContent =
+      "⏳ Excluindo...";
+
+  }
+
+
+  try {
+
+    let query =
+      supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .select(
+          "id,data,tipo,motivo,tipo_cesta"
+        )
+        .in(
+          "tipo",
+          [
+            "saida",
+            "perda"
+          ]
+        );
+
+
+    if (date) {
+
+      query =
+        query.eq(
+          "data",
+          date
+        );
+
+    }
+
+
+    const {
+      data,
+      error
+    } =
+      await query;
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const ids =
+      (data || [])
+        .filter(
+          row => {
+
+            const reason =
+              normalizeAceText(
+                row.motivo || ""
+              );
+
+            const basketType =
+              String(
+                row.tipo_cesta || ""
+              ).trim();
+
+
+            return !(
+              reason === "cesta" ||
+              (
+                basketType &&
+                basketType !== "—"
+              )
+            );
+
+          }
+        )
+        .map(
+          row =>
+            Number(
+              row.id
+            )
+        );
+
+
+    if (ids.length) {
+
+      const {
+        error:
+          deleteError
+      } =
+        await supabaseClient
+          .from(
+            "historico_movimentacoes"
+          )
+          .delete()
+          .in(
+            "id",
+            ids
+          );
+
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+    }
+
+
+    db =
+      await loadFromSupabase(
+        false
+      );
+
+
+    renderAll();
+
+
+    showAceSuccess(
+      "Histórico de saídas/perdas excluído com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EXCLUIR HISTÓRICO DE SAÍDA/PERDA:",
+      error
+    );
+
+
+    await showAceConfirm(
+      "Não foi possível excluir o histórico de saída/perda.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro"
+    );
+
+
+  } finally {
+
+    if (button) {
+
+      button.disabled = false;
+      button.textContent =
+        "🗑️ Excluir Histórico";
+
+    }
+
+  }
+
 }
 
 
@@ -27350,6 +28538,9 @@ function renderAll() {
 
   renderHistory();
 
+  // Histórico específico da aba Saída/Perda.
+  renderMovementDayHistory();
+
   // Mantém o resumo da entrada em lote sincronizado.
   renderBulkEntryDraft();
 
@@ -27451,6 +28642,9 @@ async function initApp() {
 
     // Cria uma aba exclusiva para Saída de Cestas.
     setupBasketPage();
+
+    // Cria o histórico de Saída/Perda abaixo do formulário.
+    ensureMovementDayHistory();
 
     // Substitui o formulário antigo pela nova Entrada em lote.
     setupBulkEntryForm();
