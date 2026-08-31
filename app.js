@@ -7192,6 +7192,18 @@ function ensureAceDesktopAccountStyles() {
 
     @media(min-width:851px){
 
+      /* ======================================================
+         CORREÇÃO DO MENU DOS 3 PONTOS
+         O cabeçalho precisa ficar acima do menu de navegação
+         e permitir que o dropdown saia para fora dele.
+         ====================================================== */
+
+      .ace-header-v6{
+        position:relative !important;
+        z-index:1000800 !important;
+        overflow:visible !important;
+      }
+
       #userBar{
         position:absolute !important;
         right:72px !important;
@@ -7205,8 +7217,8 @@ function ensureAceDesktopAccountStyles() {
         gap:9px;
 
         margin:0 !important;
-        overflow:visible;
-        z-index:80;
+        overflow:visible !important;
+        z-index:1000850 !important;
       }
 
 
@@ -7291,10 +7303,10 @@ function ensureAceDesktopAccountStyles() {
 
 
       .ace-desktop-account-dropdown{
-        position:absolute;
-        top:54px;
-        right:0;
-        z-index:1000900;
+        position:absolute !important;
+        top:54px !important;
+        right:0 !important;
+        z-index:1001000 !important;
         display:none;
         width:255px;
         overflow:hidden;
