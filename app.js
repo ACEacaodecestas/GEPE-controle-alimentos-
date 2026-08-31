@@ -8694,8 +8694,9 @@ function openRecentEditModal(id) {
           <input
             id="recentEditQty"
             type="number"
-            min="0.01"
-            step="0.01"
+            min="1"
+            step="1"
+            inputmode="numeric"
             value="${esc(item.qty)}"
             style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
           >
@@ -10512,7 +10513,44 @@ function renderAttendance() {
 
 function renderStock() {
 
-  const st = calcStock();
+  const st =
+    calcStock();
+
+
+  const totalsByFood = {};
+
+
+  (db.foods || [])
+    .forEach(
+      food => {
+
+        totalsByFood[
+          food.id
+        ] =
+          (db.origins || [])
+            .reduce(
+              (sum, origin) =>
+                sum +
+                Number(
+                  st?.[origin.id]?.[food.id] ||
+                  0
+                ),
+              0
+            );
+
+      }
+    );
+
+
+  const totalEstoque =
+    Object.values(
+      totalsByFood
+    ).reduce(
+      (sum, value) =>
+        sum +
+        Number(value || 0),
+      0
+    );
 
 
   const cards =
@@ -10523,101 +10561,29 @@ function renderStock() {
 
   if (cards) {
 
-    // ========================================================
-    // RESUMO DO ESTOQUE
-    //
-    // Mostra somente Água Fria no cartão superior,
-    // pois é o local onde os alimentos ficam armazenados.
-    //
-    // IMPORTANTE:
-    // O quadro "Consolidado" abaixo continua mostrando
-    // todas as origens, inclusive Piedade.
-    // ========================================================
+    cards.innerHTML = `
 
-    const aguaFria =
-      db.origins.find(
-        o =>
-          normalizeAceText(
-            o.name
-          ) ===
-          "agua fria"
-      );
+      <div class="panel">
 
+        <h3>
+          📦 Total em estoque
+        </h3>
 
-    if (aguaFria) {
-
-      // O cartão "Água Fria" representa o estoque físico total.
-      // Por isso, soma o saldo de TODAS as origens do consolidado.
-      // Ex.: Água Fria 88 + Piedade 22 = 110 itens.
-      const totalEstoqueFisico =
-        Object.values(st)
-          .reduce(
-            (total, originStock) =>
-              total +
-              Object.values(
-                originStock || {}
-              ).reduce(
-                (sum, value) =>
-                  sum + Number(value),
-                0
-              ),
-            0
-          );
-
-
-      cards.innerHTML = `
-
-        <div class="panel">
-
-          <h3>
-            📍 Água Fria
-          </h3>
-
-          <div class="origin-value">
-            ${fmt(totalEstoqueFisico)} itens
-          </div>
-
+        <div class="origin-value">
+          ${fmt(totalEstoque)} itens
         </div>
 
-      `;
+      </div>
 
-    } else {
-
-      cards.innerHTML = `
-        <div class="empty">
-          Origem Água Fria não encontrada.
-        </div>
-      `;
-
-    }
+    `;
 
   }
 
 
   const rows =
-    db.foods
-      .map(food => {
-
-        const vals =
-          db.origins.map(
-            origin =>
-              Number(
-                st[origin.id]?.[
-                  food.id
-                ] || 0
-              )
-          );
-
-
-        const total =
-          vals.reduce(
-            (a, v) =>
-              a + v,
-            0
-          );
-
-
-        return `
+    (db.foods || [])
+      .map(
+        food => `
 
           <tr>
 
@@ -10625,22 +10591,20 @@ function renderStock() {
               ${esc(food.name)}
             </td>
 
-            ${vals
-              .map(
-                v =>
-                  `<td>${fmt(v)}</td>`
-              )
-              .join("")}
-
             <td>
-              <b>${fmt(total)}</b>
+              <b>
+                ${fmt(
+                  totalsByFood[
+                    food.id
+                  ] || 0
+                )}
+              </b>
             </td>
 
           </tr>
 
-        `;
-
-      })
+        `
+      )
       .join("");
 
 
@@ -10661,26 +10625,14 @@ function renderStock() {
           <thead>
 
             <tr>
-
               <th>Alimento</th>
-
-              ${db.origins
-                .map(
-                  o =>
-                    `<th>${esc(o.name)}</th>`
-                )
-                .join("")}
-
-              <th>Total</th>
-
+              <th>Quantidade</th>
             </tr>
 
           </thead>
 
           <tbody>
-
             ${rows}
-
           </tbody>
 
         </table>
@@ -10691,8 +10643,42 @@ function renderStock() {
 
   }
 
-}
 
+  const stockPage =
+    tableEl?.closest(
+      ".page"
+    );
+
+
+  if (stockPage) {
+
+    const subtitle =
+      [...stockPage.querySelectorAll(
+        "p, .subtitle, .page-subtitle"
+      )]
+        .find(
+          element =>
+            normalizeAceText(
+              element.textContent
+            ).includes(
+              "piedade"
+            ) ||
+            normalizeAceText(
+              element.textContent
+            ).includes(
+              "agua fria"
+            )
+        );
+
+
+    if (subtitle) {
+      subtitle.textContent =
+        "Estoque físico disponível por alimento.";
+    }
+
+  }
+
+}
 
 // ============================================================
 // 15. RELATÓRIO
@@ -15240,8 +15226,9 @@ function setupBulkEntryForm() {
             <input
               id="entryQty"
               type="number"
-              min="0.01"
-              step="0.01"
+              min="1"
+              step="1"
+              inputmode="numeric"
               placeholder="Ex.: 20"
             >
 
@@ -15669,13 +15656,13 @@ async function addOrUpdateBulkEntryItem() {
 
 
   if (
-    !Number.isFinite(qty) ||
+    !Number.isInteger(qty) ||
     qty <= 0
   ) {
 
     await showAceConfirm(
-      "O campo Quantidade é obrigatório.\n\nInforme uma quantidade maior que zero.",
-      "⚠️ Campo obrigatório"
+      "O campo Quantidade é obrigatório.\n\nInforme somente um número inteiro maior que zero.",
+      "⚠️ Quantidade inválida"
     );
 
     return;
@@ -16251,6 +16238,144 @@ function bindBulkEntryFormEvents() {
 }
 
 
+
+// ============================================================
+// QUANTIDADES INTEIRAS
+// ============================================================
+
+function isAceIntegerQuantityInput(input) {
+
+  if (!input) {
+    return false;
+  }
+
+  return (
+    input.id === "entryQty" ||
+    input.id === "recentEditQty" ||
+    input.id === "manualBasketQty" ||
+    input.id === "manualBasketFoodQty" ||
+    input.matches(
+      '#movementForm input[type="number"]'
+    ) ||
+    input.matches(
+      '[data-basket-qty]'
+    )
+  );
+
+}
+
+
+function setupIntegerQuantityInputs() {
+
+  document
+    .querySelectorAll(
+      `
+        #entryQty,
+        #recentEditQty,
+        #manualBasketQty,
+        #manualBasketFoodQty,
+        #movementForm input[type="number"],
+        [data-basket-qty]
+      `
+    )
+    .forEach(
+      input => {
+
+        input.min = "1";
+        input.step = "1";
+        input.inputMode = "numeric";
+
+      }
+    );
+
+
+  if (
+    document.body.dataset
+      .aceIntegerQtyBound === "1"
+  ) {
+    return;
+  }
+
+
+  document.body.dataset
+    .aceIntegerQtyBound = "1";
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+
+      const input =
+        event.target;
+
+      if (
+        !isAceIntegerQuantityInput(
+          input
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        [
+          ".",
+          ",",
+          "e",
+          "E",
+          "+",
+          "-"
+        ].includes(
+          event.key
+        )
+      ) {
+        event.preventDefault();
+      }
+
+    }
+  );
+
+
+  document.addEventListener(
+    "input",
+    event => {
+
+      const input =
+        event.target;
+
+      if (
+        !isAceIntegerQuantityInput(
+          input
+        )
+      ) {
+        return;
+      }
+
+
+      const cleaned =
+        String(
+          input.value || ""
+        )
+          .replace(
+            /[^\d]/g,
+            ""
+          );
+
+
+      if (
+        input.value !==
+        cleaned
+      ) {
+        input.value =
+          cleaned;
+      }
+
+    }
+  );
+
+}
+
+
 // ============================================================
 // 19. EVENTOS DO APLICATIVO
 // ============================================================
@@ -16275,8 +16400,15 @@ function bindEvents() {
       const reasonId = f.get("reasonId");
       const note = String(f.get("note") || "").trim();
 
-      if (!date || !type || !originId || !foodId || !Number.isFinite(qty) || qty <= 0) {
-        toast("Preencha os dados da movimentação corretamente.");
+      if (
+        !date ||
+        !type ||
+        !originId ||
+        !foodId ||
+        !Number.isInteger(qty) ||
+        qty <= 0
+      ) {
+        toast("Preencha os dados corretamente. A quantidade deve ser um número inteiro maior que zero.");
         return;
       }
 
@@ -17643,6 +17775,207 @@ function ensureBasketStyles() {
 }
 
 
+
+function setupBasketPage() {
+
+  const tabs =
+    document.querySelector(
+      ".tabs"
+    );
+
+
+  if (!tabs) {
+    return;
+  }
+
+
+  let basketTab =
+    tabs.querySelector(
+      '[data-page="cestas"]'
+    );
+
+
+  if (!basketTab) {
+
+    basketTab =
+      document.createElement(
+        "button"
+      );
+
+    basketTab.type =
+      "button";
+
+    basketTab.className =
+      "tab";
+
+    basketTab.dataset.page =
+      "cestas";
+
+    basketTab.innerHTML =
+      "🧺 Cestas";
+
+
+    const movementTab =
+      [...tabs.querySelectorAll(
+        ".tab"
+      )]
+        .find(
+          tab =>
+            normalizeAceText(
+              tab.textContent
+            ).includes(
+              "saida/perda"
+            ) ||
+            (
+              normalizeAceText(
+                tab.textContent
+              ).includes(
+                "saida"
+              ) &&
+              normalizeAceText(
+                tab.textContent
+              ).includes(
+                "perda"
+              )
+            )
+        );
+
+
+    if (
+      movementTab?.nextSibling
+    ) {
+
+      tabs.insertBefore(
+        basketTab,
+        movementTab.nextSibling
+      );
+
+    } else {
+
+      tabs.appendChild(
+        basketTab
+      );
+
+    }
+
+  }
+
+
+  let basketPage =
+    document.getElementById(
+      "cestas"
+    );
+
+
+  if (!basketPage) {
+
+    basketPage =
+      document.createElement(
+        "section"
+      );
+
+    basketPage.id =
+      "cestas";
+
+    basketPage.className =
+      "page";
+
+
+    const movementTab =
+      [...tabs.querySelectorAll(
+        ".tab"
+      )]
+        .find(
+          tab =>
+            normalizeAceText(
+              tab.textContent
+            ).includes(
+              "saida/perda"
+            ) ||
+            (
+              normalizeAceText(
+                tab.textContent
+              ).includes(
+                "saida"
+              ) &&
+              normalizeAceText(
+                tab.textContent
+              ).includes(
+                "perda"
+              )
+            )
+        );
+
+
+    const movementPage =
+      movementTab?.dataset?.page
+        ? document.getElementById(
+            movementTab.dataset.page
+          )
+        : null;
+
+
+    if (
+      movementPage?.parentElement
+    ) {
+
+      movementPage.insertAdjacentElement(
+        "afterend",
+        basketPage
+      );
+
+    } else {
+
+      const anyPage =
+        document.querySelector(
+          ".page"
+        );
+
+
+      if (
+        anyPage?.parentElement
+      ) {
+
+        anyPage.parentElement
+          .appendChild(
+            basketPage
+          );
+
+      } else {
+
+        document.body
+          .appendChild(
+            basketPage
+          );
+
+      }
+
+    }
+
+  }
+
+
+  const existingModule =
+    document.getElementById(
+      "aceBasketModule"
+    );
+
+
+  if (
+    existingModule &&
+    existingModule.parentElement !==
+      basketPage
+  ) {
+
+    basketPage.appendChild(
+      existingModule
+    );
+
+  }
+
+}
+
+
 function createBasketModuleContainer() {
 
   let module =
@@ -17650,64 +17983,52 @@ function createBasketModuleContainer() {
       "aceBasketModule"
     );
 
-  if (module) {
-    return module;
-  }
 
-  const movementForm =
+  const basketPage =
     document.getElementById(
-      "movementForm"
+      "cestas"
     );
 
-  if (!movementForm) {
+
+  if (!basketPage) {
     return null;
   }
 
+
+  if (module) {
+
+    if (
+      module.parentElement !==
+      basketPage
+    ) {
+
+      basketPage.appendChild(
+        module
+      );
+
+    }
+
+    return module;
+  }
+
+
   module =
-    document.createElement("section");
+    document.createElement(
+      "section"
+    );
 
   module.id =
     "aceBasketModule";
 
-  const movementsTable =
-    document.getElementById(
-      "movementsTable"
-    );
 
-  const movementsContainer =
-    movementsTable?.closest(
-      ".panel,.box,.section,.card"
-    );
+  basketPage.appendChild(
+    module
+  );
 
-  const page =
-    movementForm.closest(".page") ||
-    movementForm.parentElement;
-
-  if (
-    page &&
-    movementsContainer &&
-    movementsContainer.parentElement === page
-  ) {
-    page.insertBefore(
-      module,
-      movementsContainer
-    );
-  } else {
-    const formContainer =
-      movementForm.closest(
-        ".panel,.box,.section,.card"
-      ) ||
-      movementForm;
-
-    formContainer.insertAdjacentElement(
-      "afterend",
-      module
-    );
-  }
 
   return module;
-}
 
+}
 
 function renderBasketModule() {
 
@@ -18450,11 +18771,11 @@ function renderBasketModule() {
 
 
         if (
-          !Number.isFinite(qty) ||
+          !Number.isInteger(qty) ||
           qty <= 0
         ) {
           toast(
-            "Informe uma quantidade válida."
+            "Informe somente uma quantidade inteira maior que zero."
           );
           return;
         }
@@ -27032,6 +27353,9 @@ function renderAll() {
   // Mantém o resumo da entrada em lote sincronizado.
   renderBulkEntryDraft();
 
+  // Garante números inteiros em Entrada, Saída, Perda e Cestas.
+  setupIntegerQuantityInputs();
+
   if (
     typeof setupProfessionalMobileLayout ===
     "function"
@@ -27124,6 +27448,9 @@ async function initApp() {
     setupMuralAcePage();
 
     setupHistoryPage();
+
+    // Cria uma aba exclusiva para Saída de Cestas.
+    setupBasketPage();
 
     // Substitui o formulário antigo pela nova Entrada em lote.
     setupBulkEntryForm();
