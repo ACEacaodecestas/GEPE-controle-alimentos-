@@ -5060,6 +5060,145 @@ async function insertMovement({
 }
 
 
+
+async function updateEntryHistoryAfterEdit({
+  historyId,
+  original,
+  date,
+  originId,
+  foodId,
+  qty,
+  note
+}) {
+
+  let targetHistoryId =
+    Number(
+      historyId ||
+      0
+    );
+
+
+  // Fallback para edições abertas por outro ponto do aplicativo.
+  if (
+    !targetHistoryId &&
+    original
+  ) {
+
+    const candidates =
+      (db.history || [])
+        .filter(
+          history =>
+            history.type ===
+              "entrada" &&
+            history.date ===
+              original.date &&
+            Number(
+              history.originId
+            ) ===
+              Number(
+                original.originId
+              ) &&
+            Number(
+              history.foodId
+            ) ===
+              Number(
+                original.foodId
+              ) &&
+            Number(
+              history.qty
+            ) ===
+              Number(
+                original.qty
+              ) &&
+            String(
+              history.note || ""
+            ) ===
+              String(
+                original.note || ""
+              ) &&
+            (
+              !original.usuarioId ||
+              !history.usuarioId ||
+              String(
+                history.usuarioId
+              ) ===
+                String(
+                  original.usuarioId
+                )
+            )
+        )
+        .sort(
+          (a, b) =>
+            String(
+              b.createdAt || ""
+            ).localeCompare(
+              String(
+                a.createdAt || ""
+              )
+            )
+        );
+
+
+    targetHistoryId =
+      Number(
+        candidates[0]?.id ||
+        0
+      );
+
+  }
+
+
+  if (!targetHistoryId) {
+    throw new Error(
+      "Não foi possível localizar a linha correspondente no Histórico da entrada."
+    );
+  }
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from(
+        "historico_movimentacoes"
+      )
+      .update({
+        data:
+          date,
+        tipo:
+          "entrada",
+        origem_id:
+          Number(
+            originId
+          ),
+        alimento_id:
+          Number(
+            foodId
+          ),
+        quantidade:
+          Number(
+            qty
+          ),
+        motivo:
+          "Entrada",
+        tipo_cesta:
+          "—",
+        observacao:
+          note || ""
+      })
+      .eq(
+        "id",
+        targetHistoryId
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+}
+
+
 async function updateEntry({ id, date, originId, foodId, qty, note }) {
   const { error } = await supabaseClient
     .from("entradas")
@@ -9066,7 +9205,17 @@ function openRecentEditModal(id) {
   document
     .getElementById("recentEditCancel")
     .onclick =
-      closeRecentEditModal;
+      () => {
+
+        window.aceEntryHistoryEditingId =
+          null;
+
+        window.aceMovementHistoryEditingId =
+          null;
+
+        closeRecentEditModal();
+
+      };
 
   document
     .getElementById("recentEditSave")
@@ -9207,6 +9356,19 @@ async function saveRecentEdit(id, isEntry) {
         note
       });
 
+
+      await updateEntryHistoryAfterEdit({
+        historyId:
+          window
+            .aceEntryHistoryEditingId,
+        original,
+        date,
+        originId,
+        foodId,
+        qty,
+        note
+      });
+
     } else {
 
       await updateMovement({
@@ -9294,6 +9456,9 @@ async function saveRecentEdit(id, isEntry) {
     }
 
     window.aceMovementHistoryEditingId =
+      null;
+
+    window.aceEntryHistoryEditingId =
       null;
 
     document
@@ -9881,6 +10046,7 @@ function renderEntryActionsCell(entry) {
         type="button"
         class="ace-entry-action-btn ace-entry-edit-btn"
         data-entry-edit="${realEntry.id}"
+        data-entry-history-id="${entry.id}"
         title="Editar entrada"
       >
         <span class="ace-action-icon">✏️</span>
@@ -9891,6 +10057,7 @@ function renderEntryActionsCell(entry) {
         type="button"
         class="ace-entry-action-btn ace-entry-delete-btn"
         data-entry-delete="${realEntry.id}"
+        data-entry-history-id="${entry.id}"
         title="Excluir entrada"
       >
         <span class="ace-action-icon">🗑️</span>
@@ -9929,7 +10096,16 @@ function bindEntryActionButtons() {
               button.dataset.entryEdit;
 
 
-            // Usa a rotina de edição já existente e funcional.
+            window.aceEntryHistoryEditingId =
+              Number(
+                button.dataset
+                  .entryHistoryId ||
+                0
+              ) ||
+              null;
+
+
+            // Usa a rotina de edição já existente.
             openRecentEditModal(
               id
             );
@@ -18445,7 +18621,29 @@ function bindEvents() {
       const available = Number(st[originId]?.[foodId] || 0);
 
       if (qty > available) {
-        toast(`Saldo insuficiente. Disponível em ${getName(db.origins, originId)}: ${fmt(available)}.`);
+
+        const foodName =
+          getName(
+            db.foods,
+            foodId
+          );
+
+        const originName =
+          getName(
+            db.origins,
+            originId
+          );
+
+
+        await showAceConfirm(
+          "Não há quantidade suficiente deste alimento no estoque.\n\n" +
+          `Alimento: ${foodName}\n` +
+          `Origem: ${originName}\n` +
+          `Quantidade solicitada: ${fmt(qty)}\n` +
+          `Quantidade disponível: ${fmt(available)}`,
+          "⚠️ Estoque insuficiente"
+        );
+
         return;
       }
 
