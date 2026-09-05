@@ -12542,6 +12542,954 @@ function renderAttendance() {
 // ============================================================
 // 14. ESTOQUE
 // ============================================================
+// PDF PROFISSIONAL DO ESTOQUE
+// ============================================================
+
+function getStockPdfData() {
+
+  const st =
+    calcStock();
+
+
+  const items =
+    (db.foods || [])
+      .map(
+        food => {
+
+          const qty =
+            (db.origins || [])
+              .reduce(
+                (sum, origin) =>
+                  sum +
+                  Number(
+                    st?.[origin.id]?.[food.id] ||
+                    0
+                  ),
+                0
+              );
+
+
+          return {
+            name:
+              String(
+                food.name || ""
+              ),
+            qty:
+              Number(
+                qty || 0
+              )
+          };
+
+        }
+      )
+      .sort(
+        (a, b) =>
+          a.name.localeCompare(
+            b.name,
+            "pt-BR",
+            {
+              sensitivity:
+                "base"
+            }
+          )
+      );
+
+
+  const total =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.qty || 0
+        ),
+      0
+    );
+
+
+  return {
+    items,
+    total
+  };
+
+}
+
+
+function getStockPdfUserName() {
+
+  return (
+    typeof getCurrentDisplayName ===
+      "function"
+      ? getCurrentDisplayName()
+      : (
+          currentUser?.user_metadata?.nome ||
+          currentUser?.user_metadata?.full_name ||
+          currentUser?.user_metadata?.name ||
+          currentUser?.email ||
+          "Usuário não identificado"
+        )
+  );
+
+}
+
+
+function getStockPdfDateTime() {
+
+  const now =
+    new Date();
+
+
+  const date =
+    now.toLocaleDateString(
+      "pt-BR"
+    );
+
+
+  const time =
+    now.toLocaleTimeString(
+      "pt-BR",
+      {
+        hour:
+          "2-digit",
+        minute:
+          "2-digit"
+      }
+    );
+
+
+  return {
+    date,
+    time
+  };
+
+}
+
+
+function buildStockPdfElement() {
+
+  const {
+    items,
+    total
+  } =
+    getStockPdfData();
+
+
+  const {
+    date,
+    time
+  } =
+    getStockPdfDateTime();
+
+
+  const userName =
+    getStockPdfUserName();
+
+
+  const activeItems =
+    items.filter(
+      item =>
+        Number(
+          item.qty || 0
+        ) > 0
+    ).length;
+
+
+  const rows =
+    items
+      .map(
+        (
+          item,
+          index
+        ) => `
+
+          <tr>
+
+            <td
+              style="
+                width:8%;
+                text-align:center;
+                color:#667085;
+              "
+            >
+              ${index + 1}
+            </td>
+
+            <td
+              style="
+                width:62%;
+                font-weight:700;
+                color:#172b3a;
+              "
+            >
+              ${esc(item.name)}
+            </td>
+
+            <td
+              style="
+                width:30%;
+                text-align:right;
+                font-weight:900;
+                color:#0b4b7a;
+              "
+            >
+              ${fmt(item.qty)}
+            </td>
+
+          </tr>
+
+        `
+      )
+      .join("");
+
+
+  const element =
+    document.createElement(
+      "div"
+    );
+
+
+  element.id =
+    "aceStockPdfDocument";
+
+
+  element.innerHTML = `
+
+    <div
+      style="
+        width:100%;
+        box-sizing:border-box;
+        padding:26px;
+        background:#ffffff;
+        color:#172b3a;
+        font-family:Arial,Helvetica,sans-serif;
+      "
+    >
+
+      <div
+        style="
+          border-bottom:3px solid #0b4b7a;
+          padding-bottom:16px;
+          margin-bottom:20px;
+        "
+      >
+
+        <div
+          style="
+            font-size:13px;
+            font-weight:800;
+            color:#0b4b7a;
+            letter-spacing:.4px;
+            text-transform:uppercase;
+            margin-bottom:5px;
+          "
+        >
+          ACE - Ação de Cestas
+        </div>
+
+        <div
+          style="
+            font-size:28px;
+            font-weight:900;
+            color:#102a43;
+            margin-bottom:5px;
+          "
+        >
+          Relatório de Estoque
+        </div>
+
+        <div
+          style="
+            font-size:13px;
+            color:#667085;
+          "
+        >
+          Controle de Alimentos
+        </div>
+
+      </div>
+
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:10px 18px;
+          padding:14px 16px;
+          margin-bottom:18px;
+          border:1px solid #d9e4ec;
+          border-radius:10px;
+          background:#f8fafc;
+          font-size:12px;
+          line-height:1.45;
+        "
+      >
+
+        <div>
+          <strong>Data:</strong>
+          ${esc(date)}
+        </div>
+
+        <div>
+          <strong>Hora:</strong>
+          ${esc(time)}
+        </div>
+
+        <div
+          style="
+            grid-column:1 / -1;
+          "
+        >
+          <strong>Usuário:</strong>
+          ${esc(userName)}
+        </div>
+
+      </div>
+
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:12px;
+          margin-bottom:20px;
+        "
+      >
+
+        <div
+          style="
+            padding:16px;
+            border-radius:10px;
+            background:#eaf4fb;
+            border:1px solid #cfe1ef;
+          "
+        >
+
+          <div
+            style="
+              font-size:12px;
+              color:#536273;
+              margin-bottom:5px;
+              font-weight:700;
+            "
+          >
+            QUANTIDADE TOTAL
+          </div>
+
+          <div
+            style="
+              font-size:25px;
+              font-weight:900;
+              color:#0b4b7a;
+            "
+          >
+            ${fmt(total)} itens
+          </div>
+
+        </div>
+
+
+        <div
+          style="
+            padding:16px;
+            border-radius:10px;
+            background:#f4f7f9;
+            border:1px solid #d9e4ec;
+          "
+        >
+
+          <div
+            style="
+              font-size:12px;
+              color:#536273;
+              margin-bottom:5px;
+              font-weight:700;
+            "
+          >
+            ALIMENTOS COM SALDO
+          </div>
+
+          <div
+            style="
+              font-size:25px;
+              font-weight:900;
+              color:#102a43;
+            "
+          >
+            ${activeItems}
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div
+        style="
+          font-size:17px;
+          font-weight:900;
+          color:#102a43;
+          margin-bottom:9px;
+        "
+      >
+        Posição atual do estoque
+      </div>
+
+
+      <table
+        style="
+          width:100%;
+          border-collapse:collapse;
+          table-layout:fixed;
+          font-size:12px;
+        "
+      >
+
+        <thead>
+
+          <tr
+            style="
+              background:#0b4b7a;
+              color:#ffffff;
+            "
+          >
+
+            <th
+              style="
+                width:8%;
+                padding:10px 8px;
+                text-align:center;
+              "
+            >
+              Nº
+            </th>
+
+            <th
+              style="
+                width:62%;
+                padding:10px 8px;
+                text-align:left;
+              "
+            >
+              Alimento
+            </th>
+
+            <th
+              style="
+                width:30%;
+                padding:10px 8px;
+                text-align:right;
+              "
+            >
+              Quantidade
+            </th>
+
+          </tr>
+
+        </thead>
+
+        <tbody>
+          ${rows}
+        </tbody>
+
+      </table>
+
+
+      <div
+        style="
+          margin-top:20px;
+          padding-top:11px;
+          border-top:1px solid #d9e4ec;
+          font-size:10px;
+          color:#667085;
+          line-height:1.4;
+        "
+      >
+        Documento gerado automaticamente pelo sistema
+        ACE - Controle de Alimentos.
+        As quantidades representam a posição do estoque
+        no momento da geração deste relatório.
+      </div>
+
+    </div>
+
+  `;
+
+
+  element
+    .querySelectorAll(
+      "tbody tr"
+    )
+    .forEach(
+      (
+        row,
+        index
+      ) => {
+
+        row.style.background =
+          index % 2 === 0
+            ? "#ffffff"
+            : "#f8fafc";
+
+        row.style.pageBreakInside =
+          "avoid";
+
+        row.style.breakInside =
+          "avoid";
+
+
+        row
+          .querySelectorAll(
+            "td"
+          )
+          .forEach(
+            cell => {
+
+              cell.style.padding =
+                "9px 8px";
+
+              cell.style.borderBottom =
+                "1px solid #e5eaf0";
+
+              cell.style.verticalAlign =
+                "middle";
+
+              cell.style.boxSizing =
+                "border-box";
+
+            }
+          );
+
+      }
+    );
+
+
+  return element;
+
+}
+
+
+async function generateStockPDF() {
+
+  const button =
+    document.getElementById(
+      "generateStockPDF"
+    );
+
+
+  const originalText =
+    button?.innerHTML ||
+    "📄 Gerar PDF do estoque";
+
+
+  if (button) {
+
+    button.disabled =
+      true;
+
+    button.innerHTML =
+      "⏳ Gerando PDF...";
+
+  }
+
+
+  let host =
+    null;
+
+
+  try {
+
+    await ensureHtml2PdfLibrary();
+
+
+    const element =
+      buildStockPdfElement();
+
+
+    host =
+      document.createElement(
+        "div"
+      );
+
+
+    host.id =
+      "aceStockPdfHost";
+
+    host.style.position =
+      "fixed";
+
+    host.style.left =
+      "-10000px";
+
+    host.style.top =
+      "0";
+
+    host.style.width =
+      "794px";
+
+    host.style.background =
+      "#ffffff";
+
+    host.style.pointerEvents =
+      "none";
+
+    host.style.zIndex =
+      "-9999";
+
+
+    element.style.width =
+      "760px";
+
+    element.style.maxWidth =
+      "760px";
+
+    element.style.boxSizing =
+      "border-box";
+
+
+    host.appendChild(
+      element
+    );
+
+
+    document.body.appendChild(
+      host
+    );
+
+
+    if (
+      document.fonts?.ready
+    ) {
+
+      try {
+        await document.fonts.ready;
+      } catch {}
+
+    }
+
+
+    await new Promise(
+      resolve =>
+        requestAnimationFrame(
+          () =>
+            requestAnimationFrame(
+              resolve
+            )
+        )
+    );
+
+
+    const fileDate =
+      isoToday()
+        .split("-")
+        .reverse()
+        .join("-");
+
+
+    const options = {
+
+      margin:
+        [8, 8, 8, 8],
+
+      filename:
+        `estoque_${fileDate}.pdf`,
+
+      image: {
+        type:
+          "jpeg",
+        quality:
+          0.98
+      },
+
+      html2canvas: {
+        scale:
+          1.6,
+        useCORS:
+          true,
+        allowTaint:
+          false,
+        backgroundColor:
+          "#ffffff",
+        logging:
+          false,
+        windowWidth:
+          794,
+        scrollX:
+          0,
+        scrollY:
+          0
+      },
+
+      jsPDF: {
+        unit:
+          "mm",
+        format:
+          "a4",
+        orientation:
+          "portrait"
+      },
+
+      pagebreak: {
+        mode: [
+          "css",
+          "legacy"
+        ],
+        avoid: [
+          "tr",
+          "thead"
+        ]
+      }
+
+    };
+
+
+    await window
+      .html2pdf()
+      .set(
+        options
+      )
+      .from(
+        element
+      )
+      .save();
+
+
+    showAceSuccess(
+      "PDF do estoque gerado com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO GERAR PDF DO ESTOQUE:",
+      error
+    );
+
+
+    await showAceMessage(
+      "Não foi possível gerar o PDF do estoque.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro ao gerar PDF"
+    );
+
+
+  } finally {
+
+    if (host) {
+      host.remove();
+    }
+
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.innerHTML =
+        originalText;
+
+    }
+
+  }
+
+}
+
+
+function ensureStockPdfButton() {
+
+  const tableEl =
+    document.getElementById(
+      "stockTable"
+    );
+
+
+  const stockPage =
+    tableEl?.closest(
+      ".page"
+    );
+
+
+  if (!stockPage) {
+    return;
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceStockPdfButtonStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      "aceStockPdfButtonStyle";
+
+
+    style.textContent = `
+
+      .ace-stock-top-actions{
+        display:flex;
+        align-items:center;
+        justify-content:flex-end;
+        gap:10px;
+        flex-wrap:wrap;
+      }
+
+      #generateStockPDF{
+        min-height:46px;
+        padding:10px 16px;
+        border:1px solid #0b5a8f;
+        border-radius:10px;
+        background:#0b5a8f;
+        color:#ffffff;
+        font:inherit;
+        font-weight:900;
+        cursor:pointer;
+        white-space:nowrap;
+      }
+
+      #generateStockPDF:disabled{
+        opacity:.65;
+        cursor:wait;
+      }
+
+      @media(max-width:650px){
+
+        .ace-stock-top-actions{
+          width:100%;
+          justify-content:stretch;
+        }
+
+        .ace-stock-top-actions > button,
+        #generateStockPDF{
+          flex:1 1 100%;
+          width:100%;
+        }
+
+      }
+
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  let button =
+    document.getElementById(
+      "generateStockPDF"
+    );
+
+
+  if (!button) {
+
+    button =
+      document.createElement(
+        "button"
+      );
+
+
+    button.id =
+      "generateStockPDF";
+
+    button.type =
+      "button";
+
+    button.innerHTML =
+      "📄 Gerar PDF do estoque";
+
+    button.addEventListener(
+      "click",
+      generateStockPDF
+    );
+
+  }
+
+
+  const updateButton =
+    Array.from(
+      stockPage.querySelectorAll(
+        "button"
+      )
+    ).find(
+      item =>
+        normalizeAceText(
+          item.textContent
+        ).includes(
+          "atualizar"
+        )
+    );
+
+
+  if (updateButton) {
+
+    let actions =
+      updateButton.closest(
+        ".ace-stock-top-actions"
+      );
+
+
+    if (!actions) {
+
+      actions =
+        document.createElement(
+          "div"
+        );
+
+      actions.className =
+        "ace-stock-top-actions";
+
+
+      updateButton
+        .parentNode
+        .insertBefore(
+          actions,
+          updateButton
+        );
+
+
+      actions.appendChild(
+        updateButton
+      );
+
+    }
+
+
+    if (
+      button.parentNode !==
+        actions
+    ) {
+
+      actions.appendChild(
+        button
+      );
+
+    }
+
+
+  } else if (
+    !button.isConnected
+  ) {
+
+    stockPage.insertBefore(
+      button,
+      stockPage.firstChild
+    );
+
+  }
+
+}
+
 
 function renderStock() {
 
@@ -12709,6 +13657,10 @@ function renderStock() {
     }
 
   }
+
+
+  // Botão profissional de PDF ao lado de Atualizar.
+  ensureStockPdfButton();
 
 }
 
