@@ -13116,13 +13116,22 @@ async function generateStockPDF() {
     host.style.position =
       "fixed";
 
+    // Não usar left negativo.
+    // O html2canvas pode interpretar a posição fora da tela
+    // e cortar a lateral esquerda do documento.
     host.style.left =
-      "-10000px";
+      "0";
 
     host.style.top =
       "0";
 
     host.style.width =
+      "794px";
+
+    host.style.minWidth =
+      "794px";
+
+    host.style.maxWidth =
       "794px";
 
     host.style.background =
@@ -13131,18 +13140,36 @@ async function generateStockPDF() {
     host.style.pointerEvents =
       "none";
 
+    host.style.overflow =
+      "visible";
+
     host.style.zIndex =
-      "-9999";
+      "-2147483647";
 
 
     element.style.width =
       "760px";
 
+    element.style.minWidth =
+      "760px";
+
     element.style.maxWidth =
       "760px";
 
+    element.style.margin =
+      "0";
+
     element.style.boxSizing =
       "border-box";
+
+    element.style.transform =
+      "none";
+
+    element.style.position =
+      "relative";
+
+    element.style.left =
+      "0";
 
 
     host.appendChild(
@@ -13212,6 +13239,12 @@ async function generateStockPDF() {
           false,
         windowWidth:
           794,
+        width:
+          760,
+        x:
+          0,
+        y:
+          0,
         scrollX:
           0,
         scrollY:
