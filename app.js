@@ -4957,8 +4957,12 @@ async function insertMovement({
         .from(
           table
         )
-        .insert(
-          row
+        .upsert(
+          row,
+          {
+            onConflict:
+              "id"
+          }
         );
 
 
@@ -4974,14 +4978,38 @@ async function insertMovement({
         .from(
           "historico_movimentacoes"
         )
-        .insert(
-          historyRow
+        .upsert(
+          historyRow,
+          {
+            onConflict:
+              "id"
+          }
         );
 
 
     if (historyError) {
       throw historyError;
     }
+
+
+    // A movimentação já foi confirmada no Supabase.
+    // Atualiza imediatamente os dados locais sem fazer uma nova
+    // carga completa de todas as tabelas do sistema.
+    applyLocalMovement({
+      id:
+        movementId,
+      historyId,
+      date,
+      type,
+      originId,
+      foodId,
+      qty:
+        Number(
+          qty
+        ),
+      reasonName,
+      note
+    });
 
 
   } catch (error) {
@@ -12426,11 +12454,41 @@ function renderReport() {
 
   const presentDates =
     Object.entries(
-      db.attendance
+      db.attendance || {}
     ).filter(
       ([d]) =>
         (!start || d >= start) &&
         (!end || d <= end)
+    );
+
+
+  // Quantidade real de pessoas marcadas como presentes.
+  // Em relatório de um único dia, mostra exatamente quantas
+  // pessoas foram ativadas na Presença.
+  // Em um período com vários dias, soma as presenças de cada dia.
+  const presentPeopleCount =
+    presentDates.reduce(
+      (
+        total,
+        [
+          ,
+          peopleIds
+        ]
+      ) =>
+        total +
+        new Set(
+          (
+            Array.isArray(
+              peopleIds
+            )
+              ? peopleIds
+              : []
+          ).map(
+            id =>
+              Number(id)
+          )
+        ).size,
+      0
     );
 
 
@@ -12554,10 +12612,12 @@ function renderReport() {
 
       <div class="card">
 
-        <span>Dias com presença</span>
+        <span>Presentes</span>
 
         <strong>
-          ${presentDates.length}
+          ${fmt(
+            presentPeopleCount
+          )}
         </strong>
 
       </div>
@@ -14031,6 +14091,226 @@ function buildReportPdfElement() {
 }
 
 
+
+// ============================================================
+// PDF - PROTEÇÃO CONTRA CORTE DE LINHAS ENTRE PÁGINAS
+// ============================================================
+
+function protectReportRowsFromPageCuts(
+  element
+) {
+
+  if (!element) {
+    return;
+  }
+
+
+  const rootRect =
+    element.getBoundingClientRect();
+
+
+  const rootWidth =
+    rootRect.width ||
+    760;
+
+
+  // A4 retrato com margens de 8 mm:
+  // largura útil = 194 mm
+  // altura útil = 281 mm
+  const pxPerMm =
+    rootWidth /
+    194;
+
+
+  const pageHeightPx =
+    281 *
+    pxPerMm;
+
+
+  // Pequena margem de segurança para a linha não encostar
+  // exatamente no ponto de corte do html2canvas/html2pdf.
+  const guardPx =
+    7 *
+    pxPerMm;
+
+
+  element
+    .querySelectorAll(
+      "table"
+    )
+    .forEach(
+      tableNode => {
+
+        const tbody =
+          tableNode.querySelector(
+            "tbody"
+          );
+
+
+        if (!tbody) {
+          return;
+        }
+
+
+        const rows =
+          Array.from(
+            tbody.children
+          ).filter(
+            row =>
+              row.tagName ===
+                "TR" &&
+              !row.classList.contains(
+                "ace-pdf-page-spacer-row"
+              )
+          );
+
+
+        rows.forEach(
+          row => {
+
+            const rowRect =
+              row.getBoundingClientRect();
+
+
+            const rowTop =
+              rowRect.top -
+              rootRect.top;
+
+
+            const rowBottom =
+              rowRect.bottom -
+              rootRect.top;
+
+
+            if (
+              rowRect.height <= 0 ||
+              rowRect.height >=
+                pageHeightPx
+            ) {
+              return;
+            }
+
+
+            const pageIndex =
+              Math.floor(
+                Math.max(
+                  0,
+                  rowTop
+                ) /
+                pageHeightPx
+              );
+
+
+            const pageBoundary =
+              (
+                pageIndex +
+                1
+              ) *
+              pageHeightPx;
+
+
+            if (
+              rowTop <
+                pageBoundary &&
+              rowBottom +
+                guardPx >
+                pageBoundary
+            ) {
+
+              const spacerHeight =
+                Math.max(
+                  8,
+                  pageBoundary -
+                    rowTop +
+                    guardPx
+                );
+
+
+              // Não cria espaçadores absurdos em caso de layout atípico.
+              if (
+                spacerHeight >
+                pageHeightPx *
+                  0.45
+              ) {
+                return;
+              }
+
+
+              const spacer =
+                document.createElement(
+                  "tr"
+                );
+
+
+              spacer.className =
+                "ace-pdf-page-spacer-row";
+
+
+              const cell =
+                document.createElement(
+                  "td"
+                );
+
+
+              cell.colSpan =
+                Math.max(
+                  1,
+                  tableNode
+                    .querySelectorAll(
+                      "thead th"
+                    )
+                    .length ||
+                  row.children
+                    .length
+                );
+
+
+              cell.style.height =
+                `${spacerHeight}px`;
+
+              cell.style.minHeight =
+                `${spacerHeight}px`;
+
+              cell.style.padding =
+                "0";
+
+              cell.style.margin =
+                "0";
+
+              cell.style.border =
+                "0";
+
+              cell.style.background =
+                "#ffffff";
+
+              cell.style.fontSize =
+                "0";
+
+              cell.style.lineHeight =
+                "0";
+
+
+              spacer.appendChild(
+                cell
+              );
+
+
+              tbody.insertBefore(
+                spacer,
+                row
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
 async function generateSignedReportPDF() {
 
   if (!reportSignatureHasInk) {
@@ -14503,6 +14783,23 @@ async function generateSignedReportPDF() {
     );
 
 
+    // Analisa a posição real das linhas já renderizadas e,
+    // quando uma linha cair exatamente no limite entre páginas,
+    // cria um espaço em branco antes dela. Assim a linha inteira
+    // passa para a página seguinte em vez de ser cortada.
+    protectReportRowsFromPageCuts(
+      element
+    );
+
+
+    await new Promise(
+      resolve =>
+        requestAnimationFrame(
+          resolve
+        )
+    );
+
+
     const start =
       document.getElementById(
         "reportStart"
@@ -14560,7 +14857,7 @@ async function generateSignedReportPDF() {
           ".ace-report-pdf-only-signature"
         ],
         avoid: [
-          "tr",
+          "tbody tr:not(.ace-pdf-page-spacer-row)",
           "thead",
           "h3",
           ".ace-report-pdf-only-signature"
@@ -17819,6 +18116,290 @@ function setupIntegerQuantityInputs() {
 // 19. EVENTOS DO APLICATIVO
 // ============================================================
 
+
+// ============================================================
+// SAÍDA / PERDA - BOTÃO LIMPAR DADOS
+// ============================================================
+
+function clearMovementFormData(
+  showMessage = true
+) {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  form.reset();
+
+
+  const date =
+    document.getElementById(
+      "movementDate"
+    );
+
+  if (date) {
+    date.value =
+      isoToday();
+  }
+
+
+  const type =
+    form.querySelector(
+      '[name="type"]'
+    );
+
+  if (type) {
+    type.value =
+      "saida";
+
+    type.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+  }
+
+
+  const origin =
+    form.querySelector(
+      '[name="origin"]'
+    );
+
+  const food =
+    form.querySelector(
+      '[name="foodId"]'
+    );
+
+  const qty =
+    form.querySelector(
+      '[name="qty"]'
+    );
+
+  const reason =
+    form.querySelector(
+      '[name="reasonId"]'
+    );
+
+  const note =
+    form.querySelector(
+      '[name="note"]'
+    );
+
+
+  if (origin) {
+    origin.value = "";
+  }
+
+  if (food) {
+    food.value = "";
+  }
+
+  if (qty) {
+    qty.value = "";
+  }
+
+  if (reason) {
+    reason.value = "";
+  }
+
+  if (note) {
+    note.value = "";
+  }
+
+
+  if (showMessage) {
+    toast(
+      "Dados da Saída/Perda limpos."
+    );
+  }
+
+}
+
+
+function ensureMovementClearButton() {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (
+    !form ||
+    document.getElementById(
+      "movementClearData"
+    )
+  ) {
+    return;
+  }
+
+
+  const page =
+    form.closest(
+      ".page"
+    ) ||
+    form.parentElement;
+
+
+  if (!page) {
+    return;
+  }
+
+
+  const title =
+    Array.from(
+      page.querySelectorAll(
+        "h1,h2,h3"
+      )
+    ).find(
+      node =>
+        normalizeAceText(
+          node.textContent
+        ).includes(
+          "saida e perda"
+        )
+    );
+
+
+  if (!title) {
+    return;
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceMovementClearDataStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      "aceMovementClearDataStyle";
+
+    style.textContent = `
+
+      .ace-movement-title-row{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:14px;
+        width:100%;
+        margin-bottom:4px;
+      }
+
+      .ace-movement-title-row > h1,
+      .ace-movement-title-row > h2,
+      .ace-movement-title-row > h3{
+        margin-top:0;
+        margin-bottom:0;
+      }
+
+      #movementClearData{
+        flex:0 0 auto;
+        min-height:42px;
+        padding:9px 16px;
+        border:1px solid #0b5a8f;
+        border-radius:10px;
+        background:#fff;
+        color:#0b4b7a;
+        font:inherit;
+        font-size:14px;
+        font-weight:900;
+        cursor:pointer;
+        white-space:nowrap;
+      }
+
+      #movementClearData:hover{
+        background:#eef7fd;
+      }
+
+      @media(max-width:600px){
+
+        .ace-movement-title-row{
+          gap:8px;
+        }
+
+        #movementClearData{
+          min-height:38px;
+          padding:8px 10px;
+          font-size:12px;
+        }
+
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  const row =
+    document.createElement(
+      "div"
+    );
+
+  row.className =
+    "ace-movement-title-row";
+
+
+  title.parentNode.insertBefore(
+    row,
+    title
+  );
+
+  row.appendChild(
+    title
+  );
+
+
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.id =
+    "movementClearData";
+
+  button.type =
+    "button";
+
+  button.textContent =
+    "🧹 Limpar dados";
+
+  button.addEventListener(
+    "click",
+    () =>
+      clearMovementFormData(
+        true
+      )
+  );
+
+
+  row.appendChild(
+    button
+  );
+
+}
+
+
 function bindEvents() {
 
   bindBulkEntryFormEvents();
@@ -17829,6 +18410,15 @@ function bindEvents() {
   if (movementForm) {
     movementForm.addEventListener("submit", async e => {
       e.preventDefault();
+
+      // Impede dois envios simultâneos em toque duplo/clique repetido.
+      if (
+        e.target.dataset
+          .aceMovementSubmitting ===
+          "1"
+      ) {
+        return;
+      }
 
       const f = new FormData(e.target);
       const date = f.get("date");
@@ -17865,21 +18455,69 @@ function bindEvents() {
       }
 
       const submit = e.target.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
+
+      e.target.dataset
+        .aceMovementSubmitting =
+        "1";
+
+      if (submit) {
+        submit.disabled = true;
+      }
 
       try {
-        await insertMovement({ date, type, originId, foodId, qty, reasonId, note });
-        await reloadFromSupabase();
-        e.target.reset();
-        document.getElementById("movementDate").value = isoToday();
+
+        await insertMovement({
+          date,
+          type,
+          originId,
+          foodId,
+          qty,
+          reasonId,
+          note
+        });
+
+        // insertMovement() já atualiza os dados locais após a
+        // confirmação do Supabase. Não fazemos reload completo
+        // aqui, evitando travamento após várias movimentações seguidas.
+        clearMovementFormData(
+          false
+        );
+
         renderAll();
-        showAceSuccess(type === "perda" ? "Perda registrada com sucesso!" : "Saída registrada com sucesso!");
+
+        showAceSuccess(
+          type === "perda"
+            ? "Perda registrada com sucesso!"
+            : "Saída registrada com sucesso!"
+        );
+
       } catch (error) {
-        console.error(error);
-        toast("Erro na movimentação: " + (error?.message || "verifique o Supabase."));
+
+        console.error(
+          "ACE - ERRO AO REGISTRAR SAÍDA/PERDA:",
+          error
+        );
+
+        await showAceConfirm(
+          "Não foi possível registrar a movimentação.\n\n" +
+          (
+            error?.message ||
+            "Verifique a conexão e o Supabase."
+          ),
+          "❌ Erro na movimentação"
+        );
+
       } finally {
-        if (submit) submit.disabled = false;
+
+        delete e.target.dataset
+          .aceMovementSubmitting;
+
+        if (submit) {
+          submit.disabled = false;
+        }
+
       }
+
     });
   }
 
@@ -31980,6 +32618,9 @@ function renderAll() {
 
   // Garante números inteiros em Entrada, Saída, Perda e Cestas.
   setupIntegerQuantityInputs();
+
+  // Mantém o botão de limpar dados no cabeçalho da Saída/Perda.
+  ensureMovementClearButton();
 
   if (
     typeof setupProfessionalMobileLayout ===
