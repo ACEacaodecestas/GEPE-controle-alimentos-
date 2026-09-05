@@ -9953,35 +9953,8 @@ function ensureEntryActionsStyles() {
 
 function findRealEntryForHistory(historyItem) {
 
-  const candidates =
-    (db.entries || [])
-      .filter(
-        entry =>
-          entry.date === historyItem.date &&
-          Number(entry.originId) ===
-            Number(historyItem.originId) &&
-          Number(entry.foodId) ===
-            Number(historyItem.foodId) &&
-          Number(entry.qty) ===
-            Number(historyItem.qty) &&
-          String(entry.note || "") ===
-            String(historyItem.note || "") &&
-          (
-            !historyItem.usuarioId ||
-            String(entry.usuarioId || "") ===
-              String(historyItem.usuarioId || "")
-          )
-      );
-
-
-  if (!candidates.length) {
-    return null;
-  }
-
-
-  if (candidates.length === 1) {
-    return candidates[0];
-  }
+  const allEntries =
+    (db.entries || []);
 
 
   const historyTime =
@@ -9990,28 +9963,161 @@ function findRealEntryForHistory(historyItem) {
     ).getTime();
 
 
-  return candidates
-    .slice()
-    .sort(
-      (a, b) => {
+  const byClosestTime =
+    candidates =>
+      candidates
+        .slice()
+        .sort(
+          (a, b) => {
 
-        const aTime =
-          new Date(
-            a.createdAt || 0
-          ).getTime();
+            const aTime =
+              new Date(
+                a.createdAt || 0
+              ).getTime();
 
-        const bTime =
-          new Date(
-            b.createdAt || 0
-          ).getTime();
+            const bTime =
+              new Date(
+                b.createdAt || 0
+              ).getTime();
 
-        return (
-          Math.abs(aTime - historyTime) -
-          Math.abs(bTime - historyTime)
-        );
 
-      }
-    )[0] || null;
+            const safeHistoryTime =
+              Number.isFinite(
+                historyTime
+              )
+                ? historyTime
+                : 0;
+
+
+            return (
+              Math.abs(
+                aTime -
+                safeHistoryTime
+              ) -
+              Math.abs(
+                bTime -
+                safeHistoryTime
+              )
+            );
+
+          }
+        )[0] || null;
+
+
+  // 1. Correspondência exata.
+  let candidates =
+    allEntries.filter(
+      entry =>
+        entry.date ===
+          historyItem.date &&
+        Number(
+          entry.originId
+        ) ===
+          Number(
+            historyItem.originId
+          ) &&
+        Number(
+          entry.foodId
+        ) ===
+          Number(
+            historyItem.foodId
+          ) &&
+        Number(
+          entry.qty
+        ) ===
+          Number(
+            historyItem.qty
+          ) &&
+        String(
+          entry.note || ""
+        ) ===
+          String(
+            historyItem.note || ""
+          ) &&
+        (
+          !historyItem.usuarioId ||
+          String(
+            entry.usuarioId || ""
+          ) ===
+            String(
+              historyItem.usuarioId || ""
+            )
+        )
+    );
+
+
+  if (candidates.length) {
+    return byClosestTime(
+      candidates
+    );
+  }
+
+
+  // 2. Histórico antigo pode ter ficado com quantidade/observação
+  //    anterior depois de uma edição. Procura pelo mesmo lançamento
+  //    usando os campos principais.
+  candidates =
+    allEntries.filter(
+      entry =>
+        entry.date ===
+          historyItem.date &&
+        Number(
+          entry.originId
+        ) ===
+          Number(
+            historyItem.originId
+          ) &&
+        Number(
+          entry.foodId
+        ) ===
+          Number(
+            historyItem.foodId
+          ) &&
+        (
+          !historyItem.usuarioId ||
+          !entry.usuarioId ||
+          String(
+            entry.usuarioId
+          ) ===
+            String(
+              historyItem.usuarioId
+            )
+        )
+    );
+
+
+  if (candidates.length) {
+    return byClosestTime(
+      candidates
+    );
+  }
+
+
+  // 3. Último fallback para registros antigos em que o usuário
+  //    também ficou diferente no histórico.
+  candidates =
+    allEntries.filter(
+      entry =>
+        entry.date ===
+          historyItem.date &&
+        Number(
+          entry.originId
+        ) ===
+          Number(
+            historyItem.originId
+          ) &&
+        Number(
+          entry.foodId
+        ) ===
+          Number(
+            historyItem.foodId
+          )
+    );
+
+
+  return byClosestTime(
+    candidates
+  );
 
 }
 
@@ -10799,60 +10905,8 @@ function findRealMovementForHistory(
   historyItem
 ) {
 
-  const candidates =
-    (db.movements || [])
-      .filter(
-        movement =>
-          movement.type ===
-            historyItem.type &&
-          movement.date ===
-            historyItem.date &&
-          Number(
-            movement.originId
-          ) ===
-            Number(
-              historyItem.originId
-            ) &&
-          Number(
-            movement.foodId
-          ) ===
-            Number(
-              historyItem.foodId
-            ) &&
-          Number(
-            movement.qty
-          ) ===
-            Number(
-              historyItem.qty
-            ) &&
-          String(
-            movement.note || ""
-          ) ===
-            String(
-              historyItem.note || ""
-            ) &&
-          (
-            !historyItem.usuarioId ||
-            String(
-              movement.usuarioId || ""
-            ) ===
-              String(
-                historyItem.usuarioId || ""
-              )
-          )
-      );
-
-
-  if (!candidates.length) {
-    return null;
-  }
-
-
-  if (
-    candidates.length === 1
-  ) {
-    return candidates[0];
-  }
+  const allMovements =
+    (db.movements || []);
 
 
   const historyTime =
@@ -10861,34 +10915,165 @@ function findRealMovementForHistory(
     ).getTime();
 
 
-  return candidates
-    .slice()
-    .sort(
-      (a, b) => {
+  const byClosestTime =
+    candidates =>
+      candidates
+        .slice()
+        .sort(
+          (a, b) => {
 
-        const aTime =
-          new Date(
-            a.createdAt || 0
-          ).getTime();
+            const aTime =
+              new Date(
+                a.createdAt || 0
+              ).getTime();
 
-        const bTime =
-          new Date(
-            b.createdAt || 0
-          ).getTime();
+            const bTime =
+              new Date(
+                b.createdAt || 0
+              ).getTime();
 
-        return (
-          Math.abs(
-            aTime -
-            historyTime
-          ) -
-          Math.abs(
-            bTime -
-            historyTime
+
+            const safeHistoryTime =
+              Number.isFinite(
+                historyTime
+              )
+                ? historyTime
+                : 0;
+
+
+            return (
+              Math.abs(
+                aTime -
+                safeHistoryTime
+              ) -
+              Math.abs(
+                bTime -
+                safeHistoryTime
+              )
+            );
+
+          }
+        )[0] || null;
+
+
+  // 1. Correspondência exata.
+  let candidates =
+    allMovements.filter(
+      movement =>
+        movement.type ===
+          historyItem.type &&
+        movement.date ===
+          historyItem.date &&
+        Number(
+          movement.originId
+        ) ===
+          Number(
+            historyItem.originId
+          ) &&
+        Number(
+          movement.foodId
+        ) ===
+          Number(
+            historyItem.foodId
+          ) &&
+        Number(
+          movement.qty
+        ) ===
+          Number(
+            historyItem.qty
+          ) &&
+        String(
+          movement.note || ""
+        ) ===
+          String(
+            historyItem.note || ""
+          ) &&
+        (
+          !historyItem.usuarioId ||
+          String(
+            movement.usuarioId || ""
+          ) ===
+            String(
+              historyItem.usuarioId || ""
+            )
+        )
+    );
+
+
+  if (candidates.length) {
+    return byClosestTime(
+      candidates
+    );
+  }
+
+
+  // 2. Saída/Perda antiga pode ter ficado com quantidade,
+  //    observação ou usuário diferente no histórico depois de edição.
+  candidates =
+    allMovements.filter(
+      movement =>
+        movement.type ===
+          historyItem.type &&
+        movement.date ===
+          historyItem.date &&
+        Number(
+          movement.originId
+        ) ===
+          Number(
+            historyItem.originId
+          ) &&
+        Number(
+          movement.foodId
+        ) ===
+          Number(
+            historyItem.foodId
+          ) &&
+        (
+          !historyItem.usuarioId ||
+          !movement.usuarioId ||
+          String(
+            movement.usuarioId
+          ) ===
+            String(
+              historyItem.usuarioId
+            )
+        )
+    );
+
+
+  if (candidates.length) {
+    return byClosestTime(
+      candidates
+    );
+  }
+
+
+  // 3. Fallback para históricos antigos com usuário divergente.
+  candidates =
+    allMovements.filter(
+      movement =>
+        movement.type ===
+          historyItem.type &&
+        movement.date ===
+          historyItem.date &&
+        Number(
+          movement.originId
+        ) ===
+          Number(
+            historyItem.originId
+          ) &&
+        Number(
+          movement.foodId
+        ) ===
+          Number(
+            historyItem.foodId
           )
-        );
+    );
 
-      }
-    )[0] || null;
+
+  return byClosestTime(
+    candidates
+  );
 
 }
 
