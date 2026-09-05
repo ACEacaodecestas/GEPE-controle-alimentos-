@@ -5493,21 +5493,211 @@ function getName(arr, id) {
 }
 
 
+function showAceMessage(
+  message,
+  title = "Aviso"
+) {
+
+  return new Promise(
+    resolve => {
+
+      const old =
+        document.getElementById(
+          "aceMessageModal"
+        );
+
+
+      if (old) {
+        old.remove();
+      }
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+
+      overlay.id =
+        "aceMessageModal";
+
+
+      overlay.innerHTML = `
+
+        <div
+          class="ace-message-modal-box"
+          role="dialog"
+          aria-modal="true"
+        >
+
+          <div
+            class="ace-message-modal-title"
+          >
+            ${esc(title)}
+          </div>
+
+          <div
+            class="ace-message-modal-text"
+          >
+            ${esc(
+              String(
+                message || ""
+              )
+            ).replace(
+              /\n/g,
+              "<br>"
+            )}
+          </div>
+
+          <div
+            class="ace-message-modal-actions"
+          >
+
+            <button
+              type="button"
+              class="ace-message-modal-ok"
+            >
+              OK
+            </button>
+
+          </div>
+
+        </div>
+
+      `;
+
+
+      if (
+        !document.getElementById(
+          "aceMessageModalStyle"
+        )
+      ) {
+
+        const style =
+          document.createElement(
+            "style"
+          );
+
+
+        style.id =
+          "aceMessageModalStyle";
+
+
+        style.textContent = `
+
+          #aceMessageModal{
+            position:fixed;
+            inset:0;
+            z-index:1000010;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+            background:rgba(0,35,70,.62);
+            backdrop-filter:blur(3px);
+            box-sizing:border-box;
+          }
+
+          #aceMessageModal .ace-message-modal-box{
+            width:min(520px,calc(100vw - 40px));
+            max-height:calc(100vh - 40px);
+            overflow:auto;
+            box-sizing:border-box;
+            padding:28px 30px 24px;
+            border-radius:18px;
+            background:#5da5e6;
+            color:#fff;
+            box-shadow:0 18px 50px rgba(0,0,0,.35);
+            text-align:center;
+            font-family:inherit;
+          }
+
+          #aceMessageModal .ace-message-modal-title{
+            margin-bottom:18px;
+            font-size:25px;
+            font-weight:900;
+            color:#fff;
+          }
+
+          #aceMessageModal .ace-message-modal-text{
+            font-size:17px;
+            line-height:1.55;
+            text-align:left;
+            color:#fff;
+          }
+
+          #aceMessageModal .ace-message-modal-actions{
+            display:flex;
+            justify-content:center;
+            margin-top:24px;
+          }
+
+          #aceMessageModal .ace-message-modal-ok{
+            min-width:110px;
+            padding:11px 22px;
+            border:1px solid #0756a0;
+            border-radius:9px;
+            background:#0756a0;
+            color:#fff;
+            font-size:16px;
+            font-weight:900;
+            cursor:pointer;
+          }
+
+          /* A mensagem preta antiga fica definitivamente escondida. */
+          #toast{
+            display:none !important;
+            visibility:hidden !important;
+            opacity:0 !important;
+            pointer-events:none !important;
+          }
+
+        `;
+
+
+        document.head.appendChild(
+          style
+        );
+
+      }
+
+
+      document.body.appendChild(
+        overlay
+      );
+
+
+      const close =
+        () => {
+
+          overlay.remove();
+          resolve(true);
+
+        };
+
+
+      overlay
+        .querySelector(
+          ".ace-message-modal-ok"
+        )
+        .addEventListener(
+          "click",
+          close
+        );
+
+    }
+  );
+
+}
+
+
 function toast(msg) {
 
-  const el = document.getElementById("toast");
-
-  if (!el) return;
-
-  el.textContent = msg;
-
-  el.classList.add("show");
-
-  clearTimeout(window._toast);
-
-  window._toast = setTimeout(
-    () => el.classList.remove("show"),
-    2400
+  // Substitui completamente o antigo toast preto inferior
+  // por uma janela central padronizada.
+  return showAceMessage(
+    msg,
+    "ℹ️ Aviso"
   );
 
 }
@@ -8946,8 +9136,20 @@ ${stockText}`,
 // ============================================================
 
 function closeRecentEditModal() {
-  document.getElementById("aceRecentEditModal")?.remove();
-  window.aceMovementHistoryEditingId = null;
+
+  // IMPORTANTE:
+  // Não limpar aqui os IDs do histórico.
+  //
+  // openRecentEditModal() chama esta função antes de abrir uma nova janela.
+  // Se apagarmos aceMovementHistoryEditingId nesse momento, a edição da
+  // Saída/Perda altera a tabela real, mas não atualiza a linha correspondente
+  // em historico_movimentacoes.
+  document
+    .getElementById(
+      "aceRecentEditModal"
+    )
+    ?.remove();
+
 }
 
 function openRecentEditModal(id) {
@@ -9467,7 +9669,9 @@ async function saveRecentEdit(id, isEntry) {
 
     await reloadFromSupabase();
 
-    toast("Lançamento corrigido com sucesso.");
+    showAceSuccess(
+      "Lançamento corrigido com sucesso!"
+    );
 
   } catch (err) {
 
