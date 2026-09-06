@@ -8318,9 +8318,9 @@ function showAceConfirm(message, title = "Atenção") {
 
     style.textContent = `
       #aceCustomModal {
-        position: fixed;
-        inset: 0;
-        z-index: 999999;
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 2147483646 !important;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -8330,6 +8330,8 @@ function showAceConfirm(message, title = "Atenção") {
       }
 
       #aceCustomModal .ace-modal-box {
+        position: relative !important;
+        z-index: 2147483647 !important;
         width: min(520px, calc(100vw - 40px));
         max-height: calc(100vh - 40px);
         overflow: auto;
