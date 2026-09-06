@@ -38512,3 +38512,1573 @@ function setupAceInventoryRealtime() {
   );
 
 })();
+
+
+// ============================================================
+// ACE - ORGANIZAÇÃO VISUAL DOS BOTÕES DE NAVEGAÇÃO
+// ============================================================
+// IMPORTANTE:
+// - O código original acima NÃO foi alterado.
+// - Este bloco apenas reorganiza VISUALMENTE os botões.
+// - Todas as páginas e funções continuam usando as abas originais.
+// - A abertura padrão no Mural ACE permanece sob controle do código original.
+// ============================================================
+
+(() => {
+
+  const ACE_GROUPED_NAV_STYLE_ID =
+    "aceGroupedNavigationOnlyStyles";
+
+
+  function aceGroupedNavNormalize(value) {
+
+    try {
+
+      if (
+        typeof normalizeAceText ===
+        "function"
+      ) {
+
+        return normalizeAceText(
+          value || ""
+        );
+
+      }
+
+    } catch {}
+
+
+    return String(
+      value || ""
+    )
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+
+  }
+
+
+  function aceGroupedNavCatalog() {
+
+    const result = {};
+
+
+    Array.from(
+      document.querySelectorAll(
+        ".tabs .tab[data-page]"
+      )
+    )
+      .forEach(
+        tab => {
+
+          const page =
+            String(
+              tab.dataset?.page || ""
+            );
+
+          const text =
+            aceGroupedNavNormalize(
+              `${tab.textContent || ""} ${page}`
+            );
+
+
+          let key = "";
+
+
+          if (text.includes("mural")) {
+            key = "mural";
+          } else if (text.includes("inicio")) {
+            key = "inicio";
+          } else if (text.includes("entrada")) {
+            key = "entrada";
+          } else if (
+            text.includes("saida") ||
+            text.includes("perda")
+          ) {
+            key = "saida";
+          } else if (text.includes("cesta")) {
+            key = "cestas";
+          } else if (text.includes("presenca")) {
+            key = "presenca";
+          } else if (text.includes("historico")) {
+            key = "historico";
+          } else if (text.includes("inventario")) {
+            key = "inventario";
+          } else if (text.includes("estoque")) {
+            key = "estoque";
+          } else if (text.includes("relatorio")) {
+            key = "relatorios";
+          } else if (text.includes("cadastro")) {
+            key = "cadastros";
+          }
+
+
+          if (
+            key &&
+            !result[key]
+          ) {
+
+            result[key] = {
+              key,
+              page,
+              tab
+            };
+
+          }
+
+        }
+      );
+
+
+    return result;
+
+  }
+
+
+  function aceGroupedNavIcon(key) {
+
+    const icons = {
+      mural: "📢",
+      inicio: "🏠",
+      entrada: "📦",
+      saida: "📤",
+      cestas: "🧺",
+      presenca: "👥",
+      historico: "📜",
+      estoque: "🏬",
+      inventario: "📊",
+      relatorios: "📑",
+      cadastros: "⚙️"
+    };
+
+
+    return icons[key] || "•";
+
+  }
+
+
+  function aceGroupedNavLabel(key) {
+
+    const labels = {
+      mural: "Mural ACE",
+      inicio: "Início",
+      entrada: "Entrada",
+      saida: "Saída/Perda",
+      cestas: "Cestas",
+      presenca: "Presença",
+      historico: "Histórico",
+      estoque: "Estoque",
+      inventario: "Inventário",
+      relatorios: "Relatórios",
+      cadastros: "Cadastros"
+    };
+
+
+    return labels[key] || key;
+
+  }
+
+
+  function aceGroupedNavOpenPage(page) {
+
+    if (!page) {
+      return;
+    }
+
+
+    if (
+      typeof activateAceOriginalTab ===
+      "function"
+    ) {
+
+      activateAceOriginalTab(
+        page
+      );
+
+      return;
+    }
+
+
+    const tab =
+      Array.from(
+        document.querySelectorAll(
+          ".tabs .tab[data-page]"
+        )
+      )
+        .find(
+          item =>
+            String(
+              item.dataset?.page || ""
+            ) ===
+            String(page)
+        );
+
+
+    tab?.click();
+
+  }
+
+
+  function aceGroupedNavEnsureStyles() {
+
+    if (
+      document.getElementById(
+        ACE_GROUPED_NAV_STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      ACE_GROUPED_NAV_STYLE_ID;
+
+
+    style.textContent = `
+
+      /* ======================================================
+         DESKTOP
+         ====================================================== */
+
+      @media(min-width:851px){
+
+        .tabs{
+          position:relative !important;
+          display:flex !important;
+          align-items:center !important;
+          gap:8px !important;
+          overflow:visible !important;
+          scrollbar-width:none !important;
+        }
+
+        .tabs::-webkit-scrollbar{
+          display:none !important;
+        }
+
+        .tabs > .ace-nav-grouped-hidden{
+          display:none !important;
+        }
+
+        .ace-grouped-nav-menu{
+          position:relative;
+          display:flex;
+          align-items:center;
+          flex:0 0 auto;
+        }
+
+        .ace-grouped-nav-menu-trigger{
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:7px;
+          min-height:54px;
+          padding:0 17px;
+          border:1px solid transparent;
+          border-radius:13px;
+          background:transparent;
+          color:#34495e;
+          font:inherit;
+          font-size:15px;
+          font-weight:900;
+          white-space:nowrap;
+          cursor:pointer;
+          transition:
+            background .16s ease,
+            color .16s ease,
+            border-color .16s ease,
+            box-shadow .16s ease;
+        }
+
+        .ace-grouped-nav-menu-trigger:hover{
+          background:#f1f7fc;
+          color:#0756a0;
+          border-color:#dbe9f4;
+        }
+
+        .ace-grouped-nav-menu.open
+        .ace-grouped-nav-menu-trigger,
+        .ace-grouped-nav-menu.active
+        .ace-grouped-nav-menu-trigger{
+          background:#eaf4fd;
+          color:#0756a0;
+          border-color:#d5e8f7;
+        }
+
+        .ace-grouped-nav-chevron{
+          display:inline-block;
+          font-size:12px;
+          line-height:1;
+          transition:transform .16s ease;
+        }
+
+        .ace-grouped-nav-menu.open
+        .ace-grouped-nav-chevron{
+          transform:rotate(180deg);
+        }
+
+        .ace-grouped-nav-dropdown{
+          position:absolute;
+          top:calc(100% + 8px);
+          left:0;
+          z-index:2147482000;
+          display:none;
+          min-width:225px;
+          padding:8px;
+          border:1px solid #dbe5ed;
+          border-radius:15px;
+          background:#fff;
+          box-shadow:0 18px 48px rgba(7,49,83,.20);
+        }
+
+        .ace-grouped-nav-menu.open
+        .ace-grouped-nav-dropdown{
+          display:block;
+        }
+
+        .ace-grouped-nav-dropdown button{
+          display:flex;
+          align-items:center;
+          gap:11px;
+          width:100%;
+          min-height:46px;
+          padding:9px 12px;
+          border:0;
+          border-radius:10px;
+          background:#fff;
+          color:#304a61;
+          text-align:left;
+          font:inherit;
+          font-size:14px;
+          font-weight:800;
+          cursor:pointer;
+        }
+
+        .ace-grouped-nav-dropdown button:hover,
+        .ace-grouped-nav-dropdown button.active{
+          background:#edf6fd;
+          color:#0756a0;
+        }
+
+        .ace-grouped-nav-item-icon{
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          width:28px;
+          min-width:28px;
+          font-size:19px;
+        }
+
+      }
+
+
+      /* ======================================================
+         CELULAR
+         ====================================================== */
+
+      @media(max-width:850px){
+
+        #aceMobileBottomNav{
+          display:grid !important;
+          grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+          align-items:stretch !important;
+          gap:2px !important;
+          overflow:visible !important;
+          padding-left:5px !important;
+          padding-right:5px !important;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item{
+          display:flex !important;
+          min-width:0 !important;
+          width:auto !important;
+          flex:1 1 auto !important;
+          padding-left:2px !important;
+          padding-right:2px !important;
+          touch-action:manipulation !important;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item .label{
+          font-size:9.7px !important;
+          text-overflow:clip !important;
+        }
+
+        #aceMobileBottomNav
+        .ace-bottom-item[data-ace-color="movimentacoes"]
+        .icon{
+          background:#eef7ff !important;
+        }
+
+        #aceMobileBottomNav
+        .ace-bottom-item[data-ace-color="mais"]
+        .icon{
+          background:#f1f3f5 !important;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item.active{
+          background:#eaf4fd !important;
+          color:#0756a0 !important;
+        }
+
+        #aceGroupedQuickBackdrop{
+          position:fixed;
+          inset:0;
+          z-index:1000600;
+          visibility:hidden;
+          background:rgba(5,32,55,.44);
+          opacity:0;
+          transition:
+            opacity .20s ease,
+            visibility .20s ease;
+        }
+
+        #aceGroupedQuickBackdrop.open{
+          visibility:visible;
+          opacity:1;
+        }
+
+        #aceGroupedQuickSheet{
+          position:fixed;
+          left:0;
+          right:0;
+          bottom:0;
+          z-index:1000650;
+          max-height:min(76dvh,650px);
+          overflow:auto;
+          box-sizing:border-box;
+          padding:
+            8px 15px
+            calc(94px + env(safe-area-inset-bottom));
+          border-radius:24px 24px 0 0;
+          background:#fff;
+          box-shadow:0 -22px 60px rgba(0,35,65,.28);
+          transform:translateY(105%);
+          transition:
+            transform .24s cubic-bezier(.2,.8,.2,1);
+        }
+
+        #aceGroupedQuickSheet.open{
+          transform:translateY(0);
+        }
+
+        .ace-grouped-quick-handle{
+          width:48px;
+          height:5px;
+          margin:4px auto 12px;
+          border-radius:99px;
+          background:#d6e0e8;
+        }
+
+        .ace-grouped-quick-head{
+          display:flex;
+          align-items:center;
+          gap:10px;
+          margin-bottom:12px;
+          padding:0 2px;
+        }
+
+        .ace-grouped-quick-title{
+          flex:1;
+          color:#073b68;
+          font-size:20px;
+          font-weight:900;
+        }
+
+        .ace-grouped-quick-close{
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          width:38px;
+          height:38px;
+          border:0;
+          border-radius:50%;
+          background:#eef4f8;
+          color:#29465e;
+          font-size:22px;
+          cursor:pointer;
+        }
+
+        .ace-grouped-quick-section{
+          margin-top:14px;
+        }
+
+        .ace-grouped-quick-section-title{
+          margin:0 0 7px;
+          padding:0 5px;
+          color:#7a8b99;
+          font-size:11px;
+          font-weight:900;
+          letter-spacing:.07em;
+          text-transform:uppercase;
+        }
+
+        .ace-grouped-quick-grid{
+          display:grid;
+          grid-template-columns:1fr;
+          gap:7px;
+        }
+
+        .ace-grouped-quick-item{
+          display:flex;
+          align-items:center;
+          gap:13px;
+          width:100%;
+          min-height:54px;
+          padding:10px 13px;
+          border:1px solid #e1e9ef;
+          border-radius:14px;
+          background:#fff;
+          color:#28445e;
+          text-align:left;
+          font:inherit;
+          font-size:15px;
+          font-weight:850;
+          cursor:pointer;
+        }
+
+        .ace-grouped-quick-item:active{
+          transform:scale(.99);
+          background:#edf6fd;
+        }
+
+        .ace-grouped-quick-item-icon{
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          width:36px;
+          height:36px;
+          min-width:36px;
+          border-radius:11px;
+          background:#f1f6fa;
+          font-size:21px;
+        }
+
+      }
+
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  function aceGroupedNavCloseDesktopMenus() {
+
+    document
+      .querySelectorAll(
+        ".ace-grouped-nav-menu.open"
+      )
+      .forEach(
+        group => {
+
+          group.classList.remove(
+            "open"
+          );
+
+          group
+            .querySelector(
+              ".ace-grouped-nav-menu-trigger"
+            )
+            ?.setAttribute(
+              "aria-expanded",
+              "false"
+            );
+
+        }
+      );
+
+  }
+
+
+  function aceGroupedNavMakeDesktopGroup(
+    groupKey,
+    title,
+    icon,
+    itemKeys,
+    catalog,
+    order
+  ) {
+
+    const wrapper =
+      document.createElement(
+        "div"
+      );
+
+
+    wrapper.className =
+      "ace-grouped-nav-menu";
+
+    wrapper.dataset.aceGroupedNav =
+      groupKey;
+
+    wrapper.style.order =
+      String(order);
+
+
+    const items =
+      itemKeys
+        .map(
+          key =>
+            catalog[key]
+        )
+        .filter(Boolean);
+
+
+    wrapper.innerHTML = `
+
+      <button
+        type="button"
+        class="ace-grouped-nav-menu-trigger"
+        aria-expanded="false"
+      >
+        <span>${icon}</span>
+        <span>${title}</span>
+        <span class="ace-grouped-nav-chevron">▾</span>
+      </button>
+
+      <div
+        class="ace-grouped-nav-dropdown"
+        role="menu"
+      >
+        ${
+          items
+            .map(
+              item => `
+                <button
+                  type="button"
+                  data-ace-grouped-page="${item.page}"
+                  role="menuitem"
+                >
+                  <span class="ace-grouped-nav-item-icon">
+                    ${aceGroupedNavIcon(item.key)}
+                  </span>
+                  <span>
+                    ${aceGroupedNavLabel(item.key)}
+                  </span>
+                </button>
+              `
+            )
+            .join("")
+        }
+      </div>
+
+    `;
+
+
+    const trigger =
+      wrapper.querySelector(
+        ".ace-grouped-nav-menu-trigger"
+      );
+
+
+    trigger.onclick =
+      event => {
+
+        event.stopPropagation();
+
+
+        const willOpen =
+          !wrapper.classList.contains(
+            "open"
+          );
+
+
+        aceGroupedNavCloseDesktopMenus();
+
+
+        wrapper.classList.toggle(
+          "open",
+          willOpen
+        );
+
+
+        trigger.setAttribute(
+          "aria-expanded",
+          willOpen
+            ? "true"
+            : "false"
+        );
+
+      };
+
+
+    wrapper
+      .querySelectorAll(
+        "[data-ace-grouped-page]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            event => {
+
+              event.stopPropagation();
+
+              aceGroupedNavCloseDesktopMenus();
+
+              aceGroupedNavOpenPage(
+                button.dataset
+                  .aceGroupedPage
+              );
+
+            };
+
+        }
+      );
+
+
+    return wrapper;
+
+  }
+
+
+  function aceGroupedNavSetupDesktop() {
+
+    aceGroupedNavEnsureStyles();
+
+
+    const tabs =
+      document.querySelector(
+        ".tabs"
+      );
+
+
+    if (!tabs) {
+      return;
+    }
+
+
+    const catalog =
+      aceGroupedNavCatalog();
+
+
+    [
+      "entrada",
+      "saida",
+      "cestas",
+      "historico",
+      "estoque",
+      "inventario",
+      "relatorios"
+    ]
+      .forEach(
+        key =>
+          catalog[key]
+            ?.tab
+            ?.classList.add(
+              "ace-nav-grouped-hidden"
+            )
+      );
+
+
+    const directOrder = {
+      mural: 10,
+      inicio: 20,
+      presenca: 40,
+      cadastros: 70
+    };
+
+
+    Object.entries(
+      directOrder
+    )
+      .forEach(
+        ([key, order]) => {
+
+          if (
+            catalog[key]?.tab
+          ) {
+
+            catalog[key].tab.style.order =
+              String(order);
+
+          }
+
+        }
+      );
+
+
+    if (
+      !tabs.querySelector(
+        '[data-ace-grouped-nav="movimentacoes"]'
+      )
+    ) {
+
+      tabs.appendChild(
+        aceGroupedNavMakeDesktopGroup(
+          "movimentacoes",
+          "Movimentações",
+          "🔄",
+          [
+            "entrada",
+            "saida",
+            "cestas"
+          ],
+          catalog,
+          30
+        )
+      );
+
+    }
+
+
+    if (
+      !tabs.querySelector(
+        '[data-ace-grouped-nav="consultas"]'
+      )
+    ) {
+
+      tabs.appendChild(
+        aceGroupedNavMakeDesktopGroup(
+          "consultas",
+          "Consultas",
+          "🗂️",
+          [
+            "historico",
+            "estoque"
+          ],
+          catalog,
+          50
+        )
+      );
+
+    }
+
+
+    if (
+      !tabs.querySelector(
+        '[data-ace-grouped-nav="gestao"]'
+      )
+    ) {
+
+      tabs.appendChild(
+        aceGroupedNavMakeDesktopGroup(
+          "gestao",
+          "Gestão",
+          "📈",
+          [
+            "inventario",
+            "relatorios"
+          ],
+          catalog,
+          60
+        )
+      );
+
+    }
+
+
+    aceGroupedNavUpdateState();
+
+  }
+
+
+  function aceGroupedNavEnsureQuickSheet() {
+
+    if (
+      !document.getElementById(
+        "aceGroupedQuickBackdrop"
+      )
+    ) {
+
+      const backdrop =
+        document.createElement(
+          "div"
+        );
+
+
+      backdrop.id =
+        "aceGroupedQuickBackdrop";
+
+      backdrop.onclick =
+        aceGroupedNavCloseQuickSheet;
+
+
+      document.body.appendChild(
+        backdrop
+      );
+
+    }
+
+
+    if (
+      !document.getElementById(
+        "aceGroupedQuickSheet"
+      )
+    ) {
+
+      const sheet =
+        document.createElement(
+          "section"
+        );
+
+
+      sheet.id =
+        "aceGroupedQuickSheet";
+
+
+      document.body.appendChild(
+        sheet
+      );
+
+    }
+
+  }
+
+
+  function aceGroupedNavCloseQuickSheet() {
+
+    document
+      .getElementById(
+        "aceGroupedQuickBackdrop"
+      )
+      ?.classList.remove(
+        "open"
+      );
+
+
+    document
+      .getElementById(
+        "aceGroupedQuickSheet"
+      )
+      ?.classList.remove(
+        "open"
+      );
+
+  }
+
+
+  function aceGroupedNavQuickItem(
+    catalog,
+    key
+  ) {
+
+    const item =
+      catalog[key];
+
+
+    if (!item?.page) {
+      return "";
+    }
+
+
+    return `
+
+      <button
+        type="button"
+        class="ace-grouped-quick-item"
+        data-ace-grouped-page="${item.page}"
+      >
+        <span class="ace-grouped-quick-item-icon">
+          ${aceGroupedNavIcon(key)}
+        </span>
+        <span>
+          ${aceGroupedNavLabel(key)}
+        </span>
+      </button>
+
+    `;
+
+  }
+
+
+  function aceGroupedNavOpenQuickSheet(
+    mode
+  ) {
+
+    aceGroupedNavEnsureStyles();
+    aceGroupedNavEnsureQuickSheet();
+
+
+    const catalog =
+      aceGroupedNavCatalog();
+
+    const sheet =
+      document.getElementById(
+        "aceGroupedQuickSheet"
+      );
+
+    const backdrop =
+      document.getElementById(
+        "aceGroupedQuickBackdrop"
+      );
+
+
+    if (
+      !sheet ||
+      !backdrop
+    ) {
+      return;
+    }
+
+
+    let title = "";
+    let body = "";
+
+
+    if (
+      mode ===
+      "movimentacoes"
+    ) {
+
+      title =
+        "Movimentações";
+
+      body = `
+
+        <div class="ace-grouped-quick-grid">
+          ${aceGroupedNavQuickItem(catalog, "entrada")}
+          ${aceGroupedNavQuickItem(catalog, "saida")}
+          ${aceGroupedNavQuickItem(catalog, "cestas")}
+        </div>
+
+      `;
+
+    } else {
+
+      title =
+        "Mais opções";
+
+      body = `
+
+        <div class="ace-grouped-quick-section">
+          <div class="ace-grouped-quick-section-title">
+            Consultas
+          </div>
+          <div class="ace-grouped-quick-grid">
+            ${aceGroupedNavQuickItem(catalog, "historico")}
+            ${aceGroupedNavQuickItem(catalog, "estoque")}
+          </div>
+        </div>
+
+        <div class="ace-grouped-quick-section">
+          <div class="ace-grouped-quick-section-title">
+            Gestão
+          </div>
+          <div class="ace-grouped-quick-grid">
+            ${aceGroupedNavQuickItem(catalog, "inventario")}
+            ${aceGroupedNavQuickItem(catalog, "relatorios")}
+          </div>
+        </div>
+
+        <div class="ace-grouped-quick-section">
+          <div class="ace-grouped-quick-section-title">
+            Sistema
+          </div>
+          <div class="ace-grouped-quick-grid">
+            ${aceGroupedNavQuickItem(catalog, "cadastros")}
+          </div>
+        </div>
+
+      `;
+
+    }
+
+
+    sheet.innerHTML = `
+
+      <div class="ace-grouped-quick-handle"></div>
+
+      <div class="ace-grouped-quick-head">
+        <div class="ace-grouped-quick-title">
+          ${title}
+        </div>
+
+        <button
+          type="button"
+          class="ace-grouped-quick-close"
+          aria-label="Fechar"
+        >
+          ×
+        </button>
+      </div>
+
+      ${body}
+
+    `;
+
+
+    sheet
+      .querySelector(
+        ".ace-grouped-quick-close"
+      )
+      ?.addEventListener(
+        "click",
+        aceGroupedNavCloseQuickSheet
+      );
+
+
+    sheet
+      .querySelectorAll(
+        "[data-ace-grouped-page]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            () => {
+
+              aceGroupedNavCloseQuickSheet();
+
+              aceGroupedNavOpenPage(
+                button.dataset
+                  .aceGroupedPage
+              );
+
+            };
+
+        }
+      );
+
+
+    backdrop.classList.add(
+      "open"
+    );
+
+    sheet.classList.add(
+      "open"
+    );
+
+  }
+
+
+  function aceGroupedNavBuildMobileBottom() {
+
+    aceGroupedNavEnsureStyles();
+
+
+    const bottom =
+      document.getElementById(
+        "aceMobileBottomNav"
+      );
+
+
+    if (!bottom) {
+      return;
+    }
+
+
+    const catalog =
+      aceGroupedNavCatalog();
+
+
+    const directButton =
+      (key, shortLabel, color) => {
+
+        const item =
+          catalog[key];
+
+
+        if (!item?.page) {
+          return "";
+        }
+
+
+        return `
+
+          <button
+            class="ace-bottom-item"
+            type="button"
+            data-ace-target="${item.page}"
+            data-ace-grouped-key="${key}"
+            data-ace-color="${color}"
+            title="${aceGroupedNavLabel(key)}"
+          >
+            <span class="icon">
+              ${aceGroupedNavIcon(key)}
+            </span>
+            <span class="label">
+              ${shortLabel}
+            </span>
+          </button>
+
+        `;
+
+      };
+
+
+    bottom.innerHTML = `
+
+      ${directButton("mural", "Mural", "mural")}
+      ${directButton("inicio", "Início", "inicio")}
+
+      <button
+        class="ace-bottom-item"
+        type="button"
+        data-ace-grouped-action="movimentacoes"
+        data-ace-color="movimentacoes"
+        title="Movimentações"
+      >
+        <span class="icon">🔄</span>
+        <span class="label">Movimentações</span>
+      </button>
+
+      ${directButton("presenca", "Presença", "presenca")}
+
+      <button
+        class="ace-bottom-item"
+        type="button"
+        data-ace-grouped-action="mais"
+        data-ace-color="mais"
+        title="Mais opções"
+      >
+        <span class="icon">☰</span>
+        <span class="label">Mais</span>
+      </button>
+
+    `;
+
+
+    bottom
+      .querySelectorAll(
+        "[data-ace-grouped-action]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            () =>
+              aceGroupedNavOpenQuickSheet(
+                button.dataset
+                  .aceGroupedAction
+              );
+
+        }
+      );
+
+  }
+
+
+  function aceGroupedNavUpdateState() {
+
+    const catalog =
+      aceGroupedNavCatalog();
+
+    const activeTab =
+      document.querySelector(
+        ".tabs .tab.active[data-page]"
+      );
+
+    const activePage =
+      String(
+        activeTab?.dataset?.page || ""
+      );
+
+
+    const directKeys = [
+      "mural",
+      "inicio",
+      "presenca"
+    ];
+
+
+    directKeys.forEach(
+      key => {
+
+        const button =
+          document.querySelector(
+            `#aceMobileBottomNav [data-ace-grouped-key="${key}"]`
+          );
+
+
+        button?.classList.toggle(
+          "active",
+          catalog[key]?.page ===
+            activePage
+        );
+
+      }
+    );
+
+
+    const movimentacoes =
+      [
+        "entrada",
+        "saida",
+        "cestas"
+      ]
+        .some(
+          key =>
+            catalog[key]?.page ===
+              activePage
+        );
+
+
+    const mais =
+      [
+        "historico",
+        "estoque",
+        "inventario",
+        "relatorios",
+        "cadastros"
+      ]
+        .some(
+          key =>
+            catalog[key]?.page ===
+              activePage
+        );
+
+
+    document
+      .querySelector(
+        '#aceMobileBottomNav [data-ace-grouped-action="movimentacoes"]'
+      )
+      ?.classList.toggle(
+        "active",
+        movimentacoes
+      );
+
+
+    document
+      .querySelector(
+        '#aceMobileBottomNav [data-ace-grouped-action="mais"]'
+      )
+      ?.classList.toggle(
+        "active",
+        mais
+      );
+
+
+    const desktopGroups = {
+      movimentacoes: [
+        "entrada",
+        "saida",
+        "cestas"
+      ],
+      consultas: [
+        "historico",
+        "estoque"
+      ],
+      gestao: [
+        "inventario",
+        "relatorios"
+      ]
+    };
+
+
+    Object.entries(
+      desktopGroups
+    )
+      .forEach(
+        ([groupName, keys]) => {
+
+          const group =
+            document.querySelector(
+              `.ace-grouped-nav-menu[data-ace-grouped-nav="${groupName}"]`
+            );
+
+
+          const active =
+            keys.some(
+              key =>
+                catalog[key]?.page ===
+                  activePage
+            );
+
+
+          group?.classList.toggle(
+            "active",
+            active
+          );
+
+
+          group
+            ?.querySelectorAll(
+              "[data-ace-grouped-page]"
+            )
+            .forEach(
+              button =>
+                button.classList.toggle(
+                  "active",
+                  button.dataset
+                    .aceGroupedPage ===
+                    activePage
+                )
+            );
+
+        }
+      );
+
+  }
+
+
+  // ----------------------------------------------------------
+  // SUBSTITUI SOMENTE A MONTAGEM VISUAL DA BARRA INFERIOR.
+  // As páginas e as funções continuam sendo as originais.
+  // ----------------------------------------------------------
+
+  if (
+    typeof buildAceScrollableBottomNavigation ===
+    "function"
+  ) {
+
+    buildAceScrollableBottomNavigation =
+      aceGroupedNavBuildMobileBottom;
+
+  }
+
+
+  if (
+    typeof updateAceMobileNavigationState ===
+    "function"
+  ) {
+
+    updateAceMobileNavigationState =
+      aceGroupedNavUpdateState;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // Após o layout móvel original montar cabeçalho/drawer,
+  // aplica apenas a nova organização dos botões.
+  // ----------------------------------------------------------
+
+  if (
+    typeof setupProfessionalMobileLayout ===
+    "function"
+  ) {
+
+    const aceOriginalProfessionalMobileLayout =
+      setupProfessionalMobileLayout;
+
+
+    setupProfessionalMobileLayout =
+      function() {
+
+        const result =
+          aceOriginalProfessionalMobileLayout
+            .apply(
+              this,
+              arguments
+            );
+
+
+        aceGroupedNavSetupDesktop();
+        aceGroupedNavBuildMobileBottom();
+
+
+        if (
+          typeof setupAceBottomNavigation ===
+          "function"
+        ) {
+
+          setupAceBottomNavigation();
+
+        }
+
+
+        aceGroupedNavUpdateState();
+
+
+        return result;
+
+      };
+
+  }
+
+
+  document.addEventListener(
+    "click",
+    event => {
+
+      if (
+        !event.target.closest(
+          ".ace-grouped-nav-menu"
+        )
+      ) {
+
+        aceGroupedNavCloseDesktopMenus();
+
+      }
+
+    }
+  );
+
+
+  window.addEventListener(
+    "resize",
+    () => {
+
+      aceGroupedNavCloseDesktopMenus();
+      aceGroupedNavCloseQuickSheet();
+
+    }
+  );
+
+
+  function aceGroupedNavApply() {
+
+    aceGroupedNavSetupDesktop();
+    aceGroupedNavBuildMobileBottom();
+
+
+    if (
+      typeof setupAceBottomNavigation ===
+      "function"
+    ) {
+
+      setupAceBottomNavigation();
+
+    }
+
+
+    aceGroupedNavUpdateState();
+
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+
+        [
+          0,
+          150,
+          500,
+          1000
+        ]
+          .forEach(
+            delay =>
+              setTimeout(
+                aceGroupedNavApply,
+                delay
+              )
+          );
+
+      }
+    );
+
+  } else {
+
+    [
+      0,
+      150,
+      500
+    ]
+      .forEach(
+        delay =>
+          setTimeout(
+            aceGroupedNavApply,
+            delay
+          )
+      );
+
+  }
+
+})();
+
