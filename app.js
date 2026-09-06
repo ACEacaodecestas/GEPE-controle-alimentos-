@@ -17567,7 +17567,10 @@ function ensureAceAdminOperationsPanel() {
 
 
   resetButton.onclick =
-    startAceAdminOperationalReset;
+    () =>
+      startAceAdminOperationalReset(
+        resetButton
+      );
 
 
   // Remove definitivamente o botão antigo, caso alguma versão
@@ -17950,7 +17953,7 @@ function showAceResetBackupChoice() {
 }
 
 
-async function startAceAdminOperationalReset() {
+async function startAceAdminOperationalReset(triggerButton = null) {
 
   if (
     !isAceOperationalAdmin()
@@ -18048,9 +18051,10 @@ async function startAceAdminOperationalReset() {
       "• zerar o estoque de alimentos\n" +
       "• apagar entradas, saídas e perdas\n" +
       "• apagar presenças\n" +
-      "• apagar cestas montadas e seus históricos operacionais\n" +
+      "• zerar estoque e movimentações de cestas\n" +
+      "• apagar cestas montadas/saídas, retiradas, ajustes e estornos operacionais\n" +
       "• apagar o histórico de movimentações\n\n" +
-      "Pessoas, alimentos, origens, motivos, usuários e modelos de cestas serão preservados.\n\n" +
+      "Pessoas, alimentos, origens, motivos, usuários, modelos de cestas e composição padrão serão preservados.\n\n" +
       "Para confirmar, digite exatamente:\n\nZERAR SISTEMA",
       "⚠️ Confirmação final"
     );
@@ -18074,8 +18078,12 @@ async function startAceAdminOperationalReset() {
 
 
   const button =
+    triggerButton ||
     document.getElementById(
       "aceAdminResetOperational"
+    ) ||
+    document.getElementById(
+      "resetBtn"
     );
 
 
@@ -21648,19 +21656,24 @@ function bindEvents() {
 
   const resetBtn = document.getElementById("resetBtn");
   if (resetBtn) {
-    resetBtn.addEventListener("click", async () => {
-      if (!(await showAceConfirm(
-          "Atualizar os dados deste aparelho com o conteúdo atual do Supabase?",
-          "Atualizar dados"
-        ))) return;
 
-      try {
-        await reloadFromSupabase(true);
-      } catch (error) {
-        console.error(error);
-        toast("Não foi possível atualizar os dados.");
+    // O botão antigo "Restaurar padrão" agora é o botão oficial
+    // de ZERAR AS MOVIMENTAÇÕES. Ele NÃO restaura padrão, NÃO atualiza
+    // o aparelho e NÃO apaga cadastros.
+    resetBtn.textContent =
+      "🗑️ Zerar movimentações";
+
+    resetBtn.title =
+      "Zera entradas, saídas, perdas, presenças, estoque e operações de cestas, preservando os cadastros.";
+
+    resetBtn.addEventListener(
+      "click",
+      async () => {
+        await startAceAdminOperationalReset(
+          resetBtn
+        );
       }
-    });
+    );
   }
 
 }
