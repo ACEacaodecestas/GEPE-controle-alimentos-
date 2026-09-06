@@ -41069,7 +41069,7 @@ window.aceBuildStatisticsReportHtml =
     movements: {
       label: "🔄 Movimentações",
       items: [
-        { target: "entrada", label: "📦 Entrada" },
+        { target: "entrada", label: "➕ Entrada" },
         { target: "saida", label: "📤 Saída/Perda" },
         { target: "cestas", label: "🧺 Cestas" }
       ]
