@@ -14267,6 +14267,16 @@ function renderReport() {
 
     </div>
 
+    ${
+      typeof window.aceBuildStatisticsReportHtml === "function"
+        ? window.aceBuildStatisticsReportHtml({
+            entries,
+            movements: mov,
+            baskets: basketReportRows
+          })
+        : ""
+    }
+
     <h3>Entradas</h3>
 
     ${
@@ -35596,6 +35606,9 @@ function renderAll() {
 
   renderHistory();
 
+  // Mantém a aba Estatísticas sincronizada com os dados atuais.
+  renderAceStatistics();
+
   // Histórico específico da aba Saída/Perda.
   renderMovementDayHistory();
 
@@ -35706,6 +35719,9 @@ async function initApp() {
 
     // Inventário físico exclusivo do galpão Água Fria.
     setupAceInventoryPage();
+
+    // Estatísticas gerenciais (somente nova aba/visualização).
+    setupAceStatisticsPage();
 
     await refreshAceInventoryState(false);
 
@@ -38513,6 +38529,2529 @@ function setupAceInventoryRealtime() {
 
 })();
 
+
+// ============================================================
+// ACE - ESTATÍSTICAS GERENCIAIS
+// ============================================================
+// Módulo acrescentado sem alterar banco, movimentações, login,
+// presença, inventário, backup ou demais regras do aplicativo.
+// Cria apenas a aba Estatísticas, seus gráficos e o resumo
+// estatístico incluído no Relatório Geral.
+// ============================================================
+
+function aceStatsEsc(value) {
+  try {
+    if (typeof esc === "function") return esc(value ?? "");
+  } catch {}
+
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+function aceStatsFmt(value) {
+  const number = Number(value || 0);
+
+  try {
+    if (typeof fmt === "function") return fmt(number);
+  } catch {}
+
+  return new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 0
+  }).format(number);
+}
+
+
+function aceStatsNormalize(value) {
+  try {
+    if (typeof normalizeAceText === "function") {
+      return normalizeAceText(value || "");
+    }
+  } catch {}
+
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+
+function aceStatsName(list, id, fallback = "—") {
+  const source = Array.isArray(list) ? list : [];
+
+  const found = source.find(item =>
+    String(item?.id ?? "") === String(id ?? "")
+  );
+
+  if (found) {
+    return String(
+      found.name ??
+      found.nome ??
+      found.label ??
+      id ??
+      fallback
+    );
+  }
+
+  const raw = String(id ?? "").trim();
+
+  return raw || fallback;
+}
+
+
+function aceStatsSum(rows, valueFn) {
+  return (Array.isArray(rows) ? rows : []).reduce(
+    (total, row) =>
+      total +
+      Number(
+        valueFn
+          ? valueFn(row)
+          : row?.qty || 0
+      ),
+    0
+  );
+}
+
+
+function aceStatsAggregate(rows, labelFn, valueFn) {
+  const map = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach(row => {
+    const label = String(
+      labelFn(row) || "Não informado"
+    ).trim() || "Não informado";
+
+    const value = Number(
+      valueFn
+        ? valueFn(row)
+        : row?.qty || 0
+    );
+
+    map.set(
+      label,
+      Number(map.get(label) || 0) + value
+    );
+  });
+
+  return [...map.entries()]
+    .map(([label, value]) => ({
+      label,
+      value
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+
+function aceStatsIsoToday() {
+  try {
+    if (typeof isoToday === "function") return isoToday();
+  } catch {}
+
+  const now = new Date();
+  const local = new Date(
+    now.getTime() -
+    now.getTimezoneOffset() * 60000
+  );
+
+  return local.toISOString().slice(0, 10);
+}
+
+
+function aceStatsShiftDate(isoDate, days) {
+  const date = new Date(`${isoDate}T12:00:00`);
+  date.setDate(date.getDate() + Number(days || 0));
+
+  const local = new Date(
+    date.getTime() -
+    date.getTimezoneOffset() * 60000
+  );
+
+  return local.toISOString().slice(0, 10);
+}
+
+
+function aceStatsMonthStart(isoDate) {
+  return `${String(isoDate || "").slice(0, 7)}-01`;
+}
+
+
+function aceStatsYearStart(isoDate) {
+  return `${String(isoDate || "").slice(0, 4)}-01-01`;
+}
+
+
+function aceStatsEnsureStyles() {
+  if (
+    document.getElementById(
+      "aceStatisticsStyles"
+    )
+  ) {
+    return;
+  }
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "aceStatisticsStyles";
+
+  style.textContent = `
+    #estatisticas .ace-stats-shell{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    #estatisticas .ace-stats-filter-card{
+      display:grid;
+      grid-template-columns:1.15fr 1fr 1fr 1fr 1fr auto;
+      gap:10px;
+      align-items:end;
+      padding:16px;
+      border:1px solid #d9e6f0;
+      border-radius:16px;
+      background:#f7fbfe;
+      box-shadow:0 8px 24px rgba(17,68,104,.06);
+    }
+
+    #estatisticas .ace-stats-filter-card label{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      color:#34536d;
+      font-size:12px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+    }
+
+    #estatisticas .ace-stats-filter-card input,
+    #estatisticas .ace-stats-filter-card select{
+      width:100%;
+      min-height:42px;
+      box-sizing:border-box;
+      border:1px solid #cbd9e5;
+      border-radius:10px;
+      background:#fff;
+      color:#173a55;
+      padding:8px 10px;
+      font:inherit;
+      font-size:14px;
+      font-weight:700;
+      outline:none;
+    }
+
+    #estatisticas .ace-stats-filter-card input:focus,
+    #estatisticas .ace-stats-filter-card select:focus{
+      border-color:#5a9fd5;
+      box-shadow:0 0 0 3px rgba(62,139,199,.12);
+    }
+
+    #estatisticas .ace-stats-refresh{
+      min-height:42px;
+      padding:8px 14px;
+      border:0;
+      border-radius:10px;
+      background:#0b5fa5;
+      color:#fff;
+      font:inherit;
+      font-size:14px;
+      font-weight:900;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    #estatisticas .ace-stats-filter-help{
+      grid-column:1/-1;
+      margin-top:-2px;
+      color:#6b7f90;
+      font-size:12px;
+      line-height:1.4;
+    }
+
+    #estatisticas .ace-stats-cards{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+    }
+
+    #estatisticas .ace-stats-kpi{
+      position:relative;
+      overflow:hidden;
+      min-height:104px;
+      padding:16px;
+      border:1px solid #dce7ef;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 9px 26px rgba(24,64,94,.07);
+    }
+
+    #estatisticas .ace-stats-kpi::after{
+      content:"";
+      position:absolute;
+      right:-22px;
+      bottom:-30px;
+      width:88px;
+      height:88px;
+      border-radius:50%;
+      background:rgba(66,139,193,.08);
+    }
+
+    #estatisticas .ace-stats-kpi .label{
+      position:relative;
+      z-index:1;
+      display:block;
+      margin-bottom:8px;
+      color:#61778a;
+      font-size:13px;
+      font-weight:850;
+    }
+
+    #estatisticas .ace-stats-kpi strong{
+      position:relative;
+      z-index:1;
+      display:block;
+      color:#0b426d;
+      font-size:29px;
+      line-height:1.05;
+      font-weight:950;
+    }
+
+    #estatisticas .ace-stats-kpi small{
+      position:relative;
+      z-index:1;
+      display:block;
+      margin-top:6px;
+      color:#7a8c9c;
+      font-size:11px;
+      font-weight:700;
+    }
+
+    #estatisticas .ace-stats-section{
+      padding:16px;
+      border:1px solid #dce7ef;
+      border-radius:18px;
+      background:#fff;
+      box-shadow:0 9px 28px rgba(21,61,91,.06);
+    }
+
+    #estatisticas .ace-stats-section-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    #estatisticas .ace-stats-section-head h3{
+      margin:0;
+      color:#0a466f;
+      font-size:20px;
+      font-weight:950;
+    }
+
+    #estatisticas .ace-stats-section-head p{
+      margin:4px 0 0;
+      color:#738698;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    #estatisticas .ace-stats-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+
+    #estatisticas .ace-stats-chart-card{
+      min-width:0;
+      padding:14px;
+      border:1px solid #e4edf3;
+      border-radius:14px;
+      background:#fbfdff;
+      break-inside:avoid;
+    }
+
+    #estatisticas .ace-stats-chart-title{
+      margin-bottom:12px;
+      color:#294c66;
+      font-size:14px;
+      font-weight:900;
+    }
+
+    #estatisticas .ace-stats-bar-list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    #estatisticas .ace-stats-bar-row{
+      display:grid;
+      grid-template-columns:minmax(90px,150px) minmax(0,1fr) auto;
+      gap:9px;
+      align-items:center;
+    }
+
+    #estatisticas .ace-stats-bar-label{
+      overflow:hidden;
+      color:#3e566b;
+      font-size:12px;
+      font-weight:800;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    #estatisticas .ace-stats-bar-track{
+      height:11px;
+      overflow:hidden;
+      border-radius:999px;
+      background:#eaf0f5;
+    }
+
+    #estatisticas .ace-stats-bar-fill{
+      height:100%;
+      min-width:3px;
+      border-radius:999px;
+      background:linear-gradient(90deg,#0b5fa5,#4c9ed6);
+    }
+
+    #estatisticas .ace-stats-bar-value{
+      min-width:46px;
+      color:#0b4b7a;
+      font-size:12px;
+      font-weight:950;
+      text-align:right;
+    }
+
+    #estatisticas .ace-stats-empty{
+      padding:24px 12px;
+      border:1px dashed #cad7e2;
+      border-radius:12px;
+      color:#728697;
+      text-align:center;
+      font-size:13px;
+      font-weight:750;
+    }
+
+    #estatisticas .ace-stats-highlight{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px;
+      margin-top:12px;
+    }
+
+    #estatisticas .ace-stats-highlight-item{
+      padding:11px 12px;
+      border-radius:12px;
+      background:#eef6fc;
+      color:#1f4f70;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    #estatisticas .ace-stats-highlight-item strong{
+      display:block;
+      margin-top:3px;
+      color:#093e65;
+      font-size:14px;
+      font-weight:950;
+    }
+
+    #estatisticas .ace-stats-donut-wrap{
+      display:grid;
+      grid-template-columns:145px minmax(0,1fr);
+      gap:18px;
+      align-items:center;
+    }
+
+    #estatisticas .ace-stats-donut{
+      width:132px;
+      height:132px;
+      margin:auto;
+      border-radius:50%;
+      position:relative;
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+    }
+
+    #estatisticas .ace-stats-donut::after{
+      content:"";
+      position:absolute;
+      inset:29px;
+      border-radius:50%;
+      background:#fbfdff;
+      box-shadow:0 0 0 1px rgba(0,0,0,.04);
+    }
+
+    #estatisticas .ace-stats-legend{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    #estatisticas .ace-stats-legend-item{
+      display:grid;
+      grid-template-columns:10px minmax(0,1fr) auto;
+      gap:8px;
+      align-items:center;
+      color:#40566a;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    #estatisticas .ace-stats-legend-dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+    }
+
+    #estatisticas .ace-stats-evolution{
+      width:100%;
+      overflow-x:auto;
+    }
+
+    #estatisticas .ace-stats-evolution svg{
+      display:block;
+      width:100%;
+      min-width:620px;
+      height:auto;
+    }
+
+    #estatisticas .ace-stats-evolution-legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      margin:0 0 10px;
+      color:#5a7185;
+      font-size:12px;
+      font-weight:850;
+    }
+
+    #estatisticas .ace-stats-evolution-legend span{
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+    }
+
+    #estatisticas .ace-stats-evolution-legend i{
+      display:inline-block;
+      width:11px;
+      height:4px;
+      border-radius:999px;
+    }
+
+    @media(max-width:1100px){
+      #estatisticas .ace-stats-filter-card{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+      }
+
+      #estatisticas .ace-stats-refresh{
+        width:100%;
+      }
+    }
+
+    @media(max-width:850px){
+      #estatisticas .ace-stats-shell{
+        gap:13px;
+      }
+
+      #estatisticas .ace-stats-filter-card{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        padding:13px;
+      }
+
+      #estatisticas .ace-stats-filter-help{
+        grid-column:1/-1;
+      }
+
+      #estatisticas .ace-stats-cards{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+
+      #estatisticas .ace-stats-grid{
+        grid-template-columns:1fr;
+      }
+
+      #estatisticas .ace-stats-highlight{
+        grid-template-columns:1fr;
+      }
+
+      #estatisticas .ace-stats-donut-wrap{
+        grid-template-columns:1fr;
+      }
+    }
+
+    @media(max-width:520px){
+      #estatisticas .ace-stats-filter-card{
+        grid-template-columns:1fr;
+      }
+
+      #estatisticas .ace-stats-cards{
+        gap:8px;
+      }
+
+      #estatisticas .ace-stats-kpi{
+        min-height:92px;
+        padding:13px;
+      }
+
+      #estatisticas .ace-stats-kpi strong{
+        font-size:24px;
+      }
+
+      #estatisticas .ace-stats-bar-row{
+        grid-template-columns:minmax(76px,115px) minmax(0,1fr) auto;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+function setupAceStatisticsPage() {
+  aceStatsEnsureStyles();
+
+  const tabs =
+    document.querySelector(".tabs");
+
+  if (!tabs) {
+    return;
+  }
+
+  let tab =
+    tabs.querySelector(
+      '[data-page="estatisticas"]'
+    );
+
+  if (!tab) {
+    tab =
+      document.createElement("button");
+
+    tab.type =
+      "button";
+
+    tab.className =
+      "tab";
+
+    tab.dataset.page =
+      "estatisticas";
+
+    tab.innerHTML =
+      "📊 Estatísticas";
+
+    const historyTab =
+      tabs.querySelector(
+        '[data-page="historico"]'
+      );
+
+    const stockTab =
+      [...tabs.querySelectorAll(".tab")]
+        .find(item =>
+          aceStatsNormalize(
+            item.textContent
+          ).includes("estoque")
+        );
+
+    if (
+      historyTab &&
+      historyTab.nextSibling
+    ) {
+      tabs.insertBefore(
+        tab,
+        historyTab.nextSibling
+      );
+    } else if (stockTab) {
+      tabs.insertBefore(
+        tab,
+        stockTab
+      );
+    } else {
+      tabs.appendChild(tab);
+    }
+  }
+
+  let page =
+    document.getElementById(
+      "estatisticas"
+    );
+
+  if (!page) {
+    page =
+      document.createElement("section");
+
+    page.id =
+      "estatisticas";
+
+    page.className =
+      "page";
+
+    const referencePage =
+      document.getElementById(
+        "estoque"
+      );
+
+    if (referencePage?.parentElement) {
+      referencePage.parentElement.insertBefore(
+        page,
+        referencePage
+      );
+    } else {
+      document
+        .querySelector(".page")
+        ?.parentElement
+        ?.appendChild(page);
+    }
+  }
+
+  if (
+    page.dataset
+      .aceStatisticsReady !==
+    "1"
+  ) {
+    page.dataset.aceStatisticsReady =
+      "1";
+
+    page.innerHTML = `
+      <div class="panel">
+        <div class="ace-stats-shell">
+
+          <div>
+            <h2 style="margin-bottom:4px;">📊 Estatísticas</h2>
+            <div style="color:#6d8192;font-size:14px;">
+              Indicadores gerenciais de entradas, saídas, perdas e cestas.
+            </div>
+          </div>
+
+          <div class="ace-stats-filter-card">
+
+            <label>
+              Período
+              <select id="aceStatsPeriod">
+                <option value="30">Últimos 30 dias</option>
+                <option value="7">Últimos 7 dias</option>
+                <option value="month">Este mês</option>
+                <option value="year">Este ano</option>
+                <option value="all">Todo o período</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </label>
+
+            <label>
+              Data inicial
+              <input id="aceStatsStart" type="date">
+            </label>
+
+            <label>
+              Data final
+              <input id="aceStatsEnd" type="date">
+            </label>
+
+            <label>
+              Origem
+              <select id="aceStatsOrigin">
+                <option value="">Todas as origens</option>
+              </select>
+            </label>
+
+            <label>
+              Destino das cestas
+              <select id="aceStatsDestination">
+                <option value="">Todos os destinos</option>
+              </select>
+            </label>
+
+            <button
+              id="aceStatsRefresh"
+              class="ace-stats-refresh"
+              type="button"
+            >
+              🔄 Atualizar
+            </button>
+
+            <div class="ace-stats-filter-help">
+              O filtro de origem vale para entradas, saídas, perdas e cestas.
+              O filtro de destino atua apenas nas estatísticas de cestas.
+            </div>
+
+          </div>
+
+          <div id="aceStatisticsBody"></div>
+
+        </div>
+      </div>
+    `;
+
+    const period =
+      document.getElementById(
+        "aceStatsPeriod"
+      );
+
+    const start =
+      document.getElementById(
+        "aceStatsStart"
+      );
+
+    const end =
+      document.getElementById(
+        "aceStatsEnd"
+      );
+
+    const origin =
+      document.getElementById(
+        "aceStatsOrigin"
+      );
+
+    const destination =
+      document.getElementById(
+        "aceStatsDestination"
+      );
+
+    const refresh =
+      document.getElementById(
+        "aceStatsRefresh"
+      );
+
+    period?.addEventListener(
+      "change",
+      () => {
+        aceStatsApplyPeriodPreset();
+        renderAceStatistics();
+      }
+    );
+
+    [start, end].forEach(input => {
+      input?.addEventListener(
+        "change",
+        () => {
+          if (period) {
+            period.value =
+              "custom";
+          }
+
+          renderAceStatistics();
+        }
+      );
+    });
+
+    origin?.addEventListener(
+      "change",
+      renderAceStatistics
+    );
+
+    destination?.addEventListener(
+      "change",
+      renderAceStatistics
+    );
+
+    refresh?.addEventListener(
+      "click",
+      renderAceStatistics
+    );
+
+    aceStatsApplyPeriodPreset();
+  }
+
+  renderAceStatistics();
+}
+
+
+function aceStatsApplyPeriodPreset() {
+  const period =
+    document.getElementById(
+      "aceStatsPeriod"
+    );
+
+  const start =
+    document.getElementById(
+      "aceStatsStart"
+    );
+
+  const end =
+    document.getElementById(
+      "aceStatsEnd"
+    );
+
+  if (
+    !period ||
+    !start ||
+    !end
+  ) {
+    return;
+  }
+
+  const today =
+    aceStatsIsoToday();
+
+  end.value =
+    today;
+
+  switch (period.value) {
+    case "7":
+      start.value =
+        aceStatsShiftDate(
+          today,
+          -6
+        );
+      break;
+
+    case "30":
+      start.value =
+        aceStatsShiftDate(
+          today,
+          -29
+        );
+      break;
+
+    case "month":
+      start.value =
+        aceStatsMonthStart(
+          today
+        );
+      break;
+
+    case "year":
+      start.value =
+        aceStatsYearStart(
+          today
+        );
+      break;
+
+    case "all":
+      start.value =
+        "";
+      end.value =
+        "";
+      break;
+
+    case "custom":
+    default:
+      break;
+  }
+}
+
+
+function aceStatsRefreshFilterOptions() {
+  const originSelect =
+    document.getElementById(
+      "aceStatsOrigin"
+    );
+
+  const destinationSelect =
+    document.getElementById(
+      "aceStatsDestination"
+    );
+
+  if (originSelect) {
+    const selected =
+      originSelect.value;
+
+    const options =
+      (db?.origins || [])
+        .map(item => ({
+          id:
+            item?.id,
+          name:
+            item?.name ??
+            item?.nome ??
+            item?.id
+        }))
+        .filter(item =>
+          item.id !== undefined &&
+          item.id !== null
+        )
+        .sort((a, b) =>
+          String(a.name)
+            .localeCompare(
+              String(b.name),
+              "pt-BR"
+            )
+        );
+
+    originSelect.innerHTML = `
+      <option value="">Todas as origens</option>
+      ${options.map(item => `
+        <option value="${aceStatsEsc(item.id)}">
+          ${aceStatsEsc(item.name)}
+        </option>
+      `).join("")}
+    `;
+
+    originSelect.value =
+      options.some(item =>
+        String(item.id) ===
+        String(selected)
+      )
+        ? selected
+        : "";
+  }
+
+  if (destinationSelect) {
+    const selected =
+      destinationSelect.value;
+
+    const destinations =
+      [...new Set(
+        (db?.basketOutputs || [])
+          .map(row =>
+            String(
+              row?.destination || ""
+            ).trim()
+          )
+          .filter(Boolean)
+      )]
+        .sort((a, b) =>
+          a.localeCompare(
+            b,
+            "pt-BR"
+          )
+        );
+
+    destinationSelect.innerHTML = `
+      <option value="">Todos os destinos</option>
+      ${destinations.map(name => `
+        <option value="${aceStatsEsc(name)}">
+          ${aceStatsEsc(name)}
+        </option>
+      `).join("")}
+    `;
+
+    destinationSelect.value =
+      destinations.includes(
+        selected
+      )
+        ? selected
+        : "";
+  }
+}
+
+
+function aceStatsCurrentFilters() {
+  return {
+    start:
+      document.getElementById(
+        "aceStatsStart"
+      )?.value || "",
+    end:
+      document.getElementById(
+        "aceStatsEnd"
+      )?.value || "",
+    origin:
+      document.getElementById(
+        "aceStatsOrigin"
+      )?.value || "",
+    destination:
+      document.getElementById(
+        "aceStatsDestination"
+      )?.value || ""
+  };
+}
+
+
+function aceStatsRowMatches(
+  row,
+  filters,
+  {
+    destination = false
+  } = {}
+) {
+  if (!row) {
+    return false;
+  }
+
+  if (
+    filters.start &&
+    String(row.date || "") <
+      filters.start
+  ) {
+    return false;
+  }
+
+  if (
+    filters.end &&
+    String(row.date || "") >
+      filters.end
+  ) {
+    return false;
+  }
+
+  if (
+    filters.origin &&
+    String(
+      row.originId ??
+      row.origin_id ??
+      ""
+    ) !==
+      String(filters.origin)
+  ) {
+    return false;
+  }
+
+  if (
+    destination &&
+    filters.destination &&
+    String(
+      row.destination || ""
+    ) !==
+      String(filters.destination)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+
+function aceStatsBarChart(
+  title,
+  items,
+  {
+    limit = 7
+  } = {}
+) {
+  const data =
+    (Array.isArray(items) ? items : [])
+      .filter(item =>
+        Number(item?.value || 0) >
+        0
+      )
+      .slice(0, limit);
+
+  if (!data.length) {
+    return `
+      <div class="ace-stats-chart-card">
+        <div class="ace-stats-chart-title">
+          ${aceStatsEsc(title)}
+        </div>
+        <div class="ace-stats-empty">
+          Sem dados no período selecionado.
+        </div>
+      </div>
+    `;
+  }
+
+  const max =
+    Math.max(
+      1,
+      ...data.map(item =>
+        Number(item.value || 0)
+      )
+    );
+
+  return `
+    <div class="ace-stats-chart-card">
+      <div class="ace-stats-chart-title">
+        ${aceStatsEsc(title)}
+      </div>
+
+      <div class="ace-stats-bar-list">
+        ${data.map(item => `
+          <div class="ace-stats-bar-row">
+            <div
+              class="ace-stats-bar-label"
+              title="${aceStatsEsc(item.label)}"
+            >
+              ${aceStatsEsc(item.label)}
+            </div>
+
+            <div class="ace-stats-bar-track">
+              <div
+                class="ace-stats-bar-fill"
+                style="
+                  width:${Math.max(
+                    3,
+                    Math.round(
+                      Number(item.value || 0) /
+                      max *
+                      100
+                    )
+                  )}%;
+                "
+              ></div>
+            </div>
+
+            <div class="ace-stats-bar-value">
+              ${aceStatsFmt(item.value)}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+
+function aceStatsDonutChart(
+  title,
+  items
+) {
+  const colors = [
+    "#0b5fa5",
+    "#5aa0d2",
+    "#f2a93b",
+    "#e06b6b",
+    "#7c6fd0",
+    "#57a77a",
+    "#8b98a5"
+  ];
+
+  let data =
+    (Array.isArray(items) ? items : [])
+      .filter(item =>
+        Number(item?.value || 0) >
+        0
+      );
+
+  if (data.length > 6) {
+    const first =
+      data.slice(0, 5);
+
+    const others =
+      data.slice(5)
+        .reduce(
+          (sum, item) =>
+            sum +
+            Number(item.value || 0),
+          0
+        );
+
+    data = [
+      ...first,
+      {
+        label:
+          "Outros",
+        value:
+          others
+      }
+    ];
+  }
+
+  if (!data.length) {
+    return aceStatsBarChart(
+      title,
+      []
+    );
+  }
+
+  const total =
+    data.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.value || 0),
+      0
+    );
+
+  let cursor =
+    0;
+
+  const segments =
+    data.map(
+      (item, index) => {
+        const start =
+          cursor;
+
+        const end =
+          cursor +
+          Number(item.value || 0) /
+          total *
+          100;
+
+        cursor =
+          end;
+
+        return `${
+          colors[index % colors.length]
+        } ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+      }
+    );
+
+  return `
+    <div class="ace-stats-chart-card">
+      <div class="ace-stats-chart-title">
+        ${aceStatsEsc(title)}
+      </div>
+
+      <div class="ace-stats-donut-wrap">
+
+        <div
+          class="ace-stats-donut"
+          style="
+            background:
+              conic-gradient(
+                ${segments.join(",")}
+              );
+          "
+          title="Total: ${aceStatsFmt(total)}"
+        ></div>
+
+        <div class="ace-stats-legend">
+          ${data.map((item, index) => `
+            <div class="ace-stats-legend-item">
+              <span
+                class="ace-stats-legend-dot"
+                style="
+                  background:${
+                    colors[
+                      index %
+                      colors.length
+                    ]
+                  };
+                "
+              ></span>
+
+              <span>
+                ${aceStatsEsc(item.label)}
+              </span>
+
+              <strong>
+                ${(
+                  Number(item.value || 0) /
+                  total *
+                  100
+                ).toFixed(1)}%
+              </strong>
+            </div>
+          `).join("")}
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+
+function aceStatsEvolutionChart(
+  entries,
+  movements,
+  baskets
+) {
+  const monthMap =
+    new Map();
+
+  const ensureMonth =
+    month => {
+      if (!month) return null;
+
+      if (!monthMap.has(month)) {
+        monthMap.set(
+          month,
+          {
+            entries: 0,
+            outputs: 0,
+            losses: 0,
+            baskets: 0
+          }
+        );
+      }
+
+      return monthMap.get(month);
+    };
+
+  (entries || []).forEach(row => {
+    const month =
+      String(row.date || "")
+        .slice(0, 7);
+
+    const item =
+      ensureMonth(month);
+
+    if (item) {
+      item.entries +=
+        Number(row.qty || 0);
+    }
+  });
+
+  (movements || []).forEach(row => {
+    const month =
+      String(row.date || "")
+        .slice(0, 7);
+
+    const item =
+      ensureMonth(month);
+
+    if (!item) return;
+
+    if (row.type === "perda") {
+      item.losses +=
+        Number(row.qty || 0);
+    } else if (row.type === "saida") {
+      item.outputs +=
+        Number(row.qty || 0);
+    }
+  });
+
+  (baskets || []).forEach(row => {
+    const month =
+      String(row.date || "")
+        .slice(0, 7);
+
+    const item =
+      ensureMonth(month);
+
+    if (item) {
+      item.baskets +=
+        Number(
+          row.basketQty || 0
+        );
+    }
+  });
+
+  const months =
+    [...monthMap.keys()]
+      .filter(Boolean)
+      .sort()
+      .slice(-6);
+
+  if (!months.length) {
+    return `
+      <div class="ace-stats-chart-card">
+        <div class="ace-stats-chart-title">
+          Evolução mensal
+        </div>
+        <div class="ace-stats-empty">
+          Sem dados no período selecionado.
+        </div>
+      </div>
+    `;
+  }
+
+  const series = [
+    {
+      key:
+        "entries",
+      label:
+        "Entradas",
+      color:
+        "#0b5fa5"
+    },
+    {
+      key:
+        "outputs",
+      label:
+        "Saídas",
+      color:
+        "#4b98ce"
+    },
+    {
+      key:
+        "losses",
+      label:
+        "Perdas",
+      color:
+        "#d65f5f"
+    },
+    {
+      key:
+        "baskets",
+      label:
+        "Cestas",
+      color:
+        "#7c6fd0"
+    }
+  ];
+
+  const width =
+    760;
+
+  const height =
+    285;
+
+  const left =
+    50;
+
+  const right =
+    18;
+
+  const top =
+    22;
+
+  const bottom =
+    42;
+
+  const innerWidth =
+    width - left - right;
+
+  const innerHeight =
+    height - top - bottom;
+
+  const values =
+    months.flatMap(month =>
+      series.map(item =>
+        Number(
+          monthMap.get(month)?.[
+            item.key
+          ] || 0
+        )
+      )
+    );
+
+  const max =
+    Math.max(
+      1,
+      ...values
+    );
+
+  const xFor =
+    index =>
+      months.length === 1
+        ? left + innerWidth / 2
+        : left +
+          index *
+          innerWidth /
+          (months.length - 1);
+
+  const yFor =
+    value =>
+      top +
+      innerHeight -
+      Number(value || 0) /
+      max *
+      innerHeight;
+
+  const monthNames =
+    [
+      "jan",
+      "fev",
+      "mar",
+      "abr",
+      "mai",
+      "jun",
+      "jul",
+      "ago",
+      "set",
+      "out",
+      "nov",
+      "dez"
+    ];
+
+  const labelMonth =
+    month => {
+      const [year, m] =
+        String(month)
+          .split("-");
+
+      const index =
+        Number(m) - 1;
+
+      return `${
+        monthNames[index] ||
+        m
+      }/${String(year).slice(-2)}`;
+    };
+
+  const grid =
+    [0, .25, .5, .75, 1]
+      .map(part => {
+        const y =
+          top +
+          innerHeight -
+          innerHeight *
+          part;
+
+        const value =
+          Math.round(
+            max *
+            part
+          );
+
+        return `
+          <line
+            x1="${left}"
+            y1="${y}"
+            x2="${width - right}"
+            y2="${y}"
+            stroke="#e6edf3"
+            stroke-width="1"
+          />
+          <text
+            x="${left - 8}"
+            y="${y + 4}"
+            text-anchor="end"
+            font-size="11"
+            fill="#8293a2"
+          >
+            ${aceStatsEsc(
+              aceStatsFmt(value)
+            )}
+          </text>
+        `;
+      })
+      .join("");
+
+  const paths =
+    series.map(item => {
+      const points =
+        months.map(
+          (month, index) => {
+            const value =
+              Number(
+                monthMap.get(month)?.[
+                  item.key
+                ] || 0
+              );
+
+            return `${
+              xFor(index)
+            },${
+              yFor(value)
+            }`;
+          }
+        )
+          .join(" ");
+
+      const circles =
+        months.map(
+          (month, index) => {
+            const value =
+              Number(
+                monthMap.get(month)?.[
+                  item.key
+                ] || 0
+              );
+
+            return `
+              <circle
+                cx="${xFor(index)}"
+                cy="${yFor(value)}"
+                r="3.5"
+                fill="${item.color}"
+              >
+                <title>
+                  ${aceStatsEsc(item.label)}:
+                  ${aceStatsFmt(value)}
+                </title>
+              </circle>
+            `;
+          }
+        )
+          .join("");
+
+      return `
+        <polyline
+          fill="none"
+          stroke="${item.color}"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          points="${points}"
+        />
+        ${circles}
+      `;
+    })
+      .join("");
+
+  const labels =
+    months.map(
+      (month, index) => `
+        <text
+          x="${xFor(index)}"
+          y="${height - 14}"
+          text-anchor="middle"
+          font-size="11"
+          font-weight="700"
+          fill="#6d7f8e"
+        >
+          ${aceStatsEsc(
+            labelMonth(month)
+          )}
+        </text>
+      `
+    )
+      .join("");
+
+  return `
+    <div class="ace-stats-chart-card" style="grid-column:1/-1;">
+      <div class="ace-stats-chart-title">
+        Evolução mensal — últimos 6 meses com movimentação
+      </div>
+
+      <div class="ace-stats-evolution-legend">
+        ${series.map(item => `
+          <span>
+            <i style="background:${item.color};"></i>
+            ${aceStatsEsc(item.label)}
+          </span>
+        `).join("")}
+      </div>
+
+      <div class="ace-stats-evolution">
+        <svg
+          viewBox="0 0 ${width} ${height}"
+          role="img"
+          aria-label="Evolução mensal"
+        >
+          ${grid}
+          ${paths}
+          ${labels}
+        </svg>
+      </div>
+    </div>
+  `;
+}
+
+
+function aceStatsTopLabel(
+  items,
+  emptyText =
+    "Sem dados"
+) {
+  const top =
+    (Array.isArray(items) ? items : [])[0];
+
+  if (!top) {
+    return emptyText;
+  }
+
+  return `${
+    top.label
+  } — ${
+    aceStatsFmt(top.value)
+  }`;
+}
+
+
+function renderAceStatistics() {
+  const page =
+    document.getElementById(
+      "estatisticas"
+    );
+
+  const body =
+    document.getElementById(
+      "aceStatisticsBody"
+    );
+
+  if (
+    !page ||
+    !body ||
+    !db
+  ) {
+    return;
+  }
+
+  aceStatsRefreshFilterOptions();
+
+  const filters =
+    aceStatsCurrentFilters();
+
+  const entries =
+    (db.entries || [])
+      .filter(row =>
+        aceStatsRowMatches(
+          row,
+          filters
+        )
+      );
+
+  const movements =
+    (db.movements || [])
+      .filter(row =>
+        aceStatsRowMatches(
+          row,
+          filters
+        )
+      );
+
+  const outputs =
+    movements.filter(
+      row =>
+        row.type ===
+        "saida"
+    );
+
+  const losses =
+    movements.filter(
+      row =>
+        row.type ===
+        "perda"
+    );
+
+  const baskets =
+    (db.basketOutputs || [])
+      .filter(row =>
+        aceStatsRowMatches(
+          row,
+          filters,
+          {
+            destination:
+              true
+          }
+        )
+      );
+
+  const entryOrigins =
+    aceStatsAggregate(
+      entries,
+      row =>
+        aceStatsName(
+          db.origins,
+          row.originId
+        ),
+      row =>
+        row.qty
+    );
+
+  const entryFoods =
+    aceStatsAggregate(
+      entries,
+      row =>
+        aceStatsName(
+          db.foods,
+          row.foodId
+        ),
+      row =>
+        row.qty
+    );
+
+  const outputFoods =
+    aceStatsAggregate(
+      outputs,
+      row =>
+        aceStatsName(
+          db.foods,
+          row.foodId
+        ),
+      row =>
+        row.qty
+    );
+
+  const lossFoods =
+    aceStatsAggregate(
+      losses,
+      row =>
+        aceStatsName(
+          db.foods,
+          row.foodId
+        ),
+      row =>
+        row.qty
+    );
+
+  const lossReasons =
+    aceStatsAggregate(
+      losses,
+      row =>
+        aceStatsName(
+          db.reasons,
+          row.reasonId,
+          String(
+            row.reasonId ||
+            "Não informado"
+          )
+        ),
+      row =>
+        row.qty
+    );
+
+  const basketTypes =
+    aceStatsAggregate(
+      baskets,
+      row =>
+        row.basketName ||
+        "Cesta não informada",
+      row =>
+        row.basketQty
+    );
+
+  const basketDestinations =
+    aceStatsAggregate(
+      baskets,
+      row =>
+        row.destination ||
+        "Destino não informado",
+      row =>
+        row.basketQty
+    );
+
+  const totalEntries =
+    aceStatsSum(
+      entries,
+      row =>
+        row.qty
+    );
+
+  const totalOutputs =
+    aceStatsSum(
+      outputs,
+      row =>
+        row.qty
+    );
+
+  const totalLosses =
+    aceStatsSum(
+      losses,
+      row =>
+        row.qty
+    );
+
+  const totalBaskets =
+    aceStatsSum(
+      baskets,
+      row =>
+        row.basketQty
+    );
+
+  body.innerHTML = `
+
+    <div class="ace-stats-cards">
+
+      <div class="ace-stats-kpi">
+        <span class="label">📥 Total recebido</span>
+        <strong>${aceStatsFmt(totalEntries)}</strong>
+        <small>unidades de alimentos</small>
+      </div>
+
+      <div class="ace-stats-kpi">
+        <span class="label">📤 Total de saídas</span>
+        <strong>${aceStatsFmt(totalOutputs)}</strong>
+        <small>unidades de alimentos</small>
+      </div>
+
+      <div class="ace-stats-kpi">
+        <span class="label">⚠️ Total de perdas</span>
+        <strong>${aceStatsFmt(totalLosses)}</strong>
+        <small>unidades descartadas/perdidas</small>
+      </div>
+
+      <div class="ace-stats-kpi">
+        <span class="label">🧺 Cestas distribuídas</span>
+        <strong>${aceStatsFmt(totalBaskets)}</strong>
+        <small>cestas no período</small>
+      </div>
+
+    </div>
+
+    <section class="ace-stats-section">
+
+      <div class="ace-stats-section-head">
+        <div>
+          <h3>📥 Entradas</h3>
+          <p>
+            Identifica as principais origens e os alimentos mais recebidos.
+          </p>
+        </div>
+      </div>
+
+      <div class="ace-stats-grid">
+        ${aceStatsBarChart(
+          "Origem das entradas",
+          entryOrigins
+        )}
+
+        ${aceStatsBarChart(
+          "Alimentos mais recebidos",
+          entryFoods
+        )}
+      </div>
+
+      <div class="ace-stats-highlight">
+        <div class="ace-stats-highlight-item">
+          Maior origem de entrada
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                entryOrigins
+              )
+            )}
+          </strong>
+        </div>
+
+        <div class="ace-stats-highlight-item">
+          Alimento mais recebido
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                entryFoods
+              )
+            )}
+          </strong>
+        </div>
+
+        <div class="ace-stats-highlight-item">
+          Total recebido no período
+          <strong>
+            ${aceStatsFmt(totalEntries)}
+          </strong>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="ace-stats-section">
+
+      <div class="ace-stats-section-head">
+        <div>
+          <h3>📤 Saídas e ⚠️ Perdas</h3>
+          <p>
+            Mostra os produtos com maior saída, maior perda e as principais causas.
+          </p>
+        </div>
+      </div>
+
+      <div class="ace-stats-grid">
+
+        ${aceStatsBarChart(
+          "Alimentos com maior saída",
+          outputFoods
+        )}
+
+        ${aceStatsBarChart(
+          "Alimentos com maior perda",
+          lossFoods
+        )}
+
+        ${aceStatsDonutChart(
+          "Motivos das perdas",
+          lossReasons
+        )}
+
+        ${aceStatsBarChart(
+          "Perdas por motivo — quantidade",
+          lossReasons
+        )}
+
+      </div>
+
+      <div class="ace-stats-highlight">
+        <div class="ace-stats-highlight-item">
+          Alimento com maior saída
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                outputFoods
+              )
+            )}
+          </strong>
+        </div>
+
+        <div class="ace-stats-highlight-item">
+          Alimento com maior perda
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                lossFoods
+              )
+            )}
+          </strong>
+        </div>
+
+        <div class="ace-stats-highlight-item">
+          Principal motivo de perda
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                lossReasons
+              )
+            )}
+          </strong>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="ace-stats-section">
+
+      <div class="ace-stats-section-head">
+        <div>
+          <h3>🧺 Cestas</h3>
+          <p>
+            Analisa os tipos de cesta mais distribuídos e seus principais destinos.
+          </p>
+        </div>
+      </div>
+
+      <div class="ace-stats-grid">
+
+        ${aceStatsBarChart(
+          "Tipos de cesta mais distribuídos",
+          basketTypes
+        )}
+
+        ${aceStatsBarChart(
+          "Destino das cestas",
+          basketDestinations
+        )}
+
+      </div>
+
+      <div class="ace-stats-highlight">
+        <div class="ace-stats-highlight-item">
+          Cesta mais distribuída
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                basketTypes
+              )
+            )}
+          </strong>
+        </div>
+
+        <div class="ace-stats-highlight-item">
+          Principal destino
+          <strong>
+            ${aceStatsEsc(
+              aceStatsTopLabel(
+                basketDestinations
+              )
+            )}
+          </strong>
+        </div>
+
+        <div class="ace-stats-highlight-item">
+          Total de cestas
+          <strong>
+            ${aceStatsFmt(totalBaskets)}
+          </strong>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="ace-stats-section">
+
+      <div class="ace-stats-section-head">
+        <div>
+          <h3>📈 Evolução mensal</h3>
+          <p>
+            Comparativo dos últimos meses com movimentação registrada.
+          </p>
+        </div>
+      </div>
+
+      <div class="ace-stats-grid">
+        ${aceStatsEvolutionChart(
+          entries,
+          movements,
+          baskets
+        )}
+      </div>
+
+    </section>
+  `;
+}
+
+
+// ============================================================
+// ESTATÍSTICAS NO RELATÓRIO GERAL
+// ============================================================
+
+function aceStatsReportBarCard(
+  title,
+  items,
+  limit = 5
+) {
+  const data =
+    (Array.isArray(items) ? items : [])
+      .filter(item =>
+        Number(item?.value || 0) >
+        0
+      )
+      .slice(0, limit);
+
+  if (!data.length) {
+    return `
+      <div
+        style="
+          padding:12px;
+          border:1px solid #dfe8ef;
+          border-radius:10px;
+          background:#fbfdff;
+          break-inside:avoid;
+        "
+      >
+        <div
+          style="
+            margin-bottom:8px;
+            color:#214b68;
+            font-size:13px;
+            font-weight:900;
+          "
+        >
+          ${aceStatsEsc(title)}
+        </div>
+
+        <div
+          style="
+            color:#7b8d9b;
+            font-size:11px;
+          "
+        >
+          Sem dados no período.
+        </div>
+      </div>
+    `;
+  }
+
+  const max =
+    Math.max(
+      1,
+      ...data.map(item =>
+        Number(item.value || 0)
+      )
+    );
+
+  return `
+    <div
+      style="
+        padding:12px;
+        border:1px solid #dfe8ef;
+        border-radius:10px;
+        background:#fbfdff;
+        break-inside:avoid;
+      "
+    >
+      <div
+        style="
+          margin-bottom:9px;
+          color:#214b68;
+          font-size:13px;
+          font-weight:900;
+        "
+      >
+        ${aceStatsEsc(title)}
+      </div>
+
+      ${data.map(item => `
+        <div
+          style="
+            display:grid;
+            grid-template-columns:120px minmax(0,1fr) 46px;
+            gap:7px;
+            align-items:center;
+            margin:7px 0;
+          "
+        >
+          <div
+            style="
+              overflow:hidden;
+              color:#445e72;
+              font-size:10px;
+              font-weight:800;
+              text-overflow:ellipsis;
+              white-space:nowrap;
+            "
+          >
+            ${aceStatsEsc(item.label)}
+          </div>
+
+          <div
+            style="
+              height:9px;
+              overflow:hidden;
+              border-radius:999px;
+              background:#e8eef3;
+            "
+          >
+            <div
+              style="
+                width:${Math.max(
+                  3,
+                  Math.round(
+                    Number(item.value || 0) /
+                    max *
+                    100
+                  )
+                )}%;
+                height:100%;
+                border-radius:999px;
+                background:#2f84bd;
+              "
+            ></div>
+          </div>
+
+          <div
+            style="
+              color:#174d72;
+              font-size:10px;
+              font-weight:900;
+              text-align:right;
+            "
+          >
+            ${aceStatsFmt(item.value)}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+
+window.aceBuildStatisticsReportHtml =
+  function({
+    entries = [],
+    movements = [],
+    baskets = []
+  } = {}) {
+
+    const outputs =
+      movements.filter(
+        row =>
+          row.type ===
+          "saida"
+      );
+
+    const losses =
+      movements.filter(
+        row =>
+          row.type ===
+          "perda"
+      );
+
+    const entryOrigins =
+      aceStatsAggregate(
+        entries,
+        row =>
+          aceStatsName(
+            db?.origins,
+            row.originId
+          ),
+        row =>
+          row.qty
+      );
+
+    const entryFoods =
+      aceStatsAggregate(
+        entries,
+        row =>
+          aceStatsName(
+            db?.foods,
+            row.foodId
+          ),
+        row =>
+          row.qty
+      );
+
+    const outputFoods =
+      aceStatsAggregate(
+        outputs,
+        row =>
+          aceStatsName(
+            db?.foods,
+            row.foodId
+          ),
+        row =>
+          row.qty
+      );
+
+    const lossFoods =
+      aceStatsAggregate(
+        losses,
+        row =>
+          aceStatsName(
+            db?.foods,
+            row.foodId
+          ),
+        row =>
+          row.qty
+      );
+
+    const lossReasons =
+      aceStatsAggregate(
+        losses,
+        row =>
+          aceStatsName(
+            db?.reasons,
+            row.reasonId,
+            String(
+              row.reasonId ||
+              "Não informado"
+            )
+          ),
+        row =>
+          row.qty
+      );
+
+    const basketTypes =
+      aceStatsAggregate(
+        baskets,
+        row =>
+          row.basketName ||
+          "Cesta não informada",
+        row =>
+          row.basketQty
+      );
+
+    const basketDestinations =
+      aceStatsAggregate(
+        baskets,
+        row =>
+          row.destination ||
+          "Destino não informado",
+        row =>
+          row.basketQty
+      );
+
+    return `
+      <section
+        class="ace-report-statistics"
+        style="
+          margin:18px 0 22px;
+          padding:14px;
+          border:1px solid #d8e6f0;
+          border-radius:12px;
+          background:#f7fbfe;
+        "
+      >
+
+        <div
+          style="
+            margin-bottom:5px;
+            color:#0b426d;
+            font-size:18px;
+            font-weight:950;
+          "
+        >
+          📊 Análise estatística do período
+        </div>
+
+        <div
+          style="
+            margin-bottom:13px;
+            color:#6b7f90;
+            font-size:11px;
+            line-height:1.45;
+          "
+        >
+          Resumo gerencial das principais entradas, saídas, perdas e cestas.
+        </div>
+
+        <div
+          style="
+            display:grid;
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:10px;
+          "
+        >
+          ${aceStatsReportBarCard(
+            "Origem das entradas",
+            entryOrigins
+          )}
+
+          ${aceStatsReportBarCard(
+            "Alimentos mais recebidos",
+            entryFoods
+          )}
+
+          ${aceStatsReportBarCard(
+            "Alimentos com maior saída",
+            outputFoods
+          )}
+
+          ${aceStatsReportBarCard(
+            "Motivos das perdas",
+            lossReasons
+          )}
+
+          ${aceStatsReportBarCard(
+            "Destino das cestas",
+            basketDestinations
+          )}
+
+          <div
+            style="
+              padding:12px;
+              border:1px solid #dfe8ef;
+              border-radius:10px;
+              background:#ffffff;
+              break-inside:avoid;
+            "
+          >
+            <div
+              style="
+                margin-bottom:8px;
+                color:#214b68;
+                font-size:13px;
+                font-weight:900;
+              "
+            >
+              Destaques do período
+            </div>
+
+            <div
+              style="
+                display:grid;
+                gap:7px;
+                color:#3e586d;
+                font-size:10px;
+                line-height:1.4;
+              "
+            >
+              <div>
+                <strong>Maior origem:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    entryOrigins
+                  )
+                )}
+              </div>
+
+              <div>
+                <strong>Mais recebido:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    entryFoods
+                  )
+                )}
+              </div>
+
+              <div>
+                <strong>Maior saída:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    outputFoods
+                  )
+                )}
+              </div>
+
+              <div>
+                <strong>Maior perda:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    lossFoods
+                  )
+                )}
+              </div>
+
+              <div>
+                <strong>Principal motivo de perda:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    lossReasons
+                  )
+                )}
+              </div>
+
+              <div>
+                <strong>Cesta mais distribuída:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    basketTypes
+                  )
+                )}
+              </div>
+
+              <div>
+                <strong>Principal destino:</strong>
+                ${aceStatsEsc(
+                  aceStatsTopLabel(
+                    basketDestinations
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+    `;
+  };
+
+
 // ============================================================
 // ACE - NAVEGAÇÃO AGRUPADA PROFISSIONAL (SOMENTE VISUAL)
 // ============================================================
@@ -38539,6 +41078,7 @@ function setupAceInventoryRealtime() {
       label: "🗂️ Consultas",
       items: [
         { target: "historico", label: "📜 Histórico" },
+        { target: "estatisticas", label: "📊 Estatísticas" },
         { target: "estoque", label: "🏬 Estoque" }
       ]
     },
@@ -38602,6 +41142,7 @@ function setupAceInventoryRealtime() {
       "cestas",
       "presenca",
       "historico",
+      "estatisticas",
       "estoque",
       "inventario",
       "relatorio",
