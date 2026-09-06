@@ -1,7 +1,7 @@
 
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
-// V7 + SUPABASE AUTH
+// V7 + SUPABASE AUTH + INVENTÁRIO ÁGUA FRIA
 // ============================================================
 
 // ============================================================
@@ -2286,6 +2286,28 @@ async function syncOfflineOperation(
 
 async function syncOfflineQueue() {
 
+  // Durante um inventário nenhuma movimentação pendente pode ser
+  // enviada ao banco. Primeiro consultamos o bloqueio oficial.
+  if (
+    typeof refreshAceInventoryState === "function" &&
+    aceIsOnline()
+  ) {
+
+    await refreshAceInventoryState(false);
+
+    if (
+      typeof isAceInventoryInProgress === "function" &&
+      isAceInventoryInProgress()
+    ) {
+      return {
+        synced: 0,
+        remaining: getOfflineQueue().length,
+        blockedByInventory: true
+      };
+    }
+
+  }
+
   if (
     aceOfflineSyncRunning ||
     !aceIsOnline() ||
@@ -3127,7 +3149,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     historyResult,
     basketStockResult,
     basketWithdrawalsResult,
-    basketAdjustmentsResult
+    basketAdjustmentsResult,
+    stockAdjustmentsResult
   ] = await Promise.all([
 
     supabaseClient
@@ -3218,6 +3241,13 @@ async function loadFromSupabase(allowJwtRefresh = true) {
       .select("*")
       .order("created_at", {
         ascending: false
+      }),
+
+    supabaseClient
+      .from("ajustes_estoque")
+      .select("*")
+      .order("created_at", {
+        ascending: false
       })
 
   ]);
@@ -3241,7 +3271,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     ["historico_movimentacoes", historyResult],
     ["cestas_estoque", basketStockResult],
     ["cestas_retiradas", basketWithdrawalsResult],
-    ["cestas_ajustes", basketAdjustmentsResult]
+    ["cestas_ajustes", basketAdjustmentsResult],
+    ["ajustes_estoque", stockAdjustmentsResult]
   ].find(([, result]) => result.error);
 
 
@@ -3417,6 +3448,9 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
   const basketAdjustmentRows =
     basketAdjustmentsResult.data || [];
+
+  const stockAdjustmentRows =
+    stockAdjustmentsResult.data || [];
 
   const reasons =
     loadLocalReasons();
@@ -3756,6 +3790,25 @@ async function loadFromSupabase(allowJwtRefresh = true) {
         createdAt:
           row.created_at ||
           `${row.data_ajuste || isoToday()}T00:00:00Z`
+      })),
+
+    // Ajustes assinados criados exclusivamente ao finalizar inventários.
+    // Positivo acrescenta ao saldo; negativo retira do saldo.
+    stockAdjustments:
+      stockAdjustmentRows.map(row => ({
+        id: Number(row.id),
+        inventoryId:
+          row.inventario_id != null
+            ? Number(row.inventario_id)
+            : null,
+        date: row.data,
+        originId: Number(row.origem_id),
+        foodId: Number(row.alimento_id),
+        qty: Number(row.quantidade || 0),
+        usuarioId: row.usuario_id || null,
+        createdAt:
+          row.created_at ||
+          `${row.data || isoToday()}T00:00:00Z`
       })),
 
     reasons
@@ -4614,6 +4667,8 @@ async function insertEntry({
   note
 }) {
 
+  assertAceMovementAllowed();
+
   rememberCurrentUser();
 
 
@@ -4801,6 +4856,8 @@ async function insertMovement({
   reasonId,
   note
 }) {
+
+  assertAceMovementAllowed();
 
   const userId =
     getCurrentUserId();
@@ -8692,6 +8749,25 @@ function calcStock() {
     }
 
   });
+
+
+  // O inventário não cria uma entrada ou uma perda falsa.
+  // Ele cria somente a diferença necessária para alinhar o sistema
+  // com a quantidade realmente contada na prateleira.
+  (db.stockAdjustments || [])
+    .forEach(adjustment => {
+
+      if (
+        stock[adjustment.originId] &&
+        stock[adjustment.originId][adjustment.foodId] != null
+      ) {
+
+        stock[adjustment.originId][adjustment.foodId] +=
+          Number(adjustment.qty || 0);
+
+      }
+
+    });
 
 
   return stock;
@@ -33754,6 +33830,11 @@ function findAceOriginalTab(
         "estoque"
       ],
 
+    inventario:
+      [
+        "inventario"
+      ],
+
     relatorio:
       [
         "relatorio"
@@ -34006,6 +34087,14 @@ function getAceBottomMenuMeta(
   if (value.includes("estoque")) {
     return {
       icon: "🏬",
+      color: "estoque"
+    };
+  }
+
+
+  if (value.includes("inventario")) {
+    return {
+      icon: "📦",
       color: "estoque"
     };
   }
@@ -35502,6 +35591,8 @@ function renderAll() {
 
   renderStock();
 
+  renderAceInventory();
+
   renderCadastros();
 
   renderHistory();
@@ -35612,7 +35703,12 @@ async function initApp() {
     setupHistoryPage();
 
     // Cria uma aba exclusiva para Saída de Cestas.
-    setupBasketPage();
+  setupBasketPage();
+
+    // Inventário físico exclusivo do galpão Água Fria.
+    setupAceInventoryPage();
+
+    await refreshAceInventoryState(false);
 
     // Cria o histórico de Saída/Perda abaixo do formulário.
     ensureMovementDayHistory();
@@ -35625,6 +35721,8 @@ async function initApp() {
     renderMuralAce();
 
     nav();
+
+    setupAceInventoryRealtime();
 
     // Sempre abre o aplicativo diretamente no Mural ACE.
     openDefaultMuralAcePage();
@@ -36681,6 +36779,683 @@ startAuth();
 })();
 
 
+// ============================================================
+// 23. INVENTÁRIO FÍSICO — LOCAL FIXO: ÁGUA FRIA
+// ============================================================
+
+const ACE_INVENTORY_ORIGIN_NAME = "Água Fria";
+const ACE_INVENTORY_CACHE_KEY = "ace_inventory_active_v1";
+
+let aceInventoryActive = null;
+let aceInventoryItems = [];
+let aceInventoryHistory = [];
+let aceInventoryLastItems = [];
+let aceInventoryChannel = null;
+let aceInventoryRefreshTimer = null;
+
+
+function isAceInventoryInProgress() {
+  return Boolean(
+    aceInventoryActive &&
+    aceInventoryActive.status === "em_andamento"
+  );
+}
+
+
+function getAceInventoryOrigin() {
+  return (db?.origins || []).find(
+    origin =>
+      normalizeAceText(origin.name) ===
+      normalizeAceText(ACE_INVENTORY_ORIGIN_NAME)
+  ) || null;
+}
+
+
+function isCurrentUserInventoryOwner() {
+  return Boolean(
+    aceInventoryActive?.usuario_id &&
+    currentUser?.id &&
+    String(aceInventoryActive.usuario_id) === String(currentUser.id)
+  );
+}
+
+
+function assertAceMovementAllowed() {
+  if (isAceInventoryInProgress()) {
+    throw new Error(
+      "Movimentação bloqueada: existe um inventário em andamento em Água Fria."
+    );
+  }
+}
+
+
+function saveAceInventoryCache() {
+  try {
+    if (aceInventoryActive) {
+      localStorage.setItem(
+        ACE_INVENTORY_CACHE_KEY,
+        JSON.stringify(aceInventoryActive)
+      );
+    } else {
+      localStorage.removeItem(ACE_INVENTORY_CACHE_KEY);
+    }
+  } catch {}
+}
+
+
+function loadAceInventoryCache() {
+  try {
+    const raw = localStorage.getItem(ACE_INVENTORY_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+
+async function refreshAceInventoryState(render = true) {
+  if (!currentUser?.id) return;
+
+  if (!aceIsOnline()) {
+    aceInventoryActive = loadAceInventoryCache();
+    if (render) {
+      renderAceInventory();
+      applyAceInventoryMovementLock();
+    }
+    return;
+  }
+
+  const activeResult = await supabaseClient
+    .from("inventarios")
+    .select("*")
+    .eq("status", "em_andamento")
+    .order("iniciado_em", { ascending: false })
+    .limit(1);
+
+  if (activeResult.error) throw activeResult.error;
+
+  aceInventoryActive = activeResult.data?.[0] || null;
+  aceInventoryItems = [];
+
+  if (aceInventoryActive) {
+    const itemsResult = await supabaseClient
+      .from("inventario_itens")
+      .select("*")
+      .eq("inventario_id", aceInventoryActive.id)
+      .order("alimento_nome");
+
+    if (itemsResult.error) throw itemsResult.error;
+    aceInventoryItems = itemsResult.data || [];
+  }
+
+  const historyResult = await supabaseClient
+    .from("inventarios")
+    .select("*")
+    .in("status", ["finalizado", "cancelado"])
+    .order("iniciado_em", { ascending: false })
+    .limit(10);
+
+  if (historyResult.error) throw historyResult.error;
+  aceInventoryHistory = historyResult.data || [];
+  aceInventoryLastItems = [];
+
+  const lastFinished = aceInventoryHistory.find(
+    inventory => inventory.status === "finalizado"
+  );
+
+  if (lastFinished) {
+    const lastItemsResult = await supabaseClient
+      .from("inventario_itens")
+      .select("*")
+      .eq("inventario_id", lastFinished.id)
+      .order("alimento_nome");
+
+    if (lastItemsResult.error) throw lastItemsResult.error;
+    aceInventoryLastItems = lastItemsResult.data || [];
+  }
+
+  saveAceInventoryCache();
+
+  if (render) {
+    renderAceInventory();
+    applyAceInventoryMovementLock();
+  }
+}
+
+
+function formatAceInventoryDateTime(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short"
+    });
+  } catch {
+    return String(value);
+  }
+}
+
+
+function ensureAceInventoryStyles() {
+  if (document.getElementById("aceInventoryStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "aceInventoryStyles";
+  style.textContent = `
+    #inventario{padding-bottom:36px}
+    .ace-inventory-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+    .ace-inventory-title{margin:0;color:#102a43;font-size:30px;font-weight:900}
+    .ace-inventory-subtitle{margin-top:5px;color:#667085;font-size:14px}
+    .ace-inventory-fixed-origin{display:inline-flex;gap:8px;align-items:center;margin-top:10px;padding:9px 13px;border-radius:999px;background:#eaf4fb;color:#0b4b7a;font-weight:900}
+    .ace-inventory-panel{padding:18px;border:1px solid #d7e0e8;border-radius:16px;background:#fff;box-shadow:0 10px 30px rgba(20,45,70,.07);margin-bottom:18px}
+    .ace-inventory-status{padding:14px;border-radius:12px;background:#fff6e7;border:1px solid #f1c27d;color:#7a4500;margin-bottom:16px;line-height:1.5}
+    .ace-inventory-progress{height:12px;background:#e7edf2;border-radius:999px;overflow:hidden;margin:10px 0 5px}
+    .ace-inventory-progress>span{display:block;height:100%;background:#0b7a4b;border-radius:999px}
+    .ace-inventory-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .ace-inventory-btn{min-height:46px;padding:10px 16px;border-radius:10px;font:inherit;font-weight:900;cursor:pointer}
+    .ace-inventory-start,.ace-inventory-finish{border:1px solid #0b5a8f;background:#0b5a8f;color:#fff}
+    .ace-inventory-cancel{border:1px solid #dc2626;background:#fff;color:#dc2626}
+    .ace-inventory-btn:disabled{opacity:.55;cursor:not-allowed}
+    .ace-inventory-table-wrap{overflow:auto;border:1px solid #e3e9ef;border-radius:11px}
+    .ace-inventory-table{width:100%;border-collapse:collapse;min-width:720px}
+    .ace-inventory-table th,.ace-inventory-table td{padding:10px;border-bottom:1px solid #e7ecf1;text-align:left}
+    .ace-inventory-table th{position:sticky;top:0;background:#f5f7f9;color:#344054;z-index:1}
+    .ace-inventory-count-control{display:flex;align-items:center;gap:6px}
+    .ace-inventory-count-control button{width:38px;height:38px;border:1px solid #aac2d3;border-radius:8px;background:#fff;color:#0b4b7a;font-size:20px;font-weight:900}
+    .ace-inventory-count{width:88px;height:38px;border:1px solid #aac2d3;border-radius:8px;text-align:center;font:inherit;font-weight:900}
+    .ace-inventory-diff.positive{color:#0756a0}.ace-inventory-diff.negative{color:#c62828}.ace-inventory-diff.zero{color:#167a3d}
+    #aceInventoryGlobalBanner{position:sticky;top:0;z-index:999990;padding:10px 16px;background:#fff3cd;border-bottom:2px solid #e5a400;color:#6c4600;text-align:center;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.14)}
+    .ace-inventory-page-lock{position:relative}
+    .ace-inventory-lock-note{padding:12px;margin-bottom:12px;border-radius:10px;background:#fff3cd;border:1px solid #e5a400;color:#6c4600;font-weight:900}
+    @media(max-width:700px){.ace-inventory-title{font-size:25px}.ace-inventory-actions,.ace-inventory-btn{width:100%}.ace-inventory-btn{flex:1 1 100%}.ace-inventory-panel{padding:13px}}
+  `;
+  document.head.appendChild(style);
+}
+
+
+function setupAceInventoryPage() {
+  ensureAceInventoryStyles();
+
+  const tabs = document.querySelector(".tabs");
+  if (!tabs) return;
+
+  let tab = tabs.querySelector('[data-page="inventario"]');
+  if (!tab) {
+    tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab";
+    tab.dataset.page = "inventario";
+    tab.innerHTML = "📦 Inventário";
+
+    const stockTab = [...tabs.querySelectorAll(".tab")].find(item =>
+      normalizeAceText(item.textContent).includes("estoque")
+    );
+
+    stockTab ? tabs.insertBefore(tab, stockTab) : tabs.appendChild(tab);
+  }
+
+  let page = document.getElementById("inventario");
+  if (!page) {
+    page = document.createElement("section");
+    page.id = "inventario";
+    page.className = "page";
+
+    const stockPage = document.getElementById(
+      [...tabs.querySelectorAll(".tab")].find(item =>
+        normalizeAceText(item.textContent).includes("estoque")
+      )?.dataset?.page || ""
+    );
+
+    if (stockPage?.parentElement) {
+      stockPage.parentElement.insertBefore(page, stockPage);
+    } else {
+      document.querySelector(".page")?.parentElement?.appendChild(page);
+    }
+  }
+
+  bindAceInventoryGlobalGuard();
+}
+
+
+function getAceInventoryMovementTotals(item, finishedAt, originId) {
+  const foodId = Number(item.alimento_id);
+  const after = value => String(value || "") > String(finishedAt || "");
+
+  const entries = (db?.entries || []).filter(row =>
+    Number(row.originId) === Number(originId) &&
+    Number(row.foodId) === foodId &&
+    after(row.createdAt)
+  ).reduce((sum, row) => sum + Number(row.qty || 0), 0);
+
+  const outputs = (db?.movements || []).filter(row =>
+    row.type === "saida" &&
+    Number(row.originId) === Number(originId) &&
+    Number(row.foodId) === foodId &&
+    after(row.createdAt)
+  ).reduce((sum, row) => sum + Number(row.qty || 0), 0);
+
+  const losses = (db?.movements || []).filter(row =>
+    row.type === "perda" &&
+    Number(row.originId) === Number(originId) &&
+    Number(row.foodId) === foodId &&
+    after(row.createdAt)
+  ).reduce((sum, row) => sum + Number(row.qty || 0), 0);
+
+  return { entries, outputs, losses };
+}
+
+
+function renderAceLastInventorySummary() {
+  const last = aceInventoryHistory.find(row => row.status === "finalizado");
+  if (!last || !aceInventoryLastItems.length) return "";
+
+  const origin = getAceInventoryOrigin();
+  const stock = calcStock();
+
+  const rows = aceInventoryLastItems.map(item => {
+    const totals = getAceInventoryMovementTotals(
+      item,
+      last.finalizado_em,
+      last.origem_id
+    );
+    const current = Number(
+      stock?.[origin?.id]?.[Number(item.alimento_id)] || 0
+    );
+
+    return `
+      <tr>
+        <td>${esc(item.alimento_nome)}</td>
+        <td><b>${fmt(item.quantidade_contada || 0)}</b></td>
+        <td style="color:#167a3d">+${fmt(totals.entries)}</td>
+        <td style="color:#0756a0">-${fmt(totals.outputs)}</td>
+        <td style="color:#c62828">-${fmt(totals.losses)}</td>
+        <td><b>${fmt(current)}</b></td>
+      </tr>`;
+  }).join("");
+
+  return `
+    <div class="ace-inventory-panel">
+      <h3>📊 Estoque após o último inventário</h3>
+      <p>Inventário finalizado em ${esc(formatAceInventoryDateTime(last.finalizado_em))}.</p>
+      <div class="ace-inventory-table-wrap">
+        <table class="ace-inventory-table">
+          <thead><tr><th>Alimento</th><th>Estoque anterior</th><th>Entradas</th><th>Saídas</th><th>Perdas</th><th>Estoque atual</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+
+function renderAceInventoryHistory() {
+  if (!aceInventoryHistory.length) return "";
+
+  const rows = aceInventoryHistory.map(row => `
+    <tr>
+      <td>${esc(formatAceInventoryDateTime(row.iniciado_em))}</td>
+      <td>${esc(row.usuario_nome || "Usuário")}</td>
+      <td>${row.status === "finalizado" ? '<span class="pill green">Finalizado</span>' : '<span class="pill red">Cancelado</span>'}</td>
+      <td>${fmt(row.total_sistema || 0)}</td>
+      <td>${row.status === "finalizado" ? fmt(row.total_contado || 0) : "—"}</td>
+      <td>${row.status === "finalizado" ? fmt(row.total_ajuste || 0) : "—"}</td>
+    </tr>`).join("");
+
+  return `
+    <div class="ace-inventory-panel">
+      <h3>🕘 Histórico de inventários</h3>
+      <div class="ace-inventory-table-wrap">
+        <table class="ace-inventory-table">
+          <thead><tr><th>Início</th><th>Responsável</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+
+function renderAceInventory() {
+  const page = document.getElementById("inventario");
+  if (!page || !db) return;
+
+  ensureAceInventoryStyles();
+
+  const online = aceIsOnline();
+  const pending = getOfflineQueue().length;
+  const active = isAceInventoryInProgress();
+  const owner = isCurrentUserInventoryOwner();
+  const counted = aceInventoryItems.filter(item => item.quantidade_contada != null).length;
+  const total = aceInventoryItems.length;
+  const percent = total ? Math.round((counted / total) * 100) : 0;
+
+  let content = "";
+
+  if (!active) {
+    content = `
+      <div class="ace-inventory-panel">
+        <h3>Nenhum inventário em andamento</h3>
+        <p>A contagem sempre será feita no estoque de <b>Água Fria</b>. Ao iniciar, entradas, saídas, perdas e movimentações de cestas serão bloqueadas para todos.</p>
+        ${!online ? '<div class="ace-inventory-status">🟠 Conecte-se à internet para iniciar um inventário.</div>' : ""}
+        ${pending ? `<div class="ace-inventory-status">⚠️ Existem ${pending} movimentação(ões) offline pendente(s). Sincronize antes de iniciar.</div>` : ""}
+        <button id="aceInventoryStart" class="ace-inventory-btn ace-inventory-start" type="button" ${!online || pending ? "disabled" : ""}>📦 Iniciar inventário</button>
+      </div>
+      ${renderAceLastInventorySummary()}
+      ${renderAceInventoryHistory()}`;
+  } else {
+    const rows = aceInventoryItems.map(item => {
+      const physical = item.quantidade_contada;
+      const difference = physical == null
+        ? null
+        : Number(physical) - Number(item.estoque_sistema || 0);
+      const diffClass = difference == null || difference === 0
+        ? "zero"
+        : difference > 0 ? "positive" : "negative";
+      const diffText = difference == null
+        ? "—"
+        : `${difference > 0 ? "+" : ""}${fmt(difference)}`;
+
+      return `
+        <tr>
+          <td>${esc(item.alimento_nome)}</td>
+          <td><b>${fmt(item.estoque_sistema || 0)}</b></td>
+          <td>
+            <div class="ace-inventory-count-control">
+              ${owner ? `<button type="button" data-inventory-step="-1" data-inventory-item="${item.id}">−</button>` : ""}
+              <input class="ace-inventory-count" type="number" min="0" step="1" inputmode="numeric" data-inventory-count="${item.id}" value="${physical == null ? "" : Number(physical)}" ${owner ? "" : "disabled"} placeholder="0">
+              ${owner ? `<button type="button" data-inventory-step="1" data-inventory-item="${item.id}">+</button>` : ""}
+            </div>
+          </td>
+          <td><b class="ace-inventory-diff ${diffClass}">${diffText}</b></td>
+        </tr>`;
+    }).join("");
+
+    content = `
+      <div class="ace-inventory-panel">
+        <div class="ace-inventory-status">
+          <b>🟠 INVENTÁRIO EM ANDAMENTO</b><br>
+          Responsável: ${esc(aceInventoryActive.usuario_nome || "Usuário")}<br>
+          Local: Água Fria<br>
+          Início: ${esc(formatAceInventoryDateTime(aceInventoryActive.iniciado_em))}
+        </div>
+        <div><b>${counted} de ${total} alimentos contados</b></div>
+        <div class="ace-inventory-progress"><span style="width:${percent}%"></span></div>
+        <small>${percent}% concluído</small>
+        ${owner ? "" : '<p><b>Somente o responsável pode alterar a contagem.</b> Você pode acompanhar o progresso em tempo real.</p>'}
+        <div class="ace-inventory-table-wrap" style="margin-top:14px">
+          <table class="ace-inventory-table">
+            <thead><tr><th>Alimento</th><th>Estoque no sistema</th><th>Contagem física</th><th>Diferença</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="ace-inventory-actions">
+          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${counted !== total ? "disabled" : ""}>✅ Confirmar contagem e finalizar</button>` : ""}
+          ${typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin() ? '<button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button">🗑️ Cancelar inventário</button>' : ""}
+        </div>
+      </div>`;
+  }
+
+  page.innerHTML = `
+    <div class="ace-inventory-head">
+      <div>
+        <h2 class="ace-inventory-title">📦 Inventário de alimentos</h2>
+        <div class="ace-inventory-subtitle">Contagem física, conferência e ajuste do estoque.</div>
+        <div class="ace-inventory-fixed-origin">📍 Local fixo: Água Fria</div>
+      </div>
+    </div>
+    ${content}`;
+
+  bindAceInventoryPageEvents();
+  updateAceInventoryGlobalBanner();
+  applyAceInventoryMovementLock();
+}
+
+
+async function startAceInventory() {
+  if (!aceIsOnline()) {
+    return showAceMessage("O inventário precisa ser iniciado com internet.", "🟠 Operação online");
+  }
+
+  if (getOfflineQueue().length) {
+    return showAceMessage("Sincronize todas as movimentações pendentes antes de iniciar.", "⚠️ Sincronização pendente");
+  }
+
+  await refreshAceInventoryState(false);
+  if (isAceInventoryInProgress()) {
+    renderAceInventory();
+    return showAceMessage("Já existe um inventário em andamento.", "📦 Inventário");
+  }
+
+  const confirmed = await showAceConfirm(
+    "Iniciar o inventário de Água Fria?\n\nTodas as movimentações serão bloqueadas para todos os usuários até a finalização.",
+    "📦 Iniciar inventário"
+  );
+  if (!confirmed) return;
+
+  const { error } = await supabaseClient.rpc("ace_iniciar_inventario", {
+    p_usuario_nome: getCurrentDisplayName()
+  });
+  if (error) throw error;
+
+  await refreshAceInventoryState(false);
+  renderAll();
+  showAceSuccess("Inventário iniciado. Todas as movimentações foram bloqueadas.");
+}
+
+
+async function saveAceInventoryCount(itemId, quantity) {
+  if (!isCurrentUserInventoryOwner()) return;
+  if (!aceIsOnline()) {
+    return showAceMessage("A contagem precisa de conexão com a internet.", "🟠 Operação online");
+  }
+
+  const value = Number(quantity);
+  if (!Number.isInteger(value) || value < 0) {
+    return showAceMessage("Digite uma quantidade inteira igual ou maior que zero.", "Quantidade inválida");
+  }
+
+  const { error } = await supabaseClient.rpc("ace_salvar_contagem_inventario", {
+    p_item_id: Number(itemId),
+    p_quantidade: value
+  });
+  if (error) throw error;
+
+  const localItem = aceInventoryItems.find(item => Number(item.id) === Number(itemId));
+  if (localItem) localItem.quantidade_contada = value;
+  renderAceInventory();
+}
+
+
+async function finishAceInventory() {
+  if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para finalizar.", "🟠 Operação online");
+  if (!isCurrentUserInventoryOwner()) return;
+
+  const missing = aceInventoryItems.filter(item => item.quantidade_contada == null);
+  if (missing.length) {
+    return showAceMessage(`Ainda faltam ${missing.length} alimento(s) para contar.`, "⚠️ Contagem incompleta");
+  }
+
+  const systemTotal = aceInventoryItems.reduce((sum, item) => sum + Number(item.estoque_sistema || 0), 0);
+  const countedTotal = aceInventoryItems.reduce((sum, item) => sum + Number(item.quantidade_contada || 0), 0);
+  const adjustment = countedTotal - systemTotal;
+
+  const confirmed = await showAceConfirm(
+    `Confirmar a contagem de Água Fria?\n\nEstoque no sistema: ${fmt(systemTotal)}\nEstoque contado: ${fmt(countedTotal)}\nAjuste: ${adjustment > 0 ? "+" : ""}${fmt(adjustment)}\n\nApós confirmar, o estoque será atualizado e as movimentações serão liberadas.`,
+    "✅ Finalizar inventário"
+  );
+  if (!confirmed) return;
+
+  const { error } = await supabaseClient.rpc("ace_finalizar_inventario", {
+    p_inventario_id: Number(aceInventoryActive.id)
+  });
+  if (error) throw error;
+
+  await refreshAceInventoryState(false);
+  db = await loadFromSupabase(false);
+  saveOfflineSnapshot(db);
+  renderAll();
+  showAceSuccess("Inventário finalizado. Estoque atualizado e movimentações liberadas.");
+}
+
+
+async function cancelAceInventory() {
+  if (!(typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin())) return;
+
+  const confirmed = await showAceConfirm(
+    "Cancelar o inventário em andamento?\n\nNenhum ajuste será aplicado ao estoque.",
+    "🗑️ Cancelar inventário"
+  );
+  if (!confirmed) return;
+
+  const { error } = await supabaseClient.rpc("ace_cancelar_inventario", {
+    p_inventario_id: Number(aceInventoryActive.id)
+  });
+  if (error) throw error;
+
+  await refreshAceInventoryState(false);
+  renderAll();
+  showAceSuccess("Inventário cancelado. Movimentações liberadas.");
+}
+
+
+function bindAceInventoryPageEvents() {
+  document.getElementById("aceInventoryStart")?.addEventListener("click", async () => {
+    try { await startAceInventory(); }
+    catch (error) { await showAceMessage(error?.message || "Não foi possível iniciar.", "❌ Erro"); }
+  });
+
+  document.querySelectorAll("[data-inventory-count]").forEach(input => {
+    input.addEventListener("change", async () => {
+      try { await saveAceInventoryCount(input.dataset.inventoryCount, input.value); }
+      catch (error) { await showAceMessage(error?.message || "Não foi possível salvar.", "❌ Erro"); await refreshAceInventoryState(); }
+    });
+  });
+
+  document.querySelectorAll("[data-inventory-step]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const itemId = button.dataset.inventoryItem;
+      const input = document.querySelector(`[data-inventory-count="${itemId}"]`);
+      const current = input?.value === "" ? 0 : Number(input.value);
+      const next = Math.max(0, current + Number(button.dataset.inventoryStep));
+      try { await saveAceInventoryCount(itemId, next); }
+      catch (error) { await showAceMessage(error?.message || "Não foi possível salvar.", "❌ Erro"); }
+    });
+  });
+
+  document.getElementById("aceInventoryFinish")?.addEventListener("click", async () => {
+    try { await finishAceInventory(); }
+    catch (error) { await showAceMessage(error?.message || "Não foi possível finalizar.", "❌ Erro"); }
+  });
+
+  document.getElementById("aceInventoryCancel")?.addEventListener("click", async () => {
+    try { await cancelAceInventory(); }
+    catch (error) { await showAceMessage(error?.message || "Não foi possível cancelar.", "❌ Erro"); }
+  });
+}
+
+
+function updateAceInventoryGlobalBanner() {
+  let banner = document.getElementById("aceInventoryGlobalBanner");
+
+  if (!isAceInventoryInProgress()) {
+    banner?.remove();
+    return;
+  }
+
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "aceInventoryGlobalBanner";
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
+  banner.innerHTML = `🟠 INVENTÁRIO EM ANDAMENTO · Água Fria · Responsável: ${esc(aceInventoryActive.usuario_nome || "Usuário")} · Movimentações bloqueadas`;
+}
+
+
+function applyAceInventoryMovementLock() {
+  const active = isAceInventoryInProgress();
+  updateAceInventoryGlobalBanner();
+
+  const pages = [
+    document.getElementById("entryForm")?.closest(".page"),
+    document.getElementById("movementForm")?.closest(".page"),
+    document.getElementById("cestas")
+  ].filter(Boolean);
+
+  pages.forEach(page => {
+    page.classList.toggle("ace-inventory-page-lock", active);
+
+    let note = page.querySelector(":scope > .ace-inventory-lock-note");
+    if (active && !note) {
+      note = document.createElement("div");
+      note.className = "ace-inventory-lock-note";
+      note.textContent = "🟠 Movimentações bloqueadas: existe um inventário em andamento em Água Fria.";
+      page.insertBefore(note, page.firstChild);
+    }
+    if (!active) note?.remove();
+
+    page.querySelectorAll("input,select,textarea,button").forEach(control => {
+      if (active) {
+        if (!control.disabled) {
+          control.dataset.aceInventoryDisabled = "1";
+          control.disabled = true;
+        }
+      } else if (control.dataset.aceInventoryDisabled === "1") {
+        control.disabled = false;
+        delete control.dataset.aceInventoryDisabled;
+      }
+    });
+  });
+}
+
+
+function bindAceInventoryGlobalGuard() {
+  if (document.body.dataset.aceInventoryGuard === "1") return;
+  document.body.dataset.aceInventoryGuard = "1";
+
+  document.addEventListener("submit", event => {
+    if (!isAceInventoryInProgress()) return;
+    if (event.target.closest("#inventario")) return;
+    if (event.target.closest("#entryForm,#movementForm,#cestas")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showAceMessage("Movimentação bloqueada: existe um inventário em andamento em Água Fria.", "🟠 Inventário em andamento");
+    }
+  }, true);
+}
+
+
+function scheduleAceInventoryRefresh() {
+  clearTimeout(aceInventoryRefreshTimer);
+  aceInventoryRefreshTimer = setTimeout(async () => {
+    try {
+      await refreshAceInventoryState(false);
+      if (db && aceIsOnline() && !isAceInventoryInProgress()) {
+        db = await loadFromSupabase(false);
+        saveOfflineSnapshot(db);
+      }
+      renderAll();
+    } catch (error) {
+      console.warn("ACE: falha ao atualizar inventário em tempo real:", error);
+    }
+  }, 250);
+}
+
+
+function setupAceInventoryRealtime() {
+  if (aceInventoryChannel || !currentUser?.id) return;
+
+  aceInventoryChannel = supabaseClient
+    .channel("ace-inventario-global")
+    .on("postgres_changes", { event: "*", schema: "public", table: "inventarios" }, scheduleAceInventoryRefresh)
+    .on("postgres_changes", { event: "*", schema: "public", table: "inventario_itens" }, scheduleAceInventoryRefresh)
+    .subscribe();
+
+  window.addEventListener("focus", scheduleAceInventoryRefresh);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") scheduleAceInventoryRefresh();
+  });
+}
+
+
 
 
 
@@ -37488,3 +38263,4 @@ startAuth();
   );
 
 })();
+
