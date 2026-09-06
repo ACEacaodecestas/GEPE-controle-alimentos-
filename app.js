@@ -41386,6 +41386,94 @@ window.aceBuildStatisticsReportHtml =
         background: #eaf4fd;
       }
 
+      #${MOBILE_SHEET_ID} .ace-group-sheet-item.active {
+        background: #eaf4fd;
+        color: #0756a0;
+        box-shadow: inset 0 0 0 1px #d5e8f7;
+      }
+
+      /* ======================================================
+         MAIS OPÇÕES - ACCORDION PROFISSIONAL
+         ====================================================== */
+      #${MOBILE_SHEET_ID} .ace-more-accordion {
+        display: grid;
+        gap: 9px;
+        margin-top: 4px;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-section {
+        overflow: hidden;
+        border: 1px solid #dbe7ef;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 5px 18px rgba(13, 62, 96, .06);
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-trigger {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 58px;
+        padding: 13px 15px;
+        border: 0;
+        background: #eef6fc;
+        color: #0b4b7a;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 900;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-trigger:active,
+      #${MOBILE_SHEET_ID} .ace-more-accordion-section.open .ace-more-accordion-trigger {
+        background: #e1f0fb;
+        color: #064f88;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-arrow {
+        flex: 0 0 auto;
+        font-size: 20px;
+        font-weight: 900;
+        line-height: 1;
+        transform: rotate(0deg);
+        transition: transform .18s ease;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-section.open .ace-more-accordion-arrow {
+        transform: rotate(90deg);
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-panel {
+        max-height: 0;
+        overflow: hidden;
+        padding: 0 8px;
+        background: #fff;
+        opacity: 0;
+        transition: max-height .22s ease, opacity .18s ease, padding .22s ease;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-section.open .ace-more-accordion-panel {
+        max-height: 360px;
+        padding: 7px 8px 9px;
+        opacity: 1;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-more-accordion-panel .ace-group-sheet-item {
+        min-height: 50px;
+        margin: 4px 0;
+        padding-left: 15px;
+        background: #f7fafc;
+      }
+
       #aceMobileDrawerList .ace-drawer-section {
         padding: 2px 0 5px;
       }
@@ -41589,21 +41677,65 @@ window.aceBuildStatisticsReportHtml =
         ${groups.movements.items.map(renderMobileSheetItem).join("")}
       `;
     } else {
+      const accordionSection = (key, icon, title, items) => `
+        <div class="ace-more-accordion-section" data-ace-more-section="${key}">
+          <button
+            class="ace-more-accordion-trigger"
+            type="button"
+            data-ace-more-toggle="${key}"
+            aria-expanded="false"
+          >
+            <span class="ace-more-accordion-title">${icon} ${title}</span>
+            <span class="ace-more-accordion-arrow" aria-hidden="true">›</span>
+          </button>
+          <div class="ace-more-accordion-panel">
+            ${items.map(renderMobileSheetItem).join("")}
+          </div>
+        </div>
+      `;
+
       content.innerHTML = `
         <h3 class="ace-group-sheet-title">☰ Mais opções</h3>
 
-        <div class="ace-group-sheet-section-title">🗂️ Consultas</div>
-        ${groups.queries.items.map(renderMobileSheetItem).join("")}
-
-        <div class="ace-group-sheet-section-title">📈 Gestão</div>
-        ${groups.management.items.map(renderMobileSheetItem).join("")}
-
-        <div class="ace-group-sheet-section-title">Configurações</div>
-        ${renderMobileSheetItem({ target: "cadastro", label: "⚙️ Cadastros" })}
+        <div class="ace-more-accordion">
+          ${accordionSection("queries", "🗂️", "Consultas", groups.queries.items)}
+          ${accordionSection("management", "📈", "Gestão", groups.management.items)}
+          ${accordionSection(
+            "settings",
+            "⚙️",
+            "Configurações",
+            [{ target: "cadastro", label: "⚙️ Cadastros" }]
+          )}
+        </div>
       `;
+
+      // Todos começam recolhidos. Somente um grupo fica aberto por vez.
+      content.querySelectorAll("[data-ace-more-toggle]").forEach(button => {
+        button.onclick = () => {
+          const section = button.closest(".ace-more-accordion-section");
+          const wasOpen = section?.classList.contains("open");
+
+          content.querySelectorAll(".ace-more-accordion-section").forEach(item => {
+            item.classList.remove("open");
+            item
+              .querySelector("[data-ace-more-toggle]")
+              ?.setAttribute("aria-expanded", "false");
+          });
+
+          if (section && !wasOpen) {
+            section.classList.add("open");
+            button.setAttribute("aria-expanded", "true");
+          }
+        };
+      });
     }
 
     content.querySelectorAll("[data-ace-sheet-target]").forEach(button => {
+      button.classList.toggle(
+        "active",
+        targetMatchesTab(button.dataset.aceSheetTarget, activeOriginalTab())
+      );
+
       button.onclick = () => openOriginal(button.dataset.aceSheetTarget);
     });
 
