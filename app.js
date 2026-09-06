@@ -41085,7 +41085,7 @@ window.aceBuildStatisticsReportHtml =
     management: {
       label: "📈 Gestão",
       items: [
-        { target: "inventario", label: "📊 Inventário" },
+        { target: "inventario", label: "📦 Inventário" },
         { target: "relatorio", label: "📑 Relatórios" }
       ]
     }
@@ -41704,7 +41704,7 @@ window.aceBuildStatisticsReportHtml =
             "settings",
             "⚙️",
             "Configurações",
-            [{ target: "cadastro", label: "⚙️ Cadastros" }]
+            [{ target: "cadastro", label: "🗃️ Cadastros" }]
           )}
         </div>
       `;
@@ -41840,7 +41840,7 @@ window.aceBuildStatisticsReportHtml =
       ${directButton("presenca", "👥 Presença")}
       ${section("Consultas", groups.queries.items)}
       ${section("Gestão", groups.management.items)}
-      ${directButton("cadastro", "⚙️ Cadastros")}
+      ${directButton("cadastro", "🗃️ Cadastros")}
     `;
 
     drawerList.querySelectorAll("[data-ace-open-page]").forEach(button => {
