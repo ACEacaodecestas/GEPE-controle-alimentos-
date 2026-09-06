@@ -30109,7 +30109,7 @@ function ensureMuralAceStyles() {
     #aceMuralModal{
       position:fixed;
       inset:0;
-      z-index:1000040;
+      z-index:2147483000;
       display:flex;
       align-items:center;
       justify-content:center;
