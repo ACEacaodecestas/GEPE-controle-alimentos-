@@ -14867,6 +14867,10 @@ function renderCadastros() {
             )
     );
 
+
+  // Área administrativa exclusiva do administrador autorizado.
+  ensureAceAdminOperationsPanel();
+
 }
 
 
@@ -16882,229 +16886,1524 @@ function download(
 
 
 // ============================================================
-// ZERAR MOVIMENTAÇÕES
+// ADMINISTRAÇÃO - BACKUP / RESET / RESTAURAÇÃO
+// ============================================================
+//
+// A área abaixo é VISÍVEL somente para:
+// aislantavares329@gmail.com
+//
+// IMPORTANTE:
+// A segurança real NÃO depende apenas da interface.
+// Backup, reset e restauração usam funções RPC do Supabase que
+// verificam novamente o e-mail do usuário autenticado.
+//
+// O reset apaga SOMENTE dados operacionais:
+// - entradas
+// - saídas
+// - perdas
+// - presença
+// - histórico de movimentações
+// - saídas antigas de cestas
+// - estoque de cestas montadas
+// - retiradas de cestas
+// - ajustes/estornos de cestas
+//
+// Permanecem:
+// - Pessoas
+// - Alimentos
+// - Origens
+// - modelos de Cestas
+// - composição padrão das Cestas
+// - Motivos
+// - Usuários / autenticação
+// - Mural e configurações
 // ============================================================
 
-async function resetMovements() {
+const ACE_OPERATIONAL_ADMIN_EMAIL =
+  "aislantavares329@gmail.com";
 
-  console.log("ACE: botão Zerar movimentações clicado.");
+const ACE_ADMIN_LAST_BACKUP_KEY =
+  "ace_admin_last_backup_v1";
 
-  const confirmation =
-    await showAceConfirm(
-      "Isso irá apagar TODAS as movimentações do sistema:\n\n" +
-      "• Entradas\n" +
-      "• Saídas\n" +
-      "• Perdas\n" +
-      "• Presenças\n\n" +
-      "Os cadastros NÃO serão apagados:\n" +
-      "• Pessoas\n" +
-      "• Alimentos\n" +
-      "• Origens\n" +
-      "• Motivos\n" +
-      "• Usuários\n\n" +
-      "Deseja continuar?",
-      "⚠️ ATENÇÃO!"
-    );
 
-  if (!confirmation) {
-    return;
-  }
+function isAceOperationalAdmin() {
 
-  const code =
-    await showAceInput(
-      "Para confirmar a operação, digite exatamente:\n\nZERAR",
-      "Confirmar zeramento"
-    );
+  return (
+    String(
+      currentUser?.email || ""
+    )
+      .trim()
+      .toLowerCase() ===
+    ACE_OPERATIONAL_ADMIN_EMAIL
+  );
 
-  if (code !== "ZERAR") {
+}
 
-    await showAceConfirm(
-      "Operação cancelada. A confirmação não foi validada.",
-      "Operação cancelada"
-    );
 
-    return;
-  }
+function getAceCadastrosPage() {
 
-  const button =
-    document.getElementById("resetMovementsButton");
+  return (
+    document
+      .getElementById(
+        "foodsTable"
+      )
+      ?.closest(
+        ".page"
+      )
+    ||
+    document
+      .getElementById(
+        "peopleTable"
+      )
+      ?.closest(
+        ".page"
+      )
+    ||
+    document
+      .querySelector(
+        '[data-page="cadastros"]'
+      )
+      ?.dataset?.page
+      ? document.getElementById(
+          document
+            .querySelector(
+              '[data-page="cadastros"]'
+            )
+            ?.dataset?.page
+        )
+      : null
+  );
 
-  if (button) {
-    button.disabled = true;
-    button.textContent = "⏳ Zerando...";
-  }
+}
+
+
+function getAceAdminLastBackupInfo() {
 
   try {
 
-    // IMPORTANTE:
-    // Não usamos usuário_id aqui porque o estoque é compartilhado
-    // entre os usuários do sistema. O objetivo é zerar o movimento
-    // geral, preservando todos os cadastros.
+    const raw =
+      localStorage.getItem(
+        ACE_ADMIN_LAST_BACKUP_KEY
+      );
 
-    const tables = [
-      "entradas",
-      "saídas",
-      "perdas",
-      "presença"
-    ];
 
-    for (const tableName of tables) {
+    return raw
+      ? JSON.parse(raw)
+      : null;
 
-      const { error } =
-        await supabaseClient
-          .from(tableName)
-          .delete()
-          .not("id", "is", null);
 
-      if (error) {
-        throw new Error(
-          `Falha ao zerar a tabela ${tableName}: ${error.message}`
-        );
-      }
-    }
+  } catch {
 
-    // Recarrega os dados do Supabase.
-    await loadFromSupabase(false);
-
-    if (typeof renderAll === "function") {
-      renderAll();
-    }
-
-    await showAceConfirm(
-      "Movimentações zeradas com sucesso!\n\n" +
-      "Entradas, saídas, perdas e presenças foram apagadas.\n" +
-      "Os cadastros e usuários foram preservados.",
-      "✅ Concluído"
-    );
-
-  } catch (error) {
-
-    console.error(
-      "ACE - ERRO AO ZERAR MOVIMENTAÇÕES:",
-      error
-    );
-
-    await showAceConfirm(
-      "Não foi possível zerar as movimentações.\n\n" +
-      (error?.message || "Erro desconhecido."),
-      "❌ Erro"
-    );
-
-  } finally {
-
-    if (button) {
-      button.disabled = false;
-      button.textContent = "🗑️ Zerar movimentações";
-    }
+    return null;
 
   }
 
 }
 
-// Torna a função acessível pelo botão criado dinamicamente.
-window.resetMovements = resetMovements;
 
+function saveAceAdminLastBackupInfo(
+  info
+) {
 
-// ============================================================
-// BOTÃO "ZERAR MOVIMENTAÇÕES" NO MENU
-// ============================================================
+  try {
 
-function setupResetMovementsButton() {
-
-  const tabs =
-    document.querySelector(".tabs");
-
-  if (!tabs) {
-    console.warn(
-      "ACE: menu .tabs não encontrado."
+    localStorage.setItem(
+      ACE_ADMIN_LAST_BACKUP_KEY,
+      JSON.stringify(
+        info || {}
+      )
     );
-    return;
-  }
+
+  } catch {}
+
+}
+
+
+function ensureAceAdminOperationsStyles() {
 
   if (
     document.getElementById(
-      "resetMovementsButton"
+      "aceAdminOperationsStyles"
     )
   ) {
     return;
   }
 
-  const button =
-    document.createElement("button");
 
-  button.id =
-    "resetMovementsButton";
+  const style =
+    document.createElement(
+      "style"
+    );
 
-  button.type =
-    "button";
 
-  button.textContent =
-    "🗑️ Zerar movimentações";
+  style.id =
+    "aceAdminOperationsStyles";
 
-  button.style.cssText = `
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    flex:0 0 auto;
-    visibility:visible;
-    opacity:1;
-    position:relative;
-    z-index:20;
-    margin-left:8px;
-    padding:10px 14px;
-    border-radius:8px;
-    cursor:pointer;
-    font-weight:800;
-    color:#b42318;
-    background:#fff1f0;
-    border:1px solid #f0b8b4;
-    white-space:nowrap;
-  `;
 
-  // Usa onclick diretamente para garantir que o botão
-  // continue funcionando mesmo sendo criado dinamicamente.
-  button.onclick = async function (event) {
+  style.textContent = `
 
-    event.preventDefault();
-    event.stopPropagation();
-
-    try {
-      await window.resetMovements();
-    } catch (error) {
-      console.error(
-        "ACE - ERRO NO BOTÃO ZERAR:",
-        error
-      );
-
-      await showAceConfirm(
-        "Erro ao executar o botão Zerar movimentações:\n\n" +
-        (error?.message || "Erro desconhecido."),
-        "❌ Erro"
-      );
+    #aceAdminOperationsPanel{
+      margin-top:26px;
+      padding:22px;
+      border:1px solid #d7e0e8;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 8px 26px rgba(15,42,66,.08);
+      box-sizing:border-box;
     }
 
-  };
+    #aceAdminOperationsPanel .ace-admin-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      margin-bottom:16px;
+    }
 
-  const cadastrosButton =
-    tabs.querySelector(
-      '[data-page="cadastros"]'
+    #aceAdminOperationsPanel .ace-admin-title{
+      margin:0;
+      color:#0b2f55;
+      font-size:25px;
+      font-weight:900;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-subtitle{
+      margin-top:5px;
+      color:#667085;
+      font-size:14px;
+      line-height:1.45;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:8px 11px;
+      border-radius:999px;
+      background:#eaf7ef;
+      color:#157347;
+      font-size:12px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-warning{
+      padding:14px 15px;
+      border:1px solid #f3d5a8;
+      border-radius:11px;
+      background:#fff8e8;
+      color:#654a16;
+      font-size:13px;
+      line-height:1.5;
+      margin-bottom:16px;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-preserved{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-bottom:16px;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-info-card{
+      padding:13px 14px;
+      border:1px solid #dce5ec;
+      border-radius:11px;
+      background:#f8fafc;
+      color:#344054;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-info-card strong{
+      display:block;
+      margin-bottom:5px;
+      color:#102a43;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-actions{
+      display:flex;
+      align-items:stretch;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-btn{
+      flex:1 1 210px;
+      min-height:50px;
+      padding:11px 15px;
+      border-radius:10px;
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
+      box-sizing:border-box;
+    }
+
+    #aceAdminBackupNow{
+      border:1px solid #0b5a8f;
+      background:#0b5a8f;
+      color:#fff;
+    }
+
+    #aceAdminRestoreBackup{
+      border:1px solid #6b4eff;
+      background:#fff;
+      color:#5b36d6;
+    }
+
+    #aceAdminResetOperational{
+      border:1px solid #e23d34;
+      background:#fff1f0;
+      color:#b42318;
+    }
+
+    #aceAdminOperationsPanel .ace-admin-btn:disabled{
+      opacity:.58;
+      cursor:wait;
+    }
+
+    #aceAdminBackupStatus{
+      margin-top:13px;
+      min-height:20px;
+      color:#52606d;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    #aceAdminResetChoice{
+      position:fixed;
+      inset:0;
+      z-index:1003000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,35,70,.68);
+      backdrop-filter:blur(3px);
+      box-sizing:border-box;
+    }
+
+    #aceAdminResetChoice .ace-admin-choice-box{
+      width:min(570px,calc(100vw - 34px));
+      max-height:calc(100dvh - 34px);
+      overflow:auto;
+      padding:27px;
+      border-radius:18px;
+      background:#fff;
+      box-shadow:0 20px 60px rgba(0,0,0,.36);
+      box-sizing:border-box;
+    }
+
+    #aceAdminResetChoice .ace-admin-choice-title{
+      color:#0b2f55;
+      font-size:25px;
+      font-weight:900;
+      margin-bottom:10px;
+    }
+
+    #aceAdminResetChoice .ace-admin-choice-text{
+      color:#475467;
+      font-size:14px;
+      line-height:1.55;
+      margin-bottom:18px;
+    }
+
+    #aceAdminResetChoice .ace-admin-choice-actions{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:9px;
+    }
+
+    #aceAdminResetChoice .ace-admin-choice-btn{
+      width:100%;
+      min-height:48px;
+      padding:11px 14px;
+      border-radius:10px;
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    #aceAdminChoiceBackup{
+      border:1px solid #0b5a8f;
+      background:#0b5a8f;
+      color:#fff;
+    }
+
+    #aceAdminChoiceSkip{
+      border:1px solid #e23d34;
+      background:#fff1f0;
+      color:#b42318;
+    }
+
+    #aceAdminChoiceCancel{
+      border:1px solid #aebbc6;
+      background:#fff;
+      color:#344054;
+    }
+
+    @media(max-width:650px){
+
+      #aceAdminOperationsPanel{
+        padding:16px;
+      }
+
+      #aceAdminOperationsPanel .ace-admin-preserved{
+        grid-template-columns:1fr;
+      }
+
+      #aceAdminOperationsPanel .ace-admin-actions{
+        flex-direction:column;
+      }
+
+      #aceAdminOperationsPanel .ace-admin-btn{
+        width:100%;
+        flex:auto;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function getAceAdminBackupStatusText() {
+
+  const info =
+    getAceAdminLastBackupInfo();
+
+
+  if (
+    !info?.date ||
+    !info?.time
+  ) {
+
+    return (
+      "Nenhum backup administrativo foi gerado neste aparelho nesta sessão de trabalho."
     );
 
-  if (cadastrosButton) {
+  }
 
-    cadastrosButton.insertAdjacentElement(
-      "afterend",
-      button
+
+  return (
+    `Último backup gerado neste aparelho: ${info.date} às ${info.time}` +
+    (
+      info.fileName
+        ? ` — ${info.fileName}`
+        : ""
+    )
+  );
+
+}
+
+
+function ensureAceAdminOperationsPanel() {
+
+  const existing =
+    document.getElementById(
+      "aceAdminOperationsPanel"
     );
 
-  } else {
 
-    tabs.appendChild(button);
+  if (
+    !isAceOperationalAdmin()
+  ) {
+
+    existing?.remove();
+
+    document
+      .getElementById(
+        "resetMovementsButton"
+      )
+      ?.remove();
+
+    return;
+
+  }
+
+
+  const page =
+    getAceCadastrosPage();
+
+
+  if (!page) {
+    return;
+  }
+
+
+  ensureAceAdminOperationsStyles();
+
+
+  let panel =
+    existing;
+
+
+  if (!panel) {
+
+    panel =
+      document.createElement(
+        "section"
+      );
+
+
+    panel.id =
+      "aceAdminOperationsPanel";
+
+
+    page.appendChild(
+      panel
+    );
+
+  }
+
+
+  panel.innerHTML = `
+
+    <div class="ace-admin-head">
+
+      <div>
+
+        <h2 class="ace-admin-title">
+          🔐 Administração do sistema
+        </h2>
+
+        <div class="ace-admin-subtitle">
+          Área exclusiva para backup, restauração e zeramento dos dados operacionais.
+        </div>
+
+      </div>
+
+      <div class="ace-admin-badge">
+        👤 Administrador: ${esc(
+          currentUser?.user_metadata?.nome ||
+          currentUser?.user_metadata?.name ||
+          currentUser?.email ||
+          "Aislan"
+        )}
+      </div>
+
+    </div>
+
+
+    <div class="ace-admin-warning">
+
+      <strong>⚠️ Reset Operacional:</strong>
+      zera as movimentações, estoque de alimentos, estoque de cestas e históricos operacionais.
+      Os cadastros permanecem intactos.
+
+    </div>
+
+
+    <div class="ace-admin-preserved">
+
+      <div class="ace-admin-info-card">
+
+        <strong>🗑️ O reset apaga</strong>
+
+        Entradas, saídas, perdas, presença, histórico de movimentações,
+        cestas montadas, retiradas, ajustes/estornos e histórico operacional de cestas.
+
+      </div>
+
+
+      <div class="ace-admin-info-card">
+
+        <strong>✅ O reset preserva</strong>
+
+        Pessoas, alimentos, origens, motivos, usuários,
+        modelos de cestas, composição padrão das cestas,
+        mural e configurações.
+
+      </div>
+
+    </div>
+
+
+    <div class="ace-admin-actions">
+
+      <button
+        id="aceAdminBackupNow"
+        class="ace-admin-btn"
+        type="button"
+      >
+        📦 Fazer backup completo
+      </button>
+
+      <button
+        id="aceAdminRestoreBackup"
+        class="ace-admin-btn"
+        type="button"
+      >
+        ♻️ Restaurar backup
+      </button>
+
+      <button
+        id="aceAdminResetOperational"
+        class="ace-admin-btn"
+        type="button"
+      >
+        ⚠️ Zerar dados operacionais
+      </button>
+
+      <input
+        id="aceAdminRestoreFile"
+        type="file"
+        accept="application/json,.json"
+        hidden
+      >
+
+    </div>
+
+
+    <div id="aceAdminBackupStatus">
+      ${esc(
+        getAceAdminBackupStatusText()
+      )}
+    </div>
+
+  `;
+
+
+  const backupButton =
+    panel.querySelector(
+      "#aceAdminBackupNow"
+    );
+
+
+  backupButton.onclick =
+    async () => {
+
+      await createAceAdminFullBackup({
+        showSuccess:
+          true
+      });
+
+    };
+
+
+  const restoreButton =
+    panel.querySelector(
+      "#aceAdminRestoreBackup"
+    );
+
+
+  const restoreInput =
+    panel.querySelector(
+      "#aceAdminRestoreFile"
+    );
+
+
+  restoreButton.onclick =
+    () =>
+      restoreInput.click();
+
+
+  restoreInput.onchange =
+    async event => {
+
+      const file =
+        event.target
+          .files?.[0];
+
+
+      if (!file) {
+        return;
+      }
+
+
+      try {
+
+        const obj =
+          JSON.parse(
+            await file.text()
+          );
+
+
+        await restoreAceAdminBackup(
+          obj,
+          file.name
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "ACE - ERRO AO LER BACKUP ADMIN:",
+          error
+        );
+
+
+        await showAceMessage(
+          "Não foi possível ler ou restaurar o arquivo selecionado.\n\n" +
+          (
+            error?.message ||
+            "Arquivo inválido."
+          ),
+          "❌ Backup inválido"
+        );
+
+
+      } finally {
+
+        event.target.value =
+          "";
+
+      }
+
+    };
+
+
+  const resetButton =
+    panel.querySelector(
+      "#aceAdminResetOperational"
+    );
+
+
+  resetButton.onclick =
+    startAceAdminOperationalReset;
+
+
+  // Remove definitivamente o botão antigo, caso alguma versão
+  // anterior do navegador ainda o tenha criado no menu.
+  document
+    .getElementById(
+      "resetMovementsButton"
+    )
+    ?.remove();
+
+}
+
+
+async function createAceAdminFullBackup({
+  showSuccess = true
+} = {}) {
+
+  if (
+    !isAceOperationalAdmin()
+  ) {
+
+    await showAceMessage(
+      "Somente o administrador autorizado pode gerar este backup.",
+      "🔒 Acesso negado"
+    );
+
+    return null;
+
+  }
+
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceMessage(
+      "O backup administrativo precisa de conexão com a internet.",
+      "🟠 Operação online"
+    );
+
+    return null;
+
+  }
+
+
+  const button =
+    document.getElementById(
+      "aceAdminBackupNow"
+    );
+
+
+  const originalText =
+    button?.innerHTML ||
+    "📦 Fazer backup completo";
+
+
+  if (button) {
+
+    button.disabled =
+      true;
+
+    button.innerHTML =
+      "⏳ Gerando backup...";
+
+  }
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.rpc(
+        "ace_admin_backup_completo"
+      );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const backup =
+      (
+        typeof data ===
+          "string"
+          ? JSON.parse(data)
+          : (
+              data || {}
+            )
+      );
+
+
+    backup.local_reasons =
+      Array.isArray(
+        db?.reasons
+      )
+        ? db.reasons
+        : [];
+
+
+    backup.client_metadata = {
+      generated_at_local:
+        new Date()
+          .toISOString(),
+      app:
+        "ACE - Controle de Alimentos",
+      user_email:
+        currentUser?.email ||
+        "",
+      user_name:
+        currentUser?.user_metadata?.nome ||
+        currentUser?.user_metadata?.name ||
+        currentUser?.email ||
+        ""
+    };
+
+
+    const now =
+      new Date();
+
+
+    const datePart =
+      [
+        String(
+          now.getDate()
+        ).padStart(2, "0"),
+        String(
+          now.getMonth() + 1
+        ).padStart(2, "0"),
+        now.getFullYear()
+      ].join("-");
+
+
+    const timePart =
+      [
+        String(
+          now.getHours()
+        ).padStart(2, "0"),
+        String(
+          now.getMinutes()
+        ).padStart(2, "0")
+      ].join("-");
+
+
+    const fileName =
+      `backup_ACE_${datePart}_${timePart.replace(":", "h")}.json`;
+
+
+    download(
+      new Blob(
+        [
+          JSON.stringify(
+            backup,
+            null,
+            2
+          )
+        ],
+        {
+          type:
+            "application/json;charset=utf-8"
+        }
+      ),
+      fileName
+    );
+
+
+    saveAceAdminLastBackupInfo({
+      date:
+        now.toLocaleDateString(
+          "pt-BR"
+        ),
+      time:
+        now.toLocaleTimeString(
+          "pt-BR",
+          {
+            hour:
+              "2-digit",
+            minute:
+              "2-digit"
+          }
+        ),
+      fileName
+    });
+
+
+    const status =
+      document.getElementById(
+        "aceAdminBackupStatus"
+      );
+
+
+    if (status) {
+      status.textContent =
+        getAceAdminBackupStatusText();
+    }
+
+
+    if (showSuccess) {
+
+      showAceSuccess(
+        "Backup completo gerado com sucesso!"
+      );
+
+    }
+
+
+    return backup;
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO GERAR BACKUP ADMIN:",
+      error
+    );
+
+
+    await showAceMessage(
+      "Não foi possível gerar o backup completo.\n\n" +
+      (
+        error?.message ||
+        "Verifique o Supabase."
+      ) +
+      "\n\nSe esta função ainda não foi instalada, execute o SQL administrativo fornecido junto com este script.",
+      "❌ Erro no backup"
+    );
+
+
+    return null;
+
+
+  } finally {
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.innerHTML =
+        originalText;
+
+    }
 
   }
 
 }
 
+
+function showAceResetBackupChoice() {
+
+  return new Promise(
+    resolve => {
+
+      document
+        .getElementById(
+          "aceAdminResetChoice"
+        )
+        ?.remove();
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+
+      overlay.id =
+        "aceAdminResetChoice";
+
+
+      overlay.innerHTML = `
+
+        <div class="ace-admin-choice-box">
+
+          <div class="ace-admin-choice-title">
+            ⚠️ Zerar dados operacionais
+          </div>
+
+          <div class="ace-admin-choice-text">
+
+            Antes de continuar, é recomendado gerar um backup completo.
+            Assim será possível restaurar os dados operacionais caso seja necessário.
+
+            <br><br>
+
+            <strong>
+              O reset deixará o estoque principal e o estoque de cestas zerados.
+              Os cadastros serão preservados.
+            </strong>
+
+          </div>
+
+          <div class="ace-admin-choice-actions">
+
+            <button
+              id="aceAdminChoiceBackup"
+              class="ace-admin-choice-btn"
+              type="button"
+            >
+              📦 Fazer backup agora
+            </button>
+
+            <button
+              id="aceAdminChoiceSkip"
+              class="ace-admin-choice-btn"
+              type="button"
+            >
+              ⚠️ Continuar sem backup
+            </button>
+
+            <button
+              id="aceAdminChoiceCancel"
+              class="ace-admin-choice-btn"
+              type="button"
+            >
+              Cancelar
+            </button>
+
+          </div>
+
+        </div>
+
+      `;
+
+
+      const finish =
+        value => {
+
+          overlay.remove();
+
+          resolve(
+            value
+          );
+
+        };
+
+
+      overlay
+        .querySelector(
+          "#aceAdminChoiceBackup"
+        )
+        .onclick =
+          () =>
+            finish(
+              "backup"
+            );
+
+
+      overlay
+        .querySelector(
+          "#aceAdminChoiceSkip"
+        )
+        .onclick =
+          () =>
+            finish(
+              "skip"
+            );
+
+
+      overlay
+        .querySelector(
+          "#aceAdminChoiceCancel"
+        )
+        .onclick =
+          () =>
+            finish(
+              null
+            );
+
+
+      document.body.appendChild(
+        overlay
+      );
+
+    }
+  );
+
+}
+
+
+async function startAceAdminOperationalReset() {
+
+  if (
+    !isAceOperationalAdmin()
+  ) {
+
+    await showAceMessage(
+      "Somente o administrador autorizado pode executar o reset do sistema.",
+      "🔒 Acesso negado"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceMessage(
+      "O reset administrativo precisa de conexão com a internet.",
+      "🟠 Operação online"
+    );
+
+    return;
+
+  }
+
+
+  const choice =
+    await showAceResetBackupChoice();
+
+
+  if (!choice) {
+    return;
+  }
+
+
+  if (
+    choice ===
+      "backup"
+  ) {
+
+    const backup =
+      await createAceAdminFullBackup({
+        showSuccess:
+          false
+      });
+
+
+    if (!backup) {
+
+      await showAceMessage(
+        "O reset foi cancelado porque o backup não pôde ser gerado.",
+        "Reset cancelado"
+      );
+
+      return;
+
+    }
+
+
+    await showAceMessage(
+      "Backup gerado com sucesso.\n\nAgora será aberta a confirmação final do reset.",
+      "📦 Backup concluído"
+    );
+
+  }
+
+
+  if (
+    choice ===
+      "skip"
+  ) {
+
+    const skipConfirmed =
+      await showAceConfirm(
+        "Você escolheu continuar SEM BACKUP.\n\n" +
+        "Se o reset for concluído, os dados operacionais atuais somente poderão ser recuperados caso exista outro backup salvo.\n\n" +
+        "Deseja realmente continuar?",
+        "⚠️ Continuar sem backup?"
+      );
+
+
+    if (!skipConfirmed) {
+      return;
+    }
+
+  }
+
+
+  const code =
+    await showAceInput(
+      "Esta operação irá:\n\n" +
+      "• zerar o estoque de alimentos\n" +
+      "• apagar entradas, saídas e perdas\n" +
+      "• apagar presenças\n" +
+      "• apagar cestas montadas e seus históricos operacionais\n" +
+      "• apagar o histórico de movimentações\n\n" +
+      "Pessoas, alimentos, origens, motivos, usuários e modelos de cestas serão preservados.\n\n" +
+      "Para confirmar, digite exatamente:\n\nZERAR SISTEMA",
+      "⚠️ Confirmação final"
+    );
+
+
+  if (
+    String(
+      code || ""
+    ).trim() !==
+      "ZERAR SISTEMA"
+  ) {
+
+    await showAceMessage(
+      "A frase de confirmação não confere. Nenhum dado foi apagado.",
+      "Reset cancelado"
+    );
+
+    return;
+
+  }
+
+
+  const button =
+    document.getElementById(
+      "aceAdminResetOperational"
+    );
+
+
+  const originalText =
+    button?.innerHTML ||
+    "⚠️ Zerar dados operacionais";
+
+
+  if (button) {
+
+    button.disabled =
+      true;
+
+    button.innerHTML =
+      "⏳ Zerando sistema...";
+
+  }
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.rpc(
+        "ace_admin_reset_operacional"
+      );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    // Muito importante:
+    // impede que operações offline antigas sejam reenviadas
+    // depois do reset e recriem dados que acabaram de ser apagados.
+    saveOfflineQueue(
+      []
+    );
+
+
+    // Remove o snapshot antigo antes de baixar o estado zerado.
+    localStorage.removeItem(
+      ACE_OFFLINE_DB_KEY
+    );
+
+
+    await reloadFromSupabase();
+
+
+    window.aceBulkEntryDraft =
+      [];
+
+
+    if (
+      typeof renderBulkEntryDraft ===
+        "function"
+    ) {
+      renderBulkEntryDraft();
+    }
+
+
+    renderAll();
+
+
+    const result =
+      typeof data ===
+        "string"
+        ? data
+        : JSON.stringify(
+            data || {}
+          );
+
+
+    console.log(
+      "ACE - RESET ADMIN CONCLUÍDO:",
+      result
+    );
+
+
+    await showAceMessage(
+      "Reset operacional concluído com sucesso.\n\n" +
+      "O estoque principal está zerado, o estoque de cestas está zerado e os históricos operacionais foram apagados.\n\n" +
+      "Todos os cadastros foram preservados.",
+      "✅ Sistema zerado"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO NO RESET ADMINISTRATIVO:",
+      error
+    );
+
+
+    await showAceMessage(
+      "Não foi possível concluir o reset.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ) +
+      "\n\nNenhuma limpeza parcial deve permanecer, pois o reset é executado em uma única transação no Supabase.",
+      "❌ Erro no reset"
+    );
+
+
+  } finally {
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.innerHTML =
+        originalText;
+
+    }
+
+  }
+
+}
+
+
+async function restoreAceAdminBackup(
+  backup,
+  fileName = ""
+) {
+
+  if (
+    !isAceOperationalAdmin()
+  ) {
+
+    await showAceMessage(
+      "Somente o administrador autorizado pode restaurar um backup.",
+      "🔒 Acesso negado"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceMessage(
+      "A restauração administrativa precisa de conexão com a internet.",
+      "🟠 Operação online"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !backup ||
+    backup.kind !==
+      "ACE_CONTROLE_ALIMENTOS_BACKUP" ||
+    !backup.tables
+  ) {
+
+    throw new Error(
+      "Este arquivo não é um backup administrativo válido do sistema ACE."
+    );
+
+  }
+
+
+  const confirmed =
+    await showAceConfirm(
+      `Restaurar o backup${fileName ? ` "${fileName}"` : ""}?\n\n` +
+      "Os dados operacionais atuais serão substituídos pelo conteúdo do backup.\n\n" +
+      "Os cadastros atuais serão preservados.",
+      "♻️ Restaurar backup"
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  const code =
+    await showAceInput(
+      "Para confirmar a restauração, digite exatamente:\n\nRESTAURAR BACKUP",
+      "♻️ Confirmação de restauração"
+    );
+
+
+  if (
+    String(
+      code || ""
+    ).trim() !==
+      "RESTAURAR BACKUP"
+  ) {
+
+    await showAceMessage(
+      "A frase de confirmação não confere. A restauração foi cancelada.",
+      "Restauração cancelada"
+    );
+
+    return;
+
+  }
+
+
+  const restoreButton =
+    document.getElementById(
+      "aceAdminRestoreBackup"
+    );
+
+
+  const originalText =
+    restoreButton?.innerHTML ||
+    "♻️ Restaurar backup";
+
+
+  if (restoreButton) {
+
+    restoreButton.disabled =
+      true;
+
+    restoreButton.innerHTML =
+      "⏳ Restaurando...";
+
+  }
+
+
+  try {
+
+    const {
+      error
+    } =
+      await supabaseClient.rpc(
+        "ace_admin_restore_backup",
+        {
+          p_backup:
+            backup
+        }
+      );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    if (
+      Array.isArray(
+        backup.local_reasons
+      )
+    ) {
+
+      db.reasons =
+        backup.local_reasons;
+
+      saveLocalReasons();
+
+    }
+
+
+    saveOfflineQueue(
+      []
+    );
+
+
+    localStorage.removeItem(
+      ACE_OFFLINE_DB_KEY
+    );
+
+
+    await reloadFromSupabase();
+
+
+    renderAll();
+
+
+    await showAceMessage(
+      "Backup restaurado com sucesso.\n\nOs dados operacionais voltaram ao estado salvo no arquivo.",
+      "✅ Restauração concluída"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO RESTAURAR BACKUP ADMIN:",
+      error
+    );
+
+
+    await showAceMessage(
+      "Não foi possível restaurar o backup.\n\n" +
+      (
+        error?.message ||
+        "Erro desconhecido."
+      ),
+      "❌ Erro na restauração"
+    );
+
+
+  } finally {
+
+    if (restoreButton) {
+
+      restoreButton.disabled =
+        false;
+
+      restoreButton.innerHTML =
+        originalText;
+
+    }
+
+  }
+
+}
+
+
+// Mantém os nomes globais antigos sem deixar o recurso antigo disponível.
+// Se algum HTML antigo tentar chamar resetMovements(), encaminha ao novo
+// fluxo administrativo, que possui verificação de administrador e Supabase.
+window.resetMovements =
+  startAceAdminOperationalReset;
 
 
 // ============================================================
