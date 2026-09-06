@@ -36964,6 +36964,9 @@ function ensureAceInventoryStyles() {
     .ace-inventory-cancel{border:1px solid #dc2626;background:#fff;color:#dc2626}
     .ace-inventory-btn:disabled{opacity:.55;cursor:not-allowed}
     .ace-inventory-delete-history{min-height:36px;padding:7px 11px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font:inherit;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}
+    .ace-inventory-history-actions{display:flex;align-items:center;gap:7px;white-space:nowrap}
+    .ace-inventory-pdf-history{min-height:36px;padding:7px 11px;border:1px solid #0b5a8f;border-radius:8px;background:#0b5a8f;color:#fff;font:inherit;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}
+    .ace-inventory-pdf-history:disabled{opacity:.6;cursor:wait}
     .ace-inventory-table-wrap{overflow:auto;border:1px solid #e3e9ef;border-radius:11px}
     .ace-inventory-table{width:100%;border-collapse:collapse;min-width:720px}
     .ace-inventory-table th,.ace-inventory-table td{padding:10px;border-bottom:1px solid #e7ecf1;text-align:left}
@@ -37110,7 +37113,12 @@ function renderAceInventoryHistory() {
       <td>${fmt(row.total_sistema || 0)}</td>
       <td>${row.status === "finalizado" ? fmt(row.total_contado || 0) : "—"}</td>
       <td>${row.status === "finalizado" ? fmt(row.total_ajuste || 0) : "—"}</td>
-      ${admin ? `<td><button type="button" class="ace-inventory-delete-history" data-inventory-delete-history="${row.id}">🗑️ Excluir</button></td>` : ""}
+      <td>
+        <div class="ace-inventory-history-actions">
+          ${row.status === "finalizado" ? `<button type="button" class="ace-inventory-pdf-history" data-inventory-pdf="${row.id}">📄 PDF</button>` : ""}
+          ${admin ? `<button type="button" class="ace-inventory-delete-history" data-inventory-delete-history="${row.id}">🗑️ Excluir</button>` : ""}
+        </div>
+      </td>
     </tr>`).join("");
 
   return `
@@ -37118,7 +37126,7 @@ function renderAceInventoryHistory() {
       <h3>🕘 Histórico de inventários</h3>
       <div class="ace-inventory-table-wrap">
         <table class="ace-inventory-table">
-          <thead><tr><th>Início</th><th>Responsável</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th>${admin ? "<th>Ação</th>" : ""}</tr></thead>
+          <thead><tr><th>Início</th><th>Responsável</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th><th>Ações</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -37355,6 +37363,194 @@ async function deleteAceInventoryHistory(inventoryId) {
 }
 
 
+function buildAceInventoryPdfElement(inventory, items) {
+  const totalSystem = items.reduce(
+    (sum, item) => sum + Number(item.estoque_sistema || 0),
+    0
+  );
+  const totalCounted = items.reduce(
+    (sum, item) => sum + Number(item.quantidade_contada || 0),
+    0
+  );
+  const totalDifference = totalCounted - totalSystem;
+  const generatedAt = new Date().toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short"
+  });
+  const generatedBy =
+    typeof getCurrentDisplayName === "function"
+      ? getCurrentDisplayName()
+      : currentUser?.email || "Usuário";
+
+  const rows = items.map((item, index) => {
+    const system = Number(item.estoque_sistema || 0);
+    const counted = Number(item.quantidade_contada || 0);
+    const difference = counted - system;
+    const differenceColor = difference < 0
+      ? "#c62828"
+      : difference > 0
+        ? "#0756a0"
+        : "#167a3d";
+
+    return `
+      <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;color:#667085;text-align:center">${index + 1}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;font-weight:700">${esc(item.alimento_nome)}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right">${fmt(system)}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900">${fmt(counted)}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor}">${difference > 0 ? "+" : ""}${fmt(difference)}</td>
+      </tr>`;
+  }).join("");
+
+  const element = document.createElement("div");
+  element.innerHTML = `
+    <div style="width:100%;box-sizing:border-box;padding:26px;background:#fff;color:#172b3a;font-family:Arial,Helvetica,sans-serif">
+      <div style="border-bottom:3px solid #0b4b7a;padding-bottom:16px;margin-bottom:18px">
+        <div style="font-size:13px;font-weight:800;color:#0b4b7a;letter-spacing:.4px;text-transform:uppercase;margin-bottom:5px">ACE - Ação de Cestas</div>
+        <div style="font-size:27px;font-weight:900;color:#102a43;margin-bottom:5px">Relatório de Inventário de Alimentos</div>
+        <div style="font-size:13px;color:#667085">Controle de Alimentos</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;padding:14px 16px;margin-bottom:16px;border:1px solid #d9e4ec;border-radius:10px;background:#f8fafc;font-size:12px;line-height:1.45">
+        <div><strong>Local:</strong> Água Fria</div>
+        <div><strong>Situação:</strong> Finalizado</div>
+        <div><strong>Início:</strong> ${esc(formatAceInventoryDateTime(inventory.iniciado_em))}</div>
+        <div><strong>Finalização:</strong> ${esc(formatAceInventoryDateTime(inventory.finalizado_em))}</div>
+        <div style="grid-column:1/-1"><strong>Responsável:</strong> ${esc(inventory.usuario_nome || "Usuário")}</div>
+        <div style="grid-column:1/-1"><strong>Documento gerado por:</strong> ${esc(generatedBy)} em ${esc(generatedAt)}</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+        <div style="padding:13px;border-radius:10px;background:#eaf4fb;border:1px solid #cfe1ef">
+          <div style="font-size:10px;color:#536273;font-weight:800">ESTOQUE NO SISTEMA</div>
+          <div style="font-size:22px;font-weight:900;color:#0b4b7a;margin-top:4px">${fmt(totalSystem)}</div>
+        </div>
+        <div style="padding:13px;border-radius:10px;background:#edf8f1;border:1px solid #cce8d6">
+          <div style="font-size:10px;color:#536273;font-weight:800">ESTOQUE CONTADO</div>
+          <div style="font-size:22px;font-weight:900;color:#167a3d;margin-top:4px">${fmt(totalCounted)}</div>
+        </div>
+        <div style="padding:13px;border-radius:10px;background:#fff6e7;border:1px solid #f1d3a4">
+          <div style="font-size:10px;color:#536273;font-weight:800">AJUSTE REALIZADO</div>
+          <div style="font-size:22px;font-weight:900;color:${totalDifference < 0 ? "#c62828" : totalDifference > 0 ? "#0756a0" : "#167a3d"};margin-top:4px">${totalDifference > 0 ? "+" : ""}${fmt(totalDifference)}</div>
+        </div>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px">
+        <thead>
+          <tr style="background:#0b4b7a;color:#fff">
+            <th style="width:7%;padding:10px 8px;text-align:center">Nº</th>
+            <th style="width:45%;padding:10px 8px;text-align:left">Alimento</th>
+            <th style="width:16%;padding:10px 8px;text-align:right">Sistema</th>
+            <th style="width:16%;padding:10px 8px;text-align:right">Contado</th>
+            <th style="width:16%;padding:10px 8px;text-align:right">Diferença</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:55px;margin-top:58px;padding:0 22px">
+        <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Responsável pelo inventário</div>
+        <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Conferente</div>
+      </div>
+
+      <div style="margin-top:24px;padding-top:10px;border-top:1px solid #d9e4ec;font-size:9px;color:#667085;line-height:1.4">
+        Documento gerado automaticamente pelo sistema ACE - Controle de Alimentos. As diferenças registradas foram aplicadas ao estoque como ajuste de inventário, sem criar entradas ou perdas falsas.
+      </div>
+    </div>`;
+
+  return element;
+}
+
+
+async function generateAceInventoryPDF(inventoryId, button = null) {
+  const inventory = aceInventoryHistory.find(
+    item => Number(item.id) === Number(inventoryId)
+  );
+
+  if (!inventory || inventory.status !== "finalizado") {
+    throw new Error("Inventário finalizado não encontrado.");
+  }
+
+  const originalText = button?.innerHTML || "📄 PDF";
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = "⏳ Gerando...";
+  }
+
+  let host = null;
+
+  try {
+    await ensureHtml2PdfLibrary();
+
+    let items = [];
+    if (aceIsOnline()) {
+      const result = await supabaseClient
+        .from("inventario_itens")
+        .select("*")
+        .eq("inventario_id", Number(inventoryId))
+        .order("alimento_nome");
+
+      if (result.error) throw result.error;
+      items = result.data || [];
+    } else if (Number(aceInventoryLast?.id) === Number(inventoryId)) {
+      items = aceInventoryLastItems || [];
+    } else {
+      throw new Error("Conecte-se à internet para gerar o PDF deste inventário.");
+    }
+
+    if (!items.length) throw new Error("Os itens deste inventário não foram encontrados.");
+
+    const element = buildAceInventoryPdfElement(inventory, items);
+    host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:0;top:0;width:794px;min-width:794px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
+    element.style.cssText = "width:760px;min-width:760px;max-width:760px;margin:0;box-sizing:border-box;position:relative;left:0";
+    host.appendChild(element);
+    document.body.appendChild(host);
+
+    if (document.fonts?.ready) {
+      try { await document.fonts.ready; } catch {}
+    }
+
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    const fileDate = String(inventory.finalizado_em || isoToday())
+      .slice(0, 10)
+      .split("-")
+      .reverse()
+      .join("-");
+
+    await window.html2pdf().set({
+      margin: [8, 8, 8, 8],
+      filename: `inventario_agua_fria_${fileDate}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 1.6,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        logging: false,
+        windowWidth: 794,
+        width: 760,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0
+      },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "thead"] }
+    }).from(element).save();
+
+    showAceSuccess("PDF do inventário gerado com sucesso!");
+  } finally {
+    host?.remove();
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalText;
+    }
+  }
+}
+
+
 function bindAceInventoryPageEvents() {
   document.getElementById("aceInventoryStart")?.addEventListener("click", async () => {
     try { await startAceInventory(); }
@@ -37393,6 +37589,13 @@ function bindAceInventoryPageEvents() {
     button.addEventListener("click", async () => {
       try { await deleteAceInventoryHistory(button.dataset.inventoryDeleteHistory); }
       catch (error) { await showAceMessage(error?.message || "Não foi possível excluir do histórico.", "❌ Erro"); }
+    });
+  });
+
+  document.querySelectorAll("[data-inventory-pdf]").forEach(button => {
+    button.addEventListener("click", async () => {
+      try { await generateAceInventoryPDF(button.dataset.inventoryPdf, button); }
+      catch (error) { await showAceMessage(error?.message || "Não foi possível gerar o PDF.", "❌ Erro ao gerar PDF"); }
     });
   });
 }
