@@ -9179,7 +9179,7 @@ function openRecentEditModal(id) {
       style="
         position:fixed;
         inset:0;
-        z-index:1000001;
+        z-index:1002000;
         display:flex;
         align-items:center;
         justify-content:center;
@@ -9192,10 +9192,11 @@ function openRecentEditModal(id) {
       <div
         style="
           width:min(500px,calc(100vw - 30px));
-          max-height:90vh;
+          max-height:calc(100dvh - 28px);
           overflow:auto;
           box-sizing:border-box;
           padding:24px;
+          padding-bottom:calc(24px + env(safe-area-inset-bottom));
           border-radius:18px;
           background:#fff;
           color:#172b3a;
@@ -9333,10 +9334,15 @@ function openRecentEditModal(id) {
 
         <div
           style="
+            position:sticky;
+            bottom:-1px;
+            z-index:3;
             display:flex;
             justify-content:center;
             gap:10px;
             margin-top:18px;
+            padding:12px 0 2px;
+            background:#fff;
           "
         >
 
@@ -9346,7 +9352,9 @@ function openRecentEditModal(id) {
             style="
               border:0;
               border-radius:9px;
-              padding:12px 18px;
+              flex:1 1 0;
+              min-width:0;
+              padding:12px 14px;
               background:#0b3a63;
               color:#fff;
               font-weight:900;
@@ -9362,7 +9370,9 @@ function openRecentEditModal(id) {
             style="
               border:1px solid #0b3a63;
               border-radius:9px;
-              padding:12px 18px;
+              flex:1 1 0;
+              min-width:0;
+              padding:12px 14px;
               background:#fff;
               color:#0b3a63;
               font-weight:900;
