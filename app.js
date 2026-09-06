@@ -38513,1572 +38513,747 @@ function setupAceInventoryRealtime() {
 
 })();
 
-
 // ============================================================
-// ACE - ORGANIZAÇÃO VISUAL DOS BOTÕES DE NAVEGAÇÃO
+// ACE - NAVEGAÇÃO AGRUPADA PROFISSIONAL (SOMENTE VISUAL)
 // ============================================================
-// IMPORTANTE:
-// - O código original acima NÃO foi alterado.
-// - Este bloco apenas reorganiza VISUALMENTE os botões.
-// - Todas as páginas e funções continuam usando as abas originais.
-// - A abertura padrão no Mural ACE permanece sob controle do código original.
+// Este bloco NÃO altera regras, banco, inventário, histórico,
+// backup, presença, movimentações, login ou inicialização.
+// Ele apenas reorganiza os botões existentes no PC e no celular.
 // ============================================================
 
 (() => {
+  const STYLE_ID = "aceGroupedNavigationVisualStyle";
+  const DESKTOP_POPUP_ID = "aceDesktopGroupedPopup";
+  const MOBILE_SHEET_ID = "aceGroupedMobileSheet";
 
-  const ACE_GROUPED_NAV_STYLE_ID =
-    "aceGroupedNavigationOnlyStyles";
+  const groups = {
+    movements: {
+      label: "🔄 Movimentações",
+      items: [
+        { target: "entrada", label: "📦 Entrada" },
+        { target: "saida", label: "📤 Saída/Perda" },
+        { target: "cestas", label: "🧺 Cestas" }
+      ]
+    },
+    queries: {
+      label: "🗂️ Consultas",
+      items: [
+        { target: "historico", label: "📜 Histórico" },
+        { target: "estoque", label: "🏬 Estoque" }
+      ]
+    },
+    management: {
+      label: "📈 Gestão",
+      items: [
+        { target: "inventario", label: "📊 Inventário" },
+        { target: "relatorio", label: "📑 Relatórios" }
+      ]
+    }
+  };
 
+  const directDesktop = [
+    { target: "mural", order: 10 },
+    { target: "inicio", order: 20 },
+    { target: "presenca", order: 40 },
+    { target: "cadastro", order: 70 }
+  ];
 
-  function aceGroupedNavNormalize(value) {
+  const groupedTargets = new Set(
+    Object.values(groups)
+      .flatMap(group => group.items.map(item => item.target))
+  );
 
+  function norm(value) {
     try {
-
-      if (
-        typeof normalizeAceText ===
-        "function"
-      ) {
-
-        return normalizeAceText(
-          value || ""
-        );
-
+      if (typeof normalizeAceText === "function") {
+        return normalizeAceText(value || "");
       }
-
     } catch {}
 
-
-    return String(
-      value || ""
-    )
+    return String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .trim();
-
   }
 
-
-  function aceGroupedNavCatalog() {
-
-    const result = {};
-
-
-    Array.from(
-      document.querySelectorAll(
-        ".tabs .tab[data-page]"
-      )
-    )
-      .forEach(
-        tab => {
-
-          const page =
-            String(
-              tab.dataset?.page || ""
-            );
-
-          const text =
-            aceGroupedNavNormalize(
-              `${tab.textContent || ""} ${page}`
-            );
-
-
-          let key = "";
-
-
-          if (text.includes("mural")) {
-            key = "mural";
-          } else if (text.includes("inicio")) {
-            key = "inicio";
-          } else if (text.includes("entrada")) {
-            key = "entrada";
-          } else if (
-            text.includes("saida") ||
-            text.includes("perda")
-          ) {
-            key = "saida";
-          } else if (text.includes("cesta")) {
-            key = "cestas";
-          } else if (text.includes("presenca")) {
-            key = "presenca";
-          } else if (text.includes("historico")) {
-            key = "historico";
-          } else if (text.includes("inventario")) {
-            key = "inventario";
-          } else if (text.includes("estoque")) {
-            key = "estoque";
-          } else if (text.includes("relatorio")) {
-            key = "relatorios";
-          } else if (text.includes("cadastro")) {
-            key = "cadastros";
-          }
-
-
-          if (
-            key &&
-            !result[key]
-          ) {
-
-            result[key] = {
-              key,
-              page,
-              tab
-            };
-
-          }
-
-        }
-      );
-
-
-    return result;
-
-  }
-
-
-  function aceGroupedNavIcon(key) {
-
-    const icons = {
-      mural: "📢",
-      inicio: "🏠",
-      entrada: "📦",
-      saida: "📤",
-      cestas: "🧺",
-      presenca: "👥",
-      historico: "📜",
-      estoque: "🏬",
-      inventario: "📊",
-      relatorios: "📑",
-      cadastros: "⚙️"
-    };
-
-
-    return icons[key] || "•";
-
-  }
-
-
-  function aceGroupedNavLabel(key) {
-
-    const labels = {
-      mural: "Mural ACE",
-      inicio: "Início",
-      entrada: "Entrada",
-      saida: "Saída/Perda",
-      cestas: "Cestas",
-      presenca: "Presença",
-      historico: "Histórico",
-      estoque: "Estoque",
-      inventario: "Inventário",
-      relatorios: "Relatórios",
-      cadastros: "Cadastros"
-    };
-
-
-    return labels[key] || key;
-
-  }
-
-
-  function aceGroupedNavOpenPage(page) {
-
-    if (!page) {
-      return;
-    }
-
-
-    if (
-      typeof activateAceOriginalTab ===
-      "function"
-    ) {
-
-      activateAceOriginalTab(
-        page
-      );
-
-      return;
-    }
-
-
-    const tab =
-      Array.from(
-        document.querySelectorAll(
-          ".tabs .tab[data-page]"
-        )
-      )
-        .find(
-          item =>
-            String(
-              item.dataset?.page || ""
-            ) ===
-            String(page)
-        );
-
-
-    tab?.click();
-
-  }
-
-
-  function aceGroupedNavEnsureStyles() {
-
-    if (
-      document.getElementById(
-        ACE_GROUPED_NAV_STYLE_ID
-      )
-    ) {
-      return;
-    }
-
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-
-    style.id =
-      ACE_GROUPED_NAV_STYLE_ID;
-
-
-    style.textContent = `
-
-      /* ======================================================
-         DESKTOP
-         ====================================================== */
-
-      @media(min-width:851px){
-
-        .tabs{
-          position:relative !important;
-          display:flex !important;
-          align-items:center !important;
-          gap:8px !important;
-          overflow:visible !important;
-          scrollbar-width:none !important;
-        }
-
-        .tabs::-webkit-scrollbar{
-          display:none !important;
-        }
-
-        .tabs > .ace-nav-grouped-hidden{
-          display:none !important;
-        }
-
-        .ace-grouped-nav-menu{
-          position:relative;
-          display:flex;
-          align-items:center;
-          flex:0 0 auto;
-        }
-
-        .ace-grouped-nav-menu-trigger{
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          gap:7px;
-          min-height:54px;
-          padding:0 17px;
-          border:1px solid transparent;
-          border-radius:13px;
-          background:transparent;
-          color:#34495e;
-          font:inherit;
-          font-size:15px;
-          font-weight:900;
-          white-space:nowrap;
-          cursor:pointer;
-          transition:
-            background .16s ease,
-            color .16s ease,
-            border-color .16s ease,
-            box-shadow .16s ease;
-        }
-
-        .ace-grouped-nav-menu-trigger:hover{
-          background:#f1f7fc;
-          color:#0756a0;
-          border-color:#dbe9f4;
-        }
-
-        .ace-grouped-nav-menu.open
-        .ace-grouped-nav-menu-trigger,
-        .ace-grouped-nav-menu.active
-        .ace-grouped-nav-menu-trigger{
-          background:#eaf4fd;
-          color:#0756a0;
-          border-color:#d5e8f7;
-        }
-
-        .ace-grouped-nav-chevron{
-          display:inline-block;
-          font-size:12px;
-          line-height:1;
-          transition:transform .16s ease;
-        }
-
-        .ace-grouped-nav-menu.open
-        .ace-grouped-nav-chevron{
-          transform:rotate(180deg);
-        }
-
-        .ace-grouped-nav-dropdown{
-          position:absolute;
-          top:calc(100% + 8px);
-          left:0;
-          z-index:2147482000;
-          display:none;
-          min-width:225px;
-          padding:8px;
-          border:1px solid #dbe5ed;
-          border-radius:15px;
-          background:#fff;
-          box-shadow:0 18px 48px rgba(7,49,83,.20);
-        }
-
-        .ace-grouped-nav-menu.open
-        .ace-grouped-nav-dropdown{
-          display:block;
-        }
-
-        .ace-grouped-nav-dropdown button{
-          display:flex;
-          align-items:center;
-          gap:11px;
-          width:100%;
-          min-height:46px;
-          padding:9px 12px;
-          border:0;
-          border-radius:10px;
-          background:#fff;
-          color:#304a61;
-          text-align:left;
-          font:inherit;
-          font-size:14px;
-          font-weight:800;
-          cursor:pointer;
-        }
-
-        .ace-grouped-nav-dropdown button:hover,
-        .ace-grouped-nav-dropdown button.active{
-          background:#edf6fd;
-          color:#0756a0;
-        }
-
-        .ace-grouped-nav-item-icon{
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          width:28px;
-          min-width:28px;
-          font-size:19px;
-        }
-
+  function getOriginal(target) {
+    try {
+      if (typeof findAceOriginalTab === "function") {
+        const found = findAceOriginalTab(target);
+        if (found) return found;
       }
+    } catch {}
 
+    const wanted = norm(target);
+    const tabs = Array.from(document.querySelectorAll(".tabs .tab[data-page]"));
 
-      /* ======================================================
-         CELULAR
-         ====================================================== */
-
-      @media(max-width:850px){
-
-        #aceMobileBottomNav{
-          display:grid !important;
-          grid-template-columns:repeat(5,minmax(0,1fr)) !important;
-          align-items:stretch !important;
-          gap:2px !important;
-          overflow:visible !important;
-          padding-left:5px !important;
-          padding-right:5px !important;
-        }
-
-        #aceMobileBottomNav .ace-bottom-item{
-          display:flex !important;
-          min-width:0 !important;
-          width:auto !important;
-          flex:1 1 auto !important;
-          padding-left:2px !important;
-          padding-right:2px !important;
-          touch-action:manipulation !important;
-        }
-
-        #aceMobileBottomNav .ace-bottom-item .label{
-          font-size:9.7px !important;
-          text-overflow:clip !important;
-        }
-
-        #aceMobileBottomNav
-        .ace-bottom-item[data-ace-color="movimentacoes"]
-        .icon{
-          background:#eef7ff !important;
-        }
-
-        #aceMobileBottomNav
-        .ace-bottom-item[data-ace-color="mais"]
-        .icon{
-          background:#f1f3f5 !important;
-        }
-
-        #aceMobileBottomNav .ace-bottom-item.active{
-          background:#eaf4fd !important;
-          color:#0756a0 !important;
-        }
-
-        #aceGroupedQuickBackdrop{
-          position:fixed;
-          inset:0;
-          z-index:1000600;
-          visibility:hidden;
-          background:rgba(5,32,55,.44);
-          opacity:0;
-          transition:
-            opacity .20s ease,
-            visibility .20s ease;
-        }
-
-        #aceGroupedQuickBackdrop.open{
-          visibility:visible;
-          opacity:1;
-        }
-
-        #aceGroupedQuickSheet{
-          position:fixed;
-          left:0;
-          right:0;
-          bottom:0;
-          z-index:1000650;
-          max-height:min(76dvh,650px);
-          overflow:auto;
-          box-sizing:border-box;
-          padding:
-            8px 15px
-            calc(94px + env(safe-area-inset-bottom));
-          border-radius:24px 24px 0 0;
-          background:#fff;
-          box-shadow:0 -22px 60px rgba(0,35,65,.28);
-          transform:translateY(105%);
-          transition:
-            transform .24s cubic-bezier(.2,.8,.2,1);
-        }
-
-        #aceGroupedQuickSheet.open{
-          transform:translateY(0);
-        }
-
-        .ace-grouped-quick-handle{
-          width:48px;
-          height:5px;
-          margin:4px auto 12px;
-          border-radius:99px;
-          background:#d6e0e8;
-        }
-
-        .ace-grouped-quick-head{
-          display:flex;
-          align-items:center;
-          gap:10px;
-          margin-bottom:12px;
-          padding:0 2px;
-        }
-
-        .ace-grouped-quick-title{
-          flex:1;
-          color:#073b68;
-          font-size:20px;
-          font-weight:900;
-        }
-
-        .ace-grouped-quick-close{
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          width:38px;
-          height:38px;
-          border:0;
-          border-radius:50%;
-          background:#eef4f8;
-          color:#29465e;
-          font-size:22px;
-          cursor:pointer;
-        }
-
-        .ace-grouped-quick-section{
-          margin-top:14px;
-        }
-
-        .ace-grouped-quick-section-title{
-          margin:0 0 7px;
-          padding:0 5px;
-          color:#7a8b99;
-          font-size:11px;
-          font-weight:900;
-          letter-spacing:.07em;
-          text-transform:uppercase;
-        }
-
-        .ace-grouped-quick-grid{
-          display:grid;
-          grid-template-columns:1fr;
-          gap:7px;
-        }
-
-        .ace-grouped-quick-item{
-          display:flex;
-          align-items:center;
-          gap:13px;
-          width:100%;
-          min-height:54px;
-          padding:10px 13px;
-          border:1px solid #e1e9ef;
-          border-radius:14px;
-          background:#fff;
-          color:#28445e;
-          text-align:left;
-          font:inherit;
-          font-size:15px;
-          font-weight:850;
-          cursor:pointer;
-        }
-
-        .ace-grouped-quick-item:active{
-          transform:scale(.99);
-          background:#edf6fd;
-        }
-
-        .ace-grouped-quick-item-icon{
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          width:36px;
-          height:36px;
-          min-width:36px;
-          border-radius:11px;
-          background:#f1f6fa;
-          font-size:21px;
-        }
-
-      }
-
-    `;
-
-
-    document.head.appendChild(
-      style
-    );
-
+    return tabs.find(tab => norm(tab.dataset.page) === wanted) ||
+      tabs.find(tab => norm(tab.textContent).includes(wanted)) ||
+      null;
   }
 
-
-  function aceGroupedNavCloseDesktopMenus() {
-
-    document
-      .querySelectorAll(
-        ".ace-grouped-nav-menu.open"
-      )
-      .forEach(
-        group => {
-
-          group.classList.remove(
-            "open"
-          );
-
-          group
-            .querySelector(
-              ".ace-grouped-nav-menu-trigger"
-            )
-            ?.setAttribute(
-              "aria-expanded",
-              "false"
-            );
-
-        }
-      );
-
-  }
-
-
-  function aceGroupedNavMakeDesktopGroup(
-    groupKey,
-    title,
-    icon,
-    itemKeys,
-    catalog,
-    order
-  ) {
-
-    const wrapper =
-      document.createElement(
-        "div"
-      );
-
-
-    wrapper.className =
-      "ace-grouped-nav-menu";
-
-    wrapper.dataset.aceGroupedNav =
-      groupKey;
-
-    wrapper.style.order =
-      String(order);
-
-
-    const items =
-      itemKeys
-        .map(
-          key =>
-            catalog[key]
-        )
-        .filter(Boolean);
-
-
-    wrapper.innerHTML = `
-
-      <button
-        type="button"
-        class="ace-grouped-nav-menu-trigger"
-        aria-expanded="false"
-      >
-        <span>${icon}</span>
-        <span>${title}</span>
-        <span class="ace-grouped-nav-chevron">▾</span>
-      </button>
-
-      <div
-        class="ace-grouped-nav-dropdown"
-        role="menu"
-      >
-        ${
-          items
-            .map(
-              item => `
-                <button
-                  type="button"
-                  data-ace-grouped-page="${item.page}"
-                  role="menuitem"
-                >
-                  <span class="ace-grouped-nav-item-icon">
-                    ${aceGroupedNavIcon(item.key)}
-                  </span>
-                  <span>
-                    ${aceGroupedNavLabel(item.key)}
-                  </span>
-                </button>
-              `
-            )
-            .join("")
-        }
-      </div>
-
-    `;
-
-
-    const trigger =
-      wrapper.querySelector(
-        ".ace-grouped-nav-menu-trigger"
-      );
-
-
-    trigger.onclick =
-      event => {
-
-        event.stopPropagation();
-
-
-        const willOpen =
-          !wrapper.classList.contains(
-            "open"
-          );
-
-
-        aceGroupedNavCloseDesktopMenus();
-
-
-        wrapper.classList.toggle(
-          "open",
-          willOpen
-        );
-
-
-        trigger.setAttribute(
-          "aria-expanded",
-          willOpen
-            ? "true"
-            : "false"
-        );
-
-      };
-
-
-    wrapper
-      .querySelectorAll(
-        "[data-ace-grouped-page]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick =
-            event => {
-
-              event.stopPropagation();
-
-              aceGroupedNavCloseDesktopMenus();
-
-              aceGroupedNavOpenPage(
-                button.dataset
-                  .aceGroupedPage
-              );
-
-            };
-
-        }
-      );
-
-
-    return wrapper;
-
-  }
-
-
-  function aceGroupedNavSetupDesktop() {
-
-    aceGroupedNavEnsureStyles();
-
-
-    const tabs =
-      document.querySelector(
-        ".tabs"
-      );
-
-
-    if (!tabs) {
-      return;
-    }
-
-
-    const catalog =
-      aceGroupedNavCatalog();
-
-
-    [
+  function requiredTabsReady() {
+    const required = [
+      "mural",
+      "inicio",
       "entrada",
       "saida",
       "cestas",
+      "presenca",
       "historico",
       "estoque",
       "inventario",
-      "relatorios"
-    ]
-      .forEach(
-        key =>
-          catalog[key]
-            ?.tab
-            ?.classList.add(
-              "ace-nav-grouped-hidden"
-            )
-      );
+      "relatorio",
+      "cadastro"
+    ];
 
+    return Boolean(document.querySelector(".tabs")) &&
+      required.every(target => Boolean(getOriginal(target)));
+  }
 
-    const directOrder = {
-      mural: 10,
-      inicio: 20,
-      presenca: 40,
-      cadastros: 70
+  function openOriginal(target) {
+    closeDesktopPopup();
+    closeMobileSheet();
+
+    try {
+      if (typeof activateAceOriginalTab === "function") {
+        activateAceOriginalTab(target);
+        setTimeout(updateAllNavigationState, 40);
+        return;
+      }
+    } catch (error) {
+      console.warn("ACE: falha ao abrir aba pelo helper:", error);
+    }
+
+    const original = getOriginal(target);
+    if (original) {
+      original.click();
+      setTimeout(updateAllNavigationState, 40);
+    }
+  }
+
+  function ensureStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      /* ======================================================
+         NAVEGAÇÃO AGRUPADA - DESKTOP
+         ====================================================== */
+      @media (min-width: 851px) {
+        .tabs .tab.ace-grouped-original-tab {
+          display: none !important;
+        }
+
+        .tabs .tab.ace-root-original-tab {
+          flex: 0 0 auto;
+        }
+
+        .tabs .ace-desktop-group-slot {
+          position: relative;
+          display: flex;
+          flex: 0 0 auto;
+          align-items: center;
+        }
+
+        .tabs .ace-desktop-group-trigger {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          min-height: 52px;
+          padding: 11px 16px;
+          border: 0;
+          border-radius: 13px;
+          background: transparent;
+          color: #2f465b;
+          font: inherit;
+          font-size: 16px;
+          font-weight: 800;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+        }
+
+        .tabs .ace-desktop-group-trigger:hover,
+        .tabs .ace-desktop-group-trigger.open,
+        .tabs .ace-desktop-group-trigger.active {
+          background: #eaf4fd;
+          color: #0756a0;
+          box-shadow: inset 0 0 0 1px #d5e8f7;
+        }
+
+        .tabs .ace-desktop-group-trigger .ace-group-arrow {
+          font-size: 12px;
+          transform: translateY(1px);
+          transition: transform .16s ease;
+        }
+
+        .tabs .ace-desktop-group-trigger.open .ace-group-arrow {
+          transform: rotate(180deg) translateY(-1px);
+        }
+      }
+
+      #${DESKTOP_POPUP_ID} {
+        position: fixed;
+        z-index: 2147482500;
+        display: none;
+        min-width: 235px;
+        padding: 8px;
+        border: 1px solid #dce6ee;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 18px 48px rgba(9, 47, 78, .20);
+      }
+
+      #${DESKTOP_POPUP_ID}.open {
+        display: block;
+      }
+
+      #${DESKTOP_POPUP_ID} button {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 10px;
+        min-height: 47px;
+        padding: 10px 13px;
+        border: 0;
+        border-radius: 11px;
+        background: transparent;
+        color: #263f56;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 750;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      #${DESKTOP_POPUP_ID} button:hover,
+      #${DESKTOP_POPUP_ID} button.active {
+        background: #eef6fc;
+        color: #0756a0;
+      }
+
+      /* ======================================================
+         NAVEGAÇÃO AGRUPADA - MOBILE
+         ====================================================== */
+      @media (max-width: 850px) {
+        #aceMobileBottomNav {
+          overflow: hidden !important;
+          gap: 2px !important;
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item {
+          flex: 1 1 20% !important;
+          min-width: 0 !important;
+          width: 20% !important;
+          padding-left: 2px !important;
+          padding-right: 2px !important;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item .label {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item[data-ace-color="movimentos"] .icon {
+          background: #edf7ff;
+        }
+
+        #aceMobileBottomNav .ace-bottom-item[data-ace-color="mais"] .icon {
+          background: #f1ecff;
+        }
+      }
+
+      #${MOBILE_SHEET_ID} {
+        position: fixed;
+        inset: 0;
+        z-index: 2147482600;
+        display: none;
+        align-items: flex-end;
+        justify-content: center;
+        background: rgba(8, 31, 50, .48);
+        backdrop-filter: blur(3px);
+      }
+
+      #${MOBILE_SHEET_ID}.open {
+        display: flex;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-group-sheet-card {
+        width: 100%;
+        max-height: min(76vh, 720px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+        border-radius: 24px 24px 0 0;
+        background: #fff;
+        box-shadow: 0 -18px 55px rgba(8, 34, 56, .24);
+      }
+
+      #${MOBILE_SHEET_ID} .ace-group-sheet-handle {
+        width: 46px;
+        height: 5px;
+        margin: 2px auto 15px;
+        border-radius: 999px;
+        background: #cbd7e1;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-group-sheet-title {
+        margin: 0 0 12px;
+        color: #0b4b7a;
+        font-size: 20px;
+        font-weight: 900;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-group-sheet-section-title,
+      #aceMobileDrawerList .ace-drawer-section-title {
+        margin: 12px 8px 5px;
+        color: #6a7f91;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-group-sheet-item {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 12px;
+        min-height: 52px;
+        margin: 3px 0;
+        padding: 11px 12px;
+        border: 0;
+        border-radius: 13px;
+        background: #f7fafc;
+        color: #28445e;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 800;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-group-sheet-item:active {
+        background: #eaf4fd;
+      }
+
+      #aceMobileDrawerList .ace-drawer-section {
+        padding: 2px 0 5px;
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function ensureDesktopPopup() {
+    let popup = document.getElementById(DESKTOP_POPUP_ID);
+
+    if (!popup) {
+      popup = document.createElement("div");
+      popup.id = DESKTOP_POPUP_ID;
+      popup.addEventListener("click", event => event.stopPropagation());
+      document.body.appendChild(popup);
+    }
+
+    return popup;
+  }
+
+  function closeDesktopPopup() {
+    const popup = document.getElementById(DESKTOP_POPUP_ID);
+    popup?.classList.remove("open");
+
+    document
+      .querySelectorAll(".ace-desktop-group-trigger.open")
+      .forEach(button => button.classList.remove("open"));
+  }
+
+  function openDesktopGroup(groupKey, trigger) {
+    const group = groups[groupKey];
+    if (!group) return;
+
+    const popup = ensureDesktopPopup();
+    const wasOpen = popup.classList.contains("open") && popup.dataset.group === groupKey;
+
+    closeDesktopPopup();
+
+    if (wasOpen) return;
+
+    popup.dataset.group = groupKey;
+    popup.innerHTML = group.items.map(item => `
+      <button type="button" data-ace-group-target="${item.target}">
+        ${item.label}
+      </button>
+    `).join("");
+
+    popup.querySelectorAll("[data-ace-group-target]").forEach(button => {
+      button.onclick = () => openOriginal(button.dataset.aceGroupTarget);
+    });
+
+    const rect = trigger.getBoundingClientRect();
+    const popupWidth = 250;
+    const left = Math.min(
+      Math.max(10, rect.left),
+      Math.max(10, window.innerWidth - popupWidth - 10)
+    );
+
+    popup.style.left = `${left}px`;
+    popup.style.top = `${Math.min(window.innerHeight - 20, rect.bottom + 7)}px`;
+    popup.classList.add("open");
+    trigger.classList.add("open");
+
+    updateDesktopGroupState();
+  }
+
+  function createDesktopGroupSlot(groupKey, order) {
+    const group = groups[groupKey];
+    const slot = document.createElement("div");
+    slot.className = "ace-desktop-group-slot";
+    slot.dataset.aceGroupNav = "1";
+    slot.dataset.aceGroupKey = groupKey;
+    slot.style.order = String(order);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ace-desktop-group-trigger";
+    button.dataset.aceGroupKey = groupKey;
+    button.innerHTML = `${group.label} <span class="ace-group-arrow">▼</span>`;
+    button.onclick = event => {
+      event.stopPropagation();
+      openDesktopGroup(groupKey, button);
     };
 
-
-    Object.entries(
-      directOrder
-    )
-      .forEach(
-        ([key, order]) => {
-
-          if (
-            catalog[key]?.tab
-          ) {
-
-            catalog[key].tab.style.order =
-              String(order);
-
-          }
-
-        }
-      );
-
-
-    if (
-      !tabs.querySelector(
-        '[data-ace-grouped-nav="movimentacoes"]'
-      )
-    ) {
-
-      tabs.appendChild(
-        aceGroupedNavMakeDesktopGroup(
-          "movimentacoes",
-          "Movimentações",
-          "🔄",
-          [
-            "entrada",
-            "saida",
-            "cestas"
-          ],
-          catalog,
-          30
-        )
-      );
-
-    }
-
-
-    if (
-      !tabs.querySelector(
-        '[data-ace-grouped-nav="consultas"]'
-      )
-    ) {
-
-      tabs.appendChild(
-        aceGroupedNavMakeDesktopGroup(
-          "consultas",
-          "Consultas",
-          "🗂️",
-          [
-            "historico",
-            "estoque"
-          ],
-          catalog,
-          50
-        )
-      );
-
-    }
-
-
-    if (
-      !tabs.querySelector(
-        '[data-ace-grouped-nav="gestao"]'
-      )
-    ) {
-
-      tabs.appendChild(
-        aceGroupedNavMakeDesktopGroup(
-          "gestao",
-          "Gestão",
-          "📈",
-          [
-            "inventario",
-            "relatorios"
-          ],
-          catalog,
-          60
-        )
-      );
-
-    }
-
-
-    aceGroupedNavUpdateState();
-
+    slot.appendChild(button);
+    return slot;
   }
 
+  function buildDesktopGroupedNavigation() {
+    const tabs = document.querySelector(".tabs");
+    if (!tabs || !requiredTabsReady()) return false;
 
-  function aceGroupedNavEnsureQuickSheet() {
+    tabs.querySelectorAll('[data-ace-group-nav="1"]').forEach(node => node.remove());
 
-    if (
-      !document.getElementById(
-        "aceGroupedQuickBackdrop"
-      )
-    ) {
+    // Remove somente as classes visuais criadas por este bloco.
+    tabs.querySelectorAll(".tab").forEach(tab => {
+      tab.classList.remove("ace-grouped-original-tab", "ace-root-original-tab");
+      tab.style.removeProperty("order");
+    });
 
-      const backdrop =
-        document.createElement(
-          "div"
+    // Esconde visualmente apenas os itens que agora ficam dentro dos grupos.
+    groupedTargets.forEach(target => {
+      const tab = getOriginal(target);
+      if (tab) tab.classList.add("ace-grouped-original-tab");
+    });
+
+    // Mantém Mural, Início, Presença e Cadastros como botões originais.
+    directDesktop.forEach(item => {
+      const tab = getOriginal(item.target);
+      if (!tab) return;
+      tab.classList.add("ace-root-original-tab");
+      tab.style.order = String(item.order);
+    });
+
+    tabs.appendChild(createDesktopGroupSlot("movements", 30));
+    tabs.appendChild(createDesktopGroupSlot("queries", 50));
+    tabs.appendChild(createDesktopGroupSlot("management", 60));
+
+    updateDesktopGroupState();
+    return true;
+  }
+
+  function activeOriginalTab() {
+    return document.querySelector(".tabs .tab.active");
+  }
+
+  function targetMatchesTab(target, tab) {
+    if (!tab) return false;
+    const original = getOriginal(target);
+    return Boolean(original && original === tab);
+  }
+
+  function groupContainsActive(groupKey) {
+    const active = activeOriginalTab();
+    const group = groups[groupKey];
+    return Boolean(group && group.items.some(item => targetMatchesTab(item.target, active)));
+  }
+
+  function updateDesktopGroupState() {
+    document.querySelectorAll(".ace-desktop-group-trigger[data-ace-group-key]").forEach(button => {
+      button.classList.toggle(
+        "active",
+        groupContainsActive(button.dataset.aceGroupKey)
+      );
+    });
+
+    const popup = document.getElementById(DESKTOP_POPUP_ID);
+    if (popup?.classList.contains("open")) {
+      popup.querySelectorAll("[data-ace-group-target]").forEach(button => {
+        button.classList.toggle(
+          "active",
+          targetMatchesTab(button.dataset.aceGroupTarget, activeOriginalTab())
         );
-
-
-      backdrop.id =
-        "aceGroupedQuickBackdrop";
-
-      backdrop.onclick =
-        aceGroupedNavCloseQuickSheet;
-
-
-      document.body.appendChild(
-        backdrop
-      );
-
+      });
     }
-
-
-    if (
-      !document.getElementById(
-        "aceGroupedQuickSheet"
-      )
-    ) {
-
-      const sheet =
-        document.createElement(
-          "section"
-        );
-
-
-      sheet.id =
-        "aceGroupedQuickSheet";
-
-
-      document.body.appendChild(
-        sheet
-      );
-
-    }
-
   }
 
+  function ensureMobileSheet() {
+    let sheet = document.getElementById(MOBILE_SHEET_ID);
 
-  function aceGroupedNavCloseQuickSheet() {
-
-    document
-      .getElementById(
-        "aceGroupedQuickBackdrop"
-      )
-      ?.classList.remove(
-        "open"
-      );
-
-
-    document
-      .getElementById(
-        "aceGroupedQuickSheet"
-      )
-      ?.classList.remove(
-        "open"
-      );
-
-  }
-
-
-  function aceGroupedNavQuickItem(
-    catalog,
-    key
-  ) {
-
-    const item =
-      catalog[key];
-
-
-    if (!item?.page) {
-      return "";
-    }
-
-
-    return `
-
-      <button
-        type="button"
-        class="ace-grouped-quick-item"
-        data-ace-grouped-page="${item.page}"
-      >
-        <span class="ace-grouped-quick-item-icon">
-          ${aceGroupedNavIcon(key)}
-        </span>
-        <span>
-          ${aceGroupedNavLabel(key)}
-        </span>
-      </button>
-
-    `;
-
-  }
-
-
-  function aceGroupedNavOpenQuickSheet(
-    mode
-  ) {
-
-    aceGroupedNavEnsureStyles();
-    aceGroupedNavEnsureQuickSheet();
-
-
-    const catalog =
-      aceGroupedNavCatalog();
-
-    const sheet =
-      document.getElementById(
-        "aceGroupedQuickSheet"
-      );
-
-    const backdrop =
-      document.getElementById(
-        "aceGroupedQuickBackdrop"
-      );
-
-
-    if (
-      !sheet ||
-      !backdrop
-    ) {
-      return;
-    }
-
-
-    let title = "";
-    let body = "";
-
-
-    if (
-      mode ===
-      "movimentacoes"
-    ) {
-
-      title =
-        "Movimentações";
-
-      body = `
-
-        <div class="ace-grouped-quick-grid">
-          ${aceGroupedNavQuickItem(catalog, "entrada")}
-          ${aceGroupedNavQuickItem(catalog, "saida")}
-          ${aceGroupedNavQuickItem(catalog, "cestas")}
+    if (!sheet) {
+      sheet = document.createElement("div");
+      sheet.id = MOBILE_SHEET_ID;
+      sheet.innerHTML = `
+        <div class="ace-group-sheet-card" role="dialog" aria-modal="true">
+          <div class="ace-group-sheet-handle"></div>
+          <div class="ace-group-sheet-content"></div>
         </div>
-
       `;
 
-    } else {
-
-      title =
-        "Mais opções";
-
-      body = `
-
-        <div class="ace-grouped-quick-section">
-          <div class="ace-grouped-quick-section-title">
-            Consultas
-          </div>
-          <div class="ace-grouped-quick-grid">
-            ${aceGroupedNavQuickItem(catalog, "historico")}
-            ${aceGroupedNavQuickItem(catalog, "estoque")}
-          </div>
-        </div>
-
-        <div class="ace-grouped-quick-section">
-          <div class="ace-grouped-quick-section-title">
-            Gestão
-          </div>
-          <div class="ace-grouped-quick-grid">
-            ${aceGroupedNavQuickItem(catalog, "inventario")}
-            ${aceGroupedNavQuickItem(catalog, "relatorios")}
-          </div>
-        </div>
-
-        <div class="ace-grouped-quick-section">
-          <div class="ace-grouped-quick-section-title">
-            Sistema
-          </div>
-          <div class="ace-grouped-quick-grid">
-            ${aceGroupedNavQuickItem(catalog, "cadastros")}
-          </div>
-        </div>
-
-      `;
-
-    }
-
-
-    sheet.innerHTML = `
-
-      <div class="ace-grouped-quick-handle"></div>
-
-      <div class="ace-grouped-quick-head">
-        <div class="ace-grouped-quick-title">
-          ${title}
-        </div>
-
-        <button
-          type="button"
-          class="ace-grouped-quick-close"
-          aria-label="Fechar"
-        >
-          ×
-        </button>
-      </div>
-
-      ${body}
-
-    `;
-
-
-    sheet
-      .querySelector(
-        ".ace-grouped-quick-close"
-      )
-      ?.addEventListener(
-        "click",
-        aceGroupedNavCloseQuickSheet
-      );
-
-
-    sheet
-      .querySelectorAll(
-        "[data-ace-grouped-page]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick =
-            () => {
-
-              aceGroupedNavCloseQuickSheet();
-
-              aceGroupedNavOpenPage(
-                button.dataset
-                  .aceGroupedPage
-              );
-
-            };
-
-        }
-      );
-
-
-    backdrop.classList.add(
-      "open"
-    );
-
-    sheet.classList.add(
-      "open"
-    );
-
-  }
-
-
-  function aceGroupedNavBuildMobileBottom() {
-
-    aceGroupedNavEnsureStyles();
-
-
-    const bottom =
-      document.getElementById(
-        "aceMobileBottomNav"
-      );
-
-
-    if (!bottom) {
-      return;
-    }
-
-
-    const catalog =
-      aceGroupedNavCatalog();
-
-
-    const directButton =
-      (key, shortLabel, color) => {
-
-        const item =
-          catalog[key];
-
-
-        if (!item?.page) {
-          return "";
-        }
-
-
-        return `
-
-          <button
-            class="ace-bottom-item"
-            type="button"
-            data-ace-target="${item.page}"
-            data-ace-grouped-key="${key}"
-            data-ace-color="${color}"
-            title="${aceGroupedNavLabel(key)}"
-          >
-            <span class="icon">
-              ${aceGroupedNavIcon(key)}
-            </span>
-            <span class="label">
-              ${shortLabel}
-            </span>
-          </button>
-
-        `;
-
+      sheet.onclick = event => {
+        if (event.target === sheet) closeMobileSheet();
       };
 
+      document.body.appendChild(sheet);
+    }
+
+    return sheet;
+  }
+
+  function closeMobileSheet() {
+    document.getElementById(MOBILE_SHEET_ID)?.classList.remove("open");
+  }
+
+  function renderMobileSheetItem(item) {
+    return `
+      <button class="ace-group-sheet-item" type="button" data-ace-sheet-target="${item.target}">
+        ${item.label}
+      </button>
+    `;
+  }
+
+  function openMobileSheet(kind) {
+    const sheet = ensureMobileSheet();
+    const content = sheet.querySelector(".ace-group-sheet-content");
+
+    if (kind === "movements") {
+      content.innerHTML = `
+        <h3 class="ace-group-sheet-title">🔄 Movimentações</h3>
+        ${groups.movements.items.map(renderMobileSheetItem).join("")}
+      `;
+    } else {
+      content.innerHTML = `
+        <h3 class="ace-group-sheet-title">☰ Mais opções</h3>
+
+        <div class="ace-group-sheet-section-title">🗂️ Consultas</div>
+        ${groups.queries.items.map(renderMobileSheetItem).join("")}
+
+        <div class="ace-group-sheet-section-title">📈 Gestão</div>
+        ${groups.management.items.map(renderMobileSheetItem).join("")}
+
+        <div class="ace-group-sheet-section-title">Configurações</div>
+        ${renderMobileSheetItem({ target: "cadastro", label: "⚙️ Cadastros" })}
+      `;
+    }
+
+    content.querySelectorAll("[data-ace-sheet-target]").forEach(button => {
+      button.onclick = () => openOriginal(button.dataset.aceSheetTarget);
+    });
+
+    sheet.classList.add("open");
+  }
+
+  function aceBuildGroupedBottomNavigation() {
+    const bottom = document.getElementById("aceMobileBottomNav");
+    if (!bottom) return;
 
     bottom.innerHTML = `
-
-      ${directButton("mural", "Mural", "mural")}
-      ${directButton("inicio", "Início", "inicio")}
-
-      <button
-        class="ace-bottom-item"
-        type="button"
-        data-ace-grouped-action="movimentacoes"
-        data-ace-color="movimentacoes"
-        title="Movimentações"
-      >
-        <span class="icon">🔄</span>
-        <span class="label">Movimentações</span>
+      <button class="ace-bottom-item" type="button" data-ace-target="mural" data-ace-color="mural" title="Mural ACE">
+        <span class="icon">📣</span>
+        <span class="label">Mural</span>
       </button>
 
-      ${directButton("presenca", "Presença", "presenca")}
+      <button class="ace-bottom-item" type="button" data-ace-target="inicio" data-ace-color="inicio" title="Início">
+        <span class="icon">🏠</span>
+        <span class="label">Início</span>
+      </button>
 
-      <button
-        class="ace-bottom-item"
-        type="button"
-        data-ace-grouped-action="mais"
-        data-ace-color="mais"
-        title="Mais opções"
-      >
+      <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
+        <span class="icon">🔄</span>
+        <span class="label">Moviment.</span>
+      </button>
+
+      <button class="ace-bottom-item" type="button" data-ace-target="presenca" data-ace-color="presenca" title="Presença">
+        <span class="icon">👥</span>
+        <span class="label">Presença</span>
+      </button>
+
+      <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Mais opções">
         <span class="icon">☰</span>
         <span class="label">Mais</span>
       </button>
+    `;
+  }
 
+  function aceSetupGroupedBottomNavigation() {
+    const bottom = document.getElementById("aceMobileBottomNav");
+    if (!bottom) return;
+
+    bottom.querySelectorAll("[data-ace-target]").forEach(button => {
+      button.onclick = () => openOriginal(button.dataset.aceTarget);
+    });
+
+    bottom.querySelectorAll("[data-ace-mobile-group]").forEach(button => {
+      button.onclick = () => openMobileSheet(button.dataset.aceMobileGroup);
+    });
+
+    const more = bottom.querySelector("[data-ace-mobile-more]");
+    if (more) more.onclick = () => openMobileSheet("more");
+
+    updateAceGroupedMobileNavigationState();
+  }
+
+  function updateAceGroupedMobileNavigationState() {
+    const bottom = document.getElementById("aceMobileBottomNav");
+    if (!bottom) return;
+
+    const active = activeOriginalTab();
+
+    bottom.querySelectorAll(".ace-bottom-item").forEach(button => {
+      let matches = false;
+
+      if (button.dataset.aceTarget) {
+        matches = targetMatchesTab(button.dataset.aceTarget, active);
+      } else if (button.dataset.aceMobileGroup === "movements") {
+        matches = groupContainsActive("movements");
+      } else if (button.dataset.aceMobileMore) {
+        matches =
+          groupContainsActive("queries") ||
+          groupContainsActive("management") ||
+          targetMatchesTab("cadastro", active);
+      }
+
+      button.classList.toggle("active", matches);
+    });
+  }
+
+  function aceBuildGroupedMobileDrawer() {
+    const drawerList = document.getElementById("aceMobileDrawerList");
+    if (!drawerList) return;
+
+    const directButton = (target, label) => `
+      <button class="ace-drawer-item" type="button" data-ace-open-page="${target}">
+        <span>${label}</span>
+      </button>
     `;
 
+    const section = (title, items) => `
+      <div class="ace-drawer-section">
+        <div class="ace-drawer-section-title">${title}</div>
+        ${items.map(item => directButton(item.target, item.label)).join("")}
+      </div>
+    `;
 
-    bottom
-      .querySelectorAll(
-        "[data-ace-grouped-action]"
-      )
-      .forEach(
-        button => {
+    drawerList.innerHTML = `
+      ${directButton("mural", "📣 Mural ACE")}
+      ${directButton("inicio", "🏠 Início")}
+      ${section("Movimentações", groups.movements.items)}
+      ${directButton("presenca", "👥 Presença")}
+      ${section("Consultas", groups.queries.items)}
+      ${section("Gestão", groups.management.items)}
+      ${directButton("cadastro", "⚙️ Cadastros")}
+    `;
 
-          button.onclick =
-            () =>
-              aceGroupedNavOpenQuickSheet(
-                button.dataset
-                  .aceGroupedAction
-              );
-
-        }
-      );
-
+    drawerList.querySelectorAll("[data-ace-open-page]").forEach(button => {
+      button.onclick = () => openOriginal(button.dataset.aceOpenPage);
+    });
   }
 
+  function updateAllNavigationState() {
+    updateDesktopGroupState();
+    updateAceGroupedMobileNavigationState();
+  }
 
-  function aceGroupedNavUpdateState() {
+  function overrideOnlyVisualNavigationBuilders() {
+    // Apenas troca os construtores VISUAIS da navegação mobile.
+    // As abas originais e suas funções continuam intactas.
+    try { window.buildAceScrollableBottomNavigation = aceBuildGroupedBottomNavigation; } catch {}
+    try { window.setupAceBottomNavigation = aceSetupGroupedBottomNavigation; } catch {}
+    try { window.buildAceMobileDrawer = aceBuildGroupedMobileDrawer; } catch {}
+    try { window.updateAceMobileNavigationState = updateAceGroupedMobileNavigationState; } catch {}
 
-    const catalog =
-      aceGroupedNavCatalog();
+    // Reforço para ambientes onde as funções globais são resolvidas pelo binding direto.
+    try { buildAceScrollableBottomNavigation = aceBuildGroupedBottomNavigation; } catch {}
+    try { setupAceBottomNavigation = aceSetupGroupedBottomNavigation; } catch {}
+    try { buildAceMobileDrawer = aceBuildGroupedMobileDrawer; } catch {}
+    try { updateAceMobileNavigationState = updateAceGroupedMobileNavigationState; } catch {}
+  }
 
-    const activeTab =
-      document.querySelector(
-        ".tabs .tab.active[data-page]"
-      );
+  let originalTabObserver = null;
 
-    const activePage =
-      String(
-        activeTab?.dataset?.page || ""
-      );
+  function watchOriginalTabState() {
+    if (originalTabObserver) return;
 
+    const tabs = document.querySelector(".tabs");
+    if (!tabs) return;
 
-    const directKeys = [
-      "mural",
-      "inicio",
-      "presenca"
-    ];
-
-
-    directKeys.forEach(
-      key => {
-
-        const button =
-          document.querySelector(
-            `#aceMobileBottomNav [data-ace-grouped-key="${key}"]`
-          );
-
-
-        button?.classList.toggle(
-          "active",
-          catalog[key]?.page ===
-            activePage
-        );
-
+    originalTabObserver = new MutationObserver(mutations => {
+      if (mutations.some(mutation =>
+        mutation.type === "attributes" &&
+        mutation.attributeName === "class" &&
+        mutation.target?.classList?.contains("tab")
+      )) {
+        updateAllNavigationState();
       }
-    );
+    });
 
-
-    const movimentacoes =
-      [
-        "entrada",
-        "saida",
-        "cestas"
-      ]
-        .some(
-          key =>
-            catalog[key]?.page ===
-              activePage
-        );
-
-
-    const mais =
-      [
-        "historico",
-        "estoque",
-        "inventario",
-        "relatorios",
-        "cadastros"
-      ]
-        .some(
-          key =>
-            catalog[key]?.page ===
-              activePage
-        );
-
-
-    document
-      .querySelector(
-        '#aceMobileBottomNav [data-ace-grouped-action="movimentacoes"]'
-      )
-      ?.classList.toggle(
-        "active",
-        movimentacoes
-      );
-
-
-    document
-      .querySelector(
-        '#aceMobileBottomNav [data-ace-grouped-action="mais"]'
-      )
-      ?.classList.toggle(
-        "active",
-        mais
-      );
-
-
-    const desktopGroups = {
-      movimentacoes: [
-        "entrada",
-        "saida",
-        "cestas"
-      ],
-      consultas: [
-        "historico",
-        "estoque"
-      ],
-      gestao: [
-        "inventario",
-        "relatorios"
-      ]
-    };
-
-
-    Object.entries(
-      desktopGroups
-    )
-      .forEach(
-        ([groupName, keys]) => {
-
-          const group =
-            document.querySelector(
-              `.ace-grouped-nav-menu[data-ace-grouped-nav="${groupName}"]`
-            );
-
-
-          const active =
-            keys.some(
-              key =>
-                catalog[key]?.page ===
-                  activePage
-            );
-
-
-          group?.classList.toggle(
-            "active",
-            active
-          );
-
-
-          group
-            ?.querySelectorAll(
-              "[data-ace-grouped-page]"
-            )
-            .forEach(
-              button =>
-                button.classList.toggle(
-                  "active",
-                  button.dataset
-                    .aceGroupedPage ===
-                    activePage
-                )
-            );
-
-        }
-      );
-
+    tabs.querySelectorAll(".tab").forEach(tab => {
+      originalTabObserver.observe(tab, {
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+    });
   }
 
+  function installGroupedNavigation() {
+    if (!requiredTabsReady()) return false;
 
-  // ----------------------------------------------------------
-  // SUBSTITUI SOMENTE A MONTAGEM VISUAL DA BARRA INFERIOR.
-  // As páginas e as funções continuam sendo as originais.
-  // ----------------------------------------------------------
+    ensureStyles();
+    overrideOnlyVisualNavigationBuilders();
+    buildDesktopGroupedNavigation();
 
-  if (
-    typeof buildAceScrollableBottomNavigation ===
-    "function"
-  ) {
+    // Recria apenas a camada visual mobile com os 5 botões aprovados.
+    aceBuildGroupedBottomNavigation();
+    aceBuildGroupedMobileDrawer();
+    aceSetupGroupedBottomNavigation();
 
-    buildAceScrollableBottomNavigation =
-      aceGroupedNavBuildMobileBottom;
+    watchOriginalTabState();
+    updateAllNavigationState();
 
+    return true;
   }
 
+  // Fecha os menus flutuantes sem tocar nas abas originais.
+  document.addEventListener("click", closeDesktopPopup);
+  window.addEventListener("resize", closeDesktopPopup);
+  window.addEventListener("scroll", closeDesktopPopup, true);
 
-  if (
-    typeof updateAceMobileNavigationState ===
-    "function"
-  ) {
+  // Instala somente quando TODAS as abas originais, inclusive Histórico
+  // e Inventário, já existirem. Assim nenhuma delas desaparece.
+  overrideOnlyVisualNavigationBuilders();
 
-    updateAceMobileNavigationState =
-      aceGroupedNavUpdateState;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // Após o layout móvel original montar cabeçalho/drawer,
-  // aplica apenas a nova organização dos botões.
-  // ----------------------------------------------------------
-
-  if (
-    typeof setupProfessionalMobileLayout ===
-    "function"
-  ) {
-
-    const aceOriginalProfessionalMobileLayout =
-      setupProfessionalMobileLayout;
-
-
-    setupProfessionalMobileLayout =
-      function() {
-
-        const result =
-          aceOriginalProfessionalMobileLayout
-            .apply(
-              this,
-              arguments
-            );
-
-
-        aceGroupedNavSetupDesktop();
-        aceGroupedNavBuildMobileBottom();
-
-
-        if (
-          typeof setupAceBottomNavigation ===
-          "function"
-        ) {
-
-          setupAceBottomNavigation();
-
-        }
-
-
-        aceGroupedNavUpdateState();
-
-
-        return result;
-
-      };
-
-  }
-
-
-  document.addEventListener(
-    "click",
-    event => {
-
-      if (
-        !event.target.closest(
-          ".ace-grouped-nav-menu"
-        )
-      ) {
-
-        aceGroupedNavCloseDesktopMenus();
-
-      }
-
+  const installTimer = setInterval(() => {
+    if (installGroupedNavigation()) {
+      clearInterval(installTimer);
     }
-  );
+  }, 300);
 
-
-  window.addEventListener(
-    "resize",
-    () => {
-
-      aceGroupedNavCloseDesktopMenus();
-      aceGroupedNavCloseQuickSheet();
-
-    }
-  );
-
-
-  function aceGroupedNavApply() {
-
-    aceGroupedNavSetupDesktop();
-    aceGroupedNavBuildMobileBottom();
-
-
-    if (
-      typeof setupAceBottomNavigation ===
-      "function"
-    ) {
-
-      setupAceBottomNavigation();
-
-    }
-
-
-    aceGroupedNavUpdateState();
-
-  }
-
-
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      () => {
-
-        [
-          0,
-          150,
-          500,
-          1000
-        ]
-          .forEach(
-            delay =>
-              setTimeout(
-                aceGroupedNavApply,
-                delay
-              )
-          );
-
-      }
-    );
-
-  } else {
-
-    [
-      0,
-      150,
-      500
-    ]
-      .forEach(
-        delay =>
-          setTimeout(
-            aceGroupedNavApply,
-            delay
-          )
-      );
-
-  }
-
+  // Tenta imediatamente também, caso o usuário já esteja logado.
+  installGroupedNavigation();
 })();
-
