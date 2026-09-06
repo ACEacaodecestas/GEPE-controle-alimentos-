@@ -122,8 +122,13 @@ let appStarted = false;
 // MURAL ACE
 // ============================================================
 
+const ACE_ADMIN_EMAILS = [
+  "aislantavares329@gmail.com",
+  "alexandregonta@gmail.com"
+];
+
 const MURAL_ACE_ADMIN_EMAIL =
-  "aislantavares329@gmail.com";
+  ACE_ADMIN_EMAILS[0];
 
 let muralAcePosts = [];
 
@@ -16969,6 +16974,7 @@ function download(
 //
 // A área abaixo é VISÍVEL somente para:
 // aislantavares329@gmail.com
+// alexandregonta@gmail.com
 //
 // IMPORTANTE:
 // A segurança real NÃO depende apenas da interface.
@@ -16997,8 +17003,8 @@ function download(
 // - Mural e configurações
 // ============================================================
 
-const ACE_OPERATIONAL_ADMIN_EMAIL =
-  "aislantavares329@gmail.com";
+const ACE_OPERATIONAL_ADMIN_EMAILS =
+  ACE_ADMIN_EMAILS;
 
 const ACE_ADMIN_LAST_BACKUP_KEY =
   "ace_admin_last_backup_v1";
@@ -17006,14 +17012,11 @@ const ACE_ADMIN_LAST_BACKUP_KEY =
 
 function isAceOperationalAdmin() {
 
-  return (
-    String(
-      currentUser?.email || ""
-    )
-      .trim()
-      .toLowerCase() ===
-    ACE_OPERATIONAL_ADMIN_EMAIL
-  );
+  const email = String(
+    currentUser?.email || ""
+  ).trim().toLowerCase();
+
+  return ACE_OPERATIONAL_ADMIN_EMAILS.includes(email);
 
 }
 
@@ -29908,15 +29911,11 @@ function setupPWA() {
 
 function isMuralAceAdmin() {
 
-  return (
-    String(
-      currentUser?.email || ""
-    )
-      .trim()
-      .toLowerCase()
-    ===
-    MURAL_ACE_ADMIN_EMAIL
-  );
+  const email = String(
+    currentUser?.email || ""
+  ).trim().toLowerCase();
+
+  return ACE_ADMIN_EMAILS.includes(email);
 
 }
 
@@ -36789,6 +36788,7 @@ const ACE_INVENTORY_CACHE_KEY = "ace_inventory_active_v1";
 let aceInventoryActive = null;
 let aceInventoryItems = [];
 let aceInventoryHistory = [];
+let aceInventoryLast = null;
 let aceInventoryLastItems = [];
 let aceInventoryChannel = null;
 let aceInventoryRefreshTimer = null;
@@ -36892,6 +36892,7 @@ async function refreshAceInventoryState(render = true) {
     .from("inventarios")
     .select("*")
     .in("status", ["finalizado", "cancelado"])
+    .eq("oculto_historico", false)
     .order("iniciado_em", { ascending: false })
     .limit(10);
 
@@ -36899,15 +36900,21 @@ async function refreshAceInventoryState(render = true) {
   aceInventoryHistory = historyResult.data || [];
   aceInventoryLastItems = [];
 
-  const lastFinished = aceInventoryHistory.find(
-    inventory => inventory.status === "finalizado"
-  );
+  const lastFinishedResult = await supabaseClient
+    .from("inventarios")
+    .select("*")
+    .eq("status", "finalizado")
+    .order("finalizado_em", { ascending: false })
+    .limit(1);
 
-  if (lastFinished) {
+  if (lastFinishedResult.error) throw lastFinishedResult.error;
+  aceInventoryLast = lastFinishedResult.data?.[0] || null;
+
+  if (aceInventoryLast) {
     const lastItemsResult = await supabaseClient
       .from("inventario_itens")
       .select("*")
-      .eq("inventario_id", lastFinished.id)
+      .eq("inventario_id", aceInventoryLast.id)
       .order("alimento_nome");
 
     if (lastItemsResult.error) throw lastItemsResult.error;
@@ -36956,6 +36963,7 @@ function ensureAceInventoryStyles() {
     .ace-inventory-start,.ace-inventory-finish{border:1px solid #0b5a8f;background:#0b5a8f;color:#fff}
     .ace-inventory-cancel{border:1px solid #dc2626;background:#fff;color:#dc2626}
     .ace-inventory-btn:disabled{opacity:.55;cursor:not-allowed}
+    .ace-inventory-delete-history{min-height:36px;padding:7px 11px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font:inherit;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}
     .ace-inventory-table-wrap{overflow:auto;border:1px solid #e3e9ef;border-radius:11px}
     .ace-inventory-table{width:100%;border-collapse:collapse;min-width:720px}
     .ace-inventory-table th,.ace-inventory-table td{padding:10px;border-bottom:1px solid #e7ecf1;text-align:left}
@@ -37046,7 +37054,7 @@ function getAceInventoryMovementTotals(item, finishedAt, originId) {
 
 
 function renderAceLastInventorySummary() {
-  const last = aceInventoryHistory.find(row => row.status === "finalizado");
+  const last = aceInventoryLast;
   if (!last || !aceInventoryLastItems.length) return "";
 
   const origin = getAceInventoryOrigin();
@@ -37090,6 +37098,10 @@ function renderAceLastInventorySummary() {
 function renderAceInventoryHistory() {
   if (!aceInventoryHistory.length) return "";
 
+  const admin =
+    typeof isAceOperationalAdmin === "function" &&
+    isAceOperationalAdmin();
+
   const rows = aceInventoryHistory.map(row => `
     <tr>
       <td>${esc(formatAceInventoryDateTime(row.iniciado_em))}</td>
@@ -37098,6 +37110,7 @@ function renderAceInventoryHistory() {
       <td>${fmt(row.total_sistema || 0)}</td>
       <td>${row.status === "finalizado" ? fmt(row.total_contado || 0) : "—"}</td>
       <td>${row.status === "finalizado" ? fmt(row.total_ajuste || 0) : "—"}</td>
+      ${admin ? `<td><button type="button" class="ace-inventory-delete-history" data-inventory-delete-history="${row.id}">🗑️ Excluir</button></td>` : ""}
     </tr>`).join("");
 
   return `
@@ -37105,7 +37118,7 @@ function renderAceInventoryHistory() {
       <h3>🕘 Histórico de inventários</h3>
       <div class="ace-inventory-table-wrap">
         <table class="ace-inventory-table">
-          <thead><tr><th>Início</th><th>Responsável</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th></tr></thead>
+          <thead><tr><th>Início</th><th>Responsável</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th>${admin ? "<th>Ação</th>" : ""}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -37316,6 +37329,32 @@ async function cancelAceInventory() {
 }
 
 
+async function deleteAceInventoryHistory(inventoryId) {
+  if (!(typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin())) return;
+
+  const inventory = aceInventoryHistory.find(
+    item => Number(item.id) === Number(inventoryId)
+  );
+
+  const confirmed = await showAceConfirm(
+    `Excluir este inventário do histórico?\n\nData: ${formatAceInventoryDateTime(inventory?.iniciado_em)}\nResponsável: ${inventory?.usuario_nome || "Usuário"}\n\nO ajuste e o estoque atual NÃO serão alterados.`,
+    "🗑️ Excluir do histórico"
+  );
+  if (!confirmed) return;
+
+  const { error } = await supabaseClient.rpc(
+    "ace_excluir_inventario_historico",
+    { p_inventario_id: Number(inventoryId) }
+  );
+
+  if (error) throw error;
+
+  await refreshAceInventoryState(false);
+  renderAll();
+  showAceSuccess("Inventário excluído do histórico. O estoque não foi alterado.");
+}
+
+
 function bindAceInventoryPageEvents() {
   document.getElementById("aceInventoryStart")?.addEventListener("click", async () => {
     try { await startAceInventory(); }
@@ -37348,6 +37387,13 @@ function bindAceInventoryPageEvents() {
   document.getElementById("aceInventoryCancel")?.addEventListener("click", async () => {
     try { await cancelAceInventory(); }
     catch (error) { await showAceMessage(error?.message || "Não foi possível cancelar.", "❌ Erro"); }
+  });
+
+  document.querySelectorAll("[data-inventory-delete-history]").forEach(button => {
+    button.addEventListener("click", async () => {
+      try { await deleteAceInventoryHistory(button.dataset.inventoryDeleteHistory); }
+      catch (error) { await showAceMessage(error?.message || "Não foi possível excluir do histórico.", "❌ Erro"); }
+    });
   });
 }
 
@@ -38263,4 +38309,3 @@ function setupAceInventoryRealtime() {
   );
 
 })();
-
