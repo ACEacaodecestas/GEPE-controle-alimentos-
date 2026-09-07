@@ -42143,7 +42143,7 @@ window.aceBuildStatisticsReportHtml =
   const directDesktop = [
     { target: "mural", order: 10 },
     { target: "inicio", order: 20 },
-    { target: "presenca", order: 40 },
+    { target: "presenca", order: 30 },
     { target: "cadastro", order: 70 }
   ];
 
@@ -42638,7 +42638,7 @@ window.aceBuildStatisticsReportHtml =
       tab.style.order = String(item.order);
     });
 
-    tabs.appendChild(createDesktopGroupSlot("movements", 30));
+    tabs.appendChild(createDesktopGroupSlot("movements", 40));
     tabs.appendChild(createDesktopGroupSlot("queries", 50));
     tabs.appendChild(createDesktopGroupSlot("management", 60));
 
@@ -42806,14 +42806,14 @@ window.aceBuildStatisticsReportHtml =
         <span class="label">Início</span>
       </button>
 
-      <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
-        <span class="icon">🔄</span>
-        <span class="label">Moviment.</span>
-      </button>
-
       <button class="ace-bottom-item" type="button" data-ace-target="presenca" data-ace-color="presenca" title="Presença">
         <span class="icon">👥</span>
         <span class="label">Presença</span>
+      </button>
+
+      <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
+        <span class="icon">🔄</span>
+        <span class="label">Moviment.</span>
       </button>
 
       <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Mais opções">
@@ -42885,8 +42885,8 @@ window.aceBuildStatisticsReportHtml =
     drawerList.innerHTML = `
       ${directButton("mural", "📣 Mural ACE")}
       ${directButton("inicio", "🏠 Início")}
-      ${section("Movimentações", groups.movements.items)}
       ${directButton("presenca", "👥 Presença")}
+      ${section("Movimentações", groups.movements.items)}
       ${section("Consultas", groups.queries.items)}
       ${section("Gestão", groups.management.items)}
       ${directButton("cadastro", "🗃️ Cadastros")}
