@@ -14097,6 +14097,18 @@ function renderReport() {
       );
 
 
+  // Estatística de cestas do relatório:
+  // usa as RETIRADAS reais registradas em cestas_retiradas.
+  // O histórico detalhado existente do relatório permanece inalterado.
+  const basketStatsRows =
+    (db.basketWithdrawals || [])
+      .filter(
+        row =>
+          (!start || row.date >= start) &&
+          (!end || row.date <= end)
+      );
+
+
   const presentDates =
     Object.entries(
       db.attendance || {}
@@ -14274,7 +14286,7 @@ function renderReport() {
         ? window.aceBuildStatisticsReportHtml({
             entries,
             movements: mov,
-            baskets: basketReportRows
+            baskets: basketStatsRows
           })
         : ""
     }
@@ -39694,7 +39706,7 @@ function aceStatsRefreshFilterOptions() {
 
     const destinations =
       [...new Set(
-        (db?.basketOutputs || [])
+        (db?.basketWithdrawals || [])
           .map(row =>
             String(
               row?.destination || ""
@@ -40093,7 +40105,9 @@ function aceStatsEvolutionChart(
     if (item) {
       item.baskets +=
         Number(
-          row.basketQty || 0
+          row.qty ??
+          row.basketQty ??
+          0
         );
     }
   });
@@ -40469,17 +40483,40 @@ function renderAceStatistics() {
     );
 
   const baskets =
-    (db.basketOutputs || [])
-      .filter(row =>
-        aceStatsRowMatches(
-          row,
-          filters,
-          {
-            destination:
-              true
-          }
-        )
-      );
+    (db.basketWithdrawals || [])
+      .filter(row => {
+
+        if (
+          filters.start &&
+          String(row.date || "") <
+            filters.start
+        ) {
+          return false;
+        }
+
+        if (
+          filters.end &&
+          String(row.date || "") >
+            filters.end
+        ) {
+          return false;
+        }
+
+        if (
+          filters.destination &&
+          String(
+            row.destination || ""
+          ) !==
+            String(
+              filters.destination
+            )
+        ) {
+          return false;
+        }
+
+        return true;
+
+      });
 
   const entryOrigins =
     aceStatsAggregate(
@@ -40552,7 +40589,7 @@ function renderAceStatistics() {
         row.basketName ||
         "Cesta não informada",
       row =>
-        row.basketQty
+        row.qty
     );
 
   const basketDestinations =
@@ -40562,7 +40599,7 @@ function renderAceStatistics() {
         row.destination ||
         "Destino não informado",
       row =>
-        row.basketQty
+        row.qty
     );
 
   const totalEntries =
@@ -40590,7 +40627,7 @@ function renderAceStatistics() {
     aceStatsSum(
       baskets,
       row =>
-        row.basketQty
+        row.qty
     );
 
   body.innerHTML = `
@@ -41070,7 +41107,9 @@ window.aceBuildStatisticsReportHtml =
           row.basketName ||
           "Cesta não informada",
         row =>
-          row.basketQty
+          row.qty ??
+          row.basketQty ??
+          0
       );
 
     const basketDestinations =
@@ -41080,7 +41119,9 @@ window.aceBuildStatisticsReportHtml =
           row.destination ||
           "Destino não informado",
         row =>
-          row.basketQty
+          row.qty ??
+          row.basketQty ??
+          0
       );
 
     return `
