@@ -13309,7 +13309,7 @@ async function generateStockPDF() {
     const options = {
 
       margin:
-        [8, 8, 8, 8],
+        [6, 6, 6, 6],
 
       filename:
         `estoque_${fileDate}.pdf`,
@@ -13333,7 +13333,7 @@ async function generateStockPDF() {
         logging:
           false,
         windowWidth:
-          794,
+          1123,
         width:
           760,
         x:
@@ -13351,8 +13351,7 @@ async function generateStockPDF() {
           "mm",
         format:
           "a4",
-        orientation:
-          "portrait"
+        orientation: "landscape"
       },
 
       pagebreak: {
@@ -16381,8 +16380,9 @@ function buildReportPdfElement() {
 
   // Melhora impressão em PDF.
   clone.style.background = "#fff";
-  clone.style.padding = "20px";
+  clone.style.padding = "14px";
   clone.style.color = "#111827";
+  clone.style.boxSizing = "border-box";
 
 
   return clone;
@@ -16672,8 +16672,10 @@ async function generateSignedReportPDF() {
     printHost.style.top =
       "0";
 
+    // A4 paisagem em aproximadamente 96 dpi.
+    // A largura maior evita cortes em tabelas, gráficos e observações.
     printHost.style.width =
-      "794px";
+      "1123px";
 
     printHost.style.background =
       "#ffffff";
@@ -16692,10 +16694,10 @@ async function generateSignedReportPDF() {
 
 
     element.style.width =
-      "760px";
+      "1070px";
 
     element.style.maxWidth =
-      "760px";
+      "1070px";
 
     element.style.boxSizing =
       "border-box";
@@ -16748,8 +16750,8 @@ async function generateSignedReportPDF() {
       });
 
 
-    // Cartões do resumo: em PDF ficam em 3 colunas,
-    // evitando que a última coluna saia para fora da página.
+    // Cartões do resumo: em A4 paisagem cabem em uma única linha,
+    // economizando espaço vertical e mantendo leitura profissional.
     element
       .querySelectorAll(
         ".cards"
@@ -16760,7 +16762,7 @@ async function generateSignedReportPDF() {
           "grid";
 
         cards.style.gridTemplateColumns =
-          "repeat(3, minmax(0, 1fr))";
+          "repeat(5, minmax(0, 1fr))";
 
         cards.style.gap =
           "10px";
@@ -16887,10 +16889,10 @@ async function generateSignedReportPDF() {
           "anywhere";
 
         cell.style.fontSize =
-          "11px";
+          "10px";
 
         cell.style.padding =
-          "7px 6px";
+          "5px 5px";
 
       });
 
@@ -17032,6 +17034,189 @@ async function generateSignedReportPDF() {
 
         }
 
+
+        // Presentes:
+        // Nome | Matrícula | EDE | Dia de estudo | Horário | Sede
+        if (
+          headers.length === 6 &&
+          headers.includes(
+            "matrícula"
+          ) &&
+          headers.includes(
+            "ede"
+          ) &&
+          headers.includes(
+            "dia de estudo"
+          )
+        ) {
+
+          applyWidths([
+            "24%",
+            "12%",
+            "12%",
+            "18%",
+            "12%",
+            "22%"
+          ]);
+
+        }
+
+
+        // Estoque de cestas montadas:
+        if (
+          headers.length === 7 &&
+          headers.includes(
+            "montadas"
+          ) &&
+          headers.includes(
+            "retiradas"
+          ) &&
+          headers.includes(
+            "disponíveis"
+          )
+        ) {
+
+          applyWidths([
+            "11%",
+            "18%",
+            "20%",
+            "12%",
+            "12%",
+            "13%",
+            "14%"
+          ]);
+
+        }
+
+
+        // Retiradas de cestas:
+        if (
+          headers.length === 7 &&
+          headers.includes(
+            "responsável"
+          ) &&
+          headers.includes(
+            "qtd"
+          ) &&
+          headers.includes(
+            "usuário"
+          )
+        ) {
+
+          applyWidths([
+            "10%",
+            "16%",
+            "18%",
+            "7%",
+            "15%",
+            "17%",
+            "17%"
+          ]);
+
+        }
+
+
+        // Ajustes / estornos / edições:
+        if (
+          headers.length === 8 &&
+          headers.includes(
+            "alteração"
+          ) &&
+          headers.includes(
+            "qtd."
+          ) &&
+          headers.includes(
+            "cesta"
+          )
+        ) {
+
+          applyWidths([
+            "9%",
+            "10%",
+            "14%",
+            "7%",
+            "15%",
+            "20%",
+            "15%",
+            "10%"
+          ]);
+
+        }
+
+
+        // Datas não devem quebrar em duas linhas no PDF.
+        const dateIndex =
+          headers.findIndex(
+            value =>
+              value === "data"
+          );
+
+        if (
+          dateIndex >= 0
+        ) {
+
+          tableNode
+            .querySelectorAll(
+              `tr > *:nth-child(${dateIndex + 1})`
+            )
+            .forEach(cell => {
+
+              cell.style.whiteSpace =
+                "nowrap";
+
+              cell.style.wordBreak =
+                "normal";
+
+              cell.style.overflowWrap =
+                "normal";
+
+            });
+
+        }
+
+      });
+
+
+    // Compacta títulos e estatísticas somente na cópia do PDF.
+    element
+      .querySelectorAll(
+        "h3"
+      )
+      .forEach(title => {
+
+        title.style.marginTop =
+          "12px";
+
+        title.style.marginBottom =
+          "7px";
+
+        title.style.fontSize =
+          "17px";
+
+      });
+
+
+    element
+      .querySelectorAll(
+        ".ace-report-statistics"
+      )
+      .forEach(section => {
+
+        section.style.margin =
+          "12px 0 14px";
+
+        section.style.padding =
+          "10px";
+
+        section.style.width =
+          "100%";
+
+        section.style.maxWidth =
+          "100%";
+
+        section.style.overflow =
+          "visible";
+
       });
 
 
@@ -17082,15 +17267,10 @@ async function generateSignedReportPDF() {
     );
 
 
-    // Analisa a posição real das linhas já renderizadas e,
-    // quando uma linha cair exatamente no limite entre páginas,
-    // cria um espaço em branco antes dela. Assim a linha inteira
-    // passa para a página seguinte em vez de ser cortada.
-    protectReportRowsFromPageCuts(
-      element
-    );
-
-
+    // Não insere mais espaçadores artificiais entre linhas.
+    // Em relatórios longos eles criavam grandes áreas em branco
+    // e podiam deslocar tabelas para pontos ruins da página.
+    // A proteção das linhas permanece pelo CSS/pagebreak do html2pdf.
     await new Promise(
       resolve =>
         requestAnimationFrame(
@@ -17128,7 +17308,7 @@ async function generateSignedReportPDF() {
       },
 
       html2canvas: {
-        scale: 1.5,
+        scale: 1.35,
         useCORS: true,
         allowTaint: false,
         backgroundColor:
@@ -17156,10 +17336,11 @@ async function generateSignedReportPDF() {
           ".ace-report-pdf-only-signature"
         ],
         avoid: [
-          "tbody tr:not(.ace-pdf-page-spacer-row)",
+          "tbody tr",
           "thead",
           "h3",
-          ".ace-report-pdf-only-signature"
+          ".ace-report-pdf-only-signature",
+          ".ace-stats-highlight-item"
         ]
       }
 
