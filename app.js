@@ -2589,6 +2589,8 @@ function setupOfflineStatus() {
 
         await loadMuralAcePosts();
 
+        renderMuralAce();
+
         renderAll();
 
 
@@ -30782,12 +30784,20 @@ function renderMuralAce() {
     isMuralAceAdmin();
 
 
-  const posts =
+  const availablePosts =
     muralAcePosts.filter(
       post =>
         admin ||
         post.ativo !== false
     );
+
+  // Reduz o tráfego do Mural para usuários comuns.
+  // Administradores continuam vendo todas as publicações
+  // para poder editar, excluir ou criar novas.
+  const posts =
+    admin
+      ? availablePosts
+      : availablePosts.slice(0, 10);
 
 
   page.innerHTML = `
@@ -31268,7 +31278,7 @@ function openMuralAceEditor(
                 value="upload"
                 checked
               >
-              📁 Upload do aparelho
+              🖼️ Imagem do aparelho
             </label>
 
             <label>
@@ -31277,7 +31287,7 @@ function openMuralAceEditor(
                 name="aceMuralSource"
                 value="link"
               >
-              🔗 Link externo
+              ▶️ Vídeo do YouTube
             </label>
 
           </div>
@@ -31291,18 +31301,18 @@ function openMuralAceEditor(
         >
           ${
             editing
-              ? "Trocar imagem ou vídeo (opcional)"
-              : "Imagem ou vídeo"
+              ? "Trocar imagem (opcional)"
+              : "Imagem"
           }
 
           <input
             id="aceMuralFile"
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
+            accept="image/jpeg,image/png,image/webp"
           >
 
           <span class="ace-mural-help">
-            No celular, toque acima para escolher uma imagem ou vídeo da galeria/arquivos.
+            Escolha uma imagem JPG, PNG ou WEBP. Ela será otimizada automaticamente antes do envio.
           </span>
 
           <div
@@ -31329,17 +31339,17 @@ function openMuralAceEditor(
           class="ace-mural-field full"
           style="display:none"
         >
-          Link da imagem ou vídeo
+          Link do vídeo no YouTube
 
           <input
             id="aceMuralExternalUrl"
             type="url"
             inputmode="url"
-            placeholder="Cole aqui o link da imagem, vídeo ou YouTube"
+            placeholder="Cole aqui o link do vídeo do YouTube"
           >
 
           <span class="ace-mural-help">
-            Aceita link direto de imagem/vídeo e links do YouTube.
+            Aceita somente links do YouTube (youtube.com ou youtu.be). O vídeo não será armazenado no Supabase.
           </span>
 
           <div
@@ -31469,26 +31479,28 @@ function openMuralAceEditor(
         }
 
 
+        const allowedTypes = [
+          "image/jpeg",
+          "image/png",
+          "image/webp"
+        ];
+
         const allowed =
-          (
+          allowedTypes.includes(
             String(file.type || "")
-              .startsWith("image/")
-          ) ||
-          [
-            "video/mp4",
-            "video/webm"
-          ].includes(
-            String(file.type || "")
+              .toLowerCase()
           );
 
 
         if (!allowed) {
 
+          muralFileInput.value = "";
+
           if (muralUploadStatus) {
             muralUploadStatus.className =
               "ace-mural-ready-status show error";
             muralUploadStatus.textContent =
-              "❌ Formato não permitido. Use imagem, MP4 ou WEBM.";
+              "❌ Formato não permitido. Use somente JPG, PNG ou WEBP.";
           }
 
           return;
@@ -31501,13 +31513,15 @@ function openMuralAceEditor(
           1024;
 
 
-        if (sizeMb > 100) {
+        if (sizeMb > 20) {
+
+          muralFileInput.value = "";
 
           if (muralUploadStatus) {
             muralUploadStatus.className =
               "ace-mural-ready-status show error";
             muralUploadStatus.textContent =
-              "❌ Arquivo maior que 100 MB.";
+              "❌ A imagem original não pode ultrapassar 20 MB.";
           }
 
           return;
@@ -31518,7 +31532,7 @@ function openMuralAceEditor(
           muralUploadStatus.className =
             "ace-mural-ready-status show";
           muralUploadStatus.textContent =
-            `✅ Arquivo pronto para publicar: ${file.name} (${sizeMb.toFixed(1)} MB)`;
+            `✅ Imagem pronta: ${file.name} (${sizeMb.toFixed(1)} MB). Ao salvar, será reduzida automaticamente para no máximo 1 MB.`;
         }
 
       }
@@ -31558,8 +31572,10 @@ function openMuralAceEditor(
 
 
       const valid =
-        isMuralAceValidExternalUrl(
-          value
+        Boolean(
+          getMuralAceYouTubeEmbedUrl(
+            value
+          )
         );
 
 
@@ -31571,9 +31587,7 @@ function openMuralAceEditor(
             "ace-mural-ready-status show";
 
           muralLinkStatus.textContent =
-            getMuralAceYouTubeEmbedUrl(value)
-              ? "✅ Link do YouTube reconhecido e pronto para publicar."
-              : "✅ Link válido e pronto para publicar.";
+            "✅ Link do YouTube reconhecido e pronto para publicar.";
 
         } else {
 
@@ -31581,7 +31595,7 @@ function openMuralAceEditor(
             "ace-mural-ready-status show error";
 
           muralLinkStatus.textContent =
-            "❌ Link inválido. Use um endereço começando com http:// ou https://.";
+            "❌ Use somente um link válido do YouTube (youtube.com ou youtu.be).";
 
         }
 
@@ -31629,17 +31643,236 @@ function getMuralAceFileType(
   file
 ) {
 
-  if (
-    String(
-      file?.type || ""
-    ).startsWith(
-      "video/"
-    )
-  ) {
-    return "video";
+  // Novos uploads do Mural são exclusivamente imagens.
+  return "imagem";
+
+}
+
+
+function loadMuralAceImageForCompression(
+  file
+) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      const url =
+        URL.createObjectURL(
+          file
+        );
+
+      const image =
+        new Image();
+
+      image.onload =
+        () => {
+          URL.revokeObjectURL(url);
+          resolve(image);
+        };
+
+      image.onerror =
+        () => {
+          URL.revokeObjectURL(url);
+          reject(
+            new Error(
+              "Não foi possível abrir a imagem selecionada."
+            )
+          );
+        };
+
+      image.src =
+        url;
+
+    }
+  );
+
+}
+
+
+function canvasToMuralAceBlob(
+  canvas,
+  quality
+) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      canvas.toBlob(
+        blob => {
+
+          if (!blob) {
+            reject(
+              new Error(
+                "Não foi possível otimizar a imagem."
+              )
+            );
+            return;
+          }
+
+          resolve(blob);
+
+        },
+        "image/webp",
+        quality
+      );
+
+    }
+  );
+
+}
+
+
+async function compressMuralAceImage(
+  file
+) {
+
+  const allowedTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
+
+  const mime =
+    String(file?.type || "")
+      .toLowerCase();
+
+  if (!allowedTypes.includes(mime)) {
+    throw new Error(
+      "Use somente imagens JPG, PNG ou WEBP."
+    );
   }
 
-  return "imagem";
+  const originalBytes =
+    Number(file?.size || 0);
+
+  if (originalBytes > 20 * 1024 * 1024) {
+    throw new Error(
+      "A imagem original não pode ultrapassar 20 MB."
+    );
+  }
+
+  const image =
+    await loadMuralAceImageForCompression(file);
+
+  const originalWidth =
+    Number(image.naturalWidth || image.width || 0);
+
+  const originalHeight =
+    Number(image.naturalHeight || image.height || 0);
+
+  if (!originalWidth || !originalHeight) {
+    throw new Error(
+      "A imagem selecionada não possui dimensões válidas."
+    );
+  }
+
+  const targetBytes =
+    600 * 1024;
+
+  const hardLimitBytes =
+    1024 * 1024;
+
+  const dimensions = [
+    1600,
+    1440,
+    1280,
+    1120,
+    960
+  ];
+
+  const qualities = [
+    0.82,
+    0.74,
+    0.66,
+    0.58
+  ];
+
+  let bestBlob =
+    null;
+
+  let finalWidth =
+    originalWidth;
+
+  let finalHeight =
+    originalHeight;
+
+  for (const maxDimension of dimensions) {
+
+    const scale =
+      Math.min(
+        1,
+        maxDimension /
+        Math.max(originalWidth, originalHeight)
+      );
+
+    const width =
+      Math.max(1, Math.round(originalWidth * scale));
+
+    const height =
+      Math.max(1, Math.round(originalHeight * scale));
+
+    const canvas =
+      document.createElement("canvas");
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx =
+      canvas.getContext(
+        "2d",
+        { alpha: true }
+      );
+
+    if (!ctx) {
+      throw new Error(
+        "Não foi possível preparar a imagem para otimização."
+      );
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, width, height);
+
+    for (const quality of qualities) {
+
+      const blob =
+        await canvasToMuralAceBlob(canvas, quality);
+
+      if (!bestBlob || blob.size < bestBlob.size) {
+        bestBlob = blob;
+        finalWidth = width;
+        finalHeight = height;
+      }
+
+      if (blob.size <= targetBytes) {
+        return {
+          blob,
+          width,
+          height,
+          originalBytes,
+          finalBytes: blob.size,
+          contentType: "image/webp"
+        };
+      }
+
+    }
+
+  }
+
+  if (bestBlob && bestBlob.size <= hardLimitBytes) {
+    return {
+      blob: bestBlob,
+      width: finalWidth,
+      height: finalHeight,
+      originalBytes,
+      finalBytes: bestBlob.size,
+      contentType: "image/webp"
+    };
+  }
+
+  throw new Error(
+    "Não foi possível reduzir a imagem para menos de 1 MB. Escolha outra imagem."
+  );
 
 }
 
@@ -31648,81 +31881,50 @@ async function uploadMuralAceFile(
   file
 ) {
 
-  const extension =
-    String(
-      file.name || ""
-    )
-      .split(".")
-      .pop()
-      .toLowerCase()
-      .replace(
-        /[^a-z0-9]/g,
-        ""
-      ) ||
-    (
-      getMuralAceFileType(file) ===
-      "video"
-        ? "mp4"
-        : "jpg"
-    );
-
+  const optimized =
+    await compressMuralAceImage(file);
 
   const safeName =
     `${Date.now()}_${Math.random()
       .toString(36)
-      .slice(2,10)}.${extension}`;
-
+      .slice(2,10)}.webp`;
 
   const path =
     `publicacoes/${safeName}`;
 
-
-  const {
-    error
-  } =
+  const { error } =
     await supabaseClient
       .storage
-      .from(
-        "mural-ace"
-      )
+      .from("mural-ace")
       .upload(
         path,
-        file,
+        optimized.blob,
         {
-          cacheControl:
-            "3600",
-          upsert:
-            false
+          // Nome único: cache longo reduz o Cached Egress.
+          cacheControl: "31536000",
+          upsert: false,
+          contentType: optimized.contentType
         }
       );
-
 
   if (error) {
     throw error;
   }
 
-
-  const {
-    data
-  } =
+  const { data } =
     supabaseClient
       .storage
-      .from(
-        "mural-ace"
-      )
-      .getPublicUrl(
-        path
-      );
-
+      .from("mural-ace")
+      .getPublicUrl(path);
 
   return {
     path,
-    url:
-      data?.publicUrl || "",
-    type:
-      getMuralAceFileType(
-        file
-      )
+    url: data?.publicUrl || "",
+    type: "imagem",
+    originalBytes: optimized.originalBytes,
+    finalBytes: optimized.finalBytes,
+    width: optimized.width,
+    height: optimized.height
   };
 
 }
@@ -31832,7 +32034,7 @@ async function saveMuralAcePost(
   ) {
 
     await showAceConfirm(
-      "Selecione uma imagem ou vídeo antes de salvar a publicação.",
+      "Selecione uma imagem antes de salvar a publicação.",
       "⚠️ Arquivo obrigatório"
     );
 
@@ -31847,7 +32049,7 @@ async function saveMuralAcePost(
   ) {
 
     await showAceConfirm(
-      "Cole o link da imagem, vídeo ou YouTube antes de salvar.",
+      "Cole o link do vídeo do YouTube antes de salvar.",
       "⚠️ Link obrigatório"
     );
 
@@ -31864,14 +32066,14 @@ async function saveMuralAcePost(
   if (
     source === "link" &&
     externalUrl &&
-    !isMuralAceValidExternalUrl(
+    !getMuralAceYouTubeEmbedUrl(
       externalUrl
     )
   ) {
 
     await showAceConfirm(
-      "Informe um link válido começando com http:// ou https://.",
-      "⚠️ Link inválido"
+      "Use somente um link válido do YouTube (youtube.com ou youtu.be).",
+      "⚠️ Link do YouTube inválido"
     );
 
     document
@@ -31918,7 +32120,7 @@ async function saveMuralAcePost(
       "ace-mural-ready-status show";
 
     uploadStatus.textContent =
-      "✅ Arquivo validado. Clique em Salvar publicação para concluir.";
+      "✅ Imagem validada. Ela será otimizada antes do envio.";
 
   }
 
@@ -31952,7 +32154,7 @@ async function saveMuralAcePost(
 
       if (button) {
         button.textContent =
-          "⬆️ Enviando arquivo...";
+          "🖼️ Otimizando imagem...";
       }
 
       newUpload =
@@ -31969,8 +32171,18 @@ async function saveMuralAcePost(
       if (uploadStatus) {
         uploadStatus.className =
           "ace-mural-ready-status show";
+        const beforeKb =
+          Math.round(
+            Number(newUpload.originalBytes || 0) / 1024
+          );
+
+        const afterKb =
+          Math.round(
+            Number(newUpload.finalBytes || 0) / 1024
+          );
+
         uploadStatus.textContent =
-          "✅ Upload concluído com sucesso. Finalizando a publicação...";
+          `✅ Imagem otimizada: ${beforeKb} KB → ${afterKb} KB. Finalizando a publicação...`;
       }
 
       if (button) {
@@ -31987,13 +32199,15 @@ async function saveMuralAcePost(
     ) {
 
       const validLink =
-        isMuralAceValidExternalUrl(
-          externalUrl
+        Boolean(
+          getMuralAceYouTubeEmbedUrl(
+            externalUrl
+          )
         );
 
       if (!validLink) {
         throw new Error(
-          "O link informado é inválido."
+          "Use somente um link válido do YouTube."
         );
       }
 
@@ -32007,7 +32221,7 @@ async function saveMuralAcePost(
         linkStatus.className =
           "ace-mural-ready-status show";
         linkStatus.textContent =
-          "✅ Link validado com sucesso. Finalizando a publicação...";
+          "✅ Vídeo do YouTube validado. Finalizando a publicação...";
       }
 
     }
@@ -32055,28 +32269,10 @@ async function saveMuralAcePost(
       externalUrl
     ) {
 
-      const lowerUrl =
-        externalUrl
-          .toLowerCase()
-          .split("?")[0]
-          .split("#")[0];
-
-
-      const isVideoLink =
-        Boolean(
-          getMuralAceYouTubeEmbedUrl(
-            externalUrl
-          )
-        ) ||
-        /\.(mp4|webm|mov|m4v)$/i.test(
-          lowerUrl
-        );
-
-
+      // Vídeos novos ficam somente no YouTube.
+      // Nenhum arquivo de vídeo é enviado ao Supabase Storage.
       payload.tipo =
-        isVideoLink
-          ? "video"
-          : "imagem";
+        "video";
 
       payload.arquivo_url =
         externalUrl;
@@ -32085,7 +32281,6 @@ async function saveMuralAcePost(
         null;
 
     }
-
 
     if (existingPost) {
 
@@ -32303,7 +32498,7 @@ async function deleteMuralAcePost(
   const confirmed =
     await showAceConfirm(
       `Excluir a publicação "${post.titulo}"?\n\n` +
-      "A imagem ou vídeo também será removido do Mural ACE.",
+      "O conteúdo também deixará de aparecer no Mural ACE.",
       "Excluir publicação"
     );
 
@@ -33487,6 +33682,8 @@ async function aceManualSync() {
 
 
     await loadMuralAcePosts();
+
+    renderMuralAce();
 
     renderAll();
 
@@ -35586,8 +35783,9 @@ function renderAll() {
 
   refreshSelects();
 
-  renderMuralAce();
-
+  // O Mural possui mídias e não precisa ser reconstruído
+  // a cada movimentação do sistema. Ele é atualizado somente
+  // quando o conteúdo do Mural muda ou é recarregado.
   renderDashboard();
 
   renderEntries();
