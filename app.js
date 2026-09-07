@@ -17297,7 +17297,7 @@ async function generateSignedReportPDF() {
     const options = {
 
       margin:
-        [8, 8, 8, 8],
+        [6, 6, 6, 6],
 
       filename:
         fileName,
@@ -17314,7 +17314,8 @@ async function generateSignedReportPDF() {
         backgroundColor:
           "#ffffff",
         logging: false,
-        windowWidth: 794,
+        windowWidth: 1123,
+        width: 1070,
         scrollX: 0,
         scrollY: 0,
         x: 0,
@@ -17324,7 +17325,7 @@ async function generateSignedReportPDF() {
       jsPDF: {
         unit: "mm",
         format: "a4",
-        orientation: "portrait"
+        orientation: "landscape"
       },
 
       pagebreak: {
