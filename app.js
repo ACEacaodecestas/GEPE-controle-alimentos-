@@ -14109,6 +14109,218 @@ function renderReport() {
       );
 
 
+  // ========================================================
+  // RELATÓRIO - GESTÃO PROFISSIONAL DE CESTAS
+  // ========================================================
+
+  const basketStockReportRows =
+    (db.basketStock || [])
+      .filter(
+        row =>
+          !row.hiddenHistory &&
+          (!start || row.date >= start) &&
+          (!end || row.date <= end)
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          ).localeCompare(
+            String(
+              a.createdAt ||
+              a.date ||
+              ""
+            )
+          )
+      );
+
+
+  const basketWithdrawalReportRows =
+    (db.basketWithdrawals || [])
+      .filter(
+        row =>
+          (!start || row.date >= start) &&
+          (!end || row.date <= end)
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          ).localeCompare(
+            String(
+              a.createdAt ||
+              a.date ||
+              ""
+            )
+          )
+      );
+
+
+  const basketAdjustmentReportRows =
+    (db.basketAdjustments || [])
+      .filter(
+        row =>
+          (!start || row.date >= start) &&
+          (!end || row.date <= end)
+      )
+      .map(row => {
+
+        const stock =
+          (db.basketStock || [])
+            .find(
+              item =>
+                Number(item.id) ===
+                Number(row.stockId)
+            ) ||
+          null;
+
+
+        let changeText =
+          "—";
+
+
+        if (
+          row.type === "edicao"
+        ) {
+
+          const oldDestination =
+            String(
+              row.oldDestination || ""
+            ).trim();
+
+          const newDestination =
+            String(
+              row.newDestination || ""
+            ).trim();
+
+
+          if (
+            oldDestination ||
+            newDestination
+          ) {
+
+            changeText =
+              `Destino: ${oldDestination || "—"} → ${newDestination || "—"}`;
+
+          } else if (
+            (row.oldComposition || []).length ||
+            (row.newComposition || []).length
+          ) {
+
+            changeText =
+              "Composição da cesta atualizada";
+
+          } else {
+
+            changeText =
+              "Edição registrada";
+
+          }
+
+        } else if (
+          row.type === "estorno"
+        ) {
+
+          changeText =
+            "Estorno de cesta montada";
+
+        }
+
+
+        return {
+          ...row,
+          basketName:
+            stock?.basketName ||
+            "—",
+          destination:
+            stock?.destination ||
+            row.newDestination ||
+            row.oldDestination ||
+            "—",
+          changeText
+        };
+
+      })
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          ).localeCompare(
+            String(
+              a.createdAt ||
+              a.date ||
+              ""
+            )
+          )
+      );
+
+
+  const totalBasketMounted =
+    basketStockReportRows.reduce(
+      (total, row) =>
+        total +
+        Number(
+          row.mountedQty || 0
+        ),
+      0
+    );
+
+
+  const totalBasketAvailable =
+    basketStockReportRows.reduce(
+      (total, row) =>
+        total +
+        Number(
+          row.availableQty || 0
+        ),
+      0
+    );
+
+
+  const totalBasketWithdrawn =
+    basketWithdrawalReportRows.reduce(
+      (total, row) =>
+        total +
+        Number(
+          row.qty || 0
+        ),
+      0
+    );
+
+
+  const totalBasketReversed =
+    basketAdjustmentReportRows
+      .filter(
+        row =>
+          row.type === "estorno"
+      )
+      .reduce(
+        (total, row) =>
+          total +
+          Number(
+            row.qty || 0
+          ),
+        0
+      );
+
+
+  const totalBasketEdits =
+    basketAdjustmentReportRows
+      .filter(
+        row =>
+          row.type === "edicao"
+      )
+      .length;
+
+
   const presentDates =
     Object.entries(
       db.attendance || {}
@@ -14119,34 +14331,85 @@ function renderReport() {
     );
 
 
+  const presentPeopleRows =
+    presentDates
+      .flatMap(
+        ([date, peopleIds]) =>
+          [...new Set(
+            (
+              Array.isArray(peopleIds)
+                ? peopleIds
+                : []
+            ).map(
+              id =>
+                Number(id)
+            )
+          )]
+            .map(personId => {
+
+              const person =
+                (db.people || [])
+                  .find(
+                    item =>
+                      Number(item.id) ===
+                      Number(personId)
+                  );
+
+
+              return {
+                date,
+                personId,
+                name:
+                  person?.name ||
+                  `Pessoa #${personId}`,
+                registration:
+                  person?.registration ||
+                  "—",
+                ede:
+                  person?.ede ||
+                  "—",
+                studyDay:
+                  person?.studyDay ||
+                  "—",
+                studyTime:
+                  person?.studyTime ||
+                  "—",
+                sede:
+                  person?.sede ||
+                  "—"
+              };
+
+            })
+      )
+      .sort(
+        (a, b) => {
+
+          const dateCompare =
+            String(a.date || "")
+              .localeCompare(
+                String(b.date || "")
+              );
+
+          if (dateCompare !== 0) {
+            return dateCompare;
+          }
+
+          return String(a.name || "")
+            .localeCompare(
+              String(b.name || ""),
+              "pt-BR"
+            );
+
+        }
+      );
+
+
   // Quantidade real de pessoas marcadas como presentes.
   // Em relatório de um único dia, mostra exatamente quantas
   // pessoas foram ativadas na Presença.
   // Em um período com vários dias, soma as presenças de cada dia.
   const presentPeopleCount =
-    presentDates.reduce(
-      (
-        total,
-        [
-          ,
-          peopleIds
-        ]
-      ) =>
-        total +
-        new Set(
-          (
-            Array.isArray(
-              peopleIds
-            )
-              ? peopleIds
-              : []
-          ).map(
-            id =>
-              Number(id)
-          )
-        ).size,
-      0
-    );
+    presentPeopleRows.length;
 
 
   const reportPeriodText =
@@ -14192,7 +14455,7 @@ function renderReport() {
 
       <div class="card">
 
-        <span>Entradas</span>
+        <span>➕ Entradas</span>
 
         <strong>
           ${fmt(
@@ -14250,18 +14513,11 @@ function renderReport() {
 
       <div class="card">
 
-        <span>Cestas</span>
+        <span>Cestas retiradas</span>
 
         <strong>
           ${fmt(
-            basketReportRows.reduce(
-              (s, x) =>
-                s +
-                Number(
-                  x.basketQty || 0
-                ),
-              0
-            )
+            totalBasketWithdrawn
           )}
         </strong>
 
@@ -14291,7 +14547,147 @@ function renderReport() {
         : ""
     }
 
-    <h3>Entradas</h3>
+    <section
+      style="
+        margin:20px 0;
+        padding:16px;
+        border:1px solid #cfe0ec;
+        border-radius:14px;
+        background:#f8fbfd;
+        break-inside:avoid;
+      "
+    >
+
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+          margin-bottom:12px;
+        "
+      >
+
+        <div>
+          <div
+            style="
+              color:#0b426d;
+              font-size:18px;
+              font-weight:950;
+            "
+          >
+            👥 ${
+              start &&
+              end &&
+              start === end
+                ? "Presentes do dia"
+                : "Equipe presente no período"
+            }
+          </div>
+
+          <div
+            style="
+              margin-top:3px;
+              color:#667d8e;
+              font-size:11px;
+            "
+          >
+            Relação das pessoas registradas como presentes, com os dados do cadastro.
+          </div>
+        </div>
+
+        <div
+          style="
+            min-width:110px;
+            padding:9px 12px;
+            border-radius:999px;
+            background:#e7f2fa;
+            color:#0b426d;
+            font-size:12px;
+            font-weight:950;
+            text-align:center;
+          "
+        >
+          ${fmt(presentPeopleCount)} presença(s)
+        </div>
+
+      </div>
+
+      ${
+        presentPeopleRows.length
+          ? table(
+              presentPeopleRows,
+              [
+                ...(
+                  start &&
+                  end &&
+                  start === end
+                    ? []
+                    : [
+                        [
+                          "Data",
+                          x =>
+                            fmtDate(
+                              x.date
+                            )
+                        ]
+                      ]
+                ),
+                [
+                  "Nome",
+                  x =>
+                    esc(
+                      x.name
+                    )
+                ],
+                [
+                  "Matrícula",
+                  x =>
+                    esc(
+                      x.registration
+                    )
+                ],
+                [
+                  "EDE",
+                  x =>
+                    esc(
+                      x.ede
+                    )
+                ],
+                [
+                  "Dia de estudo",
+                  x =>
+                    esc(
+                      x.studyDay
+                    )
+                ],
+                [
+                  "Horário",
+                  x =>
+                    esc(
+                      x.studyTime
+                    )
+                ],
+                [
+                  "Sede",
+                  x =>
+                    esc(
+                      x.sede
+                    )
+                ]
+              ],
+              null
+            )
+          : `
+              <div class="empty">
+                Sem presença registrada no período.
+              </div>
+            `
+      }
+
+    </section>
+
+    <h3>➕ Entradas</h3>
 
     ${
       entries.length
@@ -14434,77 +14830,309 @@ function renderReport() {
         `
     }
 
-    <h3>Histórico de saída de cestas</h3>
+    <section
+      style="
+        margin:22px 0;
+        padding:16px;
+        border:1px solid #cfe0ec;
+        border-radius:14px;
+        background:#f8fbfd;
+      "
+    >
 
-    ${
-      basketReportRows.length
+      <div
+        style="
+          margin-bottom:6px;
+          color:#0b426d;
+          font-size:19px;
+          font-weight:950;
+        "
+      >
+        🧺 Gestão de cestas
+      </div>
 
-        ? table(
-            basketReportRows,
-            [
+      <div
+        style="
+          margin-bottom:14px;
+          color:#667d8e;
+          font-size:11px;
+          line-height:1.45;
+        "
+      >
+        Visão consolidada das cestas montadas, disponíveis, retiradas, estornadas e editadas no período.
+      </div>
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:repeat(5,minmax(0,1fr));
+          gap:8px;
+          margin-bottom:16px;
+        "
+      >
+
+        <div style="padding:11px;border:1px solid #d9e6ef;border-radius:10px;background:#ffffff;">
+          <div style="color:#60788a;font-size:10px;font-weight:800;">🧺 Montadas</div>
+          <div style="margin-top:3px;color:#0b426d;font-size:19px;font-weight:950;">${fmt(totalBasketMounted)}</div>
+        </div>
+
+        <div style="padding:11px;border:1px solid #d9e6ef;border-radius:10px;background:#ffffff;">
+          <div style="color:#60788a;font-size:10px;font-weight:800;">📦 Disponíveis</div>
+          <div style="margin-top:3px;color:#0b426d;font-size:19px;font-weight:950;">${fmt(totalBasketAvailable)}</div>
+        </div>
+
+        <div style="padding:11px;border:1px solid #d9e6ef;border-radius:10px;background:#ffffff;">
+          <div style="color:#60788a;font-size:10px;font-weight:800;">🚚 Retiradas</div>
+          <div style="margin-top:3px;color:#0b426d;font-size:19px;font-weight:950;">${fmt(totalBasketWithdrawn)}</div>
+        </div>
+
+        <div style="padding:11px;border:1px solid #d9e6ef;border-radius:10px;background:#ffffff;">
+          <div style="color:#60788a;font-size:10px;font-weight:800;">↩️ Estornadas</div>
+          <div style="margin-top:3px;color:#0b426d;font-size:19px;font-weight:950;">${fmt(totalBasketReversed)}</div>
+        </div>
+
+        <div style="padding:11px;border:1px solid #d9e6ef;border-radius:10px;background:#ffffff;">
+          <div style="color:#60788a;font-size:10px;font-weight:800;">✏️ Edições</div>
+          <div style="margin-top:3px;color:#0b426d;font-size:19px;font-weight:950;">${fmt(totalBasketEdits)}</div>
+        </div>
+
+      </div>
+
+      <h3 style="margin-top:8px;">📦 Estoque de cestas montadas</h3>
+
+      ${
+        basketStockReportRows.length
+          ? table(
+              basketStockReportRows,
               [
-                "Data",
-                x =>
-                  fmtDate(
-                    x.date
-                  )
+                [
+                  "Data",
+                  x =>
+                    fmtDate(
+                      x.date
+                    )
+                ],
+                [
+                  "Cesta",
+                  x =>
+                    esc(
+                      x.basketName ||
+                      "—"
+                    )
+                ],
+                [
+                  "Destino",
+                  x =>
+                    esc(
+                      x.destination ||
+                      "—"
+                    )
+                ],
+                [
+                  "Montadas",
+                  x =>
+                    fmt(
+                      x.mountedQty
+                    )
+                ],
+                [
+                  "Retiradas",
+                  x =>
+                    fmt(
+                      x.withdrawnQty
+                    )
+                ],
+                [
+                  "Estornadas",
+                  x =>
+                    fmt(
+                      x.reversedQty
+                    )
+                ],
+                [
+                  "Disponíveis",
+                  x =>
+                    fmt(
+                      x.availableQty
+                    )
+                ]
               ],
-              [
-                "Cesta",
-                x =>
-                  esc(
-                    x.basketName ||
-                    "—"
-                  )
-              ],
-              [
-                "Destino",
-                x =>
-                  esc(
-                    x.destination ||
-                    "—"
-                  )
-              ],
-              [
-                "Quantidade",
-                x =>
-                  fmt(
-                    x.basketQty
-                  )
-              ],
-              [
-                "Usuário",
-                x =>
-                  esc(
-                    getMovementUserName({
-                      usuarioId:
-                        x.usuarioId,
-                      usuarioNome:
-                        x.usuarioNome
-                    })
-                  )
-              ],
-              [
-                "Recebido por",
-                x =>
-                  x.destination ===
-                    "Comunidade"
-                    ? esc(
-                        x.receivedBy ||
+              null
+            )
+          : `
+              <div class="empty">
+                Sem cestas montadas no período.
+              </div>
+            `
+      }
+
+      <h3 style="margin-top:18px;">🚚 Retiradas de cestas</h3>
+
+      ${
+        basketWithdrawalReportRows.length
+          ? `
+              ${table(
+                basketWithdrawalReportRows,
+                [
+                  [
+                    "Data",
+                    x =>
+                      fmtDate(
+                        x.date
+                      )
+                  ],
+                  [
+                    "Cesta",
+                    x =>
+                      esc(
+                        x.basketName ||
                         "—"
                       )
-                    : ""
-              ]
-            ],
-            null
-          )
+                  ],
+                  [
+                    "Destino",
+                    x =>
+                      esc(
+                        x.destination ||
+                        "—"
+                      )
+                  ],
+                  [
+                    "Qtd",
+                    x =>
+                      fmt(
+                        x.qty
+                      )
+                  ],
+                  [
+                    "Responsável",
+                    x =>
+                      esc(
+                        x.responsible ||
+                        "—"
+                      )
+                  ],
+                  [
+                    "Usuário",
+                    x =>
+                      esc(
+                        getMovementUserName(x) ||
+                        "Usuário não identificado"
+                      )
+                  ],
+                  [
+                    "Obs.",
+                    x =>
+                      esc(
+                        x.note ||
+                        ""
+                      )
+                  ]
+                ],
+                null
+              )}
 
-        : `
-          <div class="empty">
-            Sem saídas de cestas no período.
-          </div>
-        `
-    }
+              <div
+                style="
+                  margin-top:8px;
+                  padding:8px 11px;
+                  border-radius:9px;
+                  background:#eaf5ed;
+                  color:#17643a;
+                  font-size:11px;
+                  font-weight:900;
+                  text-align:right;
+                "
+              >
+                Total retirado no período: ${fmt(totalBasketWithdrawn)} cesta(s)
+              </div>
+            `
+          : `
+              <div class="empty">
+                Sem retiradas de cestas no período.
+              </div>
+            `
+      }
+
+      <h3 style="margin-top:18px;">↩️ Ajustes, estornos e edições</h3>
+
+      ${
+        basketAdjustmentReportRows.length
+          ? table(
+              basketAdjustmentReportRows,
+              [
+                [
+                  "Data",
+                  x =>
+                    fmtDate(
+                      x.date
+                    )
+                ],
+                [
+                  "Tipo",
+                  x =>
+                    x.type === "estorno"
+                      ? "↩️ Estorno"
+                      : "✏️ Edição"
+                ],
+                [
+                  "Cesta",
+                  x =>
+                    esc(
+                      x.basketName ||
+                      "—"
+                    )
+                ],
+                [
+                  "Qtd.",
+                  x =>
+                    x.qty != null
+                      ? fmt(x.qty)
+                      : "—"
+                ],
+                [
+                  "Motivo",
+                  x =>
+                    esc(
+                      x.reason ||
+                      "—"
+                    )
+                ],
+                [
+                  "Alteração",
+                  x =>
+                    esc(
+                      x.changeText ||
+                      "—"
+                    )
+                ],
+                [
+                  "Usuário",
+                  x =>
+                    esc(
+                      getMovementUserName(x) ||
+                      "Usuário não identificado"
+                    )
+                ],
+                [
+                  "Obs.",
+                  x =>
+                    esc(
+                      x.note ||
+                      ""
+                    )
+                ]
+              ],
+              null
+            )
+          : `
+              <div class="empty">
+                Sem ajustes, estornos ou edições no período.
+              </div>
+            `
+      }
+
+    </section>
 
     <div class="ace-report-signature-section">
 
