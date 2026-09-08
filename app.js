@@ -6216,7 +6216,7 @@ function openForgotPasswordModal() {
     #acePasswordModal{
       position:fixed;
       inset:0;
-      z-index:1000000;
+      z-index:2147483647 !important;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -6326,6 +6326,8 @@ function openForgotPasswordModal() {
 
     .ace-reset-box{
       width:min(470px,calc(100vw - 40px));
+      max-height:calc(100vh - 40px);
+      overflow-y:auto;
       box-sizing:border-box;
       padding:30px;
       border-radius:18px;
@@ -6346,6 +6348,52 @@ function openForgotPasswordModal() {
       font-size:15px;
       line-height:1.45;
       margin-bottom:22px;
+    }
+
+    .ace-reset-rules{
+      margin:-6px 0 18px;
+      padding:14px 16px;
+      border-radius:12px;
+      background:rgba(255,255,255,.96);
+      color:#17324d;
+      box-shadow:0 4px 14px rgba(0,35,70,.12);
+    }
+
+    .ace-reset-rules-title{
+      margin-bottom:8px;
+      font-size:14px;
+      font-weight:900;
+    }
+
+    .ace-reset-rules ul{
+      display:grid;
+      gap:6px;
+      margin:0;
+      padding:0;
+      list-style:none;
+    }
+
+    .ace-reset-rule{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      font-weight:800;
+      line-height:1.3;
+      color:#5b6670;
+      transition:color .2s ease;
+    }
+
+    .ace-reset-rule-indicator{
+      width:18px;
+      flex:0 0 18px;
+      text-align:center;
+      font-size:16px;
+      font-weight:900;
+    }
+
+    .ace-reset-rule.valid{
+      color:#087a39;
     }
 
     .ace-reset-label{
@@ -6505,6 +6553,64 @@ async function sendPasswordResetEmail() {
 }
 
 
+function updateAcePasswordRequirements() {
+
+  const password =
+    document.getElementById("resetPassword")
+      ?.value || "";
+
+  const confirmation =
+    document.getElementById("resetPasswordConfirm")
+      ?.value || "";
+
+  const requirements = {
+    length:
+      password.length >= ACE_MIN_PASSWORD_LENGTH,
+    lowercase:
+      /[a-z]/.test(password),
+    uppercase:
+      /[A-Z]/.test(password),
+    number:
+      /[0-9]/.test(password),
+    symbol:
+      /[^A-Za-z0-9]/.test(password),
+    matching:
+      confirmation.length > 0 &&
+      password === confirmation
+  };
+
+  Object.entries(requirements)
+    .forEach(([rule, valid]) => {
+
+      const item =
+        document.querySelector(
+          `[data-ace-password-rule="${rule}"]`
+        );
+
+      if (!item) {
+        return;
+      }
+
+      item.classList.toggle(
+        "valid",
+        valid
+      );
+
+      const indicator =
+        item.querySelector(
+          ".ace-reset-rule-indicator"
+        );
+
+      if (indicator) {
+        indicator.textContent =
+          valid ? "✓" : "○";
+      }
+
+    });
+
+}
+
+
 function showPasswordResetScreen() {
 
   closeAcePasswordModal();
@@ -6532,6 +6638,42 @@ function showPasswordResetScreen() {
 
       <div class="ace-reset-subtitle">
         Digite sua nova senha e confirme para salvar.
+      </div>
+
+      <div
+        class="ace-reset-rules"
+        aria-live="polite"
+      >
+        <div class="ace-reset-rules-title">
+          Sua nova senha precisa ter:
+        </div>
+
+        <ul>
+          <li class="ace-reset-rule" data-ace-password-rule="length">
+            <span class="ace-reset-rule-indicator">○</span>
+            No mínimo 10 caracteres
+          </li>
+          <li class="ace-reset-rule" data-ace-password-rule="lowercase">
+            <span class="ace-reset-rule-indicator">○</span>
+            Uma letra minúscula
+          </li>
+          <li class="ace-reset-rule" data-ace-password-rule="uppercase">
+            <span class="ace-reset-rule-indicator">○</span>
+            Uma letra maiúscula
+          </li>
+          <li class="ace-reset-rule" data-ace-password-rule="number">
+            <span class="ace-reset-rule-indicator">○</span>
+            Um número
+          </li>
+          <li class="ace-reset-rule" data-ace-password-rule="symbol">
+            <span class="ace-reset-rule-indicator">○</span>
+            Um caractere especial, como @, #, ! ou $
+          </li>
+          <li class="ace-reset-rule" data-ace-password-rule="matching">
+            <span class="ace-reset-rule-indicator">○</span>
+            As duas senhas devem ser iguais
+          </li>
+        </ul>
       </div>
 
       <label class="ace-reset-label">
@@ -6588,7 +6730,7 @@ function showPasswordResetScreen() {
       #acePasswordModal{
         position:fixed;
         inset:0;
-        z-index:1000000;
+        z-index:2147483647 !important;
         display:flex;
         align-items:center;
         justify-content:center;
@@ -6599,6 +6741,8 @@ function showPasswordResetScreen() {
 
       .ace-reset-box{
         width:min(470px,calc(100vw - 40px));
+        max-height:calc(100vh - 40px);
+        overflow-y:auto;
         box-sizing:border-box;
         padding:30px;
         border-radius:18px;
@@ -6619,6 +6763,52 @@ function showPasswordResetScreen() {
         font-size:15px;
         line-height:1.45;
         margin-bottom:22px;
+      }
+
+      .ace-reset-rules{
+        margin:-6px 0 18px;
+        padding:14px 16px;
+        border-radius:12px;
+        background:rgba(255,255,255,.96);
+        color:#17324d;
+        box-shadow:0 4px 14px rgba(0,35,70,.12);
+      }
+
+      .ace-reset-rules-title{
+        margin-bottom:8px;
+        font-size:14px;
+        font-weight:900;
+      }
+
+      .ace-reset-rules ul{
+        display:grid;
+        gap:6px;
+        margin:0;
+        padding:0;
+        list-style:none;
+      }
+
+      .ace-reset-rule{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        font-size:13px;
+        font-weight:800;
+        line-height:1.3;
+        color:#5b6670;
+        transition:color .2s ease;
+      }
+
+      .ace-reset-rule-indicator{
+        width:18px;
+        flex:0 0 18px;
+        text-align:center;
+        font-size:16px;
+        font-weight:900;
+      }
+
+      .ace-reset-rule.valid{
+        color:#087a39;
       }
 
       .ace-reset-label{
@@ -6685,6 +6875,22 @@ function showPasswordResetScreen() {
     .getElementById("resetPasswordButton")
     .onclick =
       updateRecoveredPassword;
+
+  document
+    .getElementById("resetPassword")
+    .addEventListener(
+      "input",
+      updateAcePasswordRequirements
+    );
+
+  document
+    .getElementById("resetPasswordConfirm")
+    .addEventListener(
+      "input",
+      updateAcePasswordRequirements
+    );
+
+  updateAcePasswordRequirements();
 
   document
     .getElementById("resetPassword")
