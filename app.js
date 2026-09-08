@@ -25051,6 +25051,7 @@ function renderMountedBasketStockTable() {
             <th>Retiradas</th>
             <th>Estornadas</th>
             <th>Disponíveis</th>
+            <th>Usuário</th>
             <th>Ações</th>
           </tr>
 
@@ -25100,6 +25101,14 @@ function renderMountedBasketStockTable() {
 
                   <td>
                     <b>${fmt(available)}</b>
+                  </td>
+
+                  <td>
+                    ${esc(
+                      getMovementUserName(
+                        row
+                      ) || "—"
+                    )}
                   </td>
 
                   <td>
