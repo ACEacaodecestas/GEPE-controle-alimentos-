@@ -41937,15 +41937,55 @@ function renderAceStatistics() {
 function aceStatsReportBarCard(
   title,
   items,
-  limit = 5
+  limit = 5,
+  includeCutoffTies = false
 ) {
-  const data =
+  const sourceData =
     (Array.isArray(items) ? items : [])
       .filter(item =>
         Number(item?.value || 0) >
         0
-      )
-      .slice(0, limit);
+      );
+
+  let data =
+    sourceData.slice(
+      0,
+      limit
+    );
+
+
+  // Quando solicitado, não corta alimentos empatados
+  // exatamente na posição limite do gráfico.
+  //
+  // Exemplo:
+  // se o limite é 5, mas 7 alimentos possuem a mesma
+  // quantidade do 5º colocado, os 7 são exibidos.
+  if (
+    includeCutoffTies &&
+    sourceData.length >
+      limit &&
+    data.length
+  ) {
+
+    const cutoffValue =
+      Number(
+        data[
+          data.length - 1
+        ]?.value || 0
+      );
+
+
+    data =
+      sourceData.filter(
+        (item, index) =>
+          index < limit ||
+          Number(
+            item?.value || 0
+          ) ===
+            cutoffValue
+      );
+
+  }
 
   if (!data.length) {
     return `
@@ -42237,7 +42277,9 @@ window.aceBuildStatisticsReportHtml =
 
           ${aceStatsReportBarCard(
             "Alimentos com maior saída",
-            outputFoods
+            outputFoods,
+            5,
+            true
           )}
 
           ${aceStatsReportBarCard(
