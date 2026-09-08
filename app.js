@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.08-inventario-assinado-v2";
+  "2026.09.08-inventario-digitacao-v3";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -39023,7 +39023,8 @@ function ensureAceInventoryStyles() {
     .ace-inventory-table th{position:sticky;top:0;background:#f5f7f9;color:#344054;z-index:1}
     .ace-inventory-count-control{display:flex;align-items:center;gap:6px}
     .ace-inventory-count-control button{width:38px;height:38px;border:1px solid #aac2d3;border-radius:8px;background:#fff;color:#0b4b7a;font-size:20px;font-weight:900}
-    .ace-inventory-count{width:88px;height:38px;border:1px solid #aac2d3;border-radius:8px;text-align:center;font:inherit;font-weight:900}
+    .ace-inventory-count{width:96px;height:42px;border:2px solid #aac2d3;border-radius:9px;text-align:center;font:inherit;font-size:17px;font-weight:900;cursor:text;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease}
+    .ace-inventory-count:focus{outline:none;border-color:#0756a0;background:#fffbea;box-shadow:0 0 0 4px rgba(7,86,160,.18)}
     .ace-inventory-diff.positive{color:#0756a0}.ace-inventory-diff.negative{color:#c62828}.ace-inventory-diff.zero{color:#167a3d}
     #aceInventoryGlobalBanner{position:sticky;top:0;z-index:999990;padding:10px 16px;background:#fff3cd;border-bottom:2px solid #e5a400;color:#6c4600;text-align:center;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.14)}
     .ace-inventory-page-lock{position:relative}
@@ -39933,6 +39934,22 @@ function bindAceInventoryPageEvents() {
   });
 
   document.querySelectorAll("[data-inventory-count]").forEach(input => {
+    const selectEntireValue = () => {
+      window.setTimeout(() => {
+        try { input.select(); } catch {}
+      }, 0);
+    };
+
+    input.addEventListener("focus", selectEntireValue);
+    input.addEventListener("click", selectEntireValue);
+
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+
     input.addEventListener("change", async () => {
       try { await saveAceInventoryCount(input.dataset.inventoryCount, input.value); }
       catch (error) { await showAceMessage(error?.message || "Não foi possível salvar.", "❌ Erro"); await refreshAceInventoryState(); }
@@ -40050,6 +40067,20 @@ function bindAceInventoryGlobalGuard() {
 function scheduleAceInventoryRefresh() {
   clearTimeout(aceInventoryRefreshTimer);
   aceInventoryRefreshTimer = setTimeout(async () => {
+    const focusedControl = document.activeElement;
+
+    if (
+      focusedControl?.matches?.(
+        "[data-inventory-count]"
+      )
+    ) {
+      aceInventoryRefreshTimer = setTimeout(
+        scheduleAceInventoryRefresh,
+        500
+      );
+      return;
+    }
+
     try {
       await refreshAceInventoryState(false);
       if (db && aceIsOnline() && !isAceInventoryInProgress()) {
