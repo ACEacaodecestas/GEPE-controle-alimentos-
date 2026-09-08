@@ -8,6 +8,12 @@
 // 1. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 
+const ACE_APP_BUILD_VERSION =
+  "2026.09.08-inventario-assinado-v2";
+
+window.ACE_APP_BUILD_VERSION =
+  ACE_APP_BUILD_VERSION;
+
 const SUPABASE_URL = "https://jblyzktbngvjqgvejgsa.supabase.co";
 
 // COLE AQUI A SUA SUPABASE PUBLISHABLE KEY
@@ -39022,7 +39028,27 @@ function ensureAceInventoryStyles() {
     #aceInventoryGlobalBanner{position:sticky;top:0;z-index:999990;padding:10px 16px;background:#fff3cd;border-bottom:2px solid #e5a400;color:#6c4600;text-align:center;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.14)}
     .ace-inventory-page-lock{position:relative}
     .ace-inventory-lock-note{padding:12px;margin-bottom:12px;border-radius:10px;background:#fff3cd;border:1px solid #e5a400;color:#6c4600;font-weight:900}
-    @media(max-width:700px){.ace-inventory-title{font-size:25px}.ace-inventory-actions,.ace-inventory-btn{width:100%}.ace-inventory-btn{flex:1 1 100%}.ace-inventory-panel{padding:13px}}
+    .ace-inventory-signature-modal{position:fixed;inset:0;z-index:2147483647!important;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,31,58,.72);backdrop-filter:blur(4px);overflow:auto}
+    .ace-inventory-signature-box{width:min(920px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box;padding:24px;border-radius:18px;background:#fff;color:#172b3a;box-shadow:0 22px 60px rgba(0,0,0,.38)}
+    .ace-inventory-signature-title{margin:0;color:#0b4b7a;font-size:26px;font-weight:900;text-align:center}
+    .ace-inventory-signature-subtitle{margin:7px 0 18px;color:#667085;line-height:1.45;text-align:center}
+    .ace-inventory-signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .ace-inventory-signature-card{padding:16px;border:1px solid #d7e0e8;border-radius:14px;background:#f8fafc}
+    .ace-inventory-signature-card h4{margin:0 0 12px;color:#102a43;font-size:18px}
+    .ace-inventory-signature-label{display:block;margin-bottom:10px;color:#344054;font-size:13px;font-weight:900}
+    .ace-inventory-signature-label input{width:100%;box-sizing:border-box;margin-top:6px;padding:11px 12px;border:1px solid #aac2d3;border-radius:9px;background:#fff;color:#172b3a;font:inherit}
+    .ace-inventory-signature-canvas{display:block;width:100%;height:180px;box-sizing:border-box;border:2px dashed #8aa9bf;border-radius:10px;background:#fff;cursor:crosshair;touch-action:none}
+    .ace-inventory-signature-hint{margin:7px 0 0;color:#667085;font-size:12px;text-align:center}
+    .ace-inventory-signature-clear{margin-top:9px;padding:8px 12px;border:1px solid #0b5a8f;border-radius:8px;background:#fff;color:#0b5a8f;font:inherit;font-size:13px;font-weight:900;cursor:pointer}
+    .ace-inventory-signature-declaration{display:flex;align-items:flex-start;gap:9px;margin:17px 0 8px;padding:13px;border-radius:10px;background:#eef7ff;color:#17324d;font-weight:800;line-height:1.4}
+    .ace-inventory-signature-declaration input{width:19px;height:19px;flex:0 0 19px;margin-top:1px}
+    .ace-inventory-signature-error{min-height:20px;margin-top:8px;color:#b42318;font-size:13px;font-weight:900;text-align:center}
+    .ace-inventory-signature-actions{display:flex;justify-content:center;gap:12px;margin-top:15px}
+    .ace-inventory-signature-actions button{min-height:46px;padding:10px 18px;border-radius:10px;font:inherit;font-weight:900;cursor:pointer}
+    .ace-inventory-signature-confirm{border:1px solid #0b5a8f;background:#0b5a8f;color:#fff}
+    .ace-inventory-signature-cancel{border:1px solid #98a2b3;background:#fff;color:#344054}
+    .ace-inventory-signature-confirm:disabled{opacity:.5;cursor:not-allowed}
+    @media(max-width:700px){.ace-inventory-title{font-size:25px}.ace-inventory-actions,.ace-inventory-btn{width:100%}.ace-inventory-btn{flex:1 1 100%}.ace-inventory-panel{padding:13px}.ace-inventory-signature-grid{grid-template-columns:1fr}.ace-inventory-signature-box{padding:16px}.ace-inventory-signature-title{font-size:22px}.ace-inventory-signature-actions{flex-direction:column}.ace-inventory-signature-actions button{width:100%}}
   `;
   document.head.appendChild(style);
 }
@@ -39252,7 +39278,7 @@ function renderAceInventory() {
           </table>
         </div>
         <div class="ace-inventory-actions">
-          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${counted !== total ? "disabled" : ""}>✅ Confirmar contagem e finalizar</button>` : ""}
+          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${counted !== total ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
           ${typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin() ? '<button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button">🗑️ Cancelar inventário</button>' : ""}
         </div>
       </div>`;
@@ -39329,6 +39355,230 @@ async function saveAceInventoryCount(itemId, quantity) {
 }
 
 
+function requestAceInventorySignatures() {
+  return new Promise(resolve => {
+    document
+      .getElementById("aceInventorySignatureModal")
+      ?.remove();
+
+    const responsibleDefault =
+      String(
+        aceInventoryActive?.usuario_nome ||
+        getCurrentDisplayName() ||
+        ""
+      ).trim();
+
+    const modal = document.createElement("div");
+    modal.id = "aceInventorySignatureModal";
+    modal.className = "ace-inventory-signature-modal";
+    modal.innerHTML = `
+      <div class="ace-inventory-signature-box" role="dialog" aria-modal="true" aria-labelledby="aceInventorySignatureTitle">
+        <h3 id="aceInventorySignatureTitle" class="ace-inventory-signature-title">✍️ Assinaturas do inventário</h3>
+        <p class="ace-inventory-signature-subtitle">
+          O inventário somente será finalizado depois da assinatura do responsável e do conferente.
+        </p>
+
+        <div class="ace-inventory-signature-grid">
+          <section class="ace-inventory-signature-card">
+            <h4>Responsável pelo inventário</h4>
+            <label class="ace-inventory-signature-label">
+              Nome completo
+              <input id="aceInventoryResponsibleName" type="text" maxlength="120" autocomplete="name" value="${esc(responsibleDefault)}" placeholder="Nome completo do responsável">
+            </label>
+            <canvas id="aceInventoryResponsibleSignature" class="ace-inventory-signature-canvas" aria-label="Área de assinatura do responsável"></canvas>
+            <p class="ace-inventory-signature-hint">Assine acima usando o dedo ou o mouse.</p>
+            <button id="aceInventoryClearResponsible" class="ace-inventory-signature-clear" type="button">🧹 Limpar assinatura</button>
+          </section>
+
+          <section class="ace-inventory-signature-card">
+            <h4>Conferente</h4>
+            <label class="ace-inventory-signature-label">
+              Nome completo
+              <input id="aceInventoryCheckerName" type="text" maxlength="120" autocomplete="name" placeholder="Nome completo do conferente">
+            </label>
+            <canvas id="aceInventoryCheckerSignature" class="ace-inventory-signature-canvas" aria-label="Área de assinatura do conferente"></canvas>
+            <p class="ace-inventory-signature-hint">Assine acima usando o dedo ou o mouse.</p>
+            <button id="aceInventoryClearChecker" class="ace-inventory-signature-clear" type="button">🧹 Limpar assinatura</button>
+          </section>
+        </div>
+
+        <label class="ace-inventory-signature-declaration">
+          <input id="aceInventorySignatureDeclaration" type="checkbox">
+          <span>Confirmamos que a contagem foi realizada e conferida. Após a finalização, as diferenças serão aplicadas ao estoque.</span>
+        </label>
+
+        <div id="aceInventorySignatureError" class="ace-inventory-signature-error" aria-live="polite"></div>
+
+        <div class="ace-inventory-signature-actions">
+          <button id="aceInventorySignatureCancel" class="ace-inventory-signature-cancel" type="button">Cancelar</button>
+          <button id="aceInventorySignatureConfirm" class="ace-inventory-signature-confirm" type="button" disabled>✅ Confirmar assinaturas</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(modal);
+
+    const state = {
+      responsible: false,
+      checker: false
+    };
+
+    const responsibleName =
+      document.getElementById("aceInventoryResponsibleName");
+    const checkerName =
+      document.getElementById("aceInventoryCheckerName");
+    const declaration =
+      document.getElementById("aceInventorySignatureDeclaration");
+    const error =
+      document.getElementById("aceInventorySignatureError");
+    const confirmButton =
+      document.getElementById("aceInventorySignatureConfirm");
+
+    const normalizedName = value =>
+      normalizeAceText(String(value || "").trim());
+
+    const validate = () => {
+      const responsible = String(responsibleName?.value || "").trim();
+      const checker = String(checkerName?.value || "").trim();
+      let message = "";
+
+      if (responsible.length < 3) {
+        message = "Informe o nome completo do responsável.";
+      } else if (checker.length < 3) {
+        message = "Informe o nome completo do conferente.";
+      } else if (normalizedName(responsible) === normalizedName(checker)) {
+        message = "O responsável e o conferente devem ser pessoas diferentes.";
+      } else if (!state.responsible) {
+        message = "Falta a assinatura do responsável.";
+      } else if (!state.checker) {
+        message = "Falta a assinatura do conferente.";
+      } else if (!declaration?.checked) {
+        message = "Marque a confirmação da contagem e da conferência.";
+      }
+
+      if (error) error.textContent = message;
+      if (confirmButton) confirmButton.disabled = Boolean(message);
+      return !message;
+    };
+
+    const setupSignaturePad = (canvasId, clearId, key) => {
+      const canvas = document.getElementById(canvasId);
+      const clearButton = document.getElementById(clearId);
+      if (!canvas) return;
+
+      const ratio = Math.min(
+        2,
+        Math.max(1, window.devicePixelRatio || 1)
+      );
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+
+      const context = canvas.getContext("2d");
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.lineWidth = 2.4;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.strokeStyle = "#102a43";
+
+      let drawing = false;
+
+      const point = event => {
+        const bounds = canvas.getBoundingClientRect();
+        return {
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top
+        };
+      };
+
+      canvas.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        drawing = true;
+        canvas.setPointerCapture?.(event.pointerId);
+        const current = point(event);
+        context.beginPath();
+        context.moveTo(current.x, current.y);
+        context.lineTo(current.x + 0.2, current.y + 0.2);
+        context.stroke();
+        state[key] = true;
+        validate();
+      });
+
+      canvas.addEventListener("pointermove", event => {
+        if (!drawing) return;
+        event.preventDefault();
+        const current = point(event);
+        context.lineTo(current.x, current.y);
+        context.stroke();
+      });
+
+      const stopDrawing = event => {
+        if (!drawing) return;
+        drawing = false;
+        try {
+          canvas.releasePointerCapture?.(event.pointerId);
+        } catch {}
+      };
+
+      canvas.addEventListener("pointerup", stopDrawing);
+      canvas.addEventListener("pointercancel", stopDrawing);
+      canvas.addEventListener("pointerleave", event => {
+        if (event.buttons === 0) stopDrawing(event);
+      });
+
+      clearButton?.addEventListener("click", () => {
+        context.clearRect(0, 0, rect.width, rect.height);
+        state[key] = false;
+        validate();
+      });
+    };
+
+    setupSignaturePad(
+      "aceInventoryResponsibleSignature",
+      "aceInventoryClearResponsible",
+      "responsible"
+    );
+
+    setupSignaturePad(
+      "aceInventoryCheckerSignature",
+      "aceInventoryClearChecker",
+      "checker"
+    );
+
+    responsibleName?.addEventListener("input", validate);
+    checkerName?.addEventListener("input", validate);
+    declaration?.addEventListener("change", validate);
+
+    const close = result => {
+      modal.remove();
+      resolve(result);
+    };
+
+    document
+      .getElementById("aceInventorySignatureCancel")
+      ?.addEventListener("click", () => close(null));
+
+    confirmButton?.addEventListener("click", () => {
+      if (!validate()) return;
+
+      const responsibleCanvas =
+        document.getElementById("aceInventoryResponsibleSignature");
+      const checkerCanvas =
+        document.getElementById("aceInventoryCheckerSignature");
+
+      close({
+        responsibleName: String(responsibleName.value || "").trim(),
+        responsibleSignature: responsibleCanvas.toDataURL("image/png"),
+        checkerName: String(checkerName.value || "").trim(),
+        checkerSignature: checkerCanvas.toDataURL("image/png")
+      });
+    });
+
+    validate();
+    checkerName?.focus();
+  });
+}
+
+
 async function finishAceInventory() {
   if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para finalizar.", "🟠 Operação online");
   if (!isCurrentUserInventoryOwner()) return;
@@ -39342,14 +39592,24 @@ async function finishAceInventory() {
   const countedTotal = aceInventoryItems.reduce((sum, item) => sum + Number(item.quantidade_contada || 0), 0);
   const adjustment = countedTotal - systemTotal;
 
+  const signatures =
+    await requestAceInventorySignatures();
+
+  if (!signatures) return;
+
   const confirmed = await showAceConfirm(
-    `Confirmar a contagem de Água Fria?\n\nEstoque no sistema: ${fmt(systemTotal)}\nEstoque contado: ${fmt(countedTotal)}\nAjuste: ${adjustment > 0 ? "+" : ""}${fmt(adjustment)}\n\nApós confirmar, o estoque será atualizado e as movimentações serão liberadas.`,
+    `Confirmar e finalizar o inventário de Água Fria?\n\nResponsável: ${signatures.responsibleName}\nConferente: ${signatures.checkerName}\n\nEstoque no sistema: ${fmt(systemTotal)}\nEstoque contado: ${fmt(countedTotal)}\nAjuste: ${adjustment > 0 ? "+" : ""}${fmt(adjustment)}\n\nAs duas assinaturas serão gravadas e o estoque será atualizado.`,
     "✅ Finalizar inventário"
   );
   if (!confirmed) return;
 
-  const { error } = await supabaseClient.rpc("ace_finalizar_inventario", {
-    p_inventario_id: Number(aceInventoryActive.id)
+  const inventoryId = Number(aceInventoryActive.id);
+  const { data, error } = await supabaseClient.rpc("ace_finalizar_inventario", {
+    p_inventario_id: inventoryId,
+    p_responsavel_nome: signatures.responsibleName,
+    p_responsavel_assinatura: signatures.responsibleSignature,
+    p_conferente_nome: signatures.checkerName,
+    p_conferente_assinatura: signatures.checkerSignature
   });
   if (error) throw error;
 
@@ -39357,7 +39617,19 @@ async function finishAceInventory() {
   db = await loadFromSupabase(false);
   saveOfflineSnapshot(db);
   renderAll();
-  showAceSuccess("Inventário finalizado. Estoque atualizado e movimentações liberadas.");
+
+  const finishedId = Number(data?.id || inventoryId);
+  showAceSuccess("Inventário finalizado e assinado. Preparando o PDF...");
+
+  try {
+    await generateAceInventoryPDF(finishedId);
+  } catch (pdfError) {
+    console.error("ACE - ERRO AO GERAR PDF ASSINADO:", pdfError);
+    await showAceMessage(
+      "O inventário foi finalizado e as assinaturas foram salvas, mas o PDF não foi baixado. Use o botão PDF no histórico para gerar novamente.",
+      "⚠️ Inventário salvo"
+    );
+  }
 }
 
 
@@ -39407,6 +39679,14 @@ async function deleteAceInventoryHistory(inventoryId) {
 }
 
 
+function getAceSafeInventorySignature(value) {
+  const signature = String(value || "").trim();
+  return /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(signature)
+    ? signature
+    : "";
+}
+
+
 function buildAceInventoryPdfElement(inventory, items) {
   const totalSystem = items.reduce(
     (sum, item) => sum + Number(item.estoque_sistema || 0),
@@ -39425,6 +39705,58 @@ function buildAceInventoryPdfElement(inventory, items) {
     typeof getCurrentDisplayName === "function"
       ? getCurrentDisplayName()
       : currentUser?.email || "Usuário";
+
+  const responsibleName = String(
+    inventory.responsavel_nome_assinatura ||
+    inventory.usuario_nome ||
+    "Usuário"
+  );
+
+  const checkerName = String(
+    inventory.conferente_nome ||
+    "Conferente"
+  );
+
+  const responsibleSignature =
+    getAceSafeInventorySignature(
+      inventory.responsavel_assinatura
+    );
+
+  const checkerSignature =
+    getAceSafeInventorySignature(
+      inventory.conferente_assinatura
+    );
+
+  const signaturesHtml =
+    responsibleSignature && checkerSignature
+      ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:34px;padding:0 14px;page-break-inside:avoid;break-inside:avoid">
+          <div style="text-align:center">
+            <div style="height:72px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden">
+              <img src="${esc(responsibleSignature)}" alt="Assinatura do responsável" style="display:block;max-width:100%;max-height:70px;object-fit:contain">
+            </div>
+            <div style="border-top:1px solid #344054;padding-top:6px;font-size:11px">
+              <strong>${esc(responsibleName)}</strong><br>
+              Responsável pelo inventário<br>
+              <span style="color:#667085;font-size:9px">Assinado em ${esc(formatAceInventoryDateTime(inventory.responsavel_assinado_em || inventory.finalizado_em))}</span>
+            </div>
+          </div>
+          <div style="text-align:center">
+            <div style="height:72px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden">
+              <img src="${esc(checkerSignature)}" alt="Assinatura do conferente" style="display:block;max-width:100%;max-height:70px;object-fit:contain">
+            </div>
+            <div style="border-top:1px solid #344054;padding-top:6px;font-size:11px">
+              <strong>${esc(checkerName)}</strong><br>
+              Conferente<br>
+              <span style="color:#667085;font-size:9px">Assinado em ${esc(formatAceInventoryDateTime(inventory.conferente_assinado_em || inventory.finalizado_em))}</span>
+            </div>
+          </div>
+        </div>`
+      : `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:55px;margin-top:58px;padding:0 22px;page-break-inside:avoid;break-inside:avoid">
+          <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Responsável pelo inventário</div>
+          <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Conferente</div>
+        </div>`;
 
   const rows = items.map((item, index) => {
     const system = Number(item.estoque_sistema || 0);
@@ -39456,11 +39788,13 @@ function buildAceInventoryPdfElement(inventory, items) {
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;padding:14px 16px;margin-bottom:16px;border:1px solid #d9e4ec;border-radius:10px;background:#f8fafc;font-size:12px;line-height:1.45">
+        <div><strong>Inventário:</strong> Nº ${esc(inventory.id)}</div>
         <div><strong>Local:</strong> Água Fria</div>
         <div><strong>Situação:</strong> Finalizado</div>
         <div><strong>Início:</strong> ${esc(formatAceInventoryDateTime(inventory.iniciado_em))}</div>
         <div><strong>Finalização:</strong> ${esc(formatAceInventoryDateTime(inventory.finalizado_em))}</div>
-        <div style="grid-column:1/-1"><strong>Responsável:</strong> ${esc(inventory.usuario_nome || "Usuário")}</div>
+        <div><strong>Responsável:</strong> ${esc(responsibleName)}</div>
+        <div><strong>Conferente:</strong> ${esc(checkerName)}</div>
         <div style="grid-column:1/-1"><strong>Documento gerado por:</strong> ${esc(generatedBy)} em ${esc(generatedAt)}</div>
       </div>
 
@@ -39492,10 +39826,7 @@ function buildAceInventoryPdfElement(inventory, items) {
         <tbody>${rows}</tbody>
       </table>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:55px;margin-top:58px;padding:0 22px">
-        <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Responsável pelo inventário</div>
-        <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Conferente</div>
-      </div>
+      ${signaturesHtml}
 
       <div style="margin-top:24px;padding-top:10px;border-top:1px solid #d9e4ec;font-size:9px;color:#667085;line-height:1.4">
         Documento gerado automaticamente pelo sistema ACE - Controle de Alimentos. As diferenças registradas foram aplicadas ao estoque como ajuste de inventário, sem criar entradas ou perdas falsas.
@@ -44153,5 +44484,3 @@ window.aceBuildStatisticsReportHtml =
   // Tenta imediatamente também, caso o usuário já esteja logado.
   installGroupedNavigation();
 })();
-
-        
