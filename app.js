@@ -41366,6 +41366,122 @@ function aceStatsTopLabel(
 }
 
 
+/**
+ * Destaque profissional para rankings com empate.
+ *
+ * Regra:
+ * - 1 líder: mostra nome + quantidade
+ * - 2 ou 3 empatados: mostra os nomes + quantidade "cada"
+ * - 4 ou mais empatados: resume a quantidade de alimentos empatados
+ */
+function aceStatsTopTieLabel(
+  items,
+  singularUnit,
+  pluralUnit,
+  emptyText =
+    "Sem dados"
+) {
+
+  const list =
+    Array.isArray(items)
+      ? items
+      : [];
+
+  const top =
+    list[0];
+
+  if (!top) {
+    return emptyText;
+  }
+
+
+  const topValue =
+    Number(
+      top.value || 0
+    );
+
+
+  const tied =
+    list.filter(
+      item =>
+        Number(
+          item?.value || 0
+        ) ===
+        topValue
+    );
+
+
+  if (
+    tied.length <= 1
+  ) {
+
+    return `${
+      top.label
+    } — ${
+      aceStatsFmt(topValue)
+    }`;
+
+  }
+
+
+  const unit =
+    topValue === 1
+      ? singularUnit
+      : pluralUnit;
+
+
+  if (
+    tied.length <= 3
+  ) {
+
+    const names =
+      tied
+        .map(
+          item =>
+            String(
+              item?.label || ""
+            ).trim()
+        )
+        .filter(Boolean);
+
+
+    let label = "";
+
+    if (
+      names.length === 2
+    ) {
+
+      label =
+        `${names[0]} e ${names[1]}`;
+
+    } else {
+
+      label =
+        `${names
+          .slice(0, -1)
+          .join(", ")} e ${
+            names[names.length - 1]
+          }`;
+
+    }
+
+
+    return `${label} — ${
+      aceStatsFmt(topValue)
+    } cada`;
+
+  }
+
+
+  return `${
+    tied.length
+  } alimentos empatados — ${
+    aceStatsFmt(topValue)
+  } ${unit} cada`;
+
+}
+
+
 function renderAceStatistics() {
   const page =
     document.getElementById(
@@ -41696,8 +41812,10 @@ function renderAceStatistics() {
           Alimento com maior saída
           <strong>
             ${aceStatsEsc(
-              aceStatsTopLabel(
-                outputFoods
+              aceStatsTopTieLabel(
+                outputFoods,
+                "saída",
+                "saídas"
               )
             )}
           </strong>
@@ -41707,8 +41825,10 @@ function renderAceStatistics() {
           Alimento com maior perda
           <strong>
             ${aceStatsEsc(
-              aceStatsTopLabel(
-                lossFoods
+              aceStatsTopTieLabel(
+                lossFoods,
+                "perda",
+                "perdas"
               )
             )}
           </strong>
@@ -42180,8 +42300,10 @@ window.aceBuildStatisticsReportHtml =
               <div>
                 <strong>Maior saída:</strong>
                 ${aceStatsEsc(
-                  aceStatsTopLabel(
-                    outputFoods
+                  aceStatsTopTieLabel(
+                    outputFoods,
+                    "saída",
+                    "saídas"
                   )
                 )}
               </div>
@@ -42189,8 +42311,10 @@ window.aceBuildStatisticsReportHtml =
               <div>
                 <strong>Maior perda:</strong>
                 ${aceStatsEsc(
-                  aceStatsTopLabel(
-                    lossFoods
+                  aceStatsTopTieLabel(
+                    lossFoods,
+                    "perda",
+                    "perdas"
                   )
                 )}
               </div>
