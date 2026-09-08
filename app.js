@@ -1,7 +1,7 @@
 
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
-// V7 + SUPABASE AUTH + APK + INVENTÁRIO ÁGUA FRIA
+// V7 + SUPABASE AUTH + INVENTÁRIO ÁGUA FRIA
 // ============================================================
 
 // ============================================================
@@ -2291,8 +2291,8 @@ async function syncOfflineOperation(
 
 async function syncOfflineQueue() {
 
-  // Não sincroniza movimentações pendentes enquanto houver
-  // inventário em andamento no estoque de Água Fria.
+  // Durante um inventário nenhuma movimentação pendente pode ser
+  // enviada ao banco. Primeiro consultamos o bloqueio oficial.
   if (
     typeof refreshAceInventoryState === "function" &&
     aceIsOnline()
@@ -2589,9 +2589,7 @@ function setupOfflineStatus() {
 
         await loadMuralAcePosts();
 
-
         renderMuralAce();
-
 
         renderAll();
 
@@ -3801,6 +3799,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
           `${row.data_ajuste || isoToday()}T00:00:00Z`
       })),
 
+    // Ajustes assinados criados exclusivamente ao finalizar inventários.
+    // Positivo acrescenta ao saldo; negativo retira do saldo.
     stockAdjustments:
       stockAdjustmentRows.map(row => ({
         id: Number(row.id),
@@ -6602,7 +6602,7 @@ function createLoginScreen() {
     }
 
     .login-password-wrap input{
-      padding-right:52px;
+      padding-right:50px;
     }
 
     .login-password-toggle{
@@ -6610,29 +6610,34 @@ function createLoginScreen() {
       top:50%;
       right:8px;
       transform:translateY(-50%);
-      width:40px;
-      height:40px;
+      width:38px;
+      height:38px;
       display:flex;
       align-items:center;
       justify-content:center;
+      padding:0;
       border:0;
       border-radius:8px;
       background:transparent;
-      color:#0b3a63;
-      font-size:21px;
-      line-height:1;
+      color:#667085;
       cursor:pointer;
-      user-select:none;
       -webkit-tap-highlight-color:transparent;
     }
 
     .login-password-toggle:hover{
-      background:#eef5fb;
+      color:#0b3a63;
+      background:#f2f4f7;
     }
 
-    .login-password-toggle:focus-visible{
-      outline:2px solid #1467a8;
-      outline-offset:1px;
+    .login-password-toggle svg{
+      width:21px;
+      height:21px;
+      display:block;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:2;
+      stroke-linecap:round;
+      stroke-linejoin:round;
     }
 
     .login-button{
@@ -6876,7 +6881,10 @@ function createLoginScreen() {
               aria-label="Mostrar senha"
               title="Mostrar senha"
             >
-              👁️
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
             </button>
           </div>
         </label>
@@ -6945,39 +6953,54 @@ function createLoginScreen() {
     loginPasswordToggle
   ) {
 
+    const eyeOpenIcon = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    `;
+
+    const eyeClosedIcon = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 3l18 18"></path>
+        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
+        <path d="M9.9 4.2A11.7 11.7 0 0 1 12 4c6.5 0 10 8 10 8a18 18 0 0 1-3 4"></path>
+        <path d="M6.6 6.6C3.8 8.3 2 12 2 12s3.5 8 10 8a9.8 9.8 0 0 0 4.4-1"></path>
+      </svg>
+    `;
+
+
     loginPasswordToggle.addEventListener(
       "click",
       () => {
 
-        const showing =
+        const willShow =
           loginPassword.type ===
-          "text";
+          "password";
 
         loginPassword.type =
-          showing
-            ? "password"
-            : "text";
+          willShow
+            ? "text"
+            : "password";
 
-        loginPasswordToggle.textContent =
-          showing
-            ? "👁️"
-            : "🙈";
+        loginPasswordToggle.innerHTML =
+          willShow
+            ? eyeClosedIcon
+            : eyeOpenIcon;
 
         loginPasswordToggle.setAttribute(
           "aria-label",
-          showing
-            ? "Mostrar senha"
-            : "Ocultar senha"
+          willShow
+            ? "Ocultar senha"
+            : "Mostrar senha"
         );
 
         loginPasswordToggle.setAttribute(
           "title",
-          showing
-            ? "Mostrar senha"
-            : "Ocultar senha"
+          willShow
+            ? "Ocultar senha"
+            : "Mostrar senha"
         );
-
-        loginPassword.focus();
 
       }
     );
@@ -8865,6 +8888,9 @@ function calcStock() {
   });
 
 
+  // O inventário não cria uma entrada ou uma perda falsa.
+  // Ele cria somente a diferença necessária para alinhar o sistema
+  // com a quantidade realmente contada na prateleira.
   (db.stockAdjustments || [])
     .forEach(adjustment => {
 
@@ -13413,7 +13439,7 @@ async function generateStockPDF() {
     const options = {
 
       margin:
-        [8, 8, 8, 8],
+        [6, 6, 6, 6],
 
       filename:
         `estoque_${fileDate}.pdf`,
@@ -13437,7 +13463,7 @@ async function generateStockPDF() {
         logging:
           false,
         windowWidth:
-          794,
+          1123,
         width:
           760,
         x:
@@ -13455,8 +13481,7 @@ async function generateStockPDF() {
           "mm",
         format:
           "a4",
-        orientation:
-          "portrait"
+        orientation: "landscape"
       },
 
       pagebreak: {
@@ -17913,6 +17938,7 @@ function download(
 //
 // A área abaixo é VISÍVEL somente para:
 // aislantavares329@gmail.com
+// alexandregonta@gmail.com
 //
 // IMPORTANTE:
 // A segurança real NÃO depende apenas da interface.
@@ -22639,89 +22665,11 @@ function bindEvents() {
 
   const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) {
-    backupBtn.addEventListener("click", async () => {
-      const fileName =
-        `backup_controle_alimentos_${isoToday()}.json`;
-
-      const backupBlob =
-        new Blob(
-          [JSON.stringify(db, null, 2)],
-          { type: "application/json" }
-        );
-
-      try {
-        const CapacitorGlobal =
-          window.Capacitor;
-
-        const Filesystem =
-          CapacitorGlobal?.Plugins?.Filesystem;
-
-        const Share =
-          CapacitorGlobal?.Plugins?.Share;
-
-        const isNative =
-          Boolean(
-            CapacitorGlobal?.isNativePlatform?.()
-          );
-
-        // APK Android: todos os usuários podem gerar o backup.
-        // Usa o compartilhamento nativo porque o download por <a>
-        // pode não funcionar dentro do WebView do Android.
-        if (
-          isNative &&
-          Filesystem &&
-          Share
-        ) {
-          const base64Data =
-            await blobToBase64ForAce(
-              backupBlob
-            );
-
-          const saved =
-            await Filesystem.writeFile({
-              path: fileName,
-              data: base64Data,
-              directory: "CACHE",
-              recursive: true
-            });
-
-          const fileUri =
-            saved?.uri;
-
-          if (!fileUri) {
-            throw new Error(
-              "Não foi possível gerar o arquivo de backup."
-            );
-          }
-
-          await Share.share({
-            title: "Backup ACE",
-            text: "Backup do Controle de Alimentos ACE",
-            url: fileUri,
-            dialogTitle: "Salvar ou compartilhar backup"
-          });
-
-          return;
-        }
-
-        // PWA / navegador: mantém exatamente o download atual.
-        download(
-          backupBlob,
-          fileName
-        );
-
-      } catch (error) {
-        console.error(
-          "ACE - erro ao gerar backup:",
-          error
-        );
-
-        await showAceMessage(
-          "Não foi possível gerar o backup.\n\n" +
-          (error?.message || "Tente novamente."),
-          "❌ Erro no backup"
-        );
-      }
+    backupBtn.addEventListener("click", () => {
+      download(
+        new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }),
+        `backup_controle_alimentos_${isoToday()}.json`
+      );
     });
   }
 
@@ -34687,9 +34635,7 @@ async function aceManualSync() {
 
     await loadMuralAcePosts();
 
-
     renderMuralAce();
-
 
     renderAll();
 
@@ -36919,8 +36865,9 @@ async function initApp() {
     setupHistoryPage();
 
     // Cria uma aba exclusiva para Saída de Cestas.
-    setupBasketPage();
+  setupBasketPage();
 
+    // Inventário físico exclusivo do galpão Água Fria.
     setupAceInventoryPage();
 
     // Estatísticas gerenciais (somente nova aba/visualização).
@@ -37997,10 +37944,6 @@ startAuth();
 })();
 
 
-
-
-
-
 // ============================================================
 // 23. INVENTÁRIO FÍSICO — LOCAL FIXO: ÁGUA FRIA
 // ============================================================
@@ -38742,12 +38685,9 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
       .reverse()
       .join("-");
 
-    const fileName =
-      `inventario_agua_fria_${fileDate}.pdf`;
-
-    const pdfWorker = window.html2pdf().set({
+    await window.html2pdf().set({
       margin: [8, 8, 8, 8],
-      filename: fileName,
+      filename: `inventario_agua_fria_${fileDate}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: {
         scale: 1.6,
@@ -38764,61 +38704,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
       },
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "thead"] }
-    }).from(element).toPdf();
-
-    const pdfBlob =
-      await pdfWorker.outputPdf("blob");
-
-    if (!pdfBlob || pdfBlob.size < 1000) {
-      throw new Error("O PDF do inventário foi gerado sem conteúdo.");
-    }
-
-    const CapacitorGlobal =
-      window.Capacitor;
-
-    const Filesystem =
-      CapacitorGlobal?.Plugins?.Filesystem;
-
-    const Share =
-      CapacitorGlobal?.Plugins?.Share;
-
-    const isNative = Boolean(
-      CapacitorGlobal?.isNativePlatform?.()
-    );
-
-    if (isNative && Filesystem && Share) {
-      const base64Data =
-        await blobToBase64ForAce(pdfBlob);
-
-      const saved =
-        await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: "CACHE",
-          recursive: true
-        });
-
-      if (!saved?.uri) {
-        throw new Error("O Android não retornou o endereço do PDF.");
-      }
-
-      await Share.share({
-        title: "Inventário ACE - Água Fria",
-        text: "Relatório de inventário de alimentos.",
-        files: [saved.uri],
-        dialogTitle: "Compartilhar inventário ACE"
-      });
-
-    } else {
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    }
+    }).from(element).save();
 
     showAceSuccess("PDF do inventário gerado com sucesso!");
   } finally {
@@ -38990,7 +38876,6 @@ function setupAceInventoryRealtime() {
 
 
 // ============================================================
-
 // ACE - AJUSTE MOBILE DO MURAL
 //
 // 1) Mantém TODA a lógica Online/Offline existente.
@@ -39793,6 +39678,7 @@ function setupAceInventoryRealtime() {
   );
 
 })();
+
 
 // ============================================================
 // ACE - ESTATÍSTICAS GERENCIAIS
@@ -40760,7 +40646,7 @@ function aceStatsRefreshFilterOptions() {
 
     const destinations =
       [...new Set(
-        (db?.basketOutputs || [])
+        (db?.basketWithdrawals || [])
           .map(row =>
             String(
               row?.destination || ""
@@ -41159,7 +41045,9 @@ function aceStatsEvolutionChart(
     if (item) {
       item.baskets +=
         Number(
-          row.basketQty || 0
+          row.qty ??
+          row.basketQty ??
+          0
         );
     }
   });
@@ -41535,17 +41423,40 @@ function renderAceStatistics() {
     );
 
   const baskets =
-    (db.basketOutputs || [])
-      .filter(row =>
-        aceStatsRowMatches(
-          row,
-          filters,
-          {
-            destination:
-              true
-          }
-        )
-      );
+    (db.basketWithdrawals || [])
+      .filter(row => {
+
+        if (
+          filters.start &&
+          String(row.date || "") <
+            filters.start
+        ) {
+          return false;
+        }
+
+        if (
+          filters.end &&
+          String(row.date || "") >
+            filters.end
+        ) {
+          return false;
+        }
+
+        if (
+          filters.destination &&
+          String(
+            row.destination || ""
+          ) !==
+            String(
+              filters.destination
+            )
+        ) {
+          return false;
+        }
+
+        return true;
+
+      });
 
   const entryOrigins =
     aceStatsAggregate(
@@ -41618,7 +41529,7 @@ function renderAceStatistics() {
         row.basketName ||
         "Cesta não informada",
       row =>
-        row.basketQty
+        row.qty
     );
 
   const basketDestinations =
@@ -41628,7 +41539,7 @@ function renderAceStatistics() {
         row.destination ||
         "Destino não informado",
       row =>
-        row.basketQty
+        row.qty
     );
 
   const totalEntries =
@@ -41656,7 +41567,7 @@ function renderAceStatistics() {
     aceStatsSum(
       baskets,
       row =>
-        row.basketQty
+        row.qty
     );
 
   body.innerHTML = `
@@ -42136,7 +42047,9 @@ window.aceBuildStatisticsReportHtml =
           row.basketName ||
           "Cesta não informada",
         row =>
-          row.basketQty
+          row.qty ??
+          row.basketQty ??
+          0
       );
 
     const basketDestinations =
@@ -42146,7 +42059,9 @@ window.aceBuildStatisticsReportHtml =
           row.destination ||
           "Destino não informado",
         row =>
-          row.basketQty
+          row.qty ??
+          row.basketQty ??
+          0
       );
 
     return `
@@ -42315,6 +42230,7 @@ window.aceBuildStatisticsReportHtml =
     `;
   };
 
+
 // ============================================================
 // ACE - NAVEGAÇÃO AGRUPADA PROFISSIONAL (SOMENTE VISUAL)
 // ============================================================
@@ -42357,7 +42273,7 @@ window.aceBuildStatisticsReportHtml =
   const directDesktop = [
     { target: "mural", order: 10 },
     { target: "inicio", order: 20 },
-    { target: "presenca", order: 40 },
+    { target: "presenca", order: 30 },
     { target: "cadastro", order: 70 }
   ];
 
@@ -42852,7 +42768,7 @@ window.aceBuildStatisticsReportHtml =
       tab.style.order = String(item.order);
     });
 
-    tabs.appendChild(createDesktopGroupSlot("movements", 30));
+    tabs.appendChild(createDesktopGroupSlot("movements", 40));
     tabs.appendChild(createDesktopGroupSlot("queries", 50));
     tabs.appendChild(createDesktopGroupSlot("management", 60));
 
@@ -43020,14 +42936,14 @@ window.aceBuildStatisticsReportHtml =
         <span class="label">Início</span>
       </button>
 
-      <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
-        <span class="icon">🔄</span>
-        <span class="label">Moviment.</span>
-      </button>
-
       <button class="ace-bottom-item" type="button" data-ace-target="presenca" data-ace-color="presenca" title="Presença">
         <span class="icon">👥</span>
         <span class="label">Presença</span>
+      </button>
+
+      <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
+        <span class="icon">🔄</span>
+        <span class="label">Moviment.</span>
       </button>
 
       <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Mais opções">
@@ -43099,8 +43015,8 @@ window.aceBuildStatisticsReportHtml =
     drawerList.innerHTML = `
       ${directButton("mural", "📣 Mural ACE")}
       ${directButton("inicio", "🏠 Início")}
-      ${section("Movimentações", groups.movements.items)}
       ${directButton("presenca", "👥 Presença")}
+      ${section("Movimentações", groups.movements.items)}
       ${section("Consultas", groups.queries.items)}
       ${section("Gestão", groups.management.items)}
       ${directButton("cadastro", "🗃️ Cadastros")}
