@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.08-inventario-digitacao-v3";
+  "2026.09.08-inventario-scroll-mobile-v4";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -38842,6 +38842,8 @@ let aceInventoryLast = null;
 let aceInventoryLastItems = [];
 let aceInventoryChannel = null;
 let aceInventoryRefreshTimer = null;
+let aceInventoryHorizontalScroll = 0;
+let aceInventoryScrollInventoryId = null;
 
 
 function isAceInventoryInProgress() {
@@ -39209,6 +39211,19 @@ function renderAceInventory() {
   const page = document.getElementById("inventario");
   if (!page || !db) return;
 
+  const existingTableWrap =
+    page.querySelector(
+      ".ace-inventory-table-wrap"
+    );
+
+  if (
+    existingTableWrap &&
+    isAceInventoryInProgress()
+  ) {
+    aceInventoryHorizontalScroll =
+      existingTableWrap.scrollLeft;
+  }
+
   ensureAceInventoryStyles();
 
   const online = aceIsOnline();
@@ -39296,6 +39311,89 @@ function renderAceInventory() {
     ${content}`;
 
   bindAceInventoryPageEvents();
+
+  const inventoryTableWrap =
+    page.querySelector(
+      ".ace-inventory-table-wrap"
+    );
+
+  if (active && inventoryTableWrap) {
+    const inventoryId =
+      String(aceInventoryActive?.id || "");
+
+    requestAnimationFrame(() => {
+      let targetScroll =
+        aceInventoryHorizontalScroll;
+
+      const mobile =
+        window.matchMedia?.(
+          "(max-width: 700px)"
+        )?.matches;
+
+      if (
+        mobile &&
+        aceInventoryScrollInventoryId !== inventoryId
+      ) {
+        const firstCountInput =
+          inventoryTableWrap.querySelector(
+            "[data-inventory-count]"
+          );
+
+        if (firstCountInput) {
+          inventoryTableWrap.scrollLeft = 0;
+
+          const wrapRect =
+            inventoryTableWrap.getBoundingClientRect();
+
+          const inputRect =
+            firstCountInput.getBoundingClientRect();
+
+          const inputCenter =
+            inputRect.left -
+            wrapRect.left +
+            inputRect.width / 2;
+
+          const maximumScroll =
+            Math.max(
+              0,
+              inventoryTableWrap.scrollWidth -
+              inventoryTableWrap.clientWidth
+            );
+
+          targetScroll = Math.max(
+            0,
+            Math.min(
+              maximumScroll,
+              inputCenter -
+              inventoryTableWrap.clientWidth * 0.66
+            )
+          );
+        }
+
+        aceInventoryScrollInventoryId =
+          inventoryId;
+      }
+
+      inventoryTableWrap.scrollLeft =
+        targetScroll;
+
+      aceInventoryHorizontalScroll =
+        inventoryTableWrap.scrollLeft;
+
+      inventoryTableWrap.addEventListener(
+        "scroll",
+        () => {
+          aceInventoryHorizontalScroll =
+            inventoryTableWrap.scrollLeft;
+        },
+        { passive: true }
+      );
+    });
+  } else if (!active) {
+    aceInventoryHorizontalScroll = 0;
+    aceInventoryScrollInventoryId = null;
+  }
+
   updateAceInventoryGlobalBanner();
   applyAceInventoryMovementLock();
 }
