@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.08-inventario-scroll-mobile-v4";
+  "2026.09.08-resumo-ajustes-v5";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -38843,6 +38843,7 @@ let aceInventoryLastItems = [];
 let aceInventoryChannel = null;
 let aceInventoryRefreshTimer = null;
 let aceInventoryHorizontalScroll = 0;
+let aceInventoryShowOnlyAdjusted = false;
 let aceInventoryScrollInventoryId = null;
 
 
@@ -39023,6 +39024,27 @@ function ensureAceInventoryStyles() {
     .ace-inventory-table{width:100%;border-collapse:collapse;min-width:720px}
     .ace-inventory-table th,.ace-inventory-table td{padding:10px;border-bottom:1px solid #e7ecf1;text-align:left}
     .ace-inventory-table th{position:sticky;top:0;background:#f5f7f9;color:#344054;z-index:1}
+    .ace-inventory-summary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+    .ace-inventory-summary-head h3{margin:0 0 5px}
+    .ace-inventory-summary-head p{margin:0;color:#667085}
+    .ace-inventory-summary-filter{min-height:40px;padding:8px 13px;border:1px solid #0b5a8f;border-radius:9px;background:#fff;color:#0b5a8f;font:inherit;font-size:13px;font-weight:900;cursor:pointer}
+    .ace-inventory-summary-filter.active{background:#0b5a8f;color:#fff}
+    .ace-inventory-summary-metrics{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+    .ace-inventory-summary-metric{padding:12px 14px;border:1px solid #dce6ee;border-radius:11px;background:#f8fafc}
+    .ace-inventory-summary-metric span{display:block;margin-bottom:4px;color:#667085;font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+    .ace-inventory-summary-metric strong{color:#102a43;font-size:21px}
+    .ace-inventory-summary-metric strong.positive{color:#0756a0}
+    .ace-inventory-summary-metric strong.negative{color:#c62828}
+    .ace-inventory-summary-table{min-width:1080px}
+    .ace-inventory-summary-table tr.ace-inventory-adjusted-row{background:#f2f8ff}
+    .ace-inventory-adjustment-badge{display:inline-block;min-width:42px;padding:4px 8px;border-radius:999px;text-align:center;font-weight:900}
+    .ace-inventory-adjustment-badge.positive{background:#e5f0ff;color:#0756a0}
+    .ace-inventory-adjustment-badge.negative{background:#ffebeb;color:#c62828}
+    .ace-inventory-adjustment-badge.zero{background:#f2f4f7;color:#667085}
+    .ace-inventory-movement-positive{color:#167a3d;font-weight:800}
+    .ace-inventory-movement-output{color:#0756a0;font-weight:800}
+    .ace-inventory-movement-loss{color:#c62828;font-weight:800}
+    .ace-inventory-summary-formula{display:block;margin-top:9px;color:#667085}
     .ace-inventory-count-control{display:flex;align-items:center;gap:6px}
     .ace-inventory-count-control button{width:38px;height:38px;border:1px solid #aac2d3;border-radius:8px;background:#fff;color:#0b4b7a;font-size:20px;font-weight:900}
     .ace-inventory-count{width:96px;height:42px;border:2px solid #aac2d3;border-radius:9px;text-align:center;font:inherit;font-size:17px;font-weight:900;cursor:text;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease}
@@ -39051,7 +39073,7 @@ function ensureAceInventoryStyles() {
     .ace-inventory-signature-confirm{border:1px solid #0b5a8f;background:#0b5a8f;color:#fff}
     .ace-inventory-signature-cancel{border:1px solid #98a2b3;background:#fff;color:#344054}
     .ace-inventory-signature-confirm:disabled{opacity:.5;cursor:not-allowed}
-    @media(max-width:700px){.ace-inventory-title{font-size:25px}.ace-inventory-actions,.ace-inventory-btn{width:100%}.ace-inventory-btn{flex:1 1 100%}.ace-inventory-panel{padding:13px}.ace-inventory-signature-grid{grid-template-columns:1fr}.ace-inventory-signature-box{padding:16px}.ace-inventory-signature-title{font-size:22px}.ace-inventory-signature-actions{flex-direction:column}.ace-inventory-signature-actions button{width:100%}}
+    @media(max-width:700px){.ace-inventory-title{font-size:25px}.ace-inventory-actions,.ace-inventory-btn{width:100%}.ace-inventory-btn{flex:1 1 100%}.ace-inventory-panel{padding:13px}.ace-inventory-summary-filter{width:100%}.ace-inventory-summary-metrics{grid-template-columns:1fr}.ace-inventory-signature-grid{grid-template-columns:1fr}.ace-inventory-signature-box{padding:16px}.ace-inventory-signature-title{font-size:22px}.ace-inventory-signature-actions{flex-direction:column}.ace-inventory-signature-actions button{width:100%}}
   `;
   document.head.appendChild(style);
 }
@@ -39136,7 +39158,38 @@ function renderAceLastInventorySummary() {
   const origin = getAceInventoryOrigin();
   const stock = calcStock();
 
-  const rows = aceInventoryLastItems.map(item => {
+  const preparedItems = aceInventoryLastItems.map(item => {
+    const systemQuantity = Number(item.estoque_sistema || 0);
+    const countedQuantity = Number(item.quantidade_contada || 0);
+    const difference = item.diferenca == null
+      ? countedQuantity - systemQuantity
+      : Number(item.diferenca || 0);
+
+    return {
+      item,
+      systemQuantity,
+      countedQuantity,
+      difference
+    };
+  });
+
+  const adjustedItems = preparedItems.filter(row => row.difference !== 0);
+  const totalIncreases = adjustedItems
+    .filter(row => row.difference > 0)
+    .reduce((sum, row) => sum + row.difference, 0);
+  const totalReductions = adjustedItems
+    .filter(row => row.difference < 0)
+    .reduce((sum, row) => sum + Math.abs(row.difference), 0);
+  const visibleItems = aceInventoryShowOnlyAdjusted
+    ? adjustedItems
+    : preparedItems;
+
+  const signedMovement = (value, sign) => {
+    const quantity = Number(value || 0);
+    return quantity === 0 ? "—" : `${sign}${fmt(quantity)}`;
+  };
+
+  const rows = visibleItems.map(({ item, systemQuantity, countedQuantity, difference }) => {
     const totals = getAceInventoryMovementTotals(
       item,
       last.finalizado_em,
@@ -39145,28 +39198,63 @@ function renderAceLastInventorySummary() {
     const current = Number(
       stock?.[origin?.id]?.[Number(item.alimento_id)] || 0
     );
+    const adjustmentClass = difference > 0
+      ? "positive"
+      : difference < 0 ? "negative" : "zero";
+    const adjustmentText = difference === 0
+      ? "—"
+      : `${difference > 0 ? "+" : ""}${fmt(difference)}`;
 
     return `
-      <tr>
+      <tr class="${difference !== 0 ? "ace-inventory-adjusted-row" : ""}">
         <td>${esc(item.alimento_nome)}</td>
-        <td><b>${fmt(item.quantidade_contada || 0)}</b></td>
-        <td style="color:#167a3d">+${fmt(totals.entries)}</td>
-        <td style="color:#0756a0">-${fmt(totals.outputs)}</td>
-        <td style="color:#c62828">-${fmt(totals.losses)}</td>
+        <td>${fmt(systemQuantity)}</td>
+        <td><b>${fmt(countedQuantity)}</b></td>
+        <td><span class="ace-inventory-adjustment-badge ${adjustmentClass}">${adjustmentText}</span></td>
+        <td class="ace-inventory-movement-positive">${signedMovement(totals.entries, "+")}</td>
+        <td class="ace-inventory-movement-output">${signedMovement(totals.outputs, "−")}</td>
+        <td class="ace-inventory-movement-loss">${signedMovement(totals.losses, "−")}</td>
         <td><b>${fmt(current)}</b></td>
       </tr>`;
-  }).join("");
+  }).join("") || `
+      <tr>
+        <td colspan="8" style="padding:22px;text-align:center;color:#667085">
+          Nenhum item teve ajuste neste inventário.
+        </td>
+      </tr>`;
 
   return `
     <div class="ace-inventory-panel">
-      <h3>📊 Estoque após o último inventário</h3>
-      <p>Inventário finalizado em ${esc(formatAceInventoryDateTime(last.finalizado_em))}.</p>
+      <div class="ace-inventory-summary-head">
+        <div>
+          <h3>📊 Resultado do último inventário e movimentações posteriores</h3>
+          <p>Inventário finalizado em ${esc(formatAceInventoryDateTime(last.finalizado_em))}.</p>
+        </div>
+        <button id="aceInventoryAdjustedToggle" class="ace-inventory-summary-filter ${aceInventoryShowOnlyAdjusted ? "active" : ""}" type="button">
+          ${aceInventoryShowOnlyAdjusted ? "Mostrar todos os itens" : "Mostrar somente itens ajustados"}
+        </button>
+      </div>
+      <div class="ace-inventory-summary-metrics">
+        <div class="ace-inventory-summary-metric">
+          <span>Itens ajustados</span>
+          <strong>${adjustedItems.length}</strong>
+        </div>
+        <div class="ace-inventory-summary-metric">
+          <span>Acréscimos</span>
+          <strong class="positive">${totalIncreases ? `+${fmt(totalIncreases)}` : "—"}</strong>
+        </div>
+        <div class="ace-inventory-summary-metric">
+          <span>Reduções</span>
+          <strong class="negative">${totalReductions ? `−${fmt(totalReductions)}` : "—"}</strong>
+        </div>
+      </div>
       <div class="ace-inventory-table-wrap">
-        <table class="ace-inventory-table">
-          <thead><tr><th>Alimento</th><th>Estoque anterior</th><th>Entradas</th><th>Saídas</th><th>Perdas</th><th>Estoque atual</th></tr></thead>
+        <table class="ace-inventory-table ace-inventory-summary-table">
+          <thead><tr><th>Alimento</th><th>Antes do inventário</th><th>Contado</th><th>Ajuste do inventário</th><th>Entradas posteriores</th><th>Saídas</th><th>Perdas</th><th>Estoque atual</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
+      <small class="ace-inventory-summary-formula">Estoque atual = contado + entradas posteriores − saídas − perdas.</small>
     </div>`;
 }
 
@@ -40026,6 +40114,11 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
 
 
 function bindAceInventoryPageEvents() {
+  document.getElementById("aceInventoryAdjustedToggle")?.addEventListener("click", () => {
+    aceInventoryShowOnlyAdjusted = !aceInventoryShowOnlyAdjusted;
+    renderAceInventory();
+  });
+
   document.getElementById("aceInventoryStart")?.addEventListener("click", async () => {
     try { await startAceInventory(); }
     catch (error) { await showAceMessage(error?.message || "Não foi possível iniciar.", "❌ Erro"); }
