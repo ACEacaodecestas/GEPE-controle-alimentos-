@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.08-login-sempre-frente-v6";
+  "2026.09.08-contagem-inicial-vazia-v7";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -39473,7 +39473,7 @@ function renderAceInventory() {
           <td>
             <div class="ace-inventory-count-control">
               ${owner ? `<button type="button" data-inventory-step="-1" data-inventory-item="${item.id}">−</button>` : ""}
-              <input class="ace-inventory-count" type="number" min="0" step="1" inputmode="numeric" data-inventory-count="${item.id}" value="${physical == null ? "" : Number(physical)}" ${owner ? "" : "disabled"} placeholder="0">
+              <input class="ace-inventory-count" type="number" min="0" step="1" inputmode="numeric" data-inventory-count="${item.id}" value="${physical == null ? "" : Number(physical)}" ${owner ? "" : "disabled"} placeholder="" aria-label="Contagem física de ${esc(item.alimento_nome)}">
               ${owner ? `<button type="button" data-inventory-step="1" data-inventory-item="${item.id}">+</button>` : ""}
             </div>
           </td>
