@@ -1,7 +1,7 @@
 
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
-// V7 + SUPABASE AUTH + INVENTÁRIO ÁGUA FRIA
+// V7 + SUPABASE AUTH + PWA + APK + INVENTÁRIO ÁGUA FRIA
 // ============================================================
 
 // ============================================================
@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.08-resumo-ajustes-v5";
+  "2026.09.08-login-sempre-frente-v6";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -6970,6 +6970,11 @@ async function updateRecoveredPassword() {
       throw updateError;
     }
 
+    const recoveredEmail =
+      String(currentUser?.email || "")
+        .trim()
+        .toLowerCase();
+
     // A senha antiga não pode continuar autorizando o modo offline.
     revokeAceOfflineCredentials(currentUser?.email);
 
@@ -6988,7 +6993,7 @@ async function updateRecoveredPassword() {
       oldLogin.remove();
     }
 
-    createLoginScreen();
+    createLoginScreen(recoveredEmail);
 
     await showAceConfirm(
       "Sua senha foi redefinida com sucesso.\n\n" +
@@ -7022,7 +7027,7 @@ async function updateRecoveredPassword() {
 // 5. TELA DE LOGIN
 // ============================================================
 
-function createLoginScreen() {
+function createLoginScreen(preferredEmail = "") {
 
   if (document.getElementById("loginScreen")) {
     return;
@@ -7037,7 +7042,7 @@ function createLoginScreen() {
     #loginScreen{
       position:fixed;
       inset:0;
-      z-index:99999;
+      z-index:2147483647 !important;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -7440,6 +7445,46 @@ function createLoginScreen() {
   `;
 
   document.body.appendChild(login);
+
+
+  const preferredLoginEmail =
+    String(preferredEmail || "")
+      .trim()
+      .toLowerCase();
+
+  if (preferredLoginEmail) {
+    const applyRecoveredLogin = () => {
+      const loginForm =
+        document.getElementById("loginForm");
+
+      const emailInput =
+        document.getElementById("loginEmail");
+
+      const passwordInput =
+        document.getElementById("loginPassword");
+
+      if (loginForm) {
+        loginForm.setAttribute("autocomplete", "off");
+      }
+
+      if (emailInput) {
+        emailInput.setAttribute("autocomplete", "off");
+        emailInput.value = preferredLoginEmail;
+      }
+
+      if (passwordInput) {
+        passwordInput.setAttribute("autocomplete", "new-password");
+        passwordInput.value = "";
+      }
+    };
+
+    applyRecoveredLogin();
+    requestAnimationFrame(applyRecoveredLogin);
+    window.setTimeout(() => {
+      applyRecoveredLogin();
+      document.getElementById("loginPassword")?.focus();
+    }, 350);
+  }
 
 
   document
@@ -23468,11 +23513,84 @@ function bindEvents() {
 
   const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) {
-    backupBtn.addEventListener("click", () => {
-      download(
-        new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }),
-        `backup_controle_alimentos_${isoToday()}.json`
-      );
+    backupBtn.addEventListener("click", async () => {
+      const fileName =
+        `backup_controle_alimentos_${isoToday()}.json`;
+
+      const backupBlob =
+        new Blob(
+          [JSON.stringify(db, null, 2)],
+          { type: "application/json" }
+        );
+
+      try {
+        const CapacitorGlobal =
+          window.Capacitor;
+
+        const Filesystem =
+          CapacitorGlobal?.Plugins?.Filesystem;
+
+        const Share =
+          CapacitorGlobal?.Plugins?.Share;
+
+        const isNative =
+          Boolean(
+            CapacitorGlobal?.isNativePlatform?.()
+          );
+
+        // APK Android: compartilha o backup pelo sistema nativo.
+        if (
+          isNative &&
+          Filesystem &&
+          Share
+        ) {
+          const base64Data =
+            await blobToBase64ForAce(
+              backupBlob
+            );
+
+          const saved =
+            await Filesystem.writeFile({
+              path: fileName,
+              data: base64Data,
+              directory: "CACHE",
+              recursive: true
+            });
+
+          if (!saved?.uri) {
+            throw new Error(
+              "Não foi possível gerar o arquivo de backup."
+            );
+          }
+
+          await Share.share({
+            title: "Backup ACE",
+            text: "Backup do Controle de Alimentos ACE",
+            url: saved.uri,
+            dialogTitle: "Salvar ou compartilhar backup"
+          });
+
+          return;
+        }
+
+        // PWA e navegador: mantém o download normal.
+        download(
+          backupBlob,
+          fileName
+        );
+
+      } catch (error) {
+        console.error(
+          "ACE - erro ao gerar backup:",
+          error
+        );
+
+        await showAceMessage(
+          "Não foi possível gerar o backup.\n\n" +
+          (error?.message || "Tente novamente."),
+          "❌ Erro no backup"
+        );
+      }
     });
   }
 
@@ -40081,9 +40199,12 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
       .reverse()
       .join("-");
 
-    await window.html2pdf().set({
+    const fileName =
+      `inventario_agua_fria_${fileDate}.pdf`;
+
+    const pdfWorker = window.html2pdf().set({
       margin: [8, 8, 8, 8],
-      filename: `inventario_agua_fria_${fileDate}.pdf`,
+      filename: fileName,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: {
         scale: 1.6,
@@ -40100,7 +40221,54 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
       },
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "thead"] }
-    }).from(element).save();
+    }).from(element).toPdf();
+
+    const CapacitorGlobal =
+      window.Capacitor;
+
+    const Filesystem =
+      CapacitorGlobal?.Plugins?.Filesystem;
+
+    const Share =
+      CapacitorGlobal?.Plugins?.Share;
+
+    const isNative = Boolean(
+      CapacitorGlobal?.isNativePlatform?.()
+    );
+
+    if (isNative && Filesystem && Share) {
+      const pdfBlob =
+        await pdfWorker.outputPdf("blob");
+
+      if (!pdfBlob || pdfBlob.size < 1000) {
+        throw new Error("O PDF do inventário foi gerado sem conteúdo.");
+      }
+
+      const base64Data =
+        await blobToBase64ForAce(pdfBlob);
+
+      const saved =
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: "CACHE",
+          recursive: true
+        });
+
+      if (!saved?.uri) {
+        throw new Error("O Android não retornou o endereço do PDF.");
+      }
+
+      await Share.share({
+        title: "Inventário ACE - Água Fria",
+        text: "Relatório de inventário de alimentos.",
+        files: [saved.uri],
+        dialogTitle: "Compartilhar inventário ACE"
+      });
+
+    } else {
+      await pdfWorker.save();
+    }
 
     showAceSuccess("PDF do inventário gerado com sucesso!");
   } finally {
