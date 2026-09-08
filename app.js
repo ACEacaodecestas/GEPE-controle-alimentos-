@@ -18,6 +18,10 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_PUBLISHABLE_KEY
 );
 
+// Um convite abre o mesmo formulário seguro usado para criar uma nova senha.
+window.aceInvitePasswordSetupActive =
+  /(?:[?#&])type=invite(?:&|$)/i.test(window.location.href);
+
 
 // ============================================================
 // 2. BANCO LOCAL TEMPORÁRIO
@@ -149,6 +153,19 @@ const ACE_OFFLINE_LAST_USER_KEY =
 
 const ACE_OFFLINE_LOGOUT_KEY =
   "ace_offline_explicit_logout_v1";
+
+// Segurança do acesso. O cadastro público foi removido: novos usuários
+// entram somente por convite enviado pelos administradores.
+const ACE_MIN_PASSWORD_LENGTH = 10;
+
+// Uma autorização offline precisa ser renovada por um login online.
+// Isso limita o tempo de acesso de um aparelho perdido ou de uma conta
+// posteriormente bloqueada.
+const ACE_OFFLINE_AUTH_MAX_AGE_MS =
+  7 * 24 * 60 * 60 * 1000;
+
+let aceCurrentAccess = null;
+let aceOfflineEncryptionKey = null;
 
 const ACE_OFFLINE_QUEUE_KEY =
   "ace_offline_queue_v1";
@@ -708,13 +725,50 @@ async function setupAceNetworkMonitoring() {
 }
 
 
-function saveOfflineSnapshot(snapshot) {
+function hasOfflineSnapshot() {
+  return Boolean(localStorage.getItem(ACE_OFFLINE_DB_KEY));
+}
+
+
+function base64ToBytes(value) {
+  return Uint8Array.from(
+    atob(String(value || "")),
+    char => char.charCodeAt(0)
+  );
+}
+
+
+async function saveOfflineSnapshot(snapshot) {
   try {
-    localStorage.setItem(
-      ACE_OFFLINE_DB_KEY,
+    if (!aceOfflineEncryptionKey) {
+      console.warn(
+        "ACE: snapshot não foi gravado porque a chave segura só é criada após digitar a senha."
+      );
+      return;
+    }
+
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plainText = new TextEncoder().encode(
       JSON.stringify({
         savedAt: new Date().toISOString(),
         db: snapshot
+      })
+    );
+
+    const cipherBuffer = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      aceOfflineEncryptionKey,
+      plainText
+    );
+
+    localStorage.setItem(
+      ACE_OFFLINE_DB_KEY,
+      JSON.stringify({
+        version: 2,
+        encrypted: true,
+        savedAt: new Date().toISOString(),
+        iv: bytesToBase64(iv),
+        data: bytesToBase64(new Uint8Array(cipherBuffer))
       })
     );
   } catch (error) {
@@ -726,7 +780,7 @@ function saveOfflineSnapshot(snapshot) {
 }
 
 
-function loadOfflineSnapshot() {
+async function loadOfflineSnapshot() {
   try {
     const raw =
       localStorage.getItem(
@@ -738,7 +792,34 @@ function loadOfflineSnapshot() {
     const parsed =
       JSON.parse(raw);
 
-    return parsed?.db || null;
+    // Migração: versões anteriores eram texto puro. Elas ainda podem
+    // ser lidas uma vez e serão criptografadas no próximo salvamento.
+    if (!parsed?.encrypted) {
+      return parsed?.db || null;
+    }
+
+    if (
+      !aceOfflineEncryptionKey ||
+      !parsed?.iv ||
+      !parsed?.data
+    ) {
+      return null;
+    }
+
+    const plainBuffer = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: base64ToBytes(parsed.iv)
+      },
+      aceOfflineEncryptionKey,
+      base64ToBytes(parsed.data)
+    );
+
+    const decoded = JSON.parse(
+      new TextDecoder().decode(plainBuffer)
+    );
+
+    return decoded?.db || null;
 
   } catch (error) {
     console.warn(
@@ -1068,6 +1149,122 @@ function bytesToBase64(
 }
 
 
+function validateAceStrongPassword(password) {
+
+  const value = String(password || "");
+
+  if (value.length < ACE_MIN_PASSWORD_LENGTH) {
+    return `A senha deve ter pelo menos ${ACE_MIN_PASSWORD_LENGTH} caracteres.`;
+  }
+
+  if (!/[a-z]/.test(value)) {
+    return "A senha precisa ter pelo menos uma letra minúscula.";
+  }
+
+  if (!/[A-Z]/.test(value)) {
+    return "A senha precisa ter pelo menos uma letra maiúscula.";
+  }
+
+  if (!/[0-9]/.test(value)) {
+    return "A senha precisa ter pelo menos um número.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "A senha precisa ter pelo menos um caractere especial.";
+  }
+
+  return "";
+
+}
+
+
+async function loadAceOnlineAccess(user) {
+
+  if (!user?.id) {
+    throw new Error("ACE_ACESSO_NAO_AUTORIZADO");
+  }
+
+  const { data, error } =
+    await supabaseClient
+      .from("ace_app_users")
+      .select("user_id, email, display_name, role, is_active, offline_days")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+  if (error) {
+    console.error("ACE - falha ao validar autorização:", error);
+    throw new Error("ACE_SEGURANCA_NAO_CONFIGURADA");
+  }
+
+  if (!data?.is_active) {
+    throw new Error("ACE_ACESSO_NAO_AUTORIZADO");
+  }
+
+  aceCurrentAccess = data;
+  return data;
+
+}
+
+
+function loadAceOfflineAccess(email) {
+
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
+
+  const saved =
+    getOfflineCredentialsMap()[normalizedEmail];
+
+  return saved?.access || null;
+
+}
+
+
+function refreshAceOfflineAuthorization(email, access) {
+
+  try {
+    const normalizedEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+
+    const credentials = getOfflineCredentialsMap();
+    const saved = credentials[normalizedEmail];
+
+    if (!saved?.salt || !saved?.verifier) return;
+
+    saved.access = access;
+    saved.authorizedAt = new Date().toISOString();
+    saved.authorizedUntil = new Date(
+      Date.now() +
+      Math.min(
+        ACE_OFFLINE_AUTH_MAX_AGE_MS,
+        Math.max(1, Number(access?.offline_days || 7)) *
+          24 * 60 * 60 * 1000
+      )
+    ).toISOString();
+
+    credentials[normalizedEmail] = saved;
+    localStorage.setItem(
+      ACE_OFFLINE_CREDENTIAL_KEY,
+      JSON.stringify(credentials)
+    );
+  } catch (error) {
+    console.warn("ACE: não foi possível renovar a autorização offline:", error);
+  }
+
+}
+
+
+function isAceSecurityAdmin() {
+
+  return (
+    aceCurrentAccess?.is_active === true &&
+    aceCurrentAccess?.role === "admin"
+  );
+
+}
+
+
 async function deriveOfflinePasswordVerifier(
   password,
   saltBase64
@@ -1111,7 +1308,7 @@ async function deriveOfflinePasswordVerifier(
           "PBKDF2",
         salt,
         iterations:
-          120000,
+          310000,
         hash:
           "SHA-256"
       },
@@ -1132,6 +1329,35 @@ async function deriveOfflinePasswordVerifier(
         )
       )
   };
+
+}
+
+
+async function deriveAceOfflineEncryptionKey(
+  password,
+  saltBase64
+) {
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(String(password || "")),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: base64ToBytes(saltBase64),
+      iterations: 310000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
 
 }
 
@@ -1198,6 +1424,31 @@ function getOfflineCredentialsMap() {
 }
 
 
+function revokeAceOfflineCredentials(email) {
+
+  try {
+    const normalizedEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+    const credentials = getOfflineCredentialsMap();
+
+    if (normalizedEmail) {
+      delete credentials[normalizedEmail];
+      localStorage.setItem(
+        ACE_OFFLINE_CREDENTIAL_KEY,
+        JSON.stringify(credentials)
+      );
+    }
+
+    localStorage.removeItem(ACE_OFFLINE_DB_KEY);
+    aceOfflineEncryptionKey = null;
+  } catch (error) {
+    console.warn("ACE: não foi possível revogar o acesso offline:", error);
+  }
+
+}
+
+
 async function saveOfflineCredentials(
   email,
   password,
@@ -1226,6 +1477,19 @@ async function saveOfflineCredentials(
         password
       );
 
+    const encryptionSalt =
+      bytesToBase64(
+        crypto.getRandomValues(
+          new Uint8Array(16)
+        )
+      );
+
+    aceOfflineEncryptionKey =
+      await deriveAceOfflineEncryptionKey(
+        password,
+        encryptionSalt
+      );
+
 
     const credentials =
       getOfflineCredentialsMap();
@@ -1241,7 +1505,25 @@ async function saveOfflineCredentials(
       salt:
         result.salt,
       verifier:
-        result.verifier
+        result.verifier,
+      encryptionSalt,
+      authorizedAt:
+        new Date().toISOString(),
+      authorizedUntil:
+        new Date(
+          Date.now() +
+          Math.min(
+            ACE_OFFLINE_AUTH_MAX_AGE_MS,
+            Math.max(
+              1,
+              Number(
+                aceCurrentAccess?.offline_days || 7
+              )
+            ) * 24 * 60 * 60 * 1000
+          )
+        ).toISOString(),
+      access:
+        aceCurrentAccess
     };
 
 
@@ -1304,7 +1586,10 @@ async function verifyOfflineCredentials(
 
     if (
       !saved?.salt ||
-      !saved?.verifier
+      !saved?.verifier ||
+      !saved?.authorizedUntil ||
+      !saved?.access?.is_active ||
+      new Date(saved.authorizedUntil).getTime() <= Date.now()
     ) {
       return false;
     }
@@ -1317,10 +1602,20 @@ async function verifyOfflineCredentials(
       );
 
 
-    return (
+    const valid = (
       result.verifier ===
       saved.verifier
     );
+
+    if (valid && saved.encryptionSalt) {
+      aceOfflineEncryptionKey =
+        await deriveAceOfflineEncryptionKey(
+          password,
+          saved.encryptionSalt
+        );
+    }
+
+    return valid;
 
 
   } catch (error) {
@@ -3879,7 +4174,7 @@ async function reloadFromSupabase(showToast = false) {
   if (!aceIsOnline()) {
 
     const offlineDb =
-      loadOfflineSnapshot();
+      await loadOfflineSnapshot();
 
     if (offlineDb) {
       db = offlineDb;
@@ -6246,7 +6541,7 @@ function showPasswordResetScreen() {
           type="password"
           autocomplete="new-password"
           placeholder="Digite a nova senha"
-          minlength="6"
+          minlength="10"
         >
       </label>
 
@@ -6257,7 +6552,7 @@ function showPasswordResetScreen() {
           type="password"
           autocomplete="new-password"
           placeholder="Confirme a nova senha"
-          minlength="6"
+          minlength="10"
         >
       </label>
 
@@ -6423,10 +6718,13 @@ async function updateRecoveredPassword() {
   error.classList.remove("show");
   error.textContent = "";
 
-  if (password.length < 6) {
+  const passwordError =
+    validateAceStrongPassword(password);
+
+  if (passwordError) {
 
     error.textContent =
-      "A senha deve ter pelo menos 6 caracteres.";
+      passwordError;
 
     error.classList.add("show");
 
@@ -6460,8 +6758,12 @@ async function updateRecoveredPassword() {
       throw updateError;
     }
 
+    // A senha antiga não pode continuar autorizando o modo offline.
+    revokeAceOfflineCredentials(currentUser?.email);
+
     window.acePasswordResetCompleted = true;
     window.acePasswordRecoveryActive = false;
+    window.aceInvitePasswordSetupActive = false;
 
     await supabaseClient.auth.signOut();
 
@@ -6905,13 +7207,9 @@ function createLoginScreen() {
           🔑 Esqueci minha senha
         </button>
 
-        <button
-          id="createAccountButton"
-          class="login-secondary-button"
-          type="button"
-        >
-          📄 Criar minha conta
-        </button>
+        <div class="login-loading" style="margin-top:12px;line-height:1.45">
+          Novos acessos são enviados pelos administradores.
+        </div>
 
         <div
           id="loginError"
@@ -7010,9 +7308,8 @@ function createLoginScreen() {
 
   ensureForgotPasswordButton();
 
-  document
-    .getElementById("createAccountButton")
-    .addEventListener("click", createSignupScreen);
+  // Cadastro público removido. Contas são criadas somente por convite
+  // através da função protegida de administração de usuários.
 
 }
 
@@ -7148,7 +7445,7 @@ function createSignupScreen() {
             type="password"
             placeholder="Digite sua senha"
             autocomplete="new-password"
-            minlength="6"
+            minlength="10"
             required
           >
         </label>
@@ -7161,7 +7458,7 @@ function createSignupScreen() {
             type="password"
             placeholder="Confirme sua senha"
             autocomplete="new-password"
-            minlength="6"
+            minlength="10"
             required
           >
         </label>
@@ -7319,10 +7616,13 @@ async function signupUser(e) {
   }
 
 
-  if (password.length < 6) {
+  const passwordError =
+    validateAceStrongPassword(password);
+
+  if (passwordError) {
 
     error.textContent =
-      "A senha deve ter pelo menos 6 caracteres.";
+      passwordError;
 
     error.classList.add("show");
 
@@ -7523,7 +7823,7 @@ async function signupUser(e) {
     ) {
 
       error.textContent =
-        "A senha é muito fraca. Use pelo menos 6 caracteres.";
+        "A senha é muito fraca. Use 10 caracteres, incluindo maiúscula, minúscula, número e símbolo.";
 
     } else if (
       msg.includes(
@@ -7612,14 +7912,16 @@ async function loginUser(e) {
           email
         );
 
-      const offlineDb =
-        loadOfflineSnapshot();
-
       const validCredential =
         await verifyOfflineCredentials(
           email,
           password
         );
+
+      const offlineDb =
+        validCredential
+          ? await loadOfflineSnapshot()
+          : null;
 
 
       if (
@@ -7636,6 +7938,9 @@ async function loginUser(e) {
 
         currentUser =
           offlineUser;
+
+        aceCurrentAccess =
+          loadAceOfflineAccess(email);
 
         localStorage.setItem(
           ACE_OFFLINE_LOGOUT_KEY,
@@ -7668,6 +7973,8 @@ async function loginUser(e) {
     }
 
 
+    window.aceInteractiveLoginInProgress = true;
+
     const { data, error: authError } =
       await supabaseClient.auth.signInWithPassword({
         email,
@@ -7679,6 +7986,9 @@ async function loginUser(e) {
       throw authError;
     }
 
+    // O login do Supabase confirma a identidade. Esta consulta confirma
+    // se a pessoa realmente está autorizada a usar o aplicativo.
+    await loadAceOnlineAccess(data.user);
 
     currentUser = data.user;
 
@@ -7696,11 +8006,28 @@ async function loginUser(e) {
       .getElementById("loginScreen")
       .remove();
 
-    initApp();
+    await initApp();
+
+    window.aceInteractiveLoginInProgress = false;
 
   } catch (err) {
 
+    window.aceInteractiveLoginInProgress = false;
+
     console.error(err);
+
+    if (
+      String(err?.message || "").includes("ACE_ACESSO_NAO_AUTORIZADO") ||
+      String(err?.message || "").includes("ACE_SEGURANCA_NAO_CONFIGURADA")
+    ) {
+      try {
+        window.aceSecuritySigningOut = true;
+        await supabaseClient.auth.signOut({ scope: "local" });
+      } catch {}
+
+      currentUser = null;
+      aceCurrentAccess = null;
+    }
 
 
     // A internet pode cair entre o clique em Entrar e a resposta
@@ -7722,14 +8049,16 @@ async function loginUser(e) {
             email
           );
 
-        const offlineDb =
-          loadOfflineSnapshot();
-
         const validCredential =
           await verifyOfflineCredentials(
             email,
             password
           );
+
+        const offlineDb =
+          validCredential
+            ? await loadOfflineSnapshot()
+            : null;
 
 
         if (
@@ -7746,6 +8075,9 @@ async function loginUser(e) {
 
           currentUser =
             offlineUser;
+
+          aceCurrentAccess =
+            loadAceOfflineAccess(email);
 
           localStorage.setItem(
             ACE_OFFLINE_LOGOUT_KEY,
@@ -7802,6 +8134,16 @@ function traduzirErroLogin(err) {
   ).toLowerCase();
 
 
+  if (msg.includes("ace_acesso_nao_autorizado")) {
+    return "Acesso não autorizado ou conta desativada. Procure um administrador.";
+  }
+
+
+  if (msg.includes("ace_seguranca_nao_configurada")) {
+    return "A proteção de usuários ainda não foi configurada no servidor. Procure um administrador.";
+  }
+
+
   if (
     msg.includes(
       "offline_login_invalido"
@@ -7854,7 +8196,7 @@ function traduzirErroLogin(err) {
   }
 
 
-  return err.message;
+  return "Não foi possível realizar o login. Confira os dados e tente novamente.";
 
 }
 
@@ -8211,6 +8553,22 @@ function setupAceDesktopAccountMenuEvents() {
 
   document
     .getElementById(
+      "aceDesktopManageUsers"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceDesktopAccountMenu();
+
+        openAceUserManagement();
+
+      }
+    );
+
+
+  document
+    .getElementById(
       "aceDesktopAccountSync"
     )
     ?.addEventListener(
@@ -8318,6 +8676,230 @@ function setupAceDesktopAccountMenuEvents() {
 }
 
 
+async function callAceAdminUsers(action, payload = {}) {
+
+  if (!isAceSecurityAdmin()) {
+    throw new Error("Somente os administradores podem gerenciar usuários.");
+  }
+
+  if (!aceIsOnline()) {
+    throw new Error("Conecte o aparelho à internet para gerenciar usuários.");
+  }
+
+  const { data, error } =
+    await supabaseClient.functions.invoke(
+      "ace-admin-users",
+      { body: { action, ...payload } }
+    );
+
+  if (error) throw error;
+  if (!data?.ok) {
+    throw new Error(data?.error || "Não foi possível concluir a operação.");
+  }
+
+  return data;
+
+}
+
+
+function ensureAceUserAdminStyles() {
+
+  if (document.getElementById("aceUserAdminStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "aceUserAdminStyles";
+  style.textContent = `
+    #aceUserAdminModal{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,31,58,.66);backdrop-filter:blur(3px)}
+    #aceUserAdminModal .ace-users-box{width:min(860px,100%);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box;padding:24px;border-radius:18px;background:#fff;color:#173750;box-shadow:0 22px 60px rgba(0,0,0,.35)}
+    #aceUserAdminModal .ace-users-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
+    #aceUserAdminModal h2{margin:0;color:#0b2f55;font-size:25px}
+    #aceUserAdminModal .ace-users-close{border:0;background:#eef3f7;border-radius:10px;width:42px;height:42px;font-size:22px;cursor:pointer}
+    #aceUserAdminModal .ace-users-form{display:grid;grid-template-columns:1.3fr 1.3fr .7fr auto;gap:10px;align-items:end;padding:16px;border-radius:14px;background:#f4f8fb}
+    #aceUserAdminModal label{display:grid;gap:5px;font-size:13px;font-weight:800}
+    #aceUserAdminModal input,#aceUserAdminModal select{box-sizing:border-box;width:100%;min-height:44px;padding:9px 11px;border:1px solid #cbd8e2;border-radius:9px;background:#fff;font:inherit}
+    #aceUserAdminModal button{min-height:42px;padding:9px 13px;border-radius:9px;font:inherit;font-weight:850;cursor:pointer}
+    #aceUserAdminModal .ace-users-invite{border:0;background:#075fa7;color:#fff}
+    #aceUserAdminModal .ace-users-message{min-height:22px;margin:12px 0;color:#b42318;font-weight:750}
+    #aceUserAdminModal .ace-users-list{display:grid;gap:9px}
+    #aceUserAdminModal .ace-user-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px;border:1px solid #dce5ec;border-radius:12px}
+    #aceUserAdminModal .ace-user-name{font-weight:900;color:#0b2f55}
+    #aceUserAdminModal .ace-user-email{overflow:hidden;text-overflow:ellipsis;color:#596b7a;font-size:13px}
+    #aceUserAdminModal .ace-user-meta{margin-top:4px;font-size:12px;font-weight:800;color:#667085}
+    #aceUserAdminModal .ace-user-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    #aceUserAdminModal .ace-user-reset{border:1px solid #1570a6;background:#fff;color:#075fa7}
+    #aceUserAdminModal .ace-user-toggle{border:1px solid #b42318;background:#fff;color:#b42318}
+    #aceUserAdminModal .ace-user-toggle.activate{border-color:#16803a;color:#16803a}
+    @media(max-width:720px){#aceUserAdminModal .ace-users-form{grid-template-columns:1fr}#aceUserAdminModal .ace-user-row{grid-template-columns:1fr}#aceUserAdminModal .ace-user-actions{justify-content:flex-start}}
+  `;
+  document.head.appendChild(style);
+
+}
+
+
+async function renderAceAdminUsers() {
+
+  const list = document.getElementById("aceAdminUsersList");
+  const message = document.getElementById("aceAdminUsersMessage");
+  if (!list) return;
+
+  list.innerHTML = `<div class="empty">Carregando usuários...</div>`;
+
+  try {
+    const result = await callAceAdminUsers("list");
+    const users = Array.isArray(result.users) ? result.users : [];
+
+    list.innerHTML = users.length
+      ? users.map(user => `
+          <article class="ace-user-row">
+            <div>
+              <div class="ace-user-name">${esc(user.display_name || "Usuário")}</div>
+              <div class="ace-user-email">${esc(user.email || "")}</div>
+              <div class="ace-user-meta">
+                ${user.role === "admin" ? "Administrador" : "Usuário"}
+                · ${user.is_active ? "Ativo" : "Bloqueado"}
+              </div>
+            </div>
+            <div class="ace-user-actions">
+              <button class="ace-user-reset" type="button" data-ace-user-reset="${esc(user.user_id)}" data-ace-user-email="${esc(user.email)}">Enviar link de senha</button>
+              <button class="ace-user-toggle ${user.is_active ? "" : "activate"}" type="button" data-ace-user-toggle="${esc(user.user_id)}" data-ace-user-active="${user.is_active ? "1" : "0"}">
+                ${user.is_active ? "Bloquear" : "Ativar"}
+              </button>
+            </div>
+          </article>
+        `).join("")
+      : `<div class="empty">Nenhum usuário encontrado.</div>`;
+
+    list.querySelectorAll("[data-ace-user-reset]").forEach(button => {
+      button.onclick = async () => {
+        const email = button.dataset.aceUserEmail;
+        const ok = await showAceConfirm(
+          `Enviar um link para ${email} criar uma nova senha?`,
+          "🔑 Redefinir senha"
+        );
+        if (!ok) return;
+
+        button.disabled = true;
+        try {
+          await callAceAdminUsers("reset_password", { email });
+          await showAceConfirm(
+            "O link para criar uma nova senha foi enviado.",
+            "✅ E-mail enviado"
+          );
+        } catch (error) {
+          if (message) message.textContent = error?.message || "Falha ao enviar o link.";
+        } finally {
+          button.disabled = false;
+        }
+      };
+    });
+
+    list.querySelectorAll("[data-ace-user-toggle]").forEach(button => {
+      button.onclick = async () => {
+        const userId = button.dataset.aceUserToggle;
+        const currentlyActive = button.dataset.aceUserActive === "1";
+        const ok = await showAceConfirm(
+          currentlyActive
+            ? "Bloquear este usuário? Ele perderá o acesso aos dados."
+            : "Ativar novamente este usuário?",
+          currentlyActive ? "🔒 Bloquear usuário" : "✅ Ativar usuário"
+        );
+        if (!ok) return;
+
+        button.disabled = true;
+        try {
+          await callAceAdminUsers("set_active", {
+            user_id: userId,
+            is_active: !currentlyActive
+          });
+          await renderAceAdminUsers();
+        } catch (error) {
+          if (message) message.textContent = error?.message || "Falha ao atualizar o usuário.";
+          button.disabled = false;
+        }
+      };
+    });
+  } catch (error) {
+    list.innerHTML = `<div class="empty">Não foi possível carregar os usuários.</div>`;
+    if (message) message.textContent = error?.message || "Falha ao carregar usuários.";
+  }
+
+}
+
+
+async function openAceUserManagement() {
+
+  if (!isAceSecurityAdmin()) {
+    await showAceConfirm(
+      "Somente os administradores podem acessar esta área.",
+      "Acesso restrito"
+    );
+    return;
+  }
+
+  ensureAceUserAdminStyles();
+  document.getElementById("aceUserAdminModal")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "aceUserAdminModal";
+  overlay.innerHTML = `
+    <section class="ace-users-box" role="dialog" aria-modal="true" aria-label="Gerenciar usuários">
+      <div class="ace-users-head">
+        <div><h2>👥 Gerenciar usuários</h2><div>Convide usuários sem conhecer a senha deles.</div></div>
+        <button class="ace-users-close" type="button" aria-label="Fechar">×</button>
+      </div>
+      <form id="aceAdminUsersForm" class="ace-users-form">
+        <label>Nome completo<input id="aceInviteName" type="text" autocomplete="name" required></label>
+        <label>E-mail<input id="aceInviteEmail" type="email" autocomplete="email" required></label>
+        <label>Acesso<select id="aceInviteRole"><option value="user">Usuário</option><option value="admin">Administrador</option></select></label>
+        <button id="aceInviteButton" class="ace-users-invite" type="submit">Enviar convite</button>
+      </form>
+      <div id="aceAdminUsersMessage" class="ace-users-message"></div>
+      <div id="aceAdminUsersList" class="ace-users-list"></div>
+    </section>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector(".ace-users-close").onclick = () => overlay.remove();
+  overlay.onclick = event => {
+    if (event.target === overlay) overlay.remove();
+  };
+
+  document.getElementById("aceAdminUsersForm").onsubmit = async event => {
+    event.preventDefault();
+    const button = document.getElementById("aceInviteButton");
+    const message = document.getElementById("aceAdminUsersMessage");
+    const displayName = document.getElementById("aceInviteName").value.trim();
+    const email = document.getElementById("aceInviteEmail").value.trim().toLowerCase();
+    const role = document.getElementById("aceInviteRole").value;
+
+    message.textContent = "";
+    button.disabled = true;
+    button.textContent = "Enviando...";
+
+    try {
+      await callAceAdminUsers("invite", {
+        display_name: displayName,
+        email,
+        role
+      });
+      event.target.reset();
+      message.style.color = "#16803a";
+      message.textContent = "Convite enviado com sucesso.";
+      await renderAceAdminUsers();
+    } catch (error) {
+      message.style.color = "#b42318";
+      message.textContent = error?.message || "Não foi possível enviar o convite.";
+    } finally {
+      button.disabled = false;
+      button.textContent = "Enviar convite";
+    }
+  };
+
+  await renderAceAdminUsers();
+
+}
+
+
 function addUserBar() {
 
   const header =
@@ -8421,6 +9003,19 @@ function addUserBar() {
       >
         👤 Minha conta
       </button>
+
+      ${
+        isAceSecurityAdmin()
+          ? `
+              <button
+                id="aceDesktopManageUsers"
+                type="button"
+              >
+                👥 Gerenciar usuários
+              </button>
+            `
+          : ""
+      }
 
       <button
         id="aceDesktopAccountSync"
@@ -17976,11 +18571,7 @@ const ACE_ADMIN_LAST_BACKUP_KEY =
 
 function isAceOperationalAdmin() {
 
-  const email = String(
-    currentUser?.email || ""
-  ).trim().toLowerCase();
-
-  return ACE_OPERATIONAL_ADMIN_EMAILS.includes(email);
+  return isAceSecurityAdmin();
 
 }
 
@@ -30884,11 +31475,7 @@ function setupPWA() {
 
 function isMuralAceAdmin() {
 
-  const email = String(
-    currentUser?.email || ""
-  ).trim().toLowerCase();
-
-  return ACE_ADMIN_EMAILS.includes(email);
+  return isAceSecurityAdmin();
 
 }
 
@@ -34782,6 +35369,22 @@ function setupAceAccountMenuEvents() {
 
   document
     .getElementById(
+      "aceAccountManageUsers"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        closeAceAccountMenu();
+
+        openAceUserManagement();
+
+      }
+    );
+
+
+  document
+    .getElementById(
       "aceAccountSync"
     )
     ?.addEventListener(
@@ -36430,6 +37033,19 @@ function setupProfessionalMobileLayout() {
           👤 Minha conta
         </button>
 
+        ${
+          isAceSecurityAdmin()
+            ? `
+                <button
+                  id="aceAccountManageUsers"
+                  type="button"
+                >
+                  👥 Gerenciar usuários
+                </button>
+              `
+            : ""
+        }
+
         <button
           id="aceAccountSync"
           type="button"
@@ -36829,7 +37445,7 @@ async function initApp() {
       ) {
 
         const offlineDb =
-          loadOfflineSnapshot();
+          await loadOfflineSnapshot();
 
         if (offlineDb) {
           db =
@@ -36853,7 +37469,7 @@ async function initApp() {
     } else {
 
       const offlineDb =
-        loadOfflineSnapshot();
+        await loadOfflineSnapshot();
 
       if (!offlineDb) {
         throw new Error(
@@ -37037,31 +37653,7 @@ async function startAuth() {
       loadOfflineUser();
 
     const offlineDb =
-      loadOfflineSnapshot();
-
-
-    if (
-      offlineUser &&
-      offlineDb &&
-      !wasExplicitlyLoggedOut()
-    ) {
-
-      currentUser =
-        offlineUser;
-
-
-      document
-        .getElementById(
-          "loginScreen"
-        )
-        ?.remove();
-
-
-      await initApp();
-
-      return;
-
-    }
+      hasOfflineSnapshot();
 
 
     const loginError =
@@ -37075,7 +37667,7 @@ async function startAuth() {
       loginError.textContent =
         offlineUser &&
         offlineDb
-          ? "Modo offline disponível. Digite seu e-mail e senha para entrar."
+          ? "Modo offline disponível. Por segurança, digite seu e-mail e senha para entrar."
           : "Sem internet. Este aparelho precisa fazer login online pelo menos uma vez para preparar o modo offline.";
 
       loginError.classList.add(
@@ -37099,7 +37691,7 @@ async function startAuth() {
   // ==========================================================
 
   supabaseClient.auth.onAuthStateChange(
-    (event, session) => {
+    async (event, session) => {
 
       console.log(
         "ACE AUTH:",
@@ -37111,6 +37703,7 @@ async function startAuth() {
         event === "PASSWORD_RECOVERY"
       ) {
 
+        currentUser = session?.user || currentUser;
         window.acePasswordRecoveryActive = true;
 
         showPasswordResetScreen();
@@ -37122,10 +37715,60 @@ async function startAuth() {
 
       if (
         event === "SIGNED_IN" &&
+        session?.user &&
+        window.aceInvitePasswordSetupActive
+      ) {
+
+        currentUser = session.user;
+        window.acePasswordRecoveryActive = true;
+        showPasswordResetScreen();
+        return;
+
+      }
+
+
+      if (
+        event === "SIGNED_IN" &&
         session?.user
       ) {
 
         if (window.aceSignupInProgress) {
+          return;
+        }
+
+        if (window.aceInteractiveLoginInProgress) {
+          return;
+        }
+
+        try {
+          const access =
+            await loadAceOnlineAccess(session.user);
+
+          refreshAceOfflineAuthorization(
+            session.user.email,
+            access
+          );
+        } catch (accessError) {
+          console.error("ACE - acesso recusado:", accessError);
+
+          currentUser = null;
+          aceCurrentAccess = null;
+
+          try {
+            window.aceSecuritySigningOut = true;
+            await supabaseClient.auth.signOut({ scope: "local" });
+          } catch {}
+
+          if (!document.getElementById("loginScreen")) {
+            createLoginScreen();
+          }
+
+          const loginError = document.getElementById("loginError");
+          if (loginError) {
+            loginError.textContent = traduzirErroLogin(accessError);
+            loginError.classList.add("show");
+          }
+
           return;
         }
 
@@ -37161,8 +37804,14 @@ async function startAuth() {
       ) {
 
         currentUser = null;
+        aceCurrentAccess = null;
 
         appStarted = false;
+
+        if (window.aceSecuritySigningOut) {
+          window.aceSecuritySigningOut = false;
+          return;
+        }
 
         if (window.aceSignupSigningOut) {
           window.aceSignupSigningOut = false;
@@ -37210,8 +37859,19 @@ async function startAuth() {
 
     if (
       data?.session?.user &&
-      !window.acePasswordRecoveryActive
+      !window.acePasswordRecoveryActive &&
+      !window.aceInvitePasswordSetupActive
     ) {
+
+      const access =
+        await loadAceOnlineAccess(
+          data.session.user
+        );
+
+      refreshAceOfflineAuthorization(
+        data.session.user.email,
+        access
+      );
 
       currentUser =
         data.session.user;
@@ -37244,7 +37904,10 @@ async function startAuth() {
 
     if (
       data?.session?.user &&
-      window.acePasswordRecoveryActive
+      (
+        window.acePasswordRecoveryActive ||
+        window.aceInvitePasswordSetupActive
+      )
     ) {
 
       showPasswordResetScreen();
