@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.08-contagem-inicial-vazia-v7";
+  "2026.09.09-equipe-online-chat-v8";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -9544,6 +9544,14 @@ async function logoutUser() {
     ACE_OFFLINE_LOGOUT_KEY,
     "1"
   );
+
+  if (
+    typeof teardownAceTeamRealtime ===
+      "function"
+  ) {
+    await teardownAceTeamRealtime();
+  }
+
 
   const { error } =
     await supabaseClient.auth.signOut();
@@ -34958,6 +34966,13 @@ async function aceUploadAvatarBlob(
 
   updateAceAvatarElements();
 
+  if (
+    typeof aceRefreshTeamPresence ===
+      "function"
+  ) {
+    aceRefreshTeamPresence();
+  }
+
   return true;
 
 }
@@ -35480,6 +35495,14 @@ function openAceMyAccount() {
 
           }
 
+        }
+
+
+        if (
+          typeof aceRefreshTeamPresence ===
+            "function"
+        ) {
+          aceRefreshTeamPresence();
         }
 
 
@@ -37739,6 +37762,1282 @@ function renderAll() {
 
 
 // ============================================================
+// 21B. EQUIPE ONLINE + CHAT INTERNO
+// ============================================================
+
+const ACE_TEAM_CHANNEL_TOPIC = "ace-equipe";
+const ACE_TEAM_CHAT_TABLE = "ace_chat_messages";
+const ACE_TEAM_CHAT_CACHE_KEY = "ace_team_chat_cache_v1";
+
+let aceTeamChannel = null;
+let aceTeamChannelStatus = "CLOSED";
+let aceTeamOnlineUsers = [];
+let aceTeamChatMessages = [];
+let aceTeamChatLoaded = false;
+let aceTeamUnread = 0;
+let aceTeamPanelOpen = false;
+let aceTeamActiveTab = "online";
+let aceTeamConnecting = false;
+
+
+function getAceTeamAvatarUrl() {
+  const value = String(
+    currentUser?.user_metadata?.avatar_url || ""
+  ).trim();
+
+  if (!value) return "";
+
+  try {
+    const url = new URL(value, window.location.href);
+    return (
+      url.protocol === "https:" ||
+      url.protocol === "http:"
+    ) ? url.href.slice(0, 2048) : "";
+  } catch {
+    return "";
+  }
+}
+
+
+function getAceSafeRemoteAvatar(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    const url = new URL(raw, window.location.href);
+    return (
+      url.protocol === "https:" ||
+      url.protocol === "http:"
+    ) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+
+function getAceTeamInitials(name) {
+  const parts = String(name || "Usuário")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return (
+    (parts[0]?.[0] || "U") +
+    (parts.length > 1 ? parts[parts.length - 1]?.[0] || "" : "")
+  ).toUpperCase().slice(0, 2);
+}
+
+
+function aceTeamAvatarHtml(name, avatarUrl) {
+  const safeAvatar = getAceSafeRemoteAvatar(avatarUrl);
+
+  if (safeAvatar) {
+    return `
+      <span class="ace-team-avatar has-photo">
+        <img src="${esc(safeAvatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+      </span>
+    `;
+  }
+
+  return `
+    <span class="ace-team-avatar">${esc(getAceTeamInitials(name))}</span>
+  `;
+}
+
+
+function loadAceTeamChatCache() {
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(ACE_TEAM_CHAT_CACHE_KEY) || "[]"
+    );
+    return Array.isArray(parsed) ? parsed.slice(-30) : [];
+  } catch {
+    return [];
+  }
+}
+
+
+function saveAceTeamChatCache() {
+  try {
+    localStorage.setItem(
+      ACE_TEAM_CHAT_CACHE_KEY,
+      JSON.stringify(aceTeamChatMessages.slice(-30))
+    );
+  } catch (error) {
+    console.warn("ACE Chat: não foi possível salvar o cache:", error);
+  }
+}
+
+
+function normalizeAceChatMessage(row) {
+  const id = Number(row?.id);
+  const message = String(row?.message || "").trim().slice(0, 500);
+
+  if (!Number.isFinite(id) || !message) return null;
+
+  return {
+    id,
+    user_id: String(row?.user_id || ""),
+    sender_name:
+      String(row?.sender_name || "Usuário").trim().slice(0, 80) ||
+      "Usuário",
+    message,
+    created_at: String(row?.created_at || new Date().toISOString())
+  };
+}
+
+
+function formatAceChatTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+
+function getAceOnlineUserById(userId) {
+  return aceTeamOnlineUsers.find(
+    item => String(item.user_id) === String(userId)
+  ) || null;
+}
+
+
+function ensureAceTeamStyles() {
+  if (document.getElementById("aceTeamRealtimeStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "aceTeamRealtimeStyles";
+
+  style.textContent = `
+    body > #aceOfflineStatus,
+    #aceHeaderNetMini{
+      display:none !important;
+    }
+
+    .ace-header-v6{
+      position:relative !important;
+      overflow:visible !important;
+    }
+
+    #aceTeamStatusButton{
+      position:absolute;
+      top:18px;
+      right:205px;
+      z-index:1000900;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      min-height:40px;
+      padding:7px 13px;
+      border:1px solid rgba(255,255,255,.72);
+      border-radius:999px;
+      background:rgba(255,255,255,.97);
+      color:#0b3a63;
+      font:inherit;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 7px 22px rgba(0,26,54,.18);
+      white-space:nowrap;
+    }
+
+    #aceTeamStatusButton:hover{
+      transform:translateY(-1px);
+      box-shadow:0 9px 25px rgba(0,26,54,.23);
+    }
+
+    .ace-team-status-dot{
+      width:10px;
+      height:10px;
+      flex:0 0 10px;
+      border-radius:50%;
+      background:#94a3b8;
+      box-shadow:0 0 0 4px rgba(148,163,184,.15);
+    }
+
+    #aceTeamStatusButton.is-online .ace-team-status-dot{
+      background:#27c96f;
+      box-shadow:0 0 0 4px rgba(39,201,111,.17);
+    }
+
+    #aceTeamStatusButton.is-offline .ace-team-status-dot{
+      background:#f59e0b;
+      box-shadow:0 0 0 4px rgba(245,158,11,.17);
+    }
+
+    .ace-team-chat-symbol{
+      padding-left:7px;
+      border-left:1px solid #dbe4ea;
+      font-size:17px;
+      line-height:1;
+    }
+
+    #aceTeamUnreadBadge{
+      display:none;
+      align-items:center;
+      justify-content:center;
+      min-width:19px;
+      height:19px;
+      padding:0 5px;
+      border-radius:99px;
+      background:#d92d20;
+      color:#fff;
+      font-size:10px;
+      font-weight:900;
+    }
+
+    #aceTeamUnreadBadge.show{display:inline-flex;}
+
+    #aceTeamBackdrop{
+      position:fixed;
+      inset:0;
+      z-index:2147483600;
+      display:none;
+      background:rgba(7,29,48,.50);
+      backdrop-filter:blur(2px);
+    }
+
+    #aceTeamBackdrop.open{display:block;}
+
+    #aceTeamPanel{
+      position:fixed;
+      top:0;
+      right:0;
+      z-index:2147483601;
+      display:flex;
+      flex-direction:column;
+      width:min(460px,100vw);
+      height:100dvh;
+      overflow:hidden;
+      background:#f6f9fb;
+      box-shadow:-18px 0 52px rgba(0,34,64,.28);
+      transform:translateX(105%);
+      transition:transform .24s cubic-bezier(.2,.8,.2,1);
+    }
+
+    #aceTeamPanel.open{transform:translateX(0);}
+
+    .ace-team-panel-head{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:18px 18px 13px;
+      border-bottom:1px solid #dbe4ea;
+      background:#0b4f7e;
+      color:#fff;
+    }
+
+    .ace-team-panel-head-icon{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:44px;
+      height:44px;
+      flex:0 0 44px;
+      border-radius:13px;
+      background:rgba(255,255,255,.15);
+      font-size:23px;
+    }
+
+    .ace-team-panel-head strong{
+      display:block;
+      font-size:18px;
+      font-weight:900;
+    }
+
+    .ace-team-panel-head small{
+      display:block;
+      margin-top:3px;
+      color:rgba(255,255,255,.80);
+      font-size:12px;
+    }
+
+    #aceTeamClose{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:38px;
+      height:38px;
+      margin-left:auto;
+      border:0;
+      border-radius:50%;
+      background:rgba(255,255,255,.15);
+      color:#fff;
+      font-size:26px;
+      cursor:pointer;
+    }
+
+    .ace-team-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:7px;
+      padding:10px 12px;
+      border-bottom:1px solid #dbe4ea;
+      background:#fff;
+    }
+
+    .ace-team-tab{
+      min-height:42px;
+      border:0;
+      border-radius:10px;
+      background:#edf3f7;
+      color:#38556c;
+      font:inherit;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-team-tab.active{
+      background:#dceeff;
+      color:#0756a0;
+      box-shadow:inset 0 0 0 1px #b8d8f2;
+    }
+
+    .ace-team-view{
+      display:none;
+      flex:1;
+      min-height:0;
+    }
+
+    .ace-team-view.active{
+      display:flex;
+      flex-direction:column;
+    }
+
+    #aceTeamOnlineList{
+      padding:12px;
+      overflow-y:auto;
+    }
+
+    .ace-team-online-card{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-height:62px;
+      margin-bottom:8px;
+      padding:10px 12px;
+      border:1px solid #dce5ec;
+      border-radius:13px;
+      background:#fff;
+      box-shadow:0 4px 13px rgba(20,54,82,.05);
+    }
+
+    .ace-team-avatar{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:42px;
+      height:42px;
+      flex:0 0 42px;
+      overflow:hidden;
+      border-radius:50%;
+      background:#dcecff;
+      color:#0756a0;
+      font-size:14px;
+      font-weight:900;
+    }
+
+    .ace-team-avatar img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    .ace-team-online-info{min-width:0;}
+
+    .ace-team-online-name{
+      overflow:hidden;
+      color:#173750;
+      font-size:14px;
+      font-weight:900;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .ace-team-online-now{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:4px;
+      color:#158044;
+      font-size:11px;
+      font-weight:800;
+    }
+
+    .ace-team-online-now::before{
+      content:"";
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:#27c96f;
+    }
+
+    .ace-team-empty{
+      margin:auto;
+      padding:28px 18px;
+      color:#667085;
+      font-size:13px;
+      line-height:1.5;
+      text-align:center;
+    }
+
+    #aceTeamChatMessages{
+      flex:1;
+      min-height:0;
+      padding:14px 12px;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+    }
+
+    .ace-chat-row{
+      display:flex;
+      align-items:flex-end;
+      gap:8px;
+      margin-bottom:12px;
+    }
+
+    .ace-chat-row.mine{flex-direction:row-reverse;}
+
+    .ace-chat-row .ace-team-avatar{
+      width:32px;
+      height:32px;
+      flex-basis:32px;
+      font-size:11px;
+    }
+
+    .ace-chat-bubble{
+      max-width:78%;
+      padding:9px 11px 7px;
+      border:1px solid #dce5ec;
+      border-radius:14px 14px 14px 4px;
+      background:#fff;
+      color:#203b50;
+      box-shadow:0 3px 10px rgba(20,54,82,.05);
+    }
+
+    .ace-chat-row.mine .ace-chat-bubble{
+      border-color:#b8d9f2;
+      border-radius:14px 14px 4px 14px;
+      background:#dff0ff;
+    }
+
+    .ace-chat-name{
+      margin-bottom:4px;
+      color:#0756a0;
+      font-size:10px;
+      font-weight:900;
+    }
+
+    .ace-chat-text{
+      overflow-wrap:anywhere;
+      font-size:13px;
+      line-height:1.4;
+      white-space:pre-wrap;
+    }
+
+    .ace-chat-meta{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:7px;
+      margin-top:5px;
+      color:#7a8995;
+      font-size:9px;
+    }
+
+    .ace-chat-delete{
+      padding:0;
+      border:0;
+      background:transparent;
+      color:#c93025;
+      font-size:10px;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .ace-chat-composer{
+      padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+      border-top:1px solid #dbe4ea;
+      background:#fff;
+    }
+
+    .ace-chat-composer-row{
+      display:flex;
+      align-items:flex-end;
+      gap:8px;
+    }
+
+    #aceChatInput{
+      flex:1;
+      min-width:0;
+      max-height:110px;
+      resize:none;
+      box-sizing:border-box;
+      padding:10px 11px;
+      border:1px solid #b9cbd9;
+      border-radius:12px;
+      outline:none;
+      font:inherit;
+      font-size:14px;
+      line-height:1.35;
+    }
+
+    #aceChatInput:focus{
+      border-color:#1680c4;
+      box-shadow:0 0 0 3px rgba(22,128,196,.12);
+    }
+
+    #aceChatSend{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-width:74px;
+      min-height:42px;
+      padding:0 13px;
+      border:0;
+      border-radius:11px;
+      background:#075fa9;
+      color:#fff;
+      font:inherit;
+      font-size:13px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    #aceChatSend:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .ace-chat-help{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:6px;
+      color:#7a8995;
+      font-size:9px;
+    }
+
+    @media(max-width:850px){
+      #aceTeamStatusButton{
+        position:absolute;
+        top:8px;
+        right:9px;
+        min-height:34px;
+        padding:5px 9px;
+        gap:6px;
+        font-size:11px;
+      }
+
+      .ace-team-status-dot{
+        width:8px;
+        height:8px;
+        flex-basis:8px;
+      }
+
+      .ace-team-chat-symbol{
+        padding-left:5px;
+        font-size:15px;
+      }
+
+      #aceTeamPanel{width:100vw;}
+
+      .ace-team-panel-head{
+        padding-top:calc(14px + env(safe-area-inset-top));
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+function ensureAceTeamInterface() {
+  ensureAceTeamStyles();
+
+  const header = document.querySelector(".ace-header-v6");
+
+  if (header && !document.getElementById("aceTeamStatusButton")) {
+    const button = document.createElement("button");
+    button.id = "aceTeamStatusButton";
+    button.type = "button";
+    button.innerHTML = `
+      <span class="ace-team-status-dot"></span>
+      <span id="aceTeamStatusText">Conectando...</span>
+      <span class="ace-team-chat-symbol">💬</span>
+      <span id="aceTeamUnreadBadge"></span>
+    `;
+    button.onclick = () => openAceTeamPanel("online");
+    header.appendChild(button);
+  }
+
+  if (!document.getElementById("aceTeamBackdrop")) {
+    const backdrop = document.createElement("div");
+    backdrop.id = "aceTeamBackdrop";
+    backdrop.onclick = closeAceTeamPanel;
+    document.body.appendChild(backdrop);
+  }
+
+  if (!document.getElementById("aceTeamPanel")) {
+    const panel = document.createElement("aside");
+    panel.id = "aceTeamPanel";
+    panel.setAttribute("aria-label", "Equipe online e chat");
+
+    panel.innerHTML = `
+      <div class="ace-team-panel-head">
+        <div class="ace-team-panel-head-icon">👥</div>
+        <div>
+          <strong>Equipe ACE</strong>
+          <small id="aceTeamPanelSubtitle">Conectando...</small>
+        </div>
+        <button id="aceTeamClose" type="button" aria-label="Fechar">×</button>
+      </div>
+
+      <div class="ace-team-tabs">
+        <button class="ace-team-tab active" type="button" data-ace-team-tab="online">
+          🟢 Online <span id="aceTeamTabCount"></span>
+        </button>
+        <button class="ace-team-tab" type="button" data-ace-team-tab="chat">
+          💬 Chat <span id="aceTeamTabUnread"></span>
+        </button>
+      </div>
+
+      <section id="aceTeamOnlineView" class="ace-team-view active">
+        <div id="aceTeamOnlineList"></div>
+      </section>
+
+      <section id="aceTeamChatView" class="ace-team-view">
+        <div id="aceTeamChatMessages"></div>
+        <div class="ace-chat-composer">
+          <div class="ace-chat-composer-row">
+            <textarea id="aceChatInput" maxlength="500" rows="1"
+              placeholder="Digite uma mensagem..."></textarea>
+            <button id="aceChatSend" type="button">Enviar</button>
+          </div>
+          <div class="ace-chat-help">
+            <span id="aceChatConnectionText">Somente usuários autenticados</span>
+            <span id="aceChatCounter">0/500</span>
+          </div>
+        </div>
+      </section>
+    `;
+
+    document.body.appendChild(panel);
+    panel.querySelector("#aceTeamClose").onclick = closeAceTeamPanel;
+
+    panel.querySelectorAll("[data-ace-team-tab]").forEach(button => {
+      button.onclick = () => setAceTeamTab(button.dataset.aceTeamTab);
+    });
+
+    const input = panel.querySelector("#aceChatInput");
+
+    input.addEventListener("input", () => {
+      const counter = panel.querySelector("#aceChatCounter");
+      if (counter) counter.textContent = `${input.value.length}/500`;
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 110) + "px";
+    });
+
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendAceTeamChatMessage();
+      }
+    });
+
+    panel.querySelector("#aceChatSend").onclick = sendAceTeamChatMessage;
+  }
+
+  renderAceTeamStatus();
+  renderAceTeamOnlineUsers();
+  renderAceTeamChat();
+}
+
+
+function renderAceTeamStatus() {
+  const button = document.getElementById("aceTeamStatusButton");
+  const text = document.getElementById("aceTeamStatusText");
+  const subtitle = document.getElementById("aceTeamPanelSubtitle");
+  const count = aceTeamOnlineUsers.length;
+  const connected =
+    aceIsOnline() &&
+    aceTeamChannelStatus === "SUBSCRIBED";
+
+  if (button) {
+    button.classList.toggle("is-online", connected);
+    button.classList.toggle("is-offline", !aceIsOnline());
+  }
+
+  if (text) {
+    text.textContent =
+      !aceIsOnline()
+        ? "Offline"
+        : connected
+          ? `${count} online`
+          : "Conectando...";
+  }
+
+  if (subtitle) {
+    subtitle.textContent =
+      connected
+        ? `${count} usuário(s) online`
+        : aceIsOnline()
+          ? "Conectando ao canal seguro..."
+          : "Sem conexão com a internet";
+  }
+
+  const unread = document.getElementById("aceTeamUnreadBadge");
+  if (unread) {
+    unread.textContent = aceTeamUnread > 99 ? "99+" : String(aceTeamUnread);
+    unread.classList.toggle("show", aceTeamUnread > 0);
+  }
+
+  const tabCount = document.getElementById("aceTeamTabCount");
+  if (tabCount) tabCount.textContent = `(${count})`;
+
+  const tabUnread = document.getElementById("aceTeamTabUnread");
+  if (tabUnread) {
+    tabUnread.textContent = aceTeamUnread > 0 ? `(${aceTeamUnread})` : "";
+  }
+
+  const connection = document.getElementById("aceChatConnectionText");
+  if (connection) {
+    connection.textContent =
+      connected
+        ? "Canal privado conectado"
+        : aceIsOnline()
+          ? "Conectando..."
+          : "Chat indisponível offline";
+  }
+
+  const send = document.getElementById("aceChatSend");
+  if (send) send.disabled = !connected;
+}
+
+
+function renderAceTeamOnlineUsers() {
+  const list = document.getElementById("aceTeamOnlineList");
+  if (!list) return;
+
+  if (!aceIsOnline()) {
+    list.innerHTML = `
+      <div class="ace-team-empty">
+        🟠 Sem conexão com a internet.<br>
+        A lista será atualizada quando a conexão voltar.
+      </div>
+    `;
+    return;
+  }
+
+  if (!aceTeamOnlineUsers.length) {
+    list.innerHTML = `
+      <div class="ace-team-empty">
+        Aguarde enquanto verificamos quem está online...
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = aceTeamOnlineUsers.map(user => `
+    <div class="ace-team-online-card">
+      ${aceTeamAvatarHtml(user.name, user.avatar_url)}
+      <div class="ace-team-online-info">
+        <div class="ace-team-online-name">${esc(user.name)}</div>
+        <div class="ace-team-online-now">Online agora</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+
+function renderAceTeamChat() {
+  const target = document.getElementById("aceTeamChatMessages");
+  if (!target) return;
+
+  if (!aceTeamChatMessages.length) {
+    target.innerHTML = `
+      <div class="ace-team-empty">
+        💬 Nenhuma mensagem ainda.<br>
+        Escreva a primeira mensagem para a equipe.
+      </div>
+    `;
+    return;
+  }
+
+  target.innerHTML = aceTeamChatMessages.map(row => {
+    const mine = String(row.user_id) === String(currentUser?.id || "");
+    const onlineUser = getAceOnlineUserById(row.user_id);
+    const canDelete = mine || isAceSecurityAdmin();
+
+    return `
+      <div class="ace-chat-row ${mine ? "mine" : ""}" data-ace-chat-id="${row.id}">
+        ${aceTeamAvatarHtml(
+          row.sender_name,
+          onlineUser?.avatar_url || (mine ? getAceTeamAvatarUrl() : "")
+        )}
+        <div class="ace-chat-bubble">
+          <div class="ace-chat-name">${esc(row.sender_name)}</div>
+          <div class="ace-chat-text">${esc(row.message)}</div>
+          <div class="ace-chat-meta">
+            <span>${esc(formatAceChatTime(row.created_at))}</span>
+            ${canDelete ? `
+              <button class="ace-chat-delete" type="button"
+                data-ace-chat-delete="${row.id}">Excluir</button>
+            ` : ""}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  target.querySelectorAll("[data-ace-chat-delete]").forEach(button => {
+    button.onclick = () =>
+      deleteAceTeamChatMessage(Number(button.dataset.aceChatDelete));
+  });
+
+  requestAnimationFrame(() => {
+    target.scrollTop = target.scrollHeight;
+  });
+}
+
+
+function syncAceTeamPresenceState() {
+  if (!aceTeamChannel) return;
+
+  const state = aceTeamChannel.presenceState();
+  const users = new Map();
+
+  Object.values(state || {}).flat().forEach(presence => {
+    const userId = String(presence?.user_id || "").trim();
+    if (!userId) return;
+
+    const candidate = {
+      user_id: userId,
+      name:
+        String(
+          presence?.name ||
+          getAceUserNameFromDirectory(userId) ||
+          "Usuário"
+        ).trim().slice(0, 80) || "Usuário",
+      avatar_url: getAceSafeRemoteAvatar(presence?.avatar_url),
+      online_at: String(presence?.online_at || "")
+    };
+
+    const old = users.get(userId);
+    if (!old || candidate.online_at >= old.online_at) {
+      users.set(userId, candidate);
+    }
+  });
+
+  aceTeamOnlineUsers = Array.from(users.values()).sort(
+    (a, b) => a.name.localeCompare(b.name, "pt-BR")
+  );
+
+  renderAceTeamStatus();
+  renderAceTeamOnlineUsers();
+  renderAceTeamChat();
+}
+
+
+async function aceTrackCurrentPresence() {
+  if (
+    !aceTeamChannel ||
+    aceTeamChannelStatus !== "SUBSCRIBED" ||
+    !currentUser?.id ||
+    !aceIsOnline()
+  ) return;
+
+  try {
+    await aceTeamChannel.track({
+      user_id: String(currentUser.id),
+      name:
+        String(getCurrentDisplayName()).trim().slice(0, 80) ||
+        "Usuário",
+      avatar_url: getAceTeamAvatarUrl(),
+      online_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.warn("ACE Presence: não foi possível atualizar:", error);
+  }
+}
+
+
+async function aceRefreshTeamPresence() {
+  await aceTrackCurrentPresence();
+}
+
+
+function receiveAceTeamChatMessage(row, countUnread = true) {
+  const normalized = normalizeAceChatMessage(row);
+  if (!normalized) return;
+
+  if (aceTeamChatMessages.some(item => Number(item.id) === normalized.id)) {
+    return;
+  }
+
+  aceTeamChatMessages.push(normalized);
+  aceTeamChatMessages = aceTeamChatMessages
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .slice(-30);
+
+  const mine =
+    String(normalized.user_id) === String(currentUser?.id || "");
+
+  if (
+    countUnread &&
+    !mine &&
+    (!aceTeamPanelOpen || aceTeamActiveTab !== "chat")
+  ) {
+    aceTeamUnread += 1;
+  }
+
+  saveAceTeamChatCache();
+  renderAceTeamStatus();
+  renderAceTeamChat();
+}
+
+
+async function loadAceTeamChatMessages(force = false) {
+  if (aceTeamChatLoaded && !force) return;
+
+  if (!aceIsOnline()) {
+    aceTeamChatMessages = loadAceTeamChatCache();
+    aceTeamChatLoaded = true;
+    renderAceTeamChat();
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from(ACE_TEAM_CHAT_TABLE)
+      .select("id,user_id,sender_name,message,created_at")
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+
+    aceTeamChatMessages = (Array.isArray(data) ? data : [])
+      .map(normalizeAceChatMessage)
+      .filter(Boolean)
+      .reverse();
+
+    aceTeamChatLoaded = true;
+    saveAceTeamChatCache();
+    renderAceTeamChat();
+  } catch (error) {
+    console.warn("ACE Chat: não foi possível carregar:", error);
+    aceTeamChatMessages = loadAceTeamChatCache();
+    aceTeamChatLoaded = true;
+    renderAceTeamChat();
+  }
+}
+
+
+async function sendAceTeamChatMessage() {
+  const input = document.getElementById("aceChatInput");
+  const button = document.getElementById("aceChatSend");
+  const message = String(input?.value || "").trim().slice(0, 500);
+
+  if (!message) return;
+
+  if (!aceIsOnline() || aceTeamChannelStatus !== "SUBSCRIBED") {
+    toast("O chat precisa de internet.");
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Enviando...";
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from(ACE_TEAM_CHAT_TABLE)
+      .insert({
+        user_id: currentUser.id,
+        sender_name:
+          String(getCurrentDisplayName()).trim().slice(0, 80),
+        message
+      })
+      .select("id,user_id,sender_name,message,created_at")
+      .single();
+
+    if (error) throw error;
+
+    receiveAceTeamChatMessage(data, false);
+
+    if (input) {
+      input.value = "";
+      input.style.height = "auto";
+      input.dispatchEvent(new Event("input"));
+    }
+
+    const status = await aceTeamChannel.send({
+      type: "broadcast",
+      event: "chat-message",
+      payload: data
+    });
+
+    if (status !== "ok") {
+      console.warn("ACE Chat: mensagem salva, aviso em tempo real:", status);
+    }
+  } catch (error) {
+    console.error("ACE Chat: erro ao enviar:", error);
+    await showAceMessage(
+      "Não foi possível enviar a mensagem.\n\n" +
+      (error?.message || "Verifique sua conexão."),
+      "❌ Chat"
+    );
+  } finally {
+    if (button) button.textContent = "Enviar";
+    renderAceTeamStatus();
+  }
+}
+
+
+async function deleteAceTeamChatMessage(id) {
+  const row = aceTeamChatMessages.find(item => Number(item.id) === Number(id));
+  if (!row) return;
+
+  const allowed =
+    String(row.user_id) === String(currentUser?.id || "") ||
+    isAceSecurityAdmin();
+
+  if (!allowed) return;
+
+  const confirmed = await showAceConfirm(
+    "Deseja excluir esta mensagem?",
+    "🗑️ Excluir mensagem"
+  );
+  if (!confirmed) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from(ACE_TEAM_CHAT_TABLE)
+      .delete()
+      .eq("id", Number(id));
+
+    if (error) throw error;
+
+    removeAceTeamChatMessage(id);
+
+    if (aceTeamChannelStatus === "SUBSCRIBED") {
+      await aceTeamChannel.send({
+        type: "broadcast",
+        event: "chat-delete",
+        payload: { id: Number(id) }
+      });
+    }
+  } catch (error) {
+    await showAceMessage(
+      "Não foi possível excluir a mensagem.\n\n" +
+      (error?.message || "Verifique sua conexão."),
+      "❌ Chat"
+    );
+  }
+}
+
+
+function removeAceTeamChatMessage(id) {
+  aceTeamChatMessages = aceTeamChatMessages.filter(
+    item => Number(item.id) !== Number(id)
+  );
+  saveAceTeamChatCache();
+  renderAceTeamChat();
+}
+
+
+function setAceTeamTab(tab) {
+  aceTeamActiveTab = tab === "chat" ? "chat" : "online";
+
+  document.querySelectorAll("[data-ace-team-tab]").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.aceTeamTab === aceTeamActiveTab
+    );
+  });
+
+  document.getElementById("aceTeamOnlineView")?.classList.toggle(
+    "active",
+    aceTeamActiveTab === "online"
+  );
+
+  document.getElementById("aceTeamChatView")?.classList.toggle(
+    "active",
+    aceTeamActiveTab === "chat"
+  );
+
+  if (aceTeamActiveTab === "chat") {
+    aceTeamUnread = 0;
+    renderAceTeamStatus();
+    loadAceTeamChatMessages();
+
+    setTimeout(() => {
+      const target = document.getElementById("aceTeamChatMessages");
+      if (target) target.scrollTop = target.scrollHeight;
+    }, 60);
+  }
+}
+
+
+function openAceTeamPanel(tab = "online") {
+  ensureAceTeamInterface();
+  aceTeamPanelOpen = true;
+  document.getElementById("aceTeamBackdrop")?.classList.add("open");
+  document.getElementById("aceTeamPanel")?.classList.add("open");
+  setAceTeamTab(tab);
+}
+
+
+function closeAceTeamPanel() {
+  aceTeamPanelOpen = false;
+  document.getElementById("aceTeamBackdrop")?.classList.remove("open");
+  document.getElementById("aceTeamPanel")?.classList.remove("open");
+}
+
+
+async function teardownAceTeamRealtime() {
+  const oldChannel = aceTeamChannel;
+
+  aceTeamChannel = null;
+  aceTeamChannelStatus = "CLOSED";
+  aceTeamConnecting = false;
+  aceTeamOnlineUsers = [];
+
+  if (oldChannel) {
+    try { await oldChannel.untrack(); } catch {}
+    try { await supabaseClient.removeChannel(oldChannel); } catch {}
+  }
+
+  renderAceTeamStatus();
+  renderAceTeamOnlineUsers();
+}
+
+
+async function setupAceTeamRealtime() {
+  ensureAceTeamInterface();
+
+  if (
+    !currentUser?.id ||
+    !aceIsOnline() ||
+    aceTeamConnecting ||
+    aceTeamChannel
+  ) {
+    renderAceTeamStatus();
+    return;
+  }
+
+  aceTeamConnecting = true;
+  aceTeamChannelStatus = "CONNECTING";
+  renderAceTeamStatus();
+
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    if (accessToken && supabaseClient.realtime?.setAuth) {
+      await supabaseClient.realtime.setAuth(accessToken);
+    }
+
+    const channel = supabaseClient.channel(
+      ACE_TEAM_CHANNEL_TOPIC,
+      {
+        config: {
+          private: true,
+          presence: { key: String(currentUser.id) },
+          broadcast: { self: true, ack: true }
+        }
+      }
+    );
+
+    aceTeamChannel = channel;
+
+    channel
+      .on("presence", { event: "sync" }, syncAceTeamPresenceState)
+      .on("presence", { event: "join" }, syncAceTeamPresenceState)
+      .on("presence", { event: "leave" }, syncAceTeamPresenceState)
+      .on("broadcast", { event: "chat-message" }, event => {
+        receiveAceTeamChatMessage(event?.payload, true);
+      })
+      .on("broadcast", { event: "chat-delete" }, event => {
+        removeAceTeamChatMessage(event?.payload?.id);
+      })
+      .subscribe(async (status, error) => {
+        aceTeamChannelStatus = status;
+
+        if (status === "SUBSCRIBED") {
+          aceTeamConnecting = false;
+          await aceTrackCurrentPresence();
+
+          if (aceTeamChatLoaded) {
+            loadAceTeamChatMessages(true);
+          }
+        }
+
+        if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
+          aceTeamConnecting = false;
+          if (error) console.warn("ACE Realtime:", error);
+        }
+
+        renderAceTeamStatus();
+      });
+  } catch (error) {
+    aceTeamConnecting = false;
+    aceTeamChannelStatus = "CHANNEL_ERROR";
+    console.warn("ACE Realtime: não foi possível conectar:", error);
+    renderAceTeamStatus();
+  }
+}
+
+
+function setupAceTeamEvents() {
+  if (window.aceTeamEventsReady) return;
+  window.aceTeamEventsReady = true;
+
+  window.addEventListener("online", () => {
+    setTimeout(setupAceTeamRealtime, 500);
+  });
+
+  window.addEventListener("offline", () => {
+    teardownAceTeamRealtime();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && aceIsOnline()) {
+      if (aceTeamChannel) {
+        aceTrackCurrentPresence();
+      } else {
+        setupAceTeamRealtime();
+      }
+    }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    try { aceTeamChannel?.untrack(); } catch {}
+  });
+}
+
+
+async function setupAceTeamCommunication() {
+  ensureAceTeamInterface();
+  setupAceTeamEvents();
+  aceTeamChatMessages = loadAceTeamChatCache();
+  renderAceTeamChat();
+  await setupAceTeamRealtime();
+}
+
+// ============================================================
 // 22. INICIALIZAÇÃO DO APLICATIVO
 // ============================================================
 
@@ -37858,6 +39157,9 @@ async function initApp() {
     setupOfflineStatus();
 
     setupProfessionalMobileLayout();
+
+    // Conecta a equipe ao canal privado de presença e chat.
+    await setupAceTeamCommunication();
 
     renderAll();
 
