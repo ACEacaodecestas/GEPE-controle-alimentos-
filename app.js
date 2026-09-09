@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.09-equipe-online-chat-v8";
+  "2026.09.09-equipe-online-chat-mobile-v9";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -38326,10 +38326,14 @@ function ensureAceTeamStyles() {
     }
 
     @media(max-width:850px){
-      #aceTeamStatusButton{
+      .ace-header-v6 > #aceTeamStatusButton{
+        display:inline-flex !important;
         position:absolute;
-        top:8px;
-        right:9px;
+        top:auto !important;
+        right:auto !important;
+        bottom:11px !important;
+        left:18px !important;
+        transform:none !important;
         min-height:34px;
         padding:5px 9px;
         gap:6px;
@@ -46176,3 +46180,4 @@ window.aceBuildStatisticsReportHtml =
   // Tenta imediatamente também, caso o usuário já esteja logado.
   installGroupedNavigation();
 })();
+
