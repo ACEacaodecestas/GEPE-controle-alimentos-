@@ -9,7 +9,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.10-visual-profissional-azul-branco-v1";
+  "2026.09.10-dialogos-profissionais-v2";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -5858,6 +5858,595 @@ function getName(arr, id) {
 }
 
 
+function ensureAceProfessionalDialogStyles() {
+
+  if (
+    document.getElementById(
+      "aceProfessionalDialogStylesV2"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceProfessionalDialogStylesV2";
+
+
+  style.textContent = `
+    #aceMessageModal,
+    #aceCustomModal{
+      position:fixed !important;
+      inset:0 !important;
+      z-index:2147483646 !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      box-sizing:border-box !important;
+      padding:20px !important;
+      background:rgba(3,31,55,.64) !important;
+      backdrop-filter:blur(8px) saturate(.92) !important;
+      -webkit-backdrop-filter:blur(8px) saturate(.92) !important;
+      animation:aceDialogBackdropIn .18s ease-out both;
+    }
+
+    #aceMessageModal .ace-pro-dialog-card,
+    #aceCustomModal .ace-pro-dialog-card{
+      position:relative !important;
+      z-index:2147483647 !important;
+      width:min(500px,calc(100vw - 32px)) !important;
+      max-height:calc(100dvh - 40px) !important;
+      overflow:auto !important;
+      box-sizing:border-box !important;
+      padding:30px 30px 26px !important;
+      border:1px solid rgba(196,215,229,.92) !important;
+      border-radius:24px !important;
+      background:
+        linear-gradient(180deg,#ffffff 0%,#fbfdff 100%) !important;
+      color:#102f49 !important;
+      box-shadow:
+        0 30px 90px rgba(0,31,58,.30),
+        0 8px 24px rgba(0,31,58,.14) !important;
+      font-family:inherit !important;
+      text-align:center !important;
+      animation:aceDialogCardIn .22s cubic-bezier(.2,.82,.2,1) both;
+    }
+
+    #aceMessageModal .ace-pro-dialog-icon,
+    #aceCustomModal .ace-pro-dialog-icon{
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:68px !important;
+      height:68px !important;
+      margin:0 auto 17px !important;
+      border-radius:22px !important;
+      background:#eaf5fc !important;
+      color:#0872b9 !important;
+      box-shadow:inset 0 0 0 1px #c6e4f6 !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-icon svg,
+    #aceCustomModal .ace-pro-dialog-icon svg{
+      width:34px !important;
+      height:34px !important;
+      fill:none !important;
+      stroke:currentColor !important;
+      stroke-width:1.9 !important;
+      stroke-linecap:round !important;
+      stroke-linejoin:round !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-card[data-tone="success"] .ace-pro-dialog-icon,
+    #aceCustomModal .ace-pro-dialog-card[data-tone="success"] .ace-pro-dialog-icon{
+      background:#eaf8f0 !important;
+      color:#16834d !important;
+      box-shadow:inset 0 0 0 1px #c7e9d5 !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-card[data-tone="warning"] .ace-pro-dialog-icon,
+    #aceCustomModal .ace-pro-dialog-card[data-tone="warning"] .ace-pro-dialog-icon{
+      background:#fff7e8 !important;
+      color:#a86408 !important;
+      box-shadow:inset 0 0 0 1px #f2ddb6 !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-card[data-tone="danger"] .ace-pro-dialog-icon,
+    #aceCustomModal .ace-pro-dialog-card[data-tone="danger"] .ace-pro-dialog-icon{
+      background:#fff2f1 !important;
+      color:#c92f25 !important;
+      box-shadow:inset 0 0 0 1px #f3cfcc !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-title,
+    #aceCustomModal .ace-pro-dialog-title{
+      margin:0 !important;
+      color:#063b63 !important;
+      font-size:27px !important;
+      font-weight:950 !important;
+      line-height:1.14 !important;
+      letter-spacing:-.45px !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-message,
+    #aceCustomModal .ace-pro-dialog-message{
+      max-width:420px !important;
+      margin:12px auto 0 !important;
+      color:#60788c !important;
+      font-size:16px !important;
+      font-weight:600 !important;
+      line-height:1.55 !important;
+      text-align:center !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-message.is-detail,
+    #aceCustomModal .ace-pro-dialog-message.is-detail{
+      text-align:left !important;
+    }
+
+    #aceCustomModal .ace-pro-dialog-input{
+      width:100% !important;
+      box-sizing:border-box !important;
+      margin-top:20px !important;
+      padding:13px 14px !important;
+      border:1px solid #bcd2e2 !important;
+      border-radius:12px !important;
+      background:#fff !important;
+      color:#102f49 !important;
+      font:inherit !important;
+      font-size:16px !important;
+      font-weight:700 !important;
+      text-align:center !important;
+      outline:none !important;
+      transition:border-color .18s ease,box-shadow .18s ease !important;
+    }
+
+    #aceCustomModal .ace-pro-dialog-input:focus{
+      border-color:#1689d0 !important;
+      box-shadow:0 0 0 4px rgba(22,137,208,.14) !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-actions,
+    #aceCustomModal .ace-pro-dialog-actions{
+      display:grid !important;
+      grid-template-columns:1fr 1fr !important;
+      gap:12px !important;
+      margin-top:25px !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-actions.is-single{
+      grid-template-columns:minmax(150px,230px) !important;
+      justify-content:center !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-button,
+    #aceCustomModal .ace-pro-dialog-button{
+      min-height:48px !important;
+      padding:11px 18px !important;
+      border-radius:12px !important;
+      font:inherit !important;
+      font-size:16px !important;
+      font-weight:900 !important;
+      cursor:pointer !important;
+      transition:
+        transform .14s ease,
+        box-shadow .18s ease,
+        background .18s ease,
+        border-color .18s ease !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-button:not(:disabled):active,
+    #aceCustomModal .ace-pro-dialog-button:not(:disabled):active{
+      transform:scale(.975) !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-primary,
+    #aceCustomModal .ace-pro-dialog-primary{
+      border:1px solid #075a94 !important;
+      background:linear-gradient(180deg,#0872b9,#075a94) !important;
+      color:#fff !important;
+      box-shadow:0 8px 18px rgba(7,90,148,.20) !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-primary:hover,
+    #aceCustomModal .ace-pro-dialog-primary:hover{
+      background:linear-gradient(180deg,#087bc7,#064f83) !important;
+      box-shadow:0 10px 22px rgba(7,90,148,.25) !important;
+    }
+
+    #aceCustomModal .ace-pro-dialog-card[data-tone="danger"]:not([data-dialog-kind="logout"])
+    .ace-pro-dialog-primary{
+      border-color:#b42318 !important;
+      background:linear-gradient(180deg,#d6453b,#b42318) !important;
+      box-shadow:0 8px 18px rgba(180,35,24,.18) !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-secondary,
+    #aceCustomModal .ace-pro-dialog-secondary{
+      border:1px solid #b8cddd !important;
+      background:#fff !important;
+      color:#075a94 !important;
+      box-shadow:0 4px 12px rgba(4,59,99,.06) !important;
+    }
+
+    #aceMessageModal .ace-pro-dialog-secondary:hover,
+    #aceCustomModal .ace-pro-dialog-secondary:hover{
+      border-color:#84b9db !important;
+      background:#f4f9fd !important;
+    }
+
+    #toast{
+      display:none !important;
+      visibility:hidden !important;
+      opacity:0 !important;
+      pointer-events:none !important;
+    }
+
+    @keyframes aceDialogBackdropIn{
+      from{opacity:0;}
+      to{opacity:1;}
+    }
+
+    @keyframes aceDialogCardIn{
+      from{
+        opacity:0;
+        transform:translateY(12px) scale(.975);
+      }
+      to{
+        opacity:1;
+        transform:translateY(0) scale(1);
+      }
+    }
+
+    @media(max-width:560px){
+      #aceMessageModal,
+      #aceCustomModal{
+        padding:16px !important;
+      }
+
+      #aceMessageModal .ace-pro-dialog-card,
+      #aceCustomModal .ace-pro-dialog-card{
+        width:min(94vw,470px) !important;
+        padding:27px 20px 22px !important;
+        border-radius:22px !important;
+      }
+
+      #aceMessageModal .ace-pro-dialog-icon,
+      #aceCustomModal .ace-pro-dialog-icon{
+        width:62px !important;
+        height:62px !important;
+        margin-bottom:15px !important;
+        border-radius:20px !important;
+      }
+
+      #aceMessageModal .ace-pro-dialog-title,
+      #aceCustomModal .ace-pro-dialog-title{
+        font-size:24px !important;
+      }
+
+      #aceMessageModal .ace-pro-dialog-message,
+      #aceCustomModal .ace-pro-dialog-message{
+        font-size:15px !important;
+      }
+
+      #aceMessageModal .ace-pro-dialog-actions,
+      #aceCustomModal .ace-pro-dialog-actions{
+        gap:10px !important;
+      }
+
+      #aceMessageModal .ace-pro-dialog-button,
+      #aceCustomModal .ace-pro-dialog-button{
+        min-height:47px !important;
+        padding:10px 12px !important;
+        font-size:15px !important;
+      }
+    }
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function getAceDialogProfile(
+  title = "",
+  message = ""
+) {
+
+  const raw =
+    `${title} ${message}`;
+
+  const normalized =
+    raw
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .toLowerCase();
+
+
+  const titleNormalized =
+    String(
+      title || ""
+    )
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .toLowerCase();
+
+
+  if (
+    titleNormalized.includes(
+      "sair"
+    )
+  ) {
+
+    return {
+      tone:
+        "info",
+      kind:
+        "logout",
+      confirmLabel:
+        "Sair",
+      icon:
+        "logout"
+    };
+
+  }
+
+
+  if (
+    /excluir|apagar|remover|reset|bloquear/.test(
+      normalized
+    )
+  ) {
+
+    return {
+      tone:
+        "danger",
+      kind:
+        "danger",
+      confirmLabel:
+        titleNormalized.includes(
+          "bloquear"
+        )
+          ? "Bloquear"
+          : titleNormalized.includes(
+              "reset"
+            )
+            ? "Continuar"
+            : "Excluir",
+      icon:
+        "danger"
+    };
+
+  }
+
+
+  if (
+    /sucesso|concluido|concluida|enviado|enviada|restabelecida/.test(
+      normalized
+    )
+  ) {
+
+    return {
+      tone:
+        "success",
+      kind:
+        "success",
+      confirmLabel:
+        "Concluir",
+      icon:
+        "success"
+    };
+
+  }
+
+
+  if (
+    /erro|falha|nao foi possivel/.test(
+      normalized
+    )
+  ) {
+
+    return {
+      tone:
+        "danger",
+      kind:
+        "error",
+      confirmLabel:
+        "Entendi",
+      icon:
+        "danger"
+    };
+
+  }
+
+
+  if (
+    /atencao|obrigatorio|obrigatoria|invalido|invalida|insuficiente|offline|online|restrito|restrita/.test(
+      normalized
+    )
+  ) {
+
+    return {
+      tone:
+        "warning",
+      kind:
+        "warning",
+      confirmLabel:
+        "Entendi",
+      icon:
+        "warning"
+    };
+
+  }
+
+
+  if (
+    /restaurar/.test(
+      normalized
+    )
+  ) {
+
+    return {
+      tone:
+        "info",
+      kind:
+        "confirm",
+      confirmLabel:
+        "Restaurar",
+      icon:
+        "info"
+    };
+
+  }
+
+
+  if (
+    /estornar/.test(
+      normalized
+    )
+  ) {
+
+    return {
+      tone:
+        "warning",
+      kind:
+        "confirm",
+      confirmLabel:
+        "Estornar",
+      icon:
+        "warning"
+    };
+
+  }
+
+
+  if (
+    /registrar/.test(
+      titleNormalized
+    )
+  ) {
+
+    return {
+      tone:
+        "info",
+      kind:
+        "confirm",
+      confirmLabel:
+        "Registrar",
+      icon:
+        "info"
+    };
+
+  }
+
+
+  return {
+    tone:
+      "info",
+    kind:
+      "confirm",
+    confirmLabel:
+      "Confirmar",
+    icon:
+      "info"
+  };
+
+}
+
+
+function getAceDialogIconSvg(
+  icon = "info"
+) {
+
+  if (
+    icon ===
+    "logout"
+  ) {
+
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M10 17l5-5-5-5"></path>
+        <path d="M15 12H3"></path>
+        <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+      </svg>
+    `;
+
+  }
+
+
+  if (
+    icon ===
+    "success"
+  ) {
+
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M8 12.2l2.6 2.6L16.5 9"></path>
+      </svg>
+    `;
+
+  }
+
+
+  if (
+    icon ===
+    "warning"
+  ) {
+
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M10.3 4.2L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"></path>
+        <path d="M12 9v4"></path>
+        <path d="M12 17h.01"></path>
+      </svg>
+    `;
+
+  }
+
+
+  if (
+    icon ===
+    "danger"
+  ) {
+
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 8v5"></path>
+        <path d="M12 17h.01"></path>
+      </svg>
+    `;
+
+  }
+
+
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M12 11v6"></path>
+      <path d="M12 7h.01"></path>
+    </svg>
+  `;
+
+}
+
+
 function showAceMessage(
   message,
   title = "Aviso"
@@ -5865,6 +6454,9 @@ function showAceMessage(
 
   return new Promise(
     resolve => {
+
+      ensureAceProfessionalDialogStyles();
+
 
       const old =
         document.getElementById(
@@ -5877,6 +6469,13 @@ function showAceMessage(
       }
 
 
+      const profile =
+        getAceDialogProfile(
+          title,
+          message
+        );
+
+
       const overlay =
         document.createElement(
           "div"
@@ -5887,23 +6486,35 @@ function showAceMessage(
         "aceMessageModal";
 
 
-      overlay.innerHTML = `
+      const detailClass =
+        String(
+          message || ""
+        ).includes("\n")
+          ? " is-detail"
+          : "";
 
+
+      overlay.innerHTML = `
         <div
-          class="ace-message-modal-box"
+          class="ace-pro-dialog-card"
+          data-tone="${esc(profile.tone)}"
+          data-dialog-kind="${esc(profile.kind)}"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="aceMessageDialogTitle"
         >
+          <div class="ace-pro-dialog-icon">
+            ${getAceDialogIconSvg(profile.icon)}
+          </div>
 
           <div
-            class="ace-message-modal-title"
+            id="aceMessageDialogTitle"
+            class="ace-pro-dialog-title"
           >
             ${esc(title)}
           </div>
 
-          <div
-            class="ace-message-modal-text"
-          >
+          <div class="ace-pro-dialog-message${detailClass}">
             ${esc(
               String(
                 message || ""
@@ -5914,117 +6525,16 @@ function showAceMessage(
             )}
           </div>
 
-          <div
-            class="ace-message-modal-actions"
-          >
-
+          <div class="ace-pro-dialog-actions is-single">
             <button
               type="button"
-              class="ace-message-modal-ok"
+              class="ace-pro-dialog-button ace-pro-dialog-primary ace-message-modal-ok"
             >
-              OK
+              Entendi
             </button>
-
           </div>
-
         </div>
-
       `;
-
-
-      if (
-        !document.getElementById(
-          "aceMessageModalStyle"
-        )
-      ) {
-
-        const style =
-          document.createElement(
-            "style"
-          );
-
-
-        style.id =
-          "aceMessageModalStyle";
-
-
-        style.textContent = `
-
-          #aceMessageModal{
-            position:fixed;
-            inset:0;
-            z-index:1000010;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            padding:20px;
-            background:rgba(0,35,70,.62);
-            backdrop-filter:blur(3px);
-            box-sizing:border-box;
-          }
-
-          #aceMessageModal .ace-message-modal-box{
-            width:min(520px,calc(100vw - 40px));
-            max-height:calc(100vh - 40px);
-            overflow:auto;
-            box-sizing:border-box;
-            padding:28px 30px 24px;
-            border-radius:18px;
-            background:#5da5e6;
-            color:#fff;
-            box-shadow:0 18px 50px rgba(0,0,0,.35);
-            text-align:center;
-            font-family:inherit;
-          }
-
-          #aceMessageModal .ace-message-modal-title{
-            margin-bottom:18px;
-            font-size:25px;
-            font-weight:900;
-            color:#fff;
-          }
-
-          #aceMessageModal .ace-message-modal-text{
-            font-size:17px;
-            line-height:1.55;
-            text-align:left;
-            color:#fff;
-          }
-
-          #aceMessageModal .ace-message-modal-actions{
-            display:flex;
-            justify-content:center;
-            margin-top:24px;
-          }
-
-          #aceMessageModal .ace-message-modal-ok{
-            min-width:110px;
-            padding:11px 22px;
-            border:1px solid #0756a0;
-            border-radius:9px;
-            background:#0756a0;
-            color:#fff;
-            font-size:16px;
-            font-weight:900;
-            cursor:pointer;
-          }
-
-          /* A mensagem preta antiga fica definitivamente escondida. */
-          #toast{
-            display:none !important;
-            visibility:hidden !important;
-            opacity:0 !important;
-            pointer-events:none !important;
-          }
-
-        `;
-
-
-        document.head.appendChild(
-          style
-        );
-
-      }
 
 
       document.body.appendChild(
@@ -6049,6 +6559,27 @@ function showAceMessage(
           "click",
           close
         );
+
+
+      overlay.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key ===
+            "Escape"
+          ) {
+            close();
+          }
+
+        }
+      );
+
+
+      overlay.tabIndex =
+        -1;
+
+      overlay.focus();
 
     }
   );
@@ -8516,6 +9047,22 @@ function updateAceHeaderBranding() {
 
       }
 
+
+      if (
+        value ===
+          "Controle de Alimentos" &&
+        node.parentElement &&
+        !node.parentElement.closest(
+          "#aceMobileHeader"
+        )
+      ) {
+
+        node.parentElement.classList.add(
+          "ace-desktop-control-title"
+        );
+
+      }
+
     }
   );
 
@@ -9332,199 +9879,391 @@ function addUserBar() {
 // MODAL PERSONALIZADO - CONFIRMAÇÕES
 // ============================================================
 
-function showAceConfirm(message, title = "Atenção") {
+function showAceConfirm(
+  message,
+  title = "Atenção",
+  options = {}
+) {
 
-  return new Promise(resolve => {
+  return new Promise(
+    resolve => {
 
-    const old = document.getElementById("aceCustomModal");
+      ensureAceProfessionalDialogStyles();
 
-    if (old) {
-      old.remove();
-    }
 
-    const overlay = document.createElement("div");
+      const old =
+        document.getElementById(
+          "aceCustomModal"
+        );
 
-    overlay.id = "aceCustomModal";
 
-    overlay.innerHTML = `
-      <div class="ace-modal-box" role="dialog" aria-modal="true">
-        <div class="ace-modal-title">${esc(title)}</div>
-        <div class="ace-modal-message">${esc(message).replace(/\n/g, "<br>")}</div>
+      if (old) {
+        old.remove();
+      }
 
-        <div class="ace-modal-actions">
-          <button type="button" class="ace-modal-ok">OK</button>
-          <button type="button" class="ace-modal-cancel">Cancelar</button>
+
+      const profile =
+        getAceDialogProfile(
+          title,
+          message
+        );
+
+
+      const tone =
+        options.tone ||
+        profile.tone;
+
+
+      const kind =
+        options.kind ||
+        profile.kind;
+
+
+      const confirmLabel =
+        options.confirmLabel ||
+        profile.confirmLabel ||
+        "Confirmar";
+
+
+      const cancelLabel =
+        options.cancelLabel ||
+        "Cancelar";
+
+
+      const icon =
+        options.icon ||
+        profile.icon;
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+
+      overlay.id =
+        "aceCustomModal";
+
+
+      const detailClass =
+        String(
+          message || ""
+        ).includes("\n")
+          ? " is-detail"
+          : "";
+
+
+      overlay.innerHTML = `
+        <div
+          class="ace-pro-dialog-card"
+          data-tone="${esc(tone)}"
+          data-dialog-kind="${esc(kind)}"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="aceConfirmDialogTitle"
+        >
+          <div class="ace-pro-dialog-icon">
+            ${getAceDialogIconSvg(icon)}
+          </div>
+
+          <div
+            id="aceConfirmDialogTitle"
+            class="ace-pro-dialog-title"
+          >
+            ${esc(title)}
+          </div>
+
+          <div class="ace-pro-dialog-message${detailClass}">
+            ${esc(
+              String(
+                message || ""
+              )
+            ).replace(
+              /\n/g,
+              "<br>"
+            )}
+          </div>
+
+          <div class="ace-pro-dialog-actions">
+            <button
+              type="button"
+              class="ace-pro-dialog-button ace-pro-dialog-secondary ace-modal-cancel"
+            >
+              ${esc(cancelLabel)}
+            </button>
+
+            <button
+              type="button"
+              class="ace-pro-dialog-button ace-pro-dialog-primary ace-modal-ok"
+            >
+              ${esc(confirmLabel)}
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    const style = document.createElement("style");
 
-    style.id = "aceCustomModalStyle";
+      document.body.appendChild(
+        overlay
+      );
 
-    style.textContent = `
-      #aceCustomModal {
-        position: fixed !important;
-        inset: 0 !important;
-        z-index: 2147483646 !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-        background: rgba(0, 35, 70, .62);
-        backdrop-filter: blur(3px);
-      }
 
-      #aceCustomModal .ace-modal-box {
-        position: relative !important;
-        z-index: 2147483647 !important;
-        width: min(520px, calc(100vw - 40px));
-        max-height: calc(100vh - 40px);
-        overflow: auto;
-        box-sizing: border-box;
-        padding: 28px 30px 24px;
-        border-radius: 18px;
-        background: #5da5e6;
-        color: #fff;
-        box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
-        text-align: center;
-        font-family: inherit;
-      }
+      let closed =
+        false;
 
-      #aceCustomModal .ace-modal-title {
-        margin-bottom: 18px;
-        font-size: 25px;
-        font-weight: 900;
-        color: #fff;
-      }
 
-      #aceCustomModal .ace-modal-message {
-        font-size: 17px;
-        line-height: 1.55;
-        text-align: left;
-        color: #fff;
-      }
+      const close =
+        value => {
 
-      #aceCustomModal .ace-modal-actions {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        margin-top: 24px;
-      }
+          if (closed) {
+            return;
+          }
 
-      #aceCustomModal button {
-        min-width: 105px;
-        padding: 11px 20px;
-        border-radius: 9px;
-        font-size: 16px;
-        font-weight: 800;
-        cursor: pointer;
-      }
 
-      #aceCustomModal .ace-modal-ok {
-        border: 1px solid #0756a0;
-        background: #0756a0;
-        color: #fff;
-      }
+          closed =
+            true;
 
-      #aceCustomModal .ace-modal-cancel {
-        border: 1px solid rgba(255,255,255,.9);
-        background: transparent;
-        color: #fff;
-      }
-    `;
+          overlay.remove();
+          resolve(value);
 
-    document.head.appendChild(style);
-    document.body.appendChild(overlay);
+        };
 
-    const close = value => {
-      overlay.remove();
-      resolve(value);
-    };
 
-    overlay
-      .querySelector(".ace-modal-ok")
-      .onclick = () => close(true);
+      overlay
+        .querySelector(
+          ".ace-modal-ok"
+        )
+        .onclick =
+          () => close(
+            true
+          );
 
-    overlay
-      .querySelector(".ace-modal-cancel")
-      .onclick = () => close(false);
 
-  });
+      overlay
+        .querySelector(
+          ".ace-modal-cancel"
+        )
+        .onclick =
+          () => close(
+            false
+          );
+
+
+      overlay.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key ===
+            "Escape"
+          ) {
+            close(
+              false
+            );
+          }
+
+        }
+      );
+
+
+      overlay.tabIndex =
+        -1;
+
+      overlay.focus();
+
+    }
+  );
 
 }
 
 
-function showAceInput(message, title = "Confirmação") {
+function showAceInput(
+  message,
+  title = "Confirmação"
+) {
 
-  return new Promise(resolve => {
+  return new Promise(
+    resolve => {
 
-    const old = document.getElementById("aceCustomModal");
+      ensureAceProfessionalDialogStyles();
 
-    if (old) old.remove();
 
-    const overlay = document.createElement("div");
+      const old =
+        document.getElementById(
+          "aceCustomModal"
+        );
 
-    overlay.id = "aceCustomModal";
 
-    overlay.innerHTML = `
-      <div class="ace-modal-box" role="dialog" aria-modal="true">
-        <div class="ace-modal-title">${esc(title)}</div>
-        <div class="ace-modal-message">${esc(message).replace(/\n/g, "<br>")}</div>
+      if (old) {
+        old.remove();
+      }
 
-        <input
-          id="aceModalInput"
-          type="text"
-          autocomplete="off"
-          style="
-            width:100%;
-            box-sizing:border-box;
-            margin-top:18px;
-            padding:12px;
-            border:1px solid rgba(255,255,255,.8);
-            border-radius:9px;
-            font-size:17px;
-            font-weight:700;
-            text-align:center;
-            outline:none;
-          "
+
+      const profile =
+        getAceDialogProfile(
+          title,
+          message
+        );
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+
+      overlay.id =
+        "aceCustomModal";
+
+
+      const detailClass =
+        String(
+          message || ""
+        ).includes("\n")
+          ? " is-detail"
+          : "";
+
+
+      overlay.innerHTML = `
+        <div
+          class="ace-pro-dialog-card"
+          data-tone="${esc(profile.tone)}"
+          data-dialog-kind="input"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="aceInputDialogTitle"
         >
+          <div class="ace-pro-dialog-icon">
+            ${getAceDialogIconSvg("info")}
+          </div>
 
-        <div class="ace-modal-actions">
-          <button type="button" class="ace-modal-ok">OK</button>
-          <button type="button" class="ace-modal-cancel">Cancelar</button>
+          <div
+            id="aceInputDialogTitle"
+            class="ace-pro-dialog-title"
+          >
+            ${esc(title)}
+          </div>
+
+          <div class="ace-pro-dialog-message${detailClass}">
+            ${esc(
+              String(
+                message || ""
+              )
+            ).replace(
+              /\n/g,
+              "<br>"
+            )}
+          </div>
+
+          <input
+            id="aceModalInput"
+            class="ace-pro-dialog-input"
+            type="text"
+            autocomplete="off"
+          >
+
+          <div class="ace-pro-dialog-actions">
+            <button
+              type="button"
+              class="ace-pro-dialog-button ace-pro-dialog-secondary ace-modal-cancel"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              class="ace-pro-dialog-button ace-pro-dialog-primary ace-modal-ok"
+            >
+              Confirmar
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    document.body.appendChild(overlay);
 
-    const input = overlay.querySelector("#aceModalInput");
+      document.body.appendChild(
+        overlay
+      );
 
-    const close = value => {
-      overlay.remove();
-      resolve(value);
-    };
 
-    overlay.querySelector(".ace-modal-ok").onclick =
-      () => close(input.value);
+      const input =
+        overlay.querySelector(
+          "#aceModalInput"
+        );
 
-    overlay.querySelector(".ace-modal-cancel").onclick =
-      () => close(null);
 
-    input.focus();
+      let closed =
+        false;
 
-    input.addEventListener("keydown", event => {
-      if (event.key === "Enter") {
-        close(input.value);
-      }
 
-      if (event.key === "Escape") {
-        close(null);
-      }
-    });
+      const close =
+        value => {
 
-  });
+          if (closed) {
+            return;
+          }
+
+
+          closed =
+            true;
+
+          overlay.remove();
+          resolve(value);
+
+        };
+
+
+      overlay
+        .querySelector(
+          ".ace-modal-ok"
+        )
+        .onclick =
+          () => close(
+            input.value
+          );
+
+
+      overlay
+        .querySelector(
+          ".ace-modal-cancel"
+        )
+        .onclick =
+          () => close(
+            null
+          );
+
+
+      input.focus();
+
+
+      input.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key ===
+            "Enter"
+          ) {
+            close(
+              input.value
+            );
+          }
+
+
+          if (
+            event.key ===
+            "Escape"
+          ) {
+            close(
+              null
+            );
+          }
+
+        }
+      );
+
+    }
+  );
 
 }
 
@@ -9533,8 +10272,21 @@ async function logoutUser() {
 
   const ok =
     await showAceConfirm(
-      "Deseja sair do sistema?",
-      "Sair do sistema"
+      "Deseja encerrar sua sessão agora?\n\n" +
+      "Você precisará entrar novamente para acessar o sistema.",
+      "Sair do sistema",
+      {
+        tone:
+          "info",
+        kind:
+          "logout",
+        icon:
+          "logout",
+        confirmLabel:
+          "Sair",
+        cancelLabel:
+          "Cancelar"
+      }
     );
 
   if (!ok) return;
@@ -40418,6 +41170,18 @@ startAuth();
 
     .ace-header-v6 img{
       filter:drop-shadow(0 10px 18px rgba(0,24,48,.18));
+    }
+
+    /* Desktop: títulos claros sobre o cabeçalho azul. */
+    @media(min-width:851px){
+      .ace-header-v6 h1,
+      .ace-header-v6 h2,
+      .ace-header-v6 h3,
+      .ace-header-v6 .ace-desktop-control-title{
+        color:#ffffff !important;
+        opacity:1 !important;
+        text-shadow:0 2px 10px rgba(0,25,48,.20) !important;
+      }
     }
 
     .tabs{
