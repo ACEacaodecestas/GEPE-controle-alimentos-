@@ -10272,8 +10272,7 @@ async function logoutUser() {
 
   const ok =
     await showAceConfirm(
-      "Deseja encerrar sua sessão agora?\n\n" +
-      "Você precisará entrar novamente para acessar o sistema.",
+      "Deseja encerrar sua sessão agora?",
       "Sair do sistema",
       {
         tone:
