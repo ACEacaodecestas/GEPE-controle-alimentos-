@@ -15,6 +15,14 @@
   const STYLE_ID = "aceStartupShieldStyleV1";
   const SHIELD_ID = "aceStartupShield";
 
+  // Tempo mínimo profissional da tela de abertura.
+  // Se o sistema carregar antes, a splash continua até completar 3s.
+  // Se carregar depois, ela permanece até o app estar pronto.
+  const MIN_VISIBLE_MS = 3000;
+  const STARTED_AT = Date.now();
+
+  let hideScheduled = false;
+
   document.documentElement.classList.add(ROOT_CLASS);
 
 
@@ -174,17 +182,43 @@
 
   window.aceHideStartupShield = function() {
 
+    if (hideScheduled) {
+      return;
+    }
+
+    hideScheduled = true;
+
+
+    const elapsed =
+      Date.now() - STARTED_AT;
+
+    const remaining =
+      Math.max(
+        0,
+        MIN_VISIBLE_MS - elapsed
+      );
+
+
     const release = () => {
 
       document.documentElement.classList.remove(ROOT_CLASS);
 
-      const shield = document.getElementById(SHIELD_ID);
+      const shield =
+        document.getElementById(
+          SHIELD_ID
+        );
 
       if (!shield) {
         return;
       }
 
-      shield.classList.add("ace-startup-leaving");
+
+      // Mantém o mesmo fade suave da versão anterior.
+      // A barrinha continua animada normalmente até este momento.
+      shield.classList.add(
+        "ace-startup-leaving"
+      );
+
 
       window.setTimeout(
         () => shield.remove(),
@@ -192,9 +226,21 @@
       );
     };
 
-    window.requestAnimationFrame(
-      () => window.requestAnimationFrame(release)
+
+    window.setTimeout(
+      () => {
+
+        window.requestAnimationFrame(
+          () =>
+            window.requestAnimationFrame(
+              release
+            )
+        );
+
+      },
+      remaining
     );
+
   };
 
 
@@ -208,7 +254,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.10-pwa-inicializacao-sem-layout-antigo-v3";
+  "2026.09.10-pwa-splash-minimo-3s-v4";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
