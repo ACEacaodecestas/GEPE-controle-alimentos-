@@ -5,11 +5,210 @@
 // ============================================================
 
 // ============================================================
+// ACE - ABERTURA SEM FLASH DO LAYOUT ANTIGO
+// Mantém a interface antiga invisível enquanto o layout novo monta.
+// ============================================================
+
+(function installAceStartupShield() {
+
+  const ROOT_CLASS = "ace-startup-loading";
+  const STYLE_ID = "aceStartupShieldStyleV1";
+  const SHIELD_ID = "aceStartupShield";
+
+  document.documentElement.classList.add(ROOT_CLASS);
+
+
+  if (!document.getElementById(STYLE_ID)) {
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+
+    style.textContent = `
+      html.${ROOT_CLASS}{
+        background:#064b7d !important;
+      }
+
+      html.${ROOT_CLASS} body{
+        background:#064b7d !important;
+      }
+
+      html.${ROOT_CLASS} body > *:not(#${SHIELD_ID}){
+        visibility:hidden !important;
+      }
+
+      #${SHIELD_ID}{
+        position:fixed !important;
+        inset:0 !important;
+        z-index:2147483647 !important;
+        display:flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        box-sizing:border-box !important;
+        background:
+          radial-gradient(circle at 50% 35%,rgba(22,137,208,.28),transparent 28rem),
+          linear-gradient(145deg,#063b63 0%,#075a94 55%,#0872b9 100%) !important;
+        opacity:1 !important;
+        visibility:visible !important;
+        transition:opacity .16s ease !important;
+      }
+
+      #${SHIELD_ID}.ace-startup-leaving{
+        opacity:0 !important;
+        pointer-events:none !important;
+      }
+
+      #${SHIELD_ID} .ace-startup-content{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:10px;
+        color:#fff;
+        text-align:center;
+        font-family:inherit;
+      }
+
+      #${SHIELD_ID} .ace-startup-logo{
+        width:86px;
+        height:86px;
+        object-fit:contain;
+        filter:drop-shadow(0 10px 24px rgba(0,20,42,.28));
+      }
+
+      #${SHIELD_ID} .ace-startup-title{
+        margin-top:2px;
+        font-size:21px;
+        font-weight:950;
+        line-height:1.12;
+        letter-spacing:-.25px;
+      }
+
+      #${SHIELD_ID} .ace-startup-subtitle{
+        color:rgba(255,255,255,.90);
+        font-size:13px;
+        font-weight:750;
+      }
+
+      #${SHIELD_ID} .ace-startup-loader{
+        width:42px;
+        height:4px;
+        margin-top:7px;
+        overflow:hidden;
+        border-radius:999px;
+        background:rgba(255,255,255,.25);
+      }
+
+      #${SHIELD_ID} .ace-startup-loader::after{
+        content:"";
+        display:block;
+        width:45%;
+        height:100%;
+        border-radius:999px;
+        background:#fff;
+        animation:aceStartupLoader 1s ease-in-out infinite;
+      }
+
+      @keyframes aceStartupLoader{
+        0%{transform:translateX(-120%);opacity:.55;}
+        50%{opacity:1;}
+        100%{transform:translateX(260%);opacity:.55;}
+      }
+    `;
+
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+
+  function mountShield() {
+
+    if (!document.body || document.getElementById(SHIELD_ID)) {
+      return;
+    }
+
+    const shield = document.createElement("div");
+    shield.id = SHIELD_ID;
+
+    shield.innerHTML = `
+      <div class="ace-startup-content">
+        <img
+          class="ace-startup-logo"
+          src="ace-cesta.png"
+          alt="ACE"
+        >
+
+        <div class="ace-startup-title">
+          ACE - Ação de Cestas
+        </div>
+
+        <div class="ace-startup-subtitle">
+          Controle de Alimentos
+        </div>
+
+        <div
+          class="ace-startup-loader"
+          aria-hidden="true"
+        ></div>
+      </div>
+    `;
+
+    document.body.appendChild(shield);
+  }
+
+
+  window.aceShowStartupShield = function() {
+
+    document.documentElement.classList.add(ROOT_CLASS);
+
+    if (document.body) {
+      mountShield();
+      return;
+    }
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      mountShield,
+      { once:true }
+    );
+  };
+
+
+  window.aceHideStartupShield = function() {
+
+    const release = () => {
+
+      document.documentElement.classList.remove(ROOT_CLASS);
+
+      const shield = document.getElementById(SHIELD_ID);
+
+      if (!shield) {
+        return;
+      }
+
+      shield.classList.add("ace-startup-leaving");
+
+      window.setTimeout(
+        () => shield.remove(),
+        170
+      );
+    };
+
+    window.requestAnimationFrame(
+      () => window.requestAnimationFrame(release)
+    );
+  };
+
+
+  window.aceShowStartupShield();
+
+})();
+
+
+// ============================================================
 // 1. CONFIGURAÇÃO DO SUPABASE
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.10-dialogos-profissionais-v2";
+  "2026.09.10-pwa-inicializacao-sem-layout-antigo-v3";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -8736,6 +8935,8 @@ async function loginUser(e) {
         );
 
 
+        window.aceShowStartupShield?.();
+
         document
           .getElementById(
             "loginScreen"
@@ -8789,6 +8990,8 @@ async function loginUser(e) {
       password,
       currentUser
     );
+
+    window.aceShowStartupShield?.();
 
     document
       .getElementById("loginScreen")
@@ -8871,6 +9074,8 @@ async function loginUser(e) {
             ACE_OFFLINE_LOGOUT_KEY,
             "0"
           );
+
+          window.aceShowStartupShield?.();
 
           document
             .getElementById(
@@ -39932,6 +40137,10 @@ async function initApp() {
 
     renderAll();
 
+    // O layout novo já foi montado e renderizado.
+    // Agora a interface pode ser exibida sem mostrar a antiga.
+    window.aceHideStartupShield?.();
+
 
     console.log(
       "Aplicativo carregado com sucesso."
@@ -39984,6 +40193,8 @@ async function initApp() {
 
       createLoginScreen();
 
+      window.aceHideStartupShield?.();
+
 
       const loginError =
         document.getElementById(
@@ -40006,6 +40217,9 @@ async function initApp() {
       return;
 
     }
+
+
+    window.aceHideStartupShield?.();
 
 
     await showAceConfirm(
@@ -40078,6 +40292,8 @@ async function startAuth() {
     }
 
 
+    window.aceHideStartupShield?.();
+
     return;
 
   }
@@ -40109,6 +40325,8 @@ async function startAuth() {
 
         showPasswordResetScreen();
 
+        window.aceHideStartupShield?.();
+
         return;
 
       }
@@ -40123,6 +40341,9 @@ async function startAuth() {
         currentUser = session.user;
         window.acePasswordRecoveryActive = true;
         showPasswordResetScreen();
+
+        window.aceHideStartupShield?.();
+
         return;
 
       }
@@ -40163,6 +40384,8 @@ async function startAuth() {
           if (!document.getElementById("loginScreen")) {
             createLoginScreen();
           }
+
+          window.aceHideStartupShield?.();
 
           const loginError = document.getElementById("loginError");
           if (loginError) {
@@ -40289,6 +40512,9 @@ async function startAuth() {
       rememberCurrentUser();
 
 
+      window.aceShowStartupShield?.();
+
+
       document
         .getElementById(
           "loginScreen"
@@ -40313,6 +40539,8 @@ async function startAuth() {
 
       showPasswordResetScreen();
 
+      window.aceHideStartupShield?.();
+
       return;
 
     }
@@ -40320,6 +40548,7 @@ async function startAuth() {
 
     // Não está logado.
     // Mantém a tela de login aberta.
+    window.aceHideStartupShield?.();
 
   } catch (err) {
 
@@ -40345,6 +40574,9 @@ async function startAuth() {
       );
 
     }
+
+
+    window.aceHideStartupShield?.();
 
   }
 
