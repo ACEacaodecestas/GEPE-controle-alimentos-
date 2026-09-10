@@ -35840,6 +35840,10 @@ function setupAceAccountMenuEvents() {
 
 function closeAceMobileDrawer() {
 
+  document.body.classList.remove(
+    "ace-mobile-drawer-open"
+  );
+
   document
     .getElementById(
       "aceMobileDrawer"
@@ -35860,6 +35864,10 @@ function closeAceMobileDrawer() {
 
 
 function openAceMobileDrawer() {
+
+  document.body.classList.add(
+    "ace-mobile-drawer-open"
+  );
 
   document
     .getElementById(
@@ -38326,6 +38334,12 @@ function ensureAceTeamStyles() {
     }
 
     @media(max-width:850px){
+      body.ace-mobile-drawer-open #aceTeamStatusButton{
+        visibility:hidden !important;
+        opacity:0 !important;
+        pointer-events:none !important;
+      }
+
       .ace-header-v6 > #aceTeamStatusButton{
         display:inline-flex !important;
         position:absolute;
@@ -46180,4 +46194,3 @@ window.aceBuildStatisticsReportHtml =
   // Tenta imediatamente também, caso o usuário já esteja logado.
   installGroupedNavigation();
 })();
-
