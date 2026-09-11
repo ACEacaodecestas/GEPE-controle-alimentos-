@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.10-pwa-splash-sem-pos-logout-v6";
+  "2026.09.11-pwa-reset-tambem-zera-inventarios-v7";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -19953,6 +19953,7 @@ function download(
 // - estoque de cestas montadas
 // - retiradas de cestas
 // - ajustes/estornos de cestas
+// - inventários realizados e histórico de inventários
 //
 // Permanecem:
 // - Pessoas
@@ -20992,6 +20993,182 @@ function showAceResetBackupChoice() {
 }
 
 
+async function resetAceInventoriesAfterOperationalReset() {
+
+  if (
+    !(
+      typeof isAceOperationalAdmin ===
+        "function" &&
+      isAceOperationalAdmin()
+    )
+  ) {
+    throw new Error(
+      "Somente administradores podem zerar os inventários."
+    );
+  }
+
+
+  const {
+    data: inventories,
+    error: inventoriesError
+  } =
+    await supabaseClient
+      .from("inventarios")
+      .select(
+        "id, status, oculto_historico"
+      )
+      .eq(
+        "oculto_historico",
+        false
+      )
+      .order(
+        "iniciado_em",
+        {
+          ascending:
+            false
+        }
+      );
+
+
+  if (inventoriesError) {
+    throw inventoriesError;
+  }
+
+
+  for (
+    const inventory of
+      inventories || []
+  ) {
+
+    const inventoryId =
+      Number(
+        inventory?.id
+      );
+
+
+    if (
+      !Number.isFinite(
+        inventoryId
+      )
+    ) {
+      continue;
+    }
+
+
+    // Se houver inventário em andamento, cancela primeiro.
+    if (
+      inventory?.status ===
+      "em_andamento"
+    ) {
+
+      const {
+        error: cancelError
+      } =
+        await supabaseClient.rpc(
+          "ace_cancelar_inventario",
+          {
+            p_inventario_id:
+              inventoryId
+          }
+        );
+
+
+      if (cancelError) {
+        throw cancelError;
+      }
+
+    }
+
+
+    // Usa a rotina administrativa já existente para retirar
+    // o inventário do histórico operacional.
+    const {
+      error: hideError
+    } =
+      await supabaseClient.rpc(
+        "ace_excluir_inventario_historico",
+        {
+          p_inventario_id:
+            inventoryId
+        }
+      );
+
+
+    if (hideError) {
+      throw hideError;
+    }
+
+  }
+
+
+  // Limpa o estado local do módulo para que a tela fique
+  // como se nenhum inventário tivesse sido realizado.
+  if (
+    typeof aceInventoryActive !==
+      "undefined"
+  ) {
+    aceInventoryActive =
+      null;
+  }
+
+
+  if (
+    typeof aceInventoryItems !==
+      "undefined"
+  ) {
+    aceInventoryItems =
+      [];
+  }
+
+
+  if (
+    typeof aceInventoryHistory !==
+      "undefined"
+  ) {
+    aceInventoryHistory =
+      [];
+  }
+
+
+  if (
+    typeof aceInventoryLast !==
+      "undefined"
+  ) {
+    aceInventoryLast =
+      null;
+  }
+
+
+  if (
+    typeof aceInventoryLastItems !==
+      "undefined"
+  ) {
+    aceInventoryLastItems =
+      [];
+  }
+
+
+  if (
+    typeof aceInventoryShowOnlyAdjusted !==
+      "undefined"
+  ) {
+    aceInventoryShowOnlyAdjusted =
+      false;
+  }
+
+
+  if (
+    typeof ACE_INVENTORY_CACHE_KEY !==
+      "undefined"
+  ) {
+    localStorage.removeItem(
+      ACE_INVENTORY_CACHE_KEY
+    );
+  }
+
+}
+
+
 async function startAceAdminOperationalReset(triggerButton = null) {
 
   if (
@@ -21090,6 +21267,7 @@ async function startAceAdminOperationalReset(triggerButton = null) {
       "• zerar o estoque de alimentos\n" +
       "• apagar entradas, saídas e perdas\n" +
       "• apagar presenças\n" +
+      "• zerar inventários e apagar o histórico de inventários\n" +
       "• zerar estoque e movimentações de cestas\n" +
       "• apagar cestas montadas/saídas, retiradas, ajustes e estornos operacionais\n" +
       "• apagar o histórico de movimentações\n\n" +
@@ -21158,6 +21336,11 @@ async function startAceAdminOperationalReset(triggerButton = null) {
     }
 
 
+    // O mesmo comando administrativo também deixa o módulo
+    // de inventários como se nenhum inventário tivesse sido realizado.
+    await resetAceInventoriesAfterOperationalReset();
+
+
     // Muito importante:
     // impede que operações offline antigas sejam reenviadas
     // depois do reset e recriem dados que acabaram de ser apagados.
@@ -21173,6 +21356,16 @@ async function startAceAdminOperationalReset(triggerButton = null) {
 
 
     await reloadFromSupabase();
+
+
+    if (
+      typeof refreshAceInventoryState ===
+        "function"
+    ) {
+      await refreshAceInventoryState(
+        false
+      );
+    }
 
 
     window.aceBulkEntryDraft =
@@ -21207,7 +21400,7 @@ async function startAceAdminOperationalReset(triggerButton = null) {
 
     await showAceMessage(
       "Reset operacional concluído com sucesso.\n\n" +
-      "O estoque principal está zerado, o estoque de cestas está zerado e os históricos operacionais foram apagados.\n\n" +
+      "O estoque principal, o estoque de cestas e os inventários foram zerados. Os históricos operacionais e o histórico de inventários foram apagados.\n\n" +
       "Todos os cadastros foram preservados.",
       "✅ Sistema zerado"
     );
@@ -21227,7 +21420,7 @@ async function startAceAdminOperationalReset(triggerButton = null) {
         error?.message ||
         "Erro desconhecido."
       ) +
-      "\n\nNenhuma limpeza parcial deve permanecer, pois o reset é executado em uma única transação no Supabase.",
+      "\n\nVerifique a conexão e tente novamente. Os cadastros permanecem preservados.",
       "❌ Erro no reset"
     );
 
@@ -24776,7 +24969,7 @@ function bindEvents() {
       "🗑️ Zerar movimentações";
 
     resetBtn.title =
-      "Zera entradas, saídas, perdas, presenças, estoque e operações de cestas, preservando os cadastros.";
+      "Zera entradas, saídas, perdas, presenças, estoque, operações de cestas e inventários, preservando os cadastros.";
 
     resetBtn.addEventListener(
       "click",
@@ -42396,6 +42589,7 @@ async function refreshAceInventoryState(render = true) {
     .from("inventarios")
     .select("*")
     .eq("status", "finalizado")
+    .eq("oculto_historico", false)
     .order("finalizado_em", { ascending: false })
     .limit(1);
 
