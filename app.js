@@ -15,13 +15,19 @@
   const STYLE_ID = "aceStartupShieldStyleV1";
   const SHIELD_ID = "aceStartupShield";
 
-  // Tempo mínimo profissional da tela de abertura.
-  // Se o sistema carregar antes, a splash continua até completar 3s.
-  // Se carregar depois, ela permanece até o app estar pronto.
+  // Tempo mínimo profissional SOMENTE para a abertura da página.
+  // Na primeira carga, a splash permanece por no mínimo 3 segundos.
+  // Depois disso, se o usuário fizer login sem recarregar a página,
+  // ela serve apenas para cobrir a montagem do app e não cria
+  // uma nova espera artificial de 3 segundos.
   const MIN_VISIBLE_MS = 3000;
-  const STARTED_AT = Date.now();
+
+  let minimumVisibleUntil =
+    Date.now() + MIN_VISIBLE_MS;
 
   let hideScheduled = false;
+  let hideTimer = null;
+  let shieldCycle = 0;
 
   document.documentElement.classList.add(ROOT_CLASS);
 
@@ -42,6 +48,8 @@
 
       html.${ROOT_CLASS} body > *:not(#${SHIELD_ID}){
         visibility:hidden !important;
+        opacity:0 !important;
+        pointer-events:none !important;
       }
 
       #${SHIELD_ID}{
@@ -163,20 +171,58 @@
   }
 
 
-  window.aceShowStartupShield = function() {
+  window.aceShowStartupShield = function(
+    restartMinimum = false
+  ) {
 
-    document.documentElement.classList.add(ROOT_CLASS);
+    shieldCycle += 1;
+
+    hideScheduled = false;
+
+    if (hideTimer) {
+      window.clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+
+
+    // Somente a abertura real da página reinicia os 3 segundos.
+    // Login posterior não reinicia esse cronômetro.
+    if (restartMinimum) {
+      minimumVisibleUntil =
+        Date.now() + MIN_VISIBLE_MS;
+    }
+
+
+    document.documentElement.classList.add(
+      ROOT_CLASS
+    );
+
+
+    const existingShield =
+      document.getElementById(
+        SHIELD_ID
+      );
+
+
+    if (existingShield) {
+      existingShield.classList.remove(
+        "ace-startup-leaving"
+      );
+    }
+
 
     if (document.body) {
       mountShield();
       return;
     }
 
+
     document.addEventListener(
       "DOMContentLoaded",
       mountShield,
       { once:true }
     );
+
   };
 
 
@@ -186,65 +232,98 @@
       return;
     }
 
+
     hideScheduled = true;
 
+    const currentCycle =
+      shieldCycle;
 
-    const elapsed =
-      Date.now() - STARTED_AT;
 
     const remaining =
       Math.max(
         0,
-        MIN_VISIBLE_MS - elapsed
+        minimumVisibleUntil - Date.now()
       );
 
 
     const release = () => {
 
-      document.documentElement.classList.remove(ROOT_CLASS);
+      // Ignora encerramentos antigos caso uma nova abertura
+      // da proteção tenha começado nesse intervalo.
+      if (
+        currentCycle !==
+        shieldCycle
+      ) {
+        return;
+      }
+
+
+      hideTimer = null;
+
+      document.documentElement.classList.remove(
+        ROOT_CLASS
+      );
+
 
       const shield =
         document.getElementById(
           SHIELD_ID
         );
 
+
       if (!shield) {
+        hideScheduled = false;
         return;
       }
 
 
-      // Mantém o mesmo fade suave da versão anterior.
-      // A barrinha continua animada normalmente até este momento.
+      // Mantém o mesmo fade e a mesma barrinha animada
+      // até o último instante da splash.
       shield.classList.add(
         "ace-startup-leaving"
       );
 
 
       window.setTimeout(
-        () => shield.remove(),
+        () => {
+
+          if (
+            currentCycle ===
+            shieldCycle
+          ) {
+            shield.remove();
+          }
+
+          hideScheduled = false;
+
+        },
         170
       );
+
     };
 
 
-    window.setTimeout(
-      () => {
+    hideTimer =
+      window.setTimeout(
+        () => {
 
-        window.requestAnimationFrame(
-          () =>
-            window.requestAnimationFrame(
-              release
-            )
-        );
+          window.requestAnimationFrame(
+            () =>
+              window.requestAnimationFrame(
+                release
+              )
+          );
 
-      },
-      remaining
-    );
+        },
+        remaining
+      );
 
   };
 
 
-  window.aceShowStartupShield();
+  window.aceShowStartupShield(
+    true
+  );
 
 })();
 
@@ -254,7 +333,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.10-pwa-splash-minimo-3s-v4";
+  "2026.09.10-pwa-splash-login-estavel-v5";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
