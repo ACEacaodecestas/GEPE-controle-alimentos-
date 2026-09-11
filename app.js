@@ -4,6 +4,12 @@
 // V7 + SUPABASE AUTH + PWA + APK + INVENTÁRIO ÁGUA FRIA
 // ============================================================
 
+// Após um logout explícito, o próximo carregamento deve abrir
+// diretamente a tela de login, sem exibir a splash novamente.
+const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
+  "ace_skip_startup_splash_once_v1";
+
+
 // ============================================================
 // ACE - ABERTURA SEM FLASH DO LAYOUT ANTIGO
 // Mantém a interface antiga invisível enquanto o layout novo monta.
@@ -22,8 +28,28 @@
   // uma nova espera artificial de 3 segundos.
   const MIN_VISIBLE_MS = 3000;
 
+
+  const skipStartupSplashOnce =
+    sessionStorage.getItem(
+      ACE_SKIP_STARTUP_SPLASH_ONCE_KEY
+    ) === "1";
+
+
+  if (skipStartupSplashOnce) {
+
+    // Consome a exceção imediatamente.
+    // Assim ela vale somente para o reload provocado pelo botão Sair.
+    sessionStorage.removeItem(
+      ACE_SKIP_STARTUP_SPLASH_ONCE_KEY
+    );
+
+  }
+
+
   let minimumVisibleUntil =
-    Date.now() + MIN_VISIBLE_MS;
+    skipStartupSplashOnce
+      ? Date.now()
+      : Date.now() + MIN_VISIBLE_MS;
 
   let hideScheduled = false;
   let hideTimer = null;
@@ -321,9 +347,27 @@
   };
 
 
-  window.aceShowStartupShield(
-    true
-  );
+  if (
+    skipStartupSplashOnce
+  ) {
+
+    // Pós-logout:
+    // mantém a interface antiga protegida por poucos instantes,
+    // mas NÃO mostra a tela visual de abertura.
+    // startAuth() exibirá diretamente o login.
+    document.documentElement.classList.add(
+      ROOT_CLASS
+    );
+
+  } else {
+
+    // Abertura normal pelo link/ícone:
+    // mantém a splash profissional de 3 segundos.
+    window.aceShowStartupShield(
+      true
+    );
+
+  }
 
 })();
 
@@ -333,7 +377,7 @@
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.10-pwa-splash-login-estavel-v5";
+  "2026.09.10-pwa-splash-sem-pos-logout-v6";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -10626,6 +10670,15 @@ async function logoutUser() {
     "1"
   );
 
+
+  // O reload provocado por este logout deve abrir diretamente
+  // a tela de login, sem mostrar novamente a splash.
+  sessionStorage.setItem(
+    ACE_SKIP_STARTUP_SPLASH_ONCE_KEY,
+    "1"
+  );
+
+
   if (
     typeof teardownAceTeamRealtime ===
       "function"
@@ -10639,6 +10692,10 @@ async function logoutUser() {
 
 
   if (error) {
+
+    sessionStorage.removeItem(
+      ACE_SKIP_STARTUP_SPLASH_ONCE_KEY
+    );
 
     console.error(error);
 
