@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-editar-alimentos-pessoas-simplificado-v17";
+  "2026.09.12-pwa-presenca-simplificada-renome-alimento-global-v18";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4912,21 +4912,22 @@ function openAttendancePersonEditModal(
 
 
   if (!person) {
-    toast(
-      "Pessoa não encontrada."
+
+    showAceMessage(
+      "Pessoa não encontrada.",
+      "Aviso"
     );
+
     return;
+
   }
 
 
-  const old =
-    document.getElementById(
+  document
+    .getElementById(
       "acePersonEditModal"
-    );
-
-  if (old) {
-    old.remove();
-  }
+    )
+    ?.remove();
 
 
   const modal =
@@ -4934,20 +4935,9 @@ function openAttendancePersonEditModal(
       "div"
     );
 
+
   modal.id =
     "acePersonEditModal";
-
-
-  const studyDays = [
-    "",
-    "Segunda-feira",
-    "Terça-feira",
-    "Quarta-feira",
-    "Quinta-feira",
-    "Sexta-feira",
-    "Sábado",
-    "Domingo"
-  ];
 
 
   modal.innerHTML = `
@@ -4975,59 +4965,6 @@ function openAttendancePersonEditModal(
             id="acePersonEditRegistration"
             type="text"
             value="${esc(person.registration || "")}"
-          >
-        </label>
-
-        <label class="ace-person-edit-field">
-          Qual EDE
-          <input
-            id="acePersonEditEde"
-            type="text"
-            value="${esc(person.ede || "")}"
-            placeholder="Ex.: ESDE 1"
-          >
-        </label>
-
-        <label class="ace-person-edit-field">
-          Dia de Estudo
-          <select id="acePersonEditStudyDay">
-            ${
-              studyDays
-                .map(
-                  day => `
-                    <option
-                      value="${esc(day)}"
-                      ${
-                        day ===
-                        (person.studyDay || "")
-                          ? "selected"
-                          : ""
-                      }
-                    >
-                      ${day || "Selecione..."}
-                    </option>
-                  `
-                )
-                .join("")
-            }
-          </select>
-        </label>
-
-        <label class="ace-person-edit-field">
-          Horário
-          <input
-            id="acePersonEditStudyTime"
-            type="time"
-            value="${esc(person.studyTime || "")}"
-          >
-        </label>
-
-        <label class="ace-person-edit-field">
-          Sede
-          <input
-            id="acePersonEditSede"
-            type="text"
-            value="${esc(person.sede || "")}"
           >
         </label>
 
@@ -5082,6 +5019,7 @@ function openAttendancePersonEditModal(
             "acePersonEditSave"
           );
 
+
         const name =
           document
             .getElementById(
@@ -5089,6 +5027,7 @@ function openAttendancePersonEditModal(
             )
             .value
             .trim();
+
 
         const registration =
           document
@@ -5098,75 +5037,61 @@ function openAttendancePersonEditModal(
             .value
             .trim();
 
-        const ede =
-          document
-            .getElementById(
-              "acePersonEditEde"
-            )
-            .value
-            .trim();
-
-        const studyDay =
-          document
-            .getElementById(
-              "acePersonEditStudyDay"
-            )
-            .value
-            .trim();
-
-        const studyTime =
-          document
-            .getElementById(
-              "acePersonEditStudyTime"
-            )
-            .value
-            .trim();
-
-        const sede =
-          document
-            .getElementById(
-              "acePersonEditSede"
-            )
-            .value
-            .trim();
-
 
         if (
           !name ||
           !registration
         ) {
-          toast(
-            "Informe nome e matrícula."
+
+          await showAceMessage(
+            "Informe nome e matrícula.",
+            "Campos obrigatórios"
           );
+
           return;
+
         }
 
 
-        saveButton.disabled = true;
+        saveButton.disabled =
+          true;
+
         saveButton.textContent =
           "Salvando...";
 
 
         try {
 
+          // Mantém os campos antigos no banco sem exibi-los
+          // e sem permitir edição pela tela de Presença.
           await updatePerson({
             id:
               person.id,
             name,
             registration,
-            ede,
-            studyDay,
-            studyTime,
-            sede
+            ede:
+              person.ede || "",
+            studyDay:
+              person.studyDay || "",
+            studyTime:
+              person.studyTime || "",
+            sede:
+              person.sede || ""
           });
 
 
           modal.remove();
 
+
           await reloadFromSupabase();
 
-          showAceSuccess(
-            "Cadastro atualizado com sucesso!"
+          renderAttendance();
+          renderCadastros();
+
+
+          await showAceMessage(
+            "Cadastro atualizado com sucesso.",
+            "Alteração concluída"
           );
 
 
@@ -5177,12 +5102,14 @@ function openAttendancePersonEditModal(
             error
           );
 
-          toast(
-            "Não foi possível editar a pessoa: " +
+
+          await showAceMessage(
+            "Não foi possível editar a pessoa.\n\n" +
             (
               error?.message ||
-              "verifique o Supabase."
-            )
+              "Verifique a conexão e tente novamente."
+            ),
+            "Não foi possível salvar"
           );
 
 
@@ -5193,9 +5120,13 @@ function openAttendancePersonEditModal(
               saveButton
             )
           ) {
-            saveButton.disabled = false;
+
+            saveButton.disabled =
+              false;
+
             saveButton.textContent =
               "💾 Salvar";
+
           }
 
         }
@@ -5595,8 +5526,23 @@ async function editAceFood(
 
   try {
 
+    const oldName =
+      String(
+        food.name || ""
+      );
+
+
     await updateFoodName(
       food.id,
+      cleanName
+    );
+
+
+    // Se este alimento faz parte do estoque-base informado,
+    // transfere o nome da referência para o novo nome.
+    // A quantidade permanece vinculada ao mesmo alimento.
+    registerAceStockReferenceRename(
+      oldName,
       cleanName
     );
 
@@ -5607,7 +5553,9 @@ async function editAceFood(
 
     await reloadFromSupabase();
 
-    renderCadastros();
+    // Entradas, saídas, perdas, históricos, estatísticas
+    // e estoque usam o cadastro atual do alimento.
+    renderAll();
 
 
     await showAceMessage(
@@ -11522,7 +11470,9 @@ function calcStock() {
                     item.name
                   ) ===
                   normalizeAceText(
-                    target.name
+                    getAceStockReferenceEffectiveName(
+                      target
+                    )
                   )
               );
 
@@ -15363,15 +15313,7 @@ function renderAttendance() {
         (
           p.name +
           " " +
-          p.registration +
-          " " +
-          (p.ede || "") +
-          " " +
-          (p.studyDay || "") +
-          " " +
-          (p.studyTime || "") +
-          " " +
-          (p.sede || "")
+          p.registration
         )
           .toLowerCase()
           .includes(q)
@@ -15417,10 +15359,6 @@ function renderAttendance() {
 
                   <div class="person-reg">
                     Matrícula: ${esc(p.registration)}
-                    ${String(p.ede || "").trim() ? ` · EDE: ${esc(p.ede)}` : ""}
-                    ${String(p.studyDay || "").trim() ? ` · Dia de Estudo: ${esc(p.studyDay)}` : ""}
-                    ${String(p.studyTime || "").trim() ? ` · Horário: ${esc(p.studyTime)}` : ""}
-                    ${String(p.sede || "").trim() ? ` · Sede: ${esc(p.sede)}` : ""}
                   </div>
 
                 </div>
@@ -15603,6 +15541,169 @@ const ACE_STOCK_REFERENCE_20260912 = [
 const ACE_STOCK_REFERENCE_IMPORT_KEY =
   "ace_stock_reference_20260912_applied_v1";
 
+
+const ACE_STOCK_REFERENCE_RENAMES_KEY =
+  "ace_stock_reference_renames_v1";
+
+
+function loadAceStockReferenceRenames() {
+
+  try {
+
+    const parsed =
+      JSON.parse(
+        localStorage.getItem(
+          ACE_STOCK_REFERENCE_RENAMES_KEY
+        ) || "{}"
+      );
+
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : {};
+
+  } catch {
+
+    return {};
+
+  }
+
+}
+
+
+function saveAceStockReferenceRenames(
+  map
+) {
+
+  localStorage.setItem(
+    ACE_STOCK_REFERENCE_RENAMES_KEY,
+    JSON.stringify(
+      map || {}
+    )
+  );
+
+}
+
+
+function getAceStockReferenceEffectiveName(
+  target
+) {
+
+  const originalName =
+    String(
+      target?.name || ""
+    );
+
+
+  const key =
+    getAceStockReferenceNormalizedName(
+      originalName
+    );
+
+
+  const map =
+    loadAceStockReferenceRenames();
+
+
+  return String(
+    map[key] ||
+    originalName
+  );
+
+}
+
+
+function registerAceStockReferenceRename(
+  oldName,
+  newName
+) {
+
+  const oldNormalized =
+    getAceStockReferenceNormalizedName(
+      oldName
+    );
+
+
+  const cleanNewName =
+    String(
+      newName || ""
+    )
+      .trim();
+
+
+  if (
+    !oldNormalized ||
+    !cleanNewName
+  ) {
+    return false;
+  }
+
+
+  const map =
+    loadAceStockReferenceRenames();
+
+
+  const target =
+    ACE_STOCK_REFERENCE_20260912
+      .find(
+        item => {
+
+          const originalKey =
+            getAceStockReferenceNormalizedName(
+              item.name
+            );
+
+
+          const effectiveName =
+            String(
+              map[originalKey] ||
+              item.name
+            );
+
+
+          return (
+            getAceStockReferenceNormalizedName(
+              item.name
+            ) ===
+              oldNormalized ||
+            getAceStockReferenceNormalizedName(
+              effectiveName
+            ) ===
+              oldNormalized
+          );
+
+        }
+      );
+
+
+  if (!target) {
+    return false;
+  }
+
+
+  const originalKey =
+    getAceStockReferenceNormalizedName(
+      target.name
+    );
+
+
+  map[originalKey] =
+    cleanNewName;
+
+
+  saveAceStockReferenceRenames(
+    map
+  );
+
+
+  return true;
+
+}
+
 function getAceStockReferenceNormalizedName(
   value
 ) {
@@ -15631,7 +15732,9 @@ function getAceStockReferenceItemByName(
       .find(
         item =>
           getAceStockReferenceNormalizedName(
-            item.name
+            getAceStockReferenceEffectiveName(
+              item
+            )
           ) ===
           normalized
       ) ||
@@ -15732,7 +15835,9 @@ async function applyAceStockReference20260912Once() {
               food.name
             ) ===
             getAceStockReferenceNormalizedName(
-              target.name
+              getAceStockReferenceEffectiveName(
+                target
+              )
             )
         );
 
@@ -15740,7 +15845,9 @@ async function applyAceStockReference20260912Once() {
     if (!exists) {
 
       await insertFood(
-        target.name
+        getAceStockReferenceEffectiveName(
+          target
+        )
       );
 
       insertedFood =
@@ -15813,7 +15920,9 @@ async function applyAceStockReference20260912Once() {
               item.name
             ) ===
             getAceStockReferenceNormalizedName(
-              target.name
+              getAceStockReferenceEffectiveName(
+                target
+              )
             )
         );
 
@@ -16053,7 +16162,9 @@ function getAceStockReferenceDisplayRows() {
                   item.name
                 ) ===
                 getAceStockReferenceNormalizedName(
-                  target.name
+                  getAceStockReferenceEffectiveName(
+                    target
+                  )
                 )
             );
 
@@ -16077,7 +16188,9 @@ function getAceStockReferenceDisplayRows() {
 
         return {
           name:
-            target.name,
+            getAceStockReferenceEffectiveName(
+              target
+            ),
           qty:
             Number(
               qty || 0
