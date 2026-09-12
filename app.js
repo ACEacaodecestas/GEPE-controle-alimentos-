@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-esqueci-senha-cancelar-v15";
+  "2026.09.12-pwa-editar-alimentos-pessoas-simplificado-v17";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -5269,6 +5269,372 @@ async function deleteAttendancePerson(
 }
 
 
+async function updateFoodName(
+  id,
+  name
+) {
+
+  const foodId =
+    Number(id);
+
+  const cleanName =
+    String(
+      name || ""
+    )
+      .trim();
+
+
+  if (
+    !Number.isFinite(
+      foodId
+    )
+  ) {
+    throw new Error(
+      "Alimento inválido."
+    );
+  }
+
+
+  if (!cleanName) {
+    throw new Error(
+      "Informe o nome do alimento."
+    );
+  }
+
+
+  const duplicate =
+    (db.foods || [])
+      .some(
+        food =>
+          Number(food.id) !==
+            foodId &&
+          normalizeAceText(
+            food.name
+          ) ===
+            normalizeAceText(
+              cleanName
+            )
+      );
+
+
+  if (duplicate) {
+    throw new Error(
+      "Já existe um alimento cadastrado com esse nome."
+    );
+  }
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from("Alimentos")
+      .update({
+        nome:
+          cleanName
+      })
+      .eq(
+        "id",
+        foodId
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+}
+
+
+function showAceFoodEditDialog(
+  food
+) {
+
+  return new Promise(
+    resolve => {
+
+      ensureAceProfessionalDialogStyles();
+
+
+      document
+        .getElementById(
+          "aceCustomModal"
+        )
+        ?.remove();
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+
+      overlay.id =
+        "aceCustomModal";
+
+
+      overlay.innerHTML = `
+        <div
+          class="ace-pro-dialog-card"
+          data-tone="info"
+          data-dialog-kind="input"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="aceFoodEditDialogTitle"
+        >
+          <div class="ace-pro-dialog-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"></path>
+            </svg>
+          </div>
+
+          <div
+            id="aceFoodEditDialogTitle"
+            class="ace-pro-dialog-title"
+          >
+            Editar alimento
+          </div>
+
+          <div class="ace-pro-dialog-message">
+            Altere o nome do alimento e confirme para salvar.
+          </div>
+
+          <input
+            id="aceFoodEditName"
+            class="ace-pro-dialog-input"
+            type="text"
+            maxlength="120"
+            autocomplete="off"
+          >
+
+          <div class="ace-pro-dialog-actions">
+            <button
+              type="button"
+              class="ace-pro-dialog-button ace-pro-dialog-secondary ace-food-edit-cancel"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              class="ace-pro-dialog-button ace-pro-dialog-primary ace-food-edit-save"
+            >
+              Salvar
+            </button>
+          </div>
+        </div>
+      `;
+
+
+      document.body.appendChild(
+        overlay
+      );
+
+
+      const input =
+        overlay.querySelector(
+          "#aceFoodEditName"
+        );
+
+
+      input.value =
+        String(
+          food?.name || ""
+        );
+
+
+      let closed =
+        false;
+
+
+      const close =
+        value => {
+
+          if (closed) {
+            return;
+          }
+
+
+          closed =
+            true;
+
+          overlay.remove();
+          resolve(value);
+
+        };
+
+
+      overlay
+        .querySelector(
+          ".ace-food-edit-cancel"
+        )
+        .addEventListener(
+          "click",
+          () =>
+            close(
+              null
+            )
+        );
+
+
+      overlay
+        .querySelector(
+          ".ace-food-edit-save"
+        )
+        .addEventListener(
+          "click",
+          () =>
+            close(
+              input.value
+            )
+        );
+
+
+      input.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key ===
+            "Enter"
+          ) {
+            close(
+              input.value
+            );
+          }
+
+
+          if (
+            event.key ===
+            "Escape"
+          ) {
+            close(
+              null
+            );
+          }
+
+        }
+      );
+
+
+      input.focus();
+      input.select();
+
+    }
+  );
+
+}
+
+
+async function editAceFood(
+  id
+) {
+
+  const food =
+    (db.foods || [])
+      .find(
+        item =>
+          Number(item.id) ===
+          Number(id)
+      );
+
+
+  if (!food) {
+
+    await showAceMessage(
+      "Este alimento não foi encontrado no cadastro.",
+      "Aviso"
+    );
+
+    return;
+  }
+
+
+  const newName =
+    await showAceFoodEditDialog(
+      food
+    );
+
+
+  if (
+    newName == null
+  ) {
+    return;
+  }
+
+
+  const cleanName =
+    String(
+      newName
+    )
+      .trim();
+
+
+  if (!cleanName) {
+
+    await showAceMessage(
+      "Informe o nome do alimento.",
+      "Campo obrigatório"
+    );
+
+    return;
+  }
+
+
+  if (
+    cleanName ===
+    String(
+      food.name || ""
+    )
+      .trim()
+  ) {
+    return;
+  }
+
+
+  try {
+
+    await updateFoodName(
+      food.id,
+      cleanName
+    );
+
+
+    food.name =
+      cleanName;
+
+
+    await reloadFromSupabase();
+
+    renderCadastros();
+
+
+    await showAceMessage(
+      "Alimento atualizado com sucesso.",
+      "Alteração concluída"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO EDITAR ALIMENTO:",
+      error
+    );
+
+
+    await showAceMessage(
+      error?.message ||
+        "Não foi possível editar o alimento.",
+      "Não foi possível salvar"
+    );
+
+  }
+
+}
+
+
 async function insertFood(name) {
   const id = newNumericId();
   const { error } = await supabaseClient.from("Alimentos").insert({ id, nome: name, unidade: "unidade", ativo: true, usuario_id: getCurrentUserId() });
@@ -7245,62 +7611,24 @@ function toast(msg) {
 // ============================================================
 function showAceSuccess(message) {
 
-  document.getElementById("aceSuccessMessage")?.remove();
+  const cleanMessage =
+    String(
+      message || ""
+    )
+      .replace(
+        /^\s*✅\s*/,
+        ""
+      )
+      .trim();
 
-  clearTimeout(window._aceSuccessTimer);
 
-  const overlay = document.createElement("div");
-  overlay.id = "aceSuccessMessage";
+  // Usa exatamente o mesmo sistema profissional de mensagens
+  // já adotado no restante da aplicação.
+  return showAceMessage(
+    cleanMessage,
+    "Operação concluída"
+  );
 
-  overlay.innerHTML = `
-    <div style="
-      position:fixed;
-      inset:0;
-      z-index:1000005;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-      pointer-events:none;
-      background:rgba(11,58,99,.12);
-      backdrop-filter:blur(1px);
-    ">
-      <div style="
-        width:min(460px,calc(100vw - 40px));
-        box-sizing:border-box;
-        padding:28px 30px;
-        border:2px solid #22a65a;
-        border-radius:18px;
-        background:#ffffff;
-        box-shadow:0 18px 50px rgba(0,0,0,.22);
-        text-align:center;
-        font-family:inherit;
-      ">
-        <div style="
-          margin-bottom:10px;
-          font-size:46px;
-          line-height:1;
-        ">✅</div>
-        <div style="
-          color:#169447;
-          font-size:22px;
-          font-weight:900;
-          line-height:1.4;
-        ">${esc(message)}</div>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  window._aceSuccessTimer = setTimeout(() => {
-    overlay.style.transition = "opacity .35s ease";
-    overlay.style.opacity = "0";
-
-    setTimeout(() => {
-      overlay.remove();
-    }, 350);
-  }, 2000);
 }
 
 
@@ -18282,136 +18610,154 @@ function renderReport() {
 function ensurePersonExtraFields() {
 
   const form =
-    document.getElementById("personForm");
+    document.getElementById(
+      "personForm"
+    );
 
-  if (!form || form.dataset.acePersonExtraFields === "1") {
+
+  if (!form) {
     return;
   }
 
-  form.dataset.acePersonExtraFields = "1";
-  form.classList.add("ace-person-form-expanded");
 
-  const submit =
-    form.querySelector('button[type="submit"]');
+  // Cadastro de Pessoas deve possuir somente:
+  // Nome completo + Matrícula.
+  form.classList.remove(
+    "ace-person-form-expanded"
+  );
 
-  const fields =
-    document.createElement("div");
 
-  fields.className = "ace-person-extra-fields";
+  form
+    .querySelector(
+      ".ace-person-extra-fields"
+    )
+    ?.remove();
 
-  fields.innerHTML = `
-    <label class="ace-person-field">
-      <span>Qual EDE</span>
-      <input
-        name="ede"
-        type="text"
-        placeholder="Ex.: ESDE 1"
-      >
-    </label>
 
-    <label class="ace-person-field">
-      <span>Dia de Estudo</span>
-      <select name="studyDay">
-        <option value="">Selecione...</option>
-        <option value="Segunda-feira">Segunda-feira</option>
-        <option value="Terça-feira">Terça-feira</option>
-        <option value="Quarta-feira">Quarta-feira</option>
-        <option value="Quinta-feira">Quinta-feira</option>
-        <option value="Sexta-feira">Sexta-feira</option>
-        <option value="Sábado">Sábado</option>
-        <option value="Domingo">Domingo</option>
-      </select>
-    </label>
+  delete form.dataset
+    .acePersonExtraFields;
 
-    <label class="ace-person-field">
-      <span>Horário</span>
-      <input
-        name="studyTime"
-        type="time"
-      >
-    </label>
 
-    <label class="ace-person-field">
-      <span>Sede</span>
-      <input
-        name="sede"
-        type="text"
-        placeholder="Ex.: Sede Água Fria"
-      >
-    </label>
+  document
+    .getElementById(
+      "acePersonExtraFieldsStyle"
+    )
+    ?.remove();
+
+}
+
+
+function ensureAceFoodCadastroActionsStyles() {
+
+  if (
+    document.getElementById(
+      "aceFoodCadastroActionsStyles"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceFoodCadastroActionsStyles";
+
+
+  style.textContent = `
+    #foodsTable .mini-row{
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) auto !important;
+      align-items:center !important;
+      gap:12px !important;
+    }
+
+    #foodsTable .ace-food-cadastro-actions{
+      display:flex !important;
+      align-items:center !important;
+      justify-content:flex-end !important;
+      gap:8px !important;
+      flex-wrap:nowrap !important;
+      width:auto !important;
+      min-width:max-content !important;
+      visibility:visible !important;
+      opacity:1 !important;
+    }
+
+    #foodsTable .ace-food-cadastro-actions button{
+      display:inline-flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:auto !important;
+      min-width:94px !important;
+      min-height:44px !important;
+      margin:0 !important;
+      padding:9px 14px !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      white-space:nowrap !important;
+      border-radius:10px !important;
+      font-family:inherit !important;
+      font-size:14px !important;
+      font-weight:900 !important;
+      cursor:pointer !important;
+    }
+
+    #foodsTable .ace-food-edit-btn{
+      border:1px solid #075a94 !important;
+      background:#ffffff !important;
+      color:#075a94 !important;
+      box-shadow:0 4px 12px rgba(4,59,99,.06) !important;
+    }
+
+    #foodsTable .ace-food-edit-btn:hover{
+      border-color:#0872b9 !important;
+      background:#eef7fd !important;
+      color:#064f83 !important;
+    }
+
+    #foodsTable .ace-food-delete-btn{
+      border:1px solid #efbbb7 !important;
+      background:#fff1f0 !important;
+      color:#d92d20 !important;
+      box-shadow:none !important;
+    }
+
+    @media(max-width:620px){
+
+      #foodsTable .mini-row{
+        grid-template-columns:minmax(0,1fr) !important;
+      }
+
+      #foodsTable .ace-food-cadastro-actions{
+        width:100% !important;
+        justify-content:flex-end !important;
+      }
+
+      #foodsTable .ace-food-cadastro-actions button{
+        flex:1 1 0 !important;
+        min-width:0 !important;
+      }
+
+    }
   `;
 
-  if (submit) {
-    form.insertBefore(fields, submit);
-  } else {
-    form.appendChild(fields);
-  }
 
-  if (!document.getElementById("acePersonExtraFieldsStyle")) {
-    const style = document.createElement("style");
-    style.id = "acePersonExtraFieldsStyle";
-    style.textContent = `
-      #personForm.ace-person-form-expanded{
-        display:grid !important;
-        grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
-        gap:12px;
-        align-items:end;
-      }
+  document.head.appendChild(
+    style
+  );
 
-      #personForm .ace-person-extra-fields{
-        grid-column:1 / -1;
-        display:grid;
-        grid-template-columns:repeat(4,minmax(0,1fr));
-        gap:12px;
-      }
-
-      #personForm .ace-person-field{
-        display:flex;
-        flex-direction:column;
-        gap:6px;
-        color:#344054;
-        font-size:13px;
-        font-weight:800;
-      }
-
-      #personForm .ace-person-field input,
-      #personForm .ace-person-field select{
-        width:100%;
-        min-height:48px;
-        box-sizing:border-box;
-        padding:10px 12px;
-        border:1px solid #d0dbe5;
-        border-radius:10px;
-        background:#fff;
-        color:#172b3a;
-        font:inherit;
-      }
-
-      @media(max-width:900px){
-        #personForm.ace-person-form-expanded{
-          grid-template-columns:1fr;
-        }
-        #personForm .ace-person-extra-fields{
-          grid-template-columns:1fr 1fr;
-        }
-        #personForm.ace-person-form-expanded button[type="submit"]{
-          width:100%;
-        }
-      }
-
-      @media(max-width:600px){
-        #personForm .ace-person-extra-fields{
-          grid-template-columns:1fr;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
 }
+
 
 function renderCadastros() {
 
   ensurePersonExtraFields();
+  ensureAceFoodCadastroActionsStyles();
 
   const people =
     document.getElementById(
@@ -18442,10 +18788,6 @@ function renderCadastros() {
 
                     <small>
                       Matrícula: ${esc(p.registration)}
-                      ${p.ede ? `<br>EDE: ${esc(p.ede)}` : ""}
-                      ${p.studyDay ? `<br>Dia de Estudo: ${esc(p.studyDay)}` : ""}
-                      ${p.studyTime ? `<br>Horário: ${esc(p.studyTime)}` : ""}
-                      ${p.sede ? `<br>Sede: ${esc(p.sede)}` : ""}
                     </small>
 
                   </span>
@@ -18506,12 +18848,25 @@ function renderCadastros() {
                     ${esc(p.name)}
                   </span>
 
-                  <button
-                    class="btn danger-btn"
-                    data-del-food="${p.id}"
-                  >
-                    Excluir
-                  </button>
+                  <div class="ace-food-cadastro-actions">
+
+                    <button
+                      class="btn ace-food-edit-btn"
+                      data-edit-food="${p.id}"
+                      type="button"
+                    >
+                      ✏️ Editar
+                    </button>
+
+                    <button
+                      class="btn danger-btn ace-food-delete-btn"
+                      data-del-food="${p.id}"
+                      type="button"
+                    >
+                      Excluir
+                    </button>
+
+                  </div>
 
                 </div>
 
@@ -18626,6 +18981,20 @@ function renderCadastros() {
             delBy(
               "people",
               b.dataset.delPerson
+            )
+    );
+
+
+  document
+    .querySelectorAll(
+      "[data-edit-food]"
+    )
+    .forEach(
+      b =>
+        b.onclick =
+          () =>
+            editAceFood(
+              b.dataset.editFood
             )
     );
 
@@ -25825,10 +26194,12 @@ function bindEvents() {
       const f = new FormData(e.target);
       const name = String(f.get("name") || "").trim();
       const registration = String(f.get("registration") || "").trim();
-      const ede = String(f.get("ede") || "").trim();
-      const studyDay = String(f.get("studyDay") || "").trim();
-      const studyTime = String(f.get("studyTime") || "").trim();
-      const sede = String(f.get("sede") || "").trim();
+
+      // Cadastro simplificado: somente Nome e Matrícula.
+      const ede = "";
+      const studyDay = "";
+      const studyTime = "";
+      const sede = "";
 
       if (!name || !registration) {
         toast("Informe nome e matrícula.");
