@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-renome-alimento-por-id-global-v19";
+  "2026.09.12-pwa-edicao-pessoa-no-cadastro-mensagens-v20";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -3438,6 +3438,7 @@ async function syncCurrentUserProfile() {
 
 
   const {
+    data,
     error
   } =
     await supabaseClient
@@ -4637,6 +4638,7 @@ async function updatePerson({
 }) {
 
   const {
+    data,
     error
   } =
     await supabaseClient
@@ -4658,11 +4660,22 @@ async function updatePerson({
       .eq(
         "id",
         Number(id)
-      );
+      )
+      .select("id");
 
 
   if (error) {
     throw error;
+  }
+
+
+  if (
+    !Array.isArray(data) ||
+    !data.length
+  ) {
+    throw new Error(
+      "A pessoa não foi atualizada no banco de dados."
+    );
   }
 
 }
@@ -4897,7 +4910,7 @@ function ensureAttendancePersonActionsStyle() {
 }
 
 
-function openAttendancePersonEditModal(
+function openPersonEditModal(
   personId
 ) {
 
@@ -5063,8 +5076,9 @@ function openAttendancePersonEditModal(
 
         try {
 
-          // Mantém os campos antigos no banco sem exibi-los
-          // e sem permitir edição pela tela de Presença.
+          // O ID da pessoa é preservado. Por isso, nome e matrícula
+          // atualizados passam a aparecer também na Presença e nos
+          // históricos existentes, sem recriar ou duplicar registros.
           await updatePerson({
             id:
               person.id,
@@ -5086,13 +5100,9 @@ function openAttendancePersonEditModal(
 
           await reloadFromSupabase();
 
-          renderAttendance();
-          renderCadastros();
-
-
-          await showAceMessage(
-            "Cadastro atualizado com sucesso.",
-            "Alteração concluída"
+          await showAceSuccess(
+            "Os dados da pessoa foram atualizados na Presença e nos históricos.",
+            "Cadastro atualizado"
           );
 
 
@@ -7251,7 +7261,7 @@ function getAceDialogProfile(
 
 
   if (
-    /sucesso|concluido|concluida|enviado|enviada|restabelecida/.test(
+    /sucesso|concluid|cadastrad|registrad|atualizad|realizad|enviad|restabelecid/.test(
       normalized
     )
   ) {
@@ -7545,7 +7555,11 @@ function showAceMessage(
               type="button"
               class="ace-pro-dialog-button ace-pro-dialog-primary ace-message-modal-ok"
             >
-              Entendi
+              ${esc(
+                profile.tone === "success"
+                  ? profile.confirmLabel || "Concluir"
+                  : "Entendi"
+              )}
             </button>
           </div>
         </div>
@@ -7605,7 +7619,35 @@ function showAceMessage(
 function toast(msg) {
 
   // Substitui completamente o antigo toast preto inferior
-  // por uma janela central padronizada.
+  // por uma janela central padronizada. Mensagens positivas
+  // recebem confirmação verde em vez do título "Aviso".
+  const normalized =
+    String(msg || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+
+  const isNegative =
+    /erro|nao foi possivel|informe|obrigatorio|invalido|ja existe|insuficiente|falha/.test(
+      normalized
+    );
+
+
+  const isPositive =
+    /cadastrad|registrad|atualizad|excluid|removid|gerad|sincronizad|salv|concluid|publicad|realizad|iniciad|finalizad|cancelad|liberad/.test(
+      normalized
+    );
+
+
+  if (
+    isPositive &&
+    !isNegative
+  ) {
+    return showAceSuccess(msg);
+  }
+
+
   return showAceMessage(
     msg,
     "ℹ️ Aviso"
@@ -7617,9 +7659,12 @@ function toast(msg) {
 // ============================================================
 // MENSAGEM CENTRAL DE SUCESSO
 // ============================================================
-function showAceSuccess(message) {
+function showAceSuccess(
+  message,
+  title = "Operação concluída"
+) {
 
-  const cleanMessage =
+  let cleanMessage =
     String(
       message || ""
     )
@@ -7630,11 +7675,25 @@ function showAceSuccess(message) {
       .trim();
 
 
+  cleanMessage =
+    cleanMessage
+      .replace(/!+\s*$/, ".")
+      .trim();
+
+
+  if (
+    cleanMessage &&
+    !/[.!?]$/.test(cleanMessage)
+  ) {
+    cleanMessage += ".";
+  }
+
+
   // Usa exatamente o mesmo sistema profissional de mensagens
   // já adotado no restante da aplicação.
   return showAceMessage(
     cleanMessage,
-    "Operação concluída"
+    title
   );
 
 }
@@ -15414,18 +15473,6 @@ function renderAttendance() {
 
                 </div>
 
-                <div class="ace-attendance-actions">
-
-                  <button
-                    type="button"
-                    class="ace-attendance-edit"
-                    data-attendance-edit-person="${p.id}"
-                  >
-                    ✏️ Editar
-                  </button>
-
-                </div>
-
                 <label class="switch ace-attendance-switch-wrap">
 
                   <input
@@ -15518,27 +15565,6 @@ function renderAttendance() {
 
           }
         );
-
-      }
-    );
-
-
-  document
-    .querySelectorAll(
-      "[data-attendance-edit-person]"
-    )
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            openAttendancePersonEditModal(
-              Number(
-                button
-                  .dataset
-                  .attendanceEditPerson
-              )
-            );
 
       }
     );
@@ -19025,6 +19051,7 @@ function ensureAceFoodCadastroActionsStyles() {
 
 
   style.textContent = `
+    #peopleTable .mini-row,
     #foodsTable .mini-row{
       display:grid !important;
       grid-template-columns:minmax(0,1fr) auto !important;
@@ -19032,6 +19059,7 @@ function ensureAceFoodCadastroActionsStyles() {
       gap:12px !important;
     }
 
+    #peopleTable .ace-person-cadastro-actions,
     #foodsTable .ace-food-cadastro-actions{
       display:flex !important;
       align-items:center !important;
@@ -19044,6 +19072,7 @@ function ensureAceFoodCadastroActionsStyles() {
       opacity:1 !important;
     }
 
+    #peopleTable .ace-person-cadastro-actions button,
     #foodsTable .ace-food-cadastro-actions button{
       display:inline-flex !important;
       align-items:center !important;
@@ -19063,6 +19092,7 @@ function ensureAceFoodCadastroActionsStyles() {
       cursor:pointer !important;
     }
 
+    #peopleTable .ace-person-edit-btn,
     #foodsTable .ace-food-edit-btn{
       border:1px solid #075a94 !important;
       background:#ffffff !important;
@@ -19070,12 +19100,14 @@ function ensureAceFoodCadastroActionsStyles() {
       box-shadow:0 4px 12px rgba(4,59,99,.06) !important;
     }
 
+    #peopleTable .ace-person-edit-btn:hover,
     #foodsTable .ace-food-edit-btn:hover{
       border-color:#0872b9 !important;
       background:#eef7fd !important;
       color:#064f83 !important;
     }
 
+    #peopleTable .ace-person-delete-btn,
     #foodsTable .ace-food-delete-btn{
       border:1px solid #efbbb7 !important;
       background:#fff1f0 !important;
@@ -19085,15 +19117,18 @@ function ensureAceFoodCadastroActionsStyles() {
 
     @media(max-width:620px){
 
+      #peopleTable .mini-row,
       #foodsTable .mini-row{
         grid-template-columns:minmax(0,1fr) !important;
       }
 
+      #peopleTable .ace-person-cadastro-actions,
       #foodsTable .ace-food-cadastro-actions{
         width:100% !important;
         justify-content:flex-end !important;
       }
 
+      #peopleTable .ace-person-cadastro-actions button,
       #foodsTable .ace-food-cadastro-actions button{
         flex:1 1 0 !important;
         min-width:0 !important;
@@ -19113,6 +19148,7 @@ function ensureAceFoodCadastroActionsStyles() {
 function renderCadastros() {
 
   ensurePersonExtraFields();
+  ensureAttendancePersonActionsStyle();
   ensureAceFoodCadastroActionsStyles();
 
   const people =
@@ -19148,12 +19184,25 @@ function renderCadastros() {
 
                   </span>
 
-                  <button
-                    class="btn danger-btn"
-                    data-del-person="${p.id}"
-                  >
-                    Excluir
-                  </button>
+                  <div class="ace-person-cadastro-actions">
+
+                    <button
+                      class="btn ace-person-edit-btn"
+                      data-edit-person="${p.id}"
+                      type="button"
+                    >
+                      ✏️ Editar
+                    </button>
+
+                    <button
+                      class="btn danger-btn ace-person-delete-btn"
+                      data-del-person="${p.id}"
+                      type="button"
+                    >
+                      Excluir
+                    </button>
+
+                  </div>
 
                 </div>
 
@@ -19324,6 +19373,22 @@ function renderCadastros() {
     `;
 
   }
+
+
+  document
+    .querySelectorAll(
+      "[data-edit-person]"
+    )
+    .forEach(
+      button =>
+        button.onclick =
+          () =>
+            openPersonEditModal(
+              Number(
+                button.dataset.editPerson
+              )
+            )
+    );
 
 
   document
@@ -26573,7 +26638,10 @@ function bindEvents() {
         });
         await reloadFromSupabase();
         e.target.reset();
-        showAceSuccess("Pessoa cadastrada com sucesso.");
+        showAceSuccess(
+          "Pessoa cadastrada com sucesso.",
+          "Cadastro concluído"
+        );
       } catch (error) {
         console.error(error);
         toast("Erro ao cadastrar pessoa: " + (error?.message || "verifique o Supabase."));
@@ -26598,7 +26666,10 @@ function bindEvents() {
         await insertFood(name);
         await reloadFromSupabase();
         e.target.reset();
-        toast("Alimento cadastrado no Supabase.");
+        showAceSuccess(
+          "Alimento cadastrado com sucesso.",
+          "Cadastro concluído"
+        );
       } catch (error) {
         console.error(error);
         toast("Erro ao cadastrar alimento: " + (error?.message || "verifique o Supabase."));
@@ -26623,7 +26694,10 @@ function bindEvents() {
         await insertOrigin(name);
         await reloadFromSupabase();
         e.target.reset();
-        toast("Origem cadastrada no Supabase.");
+        showAceSuccess(
+          "Origem cadastrada com sucesso.",
+          "Cadastro concluído"
+        );
       } catch (error) {
         console.error(error);
         toast("Erro ao cadastrar origem: " + (error?.message || "verifique o Supabase."));
@@ -26655,7 +26729,10 @@ function bindEvents() {
       saveLocalReasons();
       e.target.reset();
       renderAll();
-      toast("Motivo adicionado nesta sessão.");
+      showAceSuccess(
+        "Motivo adicionado com sucesso.",
+        "Cadastro concluído"
+      );
     });
   }
 
