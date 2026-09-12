@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.11-pwa-reset-tambem-zera-inventarios-v7";
+  "2026.09.12-pwa-exclusao-alimento-somente-estoque-zero-v13";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -3838,6 +3838,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     supabaseClient
       .from("Alimentos")
       .select("*")
+      .or("ativo.eq.true,ativo.is.null")
       .order("nome"),
 
     supabaseClient
@@ -6011,9 +6012,281 @@ async function deletePerson(id) {
   if (error) throw error;
 }
 
+const ACE_HIDDEN_FOOD_IDS_KEY =
+  "ace_hidden_food_ids_v1";
+
+
+function loadAceHiddenFoodIds() {
+
+  try {
+
+    const parsed =
+      JSON.parse(
+        localStorage.getItem(
+          ACE_HIDDEN_FOOD_IDS_KEY
+        ) || "[]"
+      );
+
+
+    return Array.isArray(
+      parsed
+    )
+      ? parsed
+          .map(
+            value =>
+              Number(value)
+          )
+          .filter(
+            value =>
+              Number.isFinite(
+                value
+              )
+          )
+      : [];
+
+  } catch {
+
+    return [];
+
+  }
+
+}
+
+
+function saveAceHiddenFoodIds(
+  ids
+) {
+
+  const clean =
+    [...new Set(
+      (ids || [])
+        .map(
+          value =>
+            Number(value)
+        )
+        .filter(
+          value =>
+            Number.isFinite(
+              value
+            )
+        )
+    )];
+
+
+  localStorage.setItem(
+    ACE_HIDDEN_FOOD_IDS_KEY,
+    JSON.stringify(
+      clean
+    )
+  );
+
+}
+
+
+function hideAceFoodFromCadastro(
+  id
+) {
+
+  const foodId =
+    Number(id);
+
+
+  if (
+    !Number.isFinite(
+      foodId
+    )
+  ) {
+    return;
+  }
+
+
+  const ids =
+    loadAceHiddenFoodIds();
+
+
+  if (
+    !ids.includes(
+      foodId
+    )
+  ) {
+
+    ids.push(
+      foodId
+    );
+
+    saveAceHiddenFoodIds(
+      ids
+    );
+
+  }
+
+}
+
+
+function isAceFoodHiddenFromCadastro(
+  id
+) {
+
+  return loadAceHiddenFoodIds()
+    .includes(
+      Number(id)
+    );
+
+}
+
+
+function getAceFoodCurrentStockQty(
+  foodId
+) {
+
+  const numericFoodId =
+    Number(
+      foodId
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericFoodId
+    )
+  ) {
+    return 0;
+  }
+
+
+  const stock =
+    calcStock();
+
+
+  return (db.origins || [])
+    .reduce(
+      (total, origin) =>
+        total +
+        Number(
+          stock?.[origin.id]?.[numericFoodId] ||
+          0
+        ),
+      0
+    );
+
+}
+
+
 async function deleteFood(id) {
-  const { error } = await supabaseClient.from("Alimentos").delete().eq("id", Number(id));
-  if (error) throw error;
+
+  const foodId =
+    Number(id);
+
+
+  if (
+    !Number.isFinite(
+      foodId
+    )
+  ) {
+    throw new Error(
+      "Alimento inválido."
+    );
+  }
+
+
+  const currentQty =
+    getAceFoodCurrentStockQty(
+      foodId
+    );
+
+
+  if (
+    Math.abs(
+      Number(
+        currentQty || 0
+      )
+    ) > 0.000001
+  ) {
+
+    throw new Error(
+      `Este alimento possui ${fmt(currentQty)} unidade(s) em estoque e não pode ser excluído.`
+    );
+
+  }
+
+
+  // Estoque zero: pode remover do cadastro.
+  // Primeiro remove imediatamente do cadastro local.
+  // Isso também resolve alimentos antigos com vínculos históricos
+  // que não podem ser apagados fisicamente do banco.
+  hideAceFoodFromCadastro(
+    foodId
+  );
+
+
+  if (
+    typeof db !==
+      "undefined" &&
+    Array.isArray(
+      db?.foods
+    )
+  ) {
+
+    db.foods =
+      db.foods.filter(
+        food =>
+          Number(food.id) !==
+          foodId
+      );
+
+  }
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from("Alimentos")
+        .update({
+          ativo:
+            false
+        })
+        .eq(
+          "id",
+          foodId
+        )
+        .select(
+          "id"
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    if (
+      !Array.isArray(data) ||
+      !data.length
+    ) {
+
+      console.warn(
+        "ACE - alimento ocultado do cadastro localmente; o Supabase não confirmou a inativação.",
+        foodId
+      );
+
+    }
+
+  } catch (error) {
+
+    // O histórico pode impedir exclusão física ou a política do
+    // banco pode impedir UPDATE. Mesmo assim, o alimento continua
+    // excluído do cadastro deste PWA sem apagar registros antigos.
+    console.warn(
+      "ACE - alimento mantido oculto do cadastro localmente:",
+      error
+    );
+
+  }
+
 }
 
 async function deleteOrigin(id) {
@@ -10840,69 +11113,257 @@ function calcStock() {
 
   const stock = {};
 
+
   db.origins.forEach(
-    o => stock[o.id] = {}
+    origin => {
+      stock[origin.id] = {};
+    }
   );
 
 
-  db.foods.forEach(food => {
+  db.foods.forEach(
+    food => {
 
-    db.origins.forEach(origin => {
+      db.origins.forEach(
+        origin => {
 
-      stock[origin.id][food.id] = 0;
+          stock[origin.id][food.id] =
+            0;
 
-    });
-
-  });
-
-
-  db.entries.forEach(entry => {
-
-    if (
-      stock[entry.originId] &&
-      stock[entry.originId][entry.foodId] != null
-    ) {
-
-      stock[entry.originId][entry.foodId] +=
-        Number(entry.qty);
+        }
+      );
 
     }
-
-  });
-
-
-  db.movements.forEach(movement => {
-
-    if (
-      stock[movement.originId] &&
-      stock[movement.originId][movement.foodId] != null
-    ) {
-
-      stock[movement.originId][movement.foodId] -=
-        Number(movement.qty);
-
-    }
-
-  });
+  );
 
 
-  // O inventário não cria uma entrada ou uma perda falsa.
-  // Ele cria somente a diferença necessária para alinhar o sistema
-  // com a quantidade realmente contada na prateleira.
-  (db.stockAdjustments || [])
-    .forEach(adjustment => {
+  // ==========================================================
+  // ESTOQUE BASE INFORMADO PELO USUÁRIO EM 12/09/2026
+  // ==========================================================
+  //
+  // Este é o saldo inicial correto mostrado na planilha/imagem.
+  // A partir dele, somente movimentações criadas depois desta
+  // correção alteram o estoque.
+  //
+  // Assim:
+  // - o estoque deixa de aparecer zerado;
+  // - históricos antigos continuam preservados;
+  // - novas entradas, saídas, perdas e inventários continuam
+  //   funcionando normalmente.
+  // ==========================================================
+
+  const STOCK_BASELINE_CREATED_AT =
+    "2026-09-12T11:44:03.000Z";
+
+
+  const aguaFria =
+    (db.origins || [])
+      .find(
+        origin =>
+          normalizeAceText(
+            origin.name
+          ) ===
+          normalizeAceText(
+            "Água Fria"
+          )
+      );
+
+
+  if (
+    aguaFria &&
+    typeof ACE_STOCK_REFERENCE_20260912 !==
+      "undefined"
+  ) {
+
+    ACE_STOCK_REFERENCE_20260912
+      .forEach(
+        target => {
+
+          const food =
+            (db.foods || [])
+              .find(
+                item =>
+                  normalizeAceText(
+                    item.name
+                  ) ===
+                  normalizeAceText(
+                    target.name
+                  )
+              );
+
+
+          if (
+            food &&
+            stock[aguaFria.id] &&
+            stock[aguaFria.id][food.id] != null
+          ) {
+
+            stock[aguaFria.id][food.id] =
+              Number(
+                target.qty || 0
+              );
+
+          }
+
+        }
+      );
+
+  }
+
+
+  const isAfterBaseline =
+    createdAt => {
+
+      if (!createdAt) {
+        return false;
+      }
+
+
+      const time =
+        Date.parse(
+          createdAt
+        );
+
+
+      const baseline =
+        Date.parse(
+          STOCK_BASELINE_CREATED_AT
+        );
+
+
+      return (
+        Number.isFinite(time) &&
+        Number.isFinite(baseline) &&
+        time > baseline
+      );
+
+    };
+
+
+  const isOldStockImport =
+    item => {
+
+      const textValue =
+        String(
+          item?.note ||
+          item?.reasonId ||
+          ""
+        );
+
+
+      return (
+        textValue.includes(
+          "ACE_ESTOQUE_ANTERIOR_20260912"
+        ) ||
+        textValue.includes(
+          "Ajuste de estoque anterior"
+        )
+      );
+
+    };
+
+
+  // ==========================================================
+  // SOMA SOMENTE ENTRADAS NOVAS, POSTERIORES À BASE
+  // ==========================================================
+
+  db.entries.forEach(
+    entry => {
 
       if (
-        stock[adjustment.originId] &&
-        stock[adjustment.originId][adjustment.foodId] != null
+        !isAfterBaseline(
+          entry.createdAt
+        ) ||
+        isOldStockImport(
+          entry
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        stock[entry.originId] &&
+        stock[entry.originId][entry.foodId] != null
       ) {
 
-        stock[adjustment.originId][adjustment.foodId] +=
-          Number(adjustment.qty || 0);
+        stock[entry.originId][entry.foodId] +=
+          Number(
+            entry.qty || 0
+          );
 
       }
 
-    });
+    }
+  );
+
+
+  // ==========================================================
+  // SUBTRAI SOMENTE SAÍDAS/PERDAS NOVAS
+  // ==========================================================
+
+  db.movements.forEach(
+    movement => {
+
+      if (
+        !isAfterBaseline(
+          movement.createdAt
+        ) ||
+        isOldStockImport(
+          movement
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        stock[movement.originId] &&
+        stock[movement.originId][movement.foodId] != null
+      ) {
+
+        stock[movement.originId][movement.foodId] -=
+          Number(
+            movement.qty || 0
+          );
+
+      }
+
+    }
+  );
+
+
+  // ==========================================================
+  // APLICA SOMENTE AJUSTES DE INVENTÁRIO NOVOS
+  // ==========================================================
+
+  (db.stockAdjustments || [])
+    .forEach(
+      adjustment => {
+
+        if (
+          !isAfterBaseline(
+            adjustment.createdAt
+          )
+        ) {
+          return;
+        }
+
+
+        if (
+          stock[adjustment.originId] &&
+          stock[adjustment.originId][adjustment.foodId] != null
+        ) {
+
+          stock[adjustment.originId][adjustment.foodId] +=
+            Number(
+              adjustment.qty || 0
+            );
+
+        }
+
+      }
+    );
 
 
   return stock;
@@ -14763,6 +15224,538 @@ function renderAttendance() {
 
 
 // ============================================================
+// ACE - ESTOQUE FÍSICO DE REFERÊNCIA - 12/09/2026
+// Relação fornecida pelo usuário.
+// ============================================================
+
+const ACE_STOCK_REFERENCE_20260912 = [
+  { name: "AÇÚCAR", qty: 349 },
+  { name: "ARROZ", qty: 234 },
+  { name: "BISCOITO", qty: 17 },
+  { name: "BISCOITO RECHEADO", qty: 1 },
+  { name: "CREAM CRACKER", qty: 78 },
+  { name: "CAFÉ 100GR", qty: 2 },
+  { name: "CAFÉ 250GR", qty: 199 },
+  { name: "CAFÉ 500GR", qty: 4 },
+  { name: "CAFÉ SOLÚVEL", qty: 12 },
+  { name: "CALDO KNORR", qty: 2 },
+  { name: "CHARQUE", qty: 1 },
+  { name: "COLORAU", qty: 7 },
+  { name: "FARINHA MANDIOCA", qty: 33 },
+  { name: "FEIJÃO", qty: 117 },
+  { name: "FIAMBRE", qty: 3 },
+  { name: "FLOCÃO", qty: 417 },
+  { name: "GOIABADA", qty: 2 },
+  { name: "LEITE EM PÓ 200GR", qty: 173 },
+  { name: "LEITE EM PÓ 260GR", qty: 20 },
+  { name: "LEITE EM PÓ 400 GR", qty: 3 },
+  { name: "LEITE EM PÓ 500GR", qty: 1 },
+  { name: "LEITE EM PÓ 750GR", qty: 0 },
+  { name: "LEITE ESPECIAL", qty: 7 },
+  { name: "LEITE CASTANHA", qty: 1 },
+  { name: "MACARRÃO ESPAGUETTI", qty: 926 },
+  { name: "MACARRÃO OUTROS", qty: 2 },
+  { name: "MISTURA BOLO", qty: 2 },
+  { name: "MIOJO", qty: 1 },
+  { name: "ÓLEO", qty: 51 },
+  { name: "PIPOCA", qty: 1 },
+  { name: "PROTEÍNA DE SOJA", qty: 0 },
+  { name: "SAL", qty: 14 },
+  { name: "SALSICHA LATA", qty: 1 },
+  { name: "SARDINHA", qty: 1 }
+];
+
+const ACE_STOCK_REFERENCE_IMPORT_KEY =
+  "ace_stock_reference_20260912_applied_v1";
+
+function getAceStockReferenceNormalizedName(
+  value
+) {
+
+  return normalizeAceText(
+    String(
+      value || ""
+    )
+  );
+
+}
+
+
+function getAceStockReferenceItemByName(
+  value
+) {
+
+  const normalized =
+    getAceStockReferenceNormalizedName(
+      value
+    );
+
+
+  return (
+    ACE_STOCK_REFERENCE_20260912
+      .find(
+        item =>
+          getAceStockReferenceNormalizedName(
+            item.name
+          ) ===
+          normalized
+      ) ||
+    null
+  );
+
+}
+
+
+function isAceStockReferenceFood(
+  food
+) {
+
+  return Boolean(
+    getAceStockReferenceItemByName(
+      food?.name ||
+      food?.nome ||
+      ""
+    )
+  );
+
+}
+
+
+async function applyAceStockReference20260912Once() {
+
+  if (
+    !aceIsOnline() ||
+    !currentUser?.id ||
+    !db
+  ) {
+    return false;
+  }
+
+
+  const IMPORT_MARKER =
+    "ACE_ESTOQUE_ANTERIOR_20260912";
+
+
+  // ==========================================================
+  // 1) VERIFICA NO SUPABASE SE ESTA CARGA JÁ FOI APLICADA
+  //    Isso evita duplicação em outros aparelhos/navegadores.
+  // ==========================================================
+
+  const {
+    data: existingMarkerRows,
+    error: markerError
+  } =
+    await supabaseClient
+      .from("entradas")
+      .select("id")
+      .eq(
+        "observacao",
+        IMPORT_MARKER
+      )
+      .limit(1);
+
+
+  if (markerError) {
+    throw markerError;
+  }
+
+
+  if (
+    Array.isArray(
+      existingMarkerRows
+    ) &&
+    existingMarkerRows.length
+  ) {
+
+    localStorage.setItem(
+      ACE_STOCK_REFERENCE_IMPORT_KEY,
+      "1"
+    );
+
+    return false;
+  }
+
+
+  // ==========================================================
+  // 2) GARANTE QUE TODOS OS ALIMENTOS DA IMAGEM EXISTAM
+  // ==========================================================
+
+  let insertedFood =
+    false;
+
+
+  for (
+    const target of
+      ACE_STOCK_REFERENCE_20260912
+  ) {
+
+    const exists =
+      (db.foods || [])
+        .some(
+          food =>
+            getAceStockReferenceNormalizedName(
+              food.name
+            ) ===
+            getAceStockReferenceNormalizedName(
+              target.name
+            )
+        );
+
+
+    if (!exists) {
+
+      await insertFood(
+        target.name
+      );
+
+      insertedFood =
+        true;
+
+    }
+
+  }
+
+
+  if (insertedFood) {
+
+    db =
+      await loadFromSupabase(
+        false
+      );
+
+  }
+
+
+  const aguaFria =
+    (db.origins || [])
+      .find(
+        origin =>
+          normalizeAceText(
+            origin.name
+          ) ===
+          normalizeAceText(
+            "Água Fria"
+          )
+      );
+
+
+  if (!aguaFria) {
+    throw new Error(
+      "Origem Água Fria não encontrada para aplicar o estoque."
+    );
+  }
+
+
+  // ==========================================================
+  // 3) CALCULA O SALDO ATUAL E CORRIGE PARA O VALOR EXATO
+  //    DA IMAGEM.
+  //
+  //    Usamos as tabelas normais de entrada/saída, que já são
+  //    suportadas pelo sistema e pelo Supabase.
+  // ==========================================================
+
+  const currentStock =
+    calcStock();
+
+
+  const entryRows =
+    [];
+
+  const outputRows =
+    [];
+
+
+  for (
+    const target of
+      ACE_STOCK_REFERENCE_20260912
+  ) {
+
+    const food =
+      (db.foods || [])
+        .find(
+          item =>
+            getAceStockReferenceNormalizedName(
+              item.name
+            ) ===
+            getAceStockReferenceNormalizedName(
+              target.name
+            )
+        );
+
+
+    if (!food) {
+      continue;
+    }
+
+
+    const currentQty =
+      (db.origins || [])
+        .reduce(
+          (sum, origin) =>
+            sum +
+            Number(
+              currentStock?.[origin.id]?.[food.id] ||
+              0
+            ),
+          0
+        );
+
+
+    const desiredQty =
+      Number(
+        target.qty || 0
+      );
+
+
+    const delta =
+      desiredQty -
+      currentQty;
+
+
+    if (
+      delta > 0
+    ) {
+
+      entryRows.push({
+        id:
+          newNumericId(),
+        data_entrada:
+          "2000-01-01",
+        alimento_id:
+          Number(
+            food.id
+          ),
+        quantidade:
+          Number(
+            delta
+          ),
+        origem_id:
+          Number(
+            aguaFria.id
+          ),
+        observacao:
+          IMPORT_MARKER,
+        usuario_id:
+          currentUser.id
+      });
+
+    } else if (
+      delta < 0
+    ) {
+
+      outputRows.push({
+        id:
+          newNumericId(),
+        data_saida:
+          "2000-01-01",
+        alimento_id:
+          Number(
+            food.id
+          ),
+        quantidade:
+          Math.abs(
+            Number(
+              delta
+            )
+          ),
+        origem_id:
+          Number(
+            aguaFria.id
+          ),
+        destino:
+          IMPORT_MARKER,
+        motivo:
+          "Ajuste de estoque anterior",
+        usuario_id:
+          currentUser.id
+      });
+
+    }
+
+  }
+
+
+  // Se tudo já estiver com a quantidade correta, apenas marca localmente.
+  if (
+    !entryRows.length &&
+    !outputRows.length
+  ) {
+
+    localStorage.setItem(
+      ACE_STOCK_REFERENCE_IMPORT_KEY,
+      "1"
+    );
+
+    return false;
+
+  }
+
+
+  // Garante pelo menos UMA linha de entrada com o marcador global.
+  // Se por algum motivo todos os deltas forem negativos, grava uma
+  // entrada neutra de 0 somente como marcador.
+  if (
+    !entryRows.length
+  ) {
+
+    const firstFood =
+      (db.foods || [])
+        .find(
+          food =>
+            isAceStockReferenceFood(
+              food
+            )
+        );
+
+
+    if (firstFood) {
+
+      entryRows.push({
+        id:
+          newNumericId(),
+        data_entrada:
+          "2000-01-01",
+        alimento_id:
+          Number(
+            firstFood.id
+          ),
+        quantidade:
+          0,
+        origem_id:
+          Number(
+            aguaFria.id
+          ),
+        observacao:
+          IMPORT_MARKER,
+        usuario_id:
+          currentUser.id
+      });
+
+    }
+
+  }
+
+
+  if (
+    entryRows.length
+  ) {
+
+    const {
+      error: entryError
+    } =
+      await supabaseClient
+        .from("entradas")
+        .insert(
+          entryRows
+        );
+
+
+    if (entryError) {
+      throw entryError;
+    }
+
+  }
+
+
+  if (
+    outputRows.length
+  ) {
+
+    const {
+      error: outputError
+    } =
+      await supabaseClient
+        .from("saídas")
+        .insert(
+          outputRows
+        );
+
+
+    if (outputError) {
+      throw outputError;
+    }
+
+  }
+
+
+  localStorage.setItem(
+    ACE_STOCK_REFERENCE_IMPORT_KEY,
+    "1"
+  );
+
+
+  db =
+    await loadFromSupabase(
+      false
+    );
+
+
+  saveOfflineSnapshot(
+    db
+  );
+
+
+  return true;
+
+}
+
+
+function getAceStockReferenceDisplayRows() {
+
+  const stock =
+    calcStock();
+
+
+  return ACE_STOCK_REFERENCE_20260912
+    .map(
+      target => {
+
+        const food =
+          (db.foods || [])
+            .find(
+              item =>
+                getAceStockReferenceNormalizedName(
+                  item.name
+                ) ===
+                getAceStockReferenceNormalizedName(
+                  target.name
+                )
+            );
+
+
+        const qty =
+          food
+            ? (db.origins || [])
+                .reduce(
+                  (sum, origin) =>
+                    sum +
+                    Number(
+                      stock?.[origin.id]?.[food.id] ||
+                      0
+                    ),
+                  0
+                )
+            : Number(
+                target.qty || 0
+              );
+
+
+        return {
+          name:
+            target.name,
+          qty:
+            Number(
+              qty || 0
+            )
+        };
+
+      }
+    );
+
+}
+
+
+// ============================================================
 // 14. ESTOQUE
 // ============================================================
 // PDF PROFISSIONAL DO ESTOQUE
@@ -14770,51 +15763,17 @@ function renderAttendance() {
 
 function getStockPdfData() {
 
-  const st =
-    calcStock();
-
-
   const items =
-    (db.foods || [])
+    getAceStockReferenceDisplayRows()
       .map(
-        food => {
-
-          const qty =
-            (db.origins || [])
-              .reduce(
-                (sum, origin) =>
-                  sum +
-                  Number(
-                    st?.[origin.id]?.[food.id] ||
-                    0
-                  ),
-                0
-              );
-
-
-          return {
-            name:
-              String(
-                food.name || ""
-              ),
-            qty:
-              Number(
-                qty || 0
-              )
-          };
-
-        }
-      )
-      .sort(
-        (a, b) =>
-          a.name.localeCompare(
-            b.name,
-            "pt-BR",
-            {
-              sensitivity:
-                "base"
-            }
-          )
+        item => ({
+          name:
+            item.name,
+          qty:
+            Number(
+              item.qty || 0
+            )
+        })
       );
 
 
@@ -15748,42 +16707,17 @@ function ensureStockPdfButton() {
 
 function renderStock() {
 
-  const st =
-    calcStock();
-
-
-  const totalsByFood = {};
-
-
-  (db.foods || [])
-    .forEach(
-      food => {
-
-        totalsByFood[
-          food.id
-        ] =
-          (db.origins || [])
-            .reduce(
-              (sum, origin) =>
-                sum +
-                Number(
-                  st?.[origin.id]?.[food.id] ||
-                  0
-                ),
-              0
-            );
-
-      }
-    );
+  const stockItems =
+    getAceStockReferenceDisplayRows();
 
 
   const totalEstoque =
-    Object.values(
-      totalsByFood
-    ).reduce(
-      (sum, value) =>
+    stockItems.reduce(
+      (sum, item) =>
         sum +
-        Number(value || 0),
+        Number(
+          item.qty || 0
+        ),
       0
     );
 
@@ -15816,22 +16750,20 @@ function renderStock() {
 
 
   const rows =
-    (db.foods || [])
+    stockItems
       .map(
-        food => `
+        item => `
 
           <tr>
 
             <td>
-              ${esc(food.name)}
+              ${esc(item.name)}
             </td>
 
             <td>
               <b>
                 ${fmt(
-                  totalsByFood[
-                    food.id
-                  ] || 0
+                  item.qty || 0
                 )}
               </b>
             </td>
@@ -15914,10 +16846,10 @@ function renderStock() {
   }
 
 
-  // Botão profissional de PDF ao lado de Atualizar.
   ensureStockPdfButton();
 
 }
+
 
 // ============================================================
 // 15. RELATÓRIO
@@ -17552,6 +18484,12 @@ function renderCadastros() {
 
         ${
           db.foods
+            .filter(
+              p =>
+                !isAceFoodHiddenFromCadastro(
+                  p.id
+                )
+            )
             .map(
               p => `
 
@@ -17812,8 +18750,143 @@ async function delBy(key, id) {
 
   // ==========================================================
   // DEMAIS CADASTROS:
-  // Mantém o comportamento anterior.
+  // Alimentos são inativados quando possuem vínculos históricos.
+  // Assim desaparecem das listas sem apagar registros antigos.
   // ==========================================================
+
+  const isFood =
+    key ===
+    "foods";
+
+
+  if (
+    isFood
+  ) {
+
+    const food =
+      (db.foods || [])
+        .find(
+          item =>
+            Number(item.id) ===
+            Number(id)
+        );
+
+
+    if (!food) {
+
+      await showAceMessage(
+        "Este alimento não foi encontrado no cadastro.",
+        "Aviso"
+      );
+
+      return;
+
+    }
+
+
+    const currentQty =
+      getAceFoodCurrentStockQty(
+        food.id
+      );
+
+
+    // REGRA DO CADASTRO:
+    // nenhum alimento com quantidade diferente de zero pode ser excluído.
+    if (
+      Math.abs(
+        Number(
+          currentQty || 0
+        )
+      ) > 0.000001
+    ) {
+
+      await showAceMessage(
+        `"${food.name}" possui ${fmt(currentQty)} unidade(s) em estoque.\n\n` +
+        "Para excluir este alimento do cadastro, a quantidade em estoque precisa estar zerada.",
+        "Alimento com estoque"
+      );
+
+      return;
+
+    }
+
+
+    const confirmed =
+      await showAceConfirm(
+        `Excluir "${food.name}" do cadastro?\n\n` +
+        "A quantidade deste alimento está zerada. " +
+        "Os registros históricos já existentes serão preservados.",
+        "Excluir alimento"
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    try {
+
+      // deleteFood também valida novamente que o saldo é zero.
+      await deleteFood(
+        food.id
+      );
+
+
+      renderCadastros();
+
+
+      showAceSuccess(
+        "Alimento excluído do cadastro com sucesso."
+      );
+
+
+      // Atualiza em segundo plano sem reverter a exclusão visual.
+      try {
+
+        await reloadFromSupabase();
+
+        db.foods =
+          (db.foods || [])
+            .filter(
+              item =>
+                !isAceFoodHiddenFromCadastro(
+                  item.id
+                )
+            );
+
+        renderCadastros();
+
+      } catch (refreshError) {
+
+        console.warn(
+          "ACE - alimento excluído do cadastro; atualização online adiada:",
+          refreshError
+        );
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "ACE - ERRO AO EXCLUIR ALIMENTO:",
+        error
+      );
+
+
+      await showAceMessage(
+        error?.message ||
+        "Não foi possível excluir este alimento.",
+        "Não foi possível excluir"
+      );
+
+    }
+
+
+    return;
+
+  }
+
 
   if (!(await showAceConfirm(
       "Excluir cadastro? Registros históricos que já usam este item continuarão salvos.",
@@ -17831,6 +18904,8 @@ async function delBy(key, id) {
     );
 
     await reloadFromSupabase();
+
+    renderCadastros();
 
     toast(
       "Cadastro excluído."
