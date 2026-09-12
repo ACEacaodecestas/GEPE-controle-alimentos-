@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-presenca-simplificada-renome-alimento-global-v18";
+  "2026.09.12-pwa-renome-alimento-por-id-global-v19";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4153,7 +4153,8 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     foods:
       foods.map(f => ({
         id: Number(f.id),
-        name: f.nome
+        name: f.nome,
+        unit: f.unidade || "unidade"
       })),
 
 
@@ -5255,23 +5256,71 @@ async function updateFoodName(
   }
 
 
+  const currentFood =
+    (db.foods || [])
+      .find(
+        food =>
+          Number(food.id) ===
+          foodId
+      );
+
+
+  // Mantém o estoque-base ligado ao ID do alimento depois da renomeação.
+  // O marcador fica no banco e, por isso, também funciona em outros aparelhos.
+  const stockReference =
+    typeof findAceStockReferenceForFood === "function"
+      ? findAceStockReferenceForFood(currentFood)
+      : null;
+
+
+  const updatePayload = {
+    nome:
+      cleanName
+  };
+
+
+  if (
+    stockReference &&
+    typeof buildAceStockReferenceUnit === "function"
+  ) {
+
+    updatePayload.unidade =
+      buildAceStockReferenceUnit(
+        currentFood?.unit,
+        stockReference.index
+      );
+
+  }
+
+
   const {
+    data,
     error
   } =
     await supabaseClient
       .from("Alimentos")
-      .update({
-        nome:
-          cleanName
-      })
+      .update(
+        updatePayload
+      )
       .eq(
         "id",
         foodId
-      );
+      )
+      .select("id");
 
 
   if (error) {
     throw error;
+  }
+
+
+  if (
+    !Array.isArray(data) ||
+    !data.length
+  ) {
+    throw new Error(
+      "O alimento não foi atualizado no banco de dados. Verifique sua permissão e tente novamente."
+    );
   }
 
 }
@@ -6808,7 +6857,18 @@ function fmtDate(d) {
 
 function getName(arr, id) {
 
-  return arr.find(x => x.id === id)?.name || "—";
+  const numericId =
+    Number(id);
+
+
+  return (
+    arr.find(
+      x =>
+        Number(x.id) ===
+        numericId
+    )?.name ||
+    "—"
+  );
 
 }
 
@@ -11463,18 +11523,9 @@ function calcStock() {
         target => {
 
           const food =
-            (db.foods || [])
-              .find(
-                item =>
-                  normalizeAceText(
-                    item.name
-                  ) ===
-                  normalizeAceText(
-                    getAceStockReferenceEffectiveName(
-                      target
-                    )
-                  )
-              );
+            getAceFoodForStockReference(
+              target
+            );
 
 
           if (
@@ -15546,6 +15597,206 @@ const ACE_STOCK_REFERENCE_RENAMES_KEY =
   "ace_stock_reference_renames_v1";
 
 
+// Compatibilidade com a alteração já feita antes desta correção.
+// O índice 18 é o antigo "LEITE EM PÓ 260GR" na lista-base.
+const ACE_STOCK_REFERENCE_LEGACY_ALIASES = {
+  18: [
+    "LEITE EM PÓ 250G"
+  ]
+};
+
+
+function getAceStockReferenceIndexFromUnit(
+  unit
+) {
+
+  const match =
+    String(unit || "")
+      .match(
+        /(?:^|\|)ACE_REF:(\d+)(?:\||$)/i
+      );
+
+
+  if (!match) {
+    return null;
+  }
+
+
+  const index =
+    Number(match[1]);
+
+
+  return (
+    Number.isInteger(index) &&
+    ACE_STOCK_REFERENCE_20260912[index]
+  )
+    ? index
+    : null;
+
+}
+
+
+function buildAceStockReferenceUnit(
+  currentUnit,
+  referenceIndex
+) {
+
+  const cleanUnit =
+    String(currentUnit || "unidade")
+      .replace(
+        /(?:^|\|)ACE_REF:\d+(?=\||$)/ig,
+        ""
+      )
+      .replace(/^\|+|\|+$/g, "") ||
+    "unidade";
+
+
+  return `${cleanUnit}|ACE_REF:${Number(referenceIndex)}`;
+
+}
+
+
+function findAceStockReferenceForFood(
+  food
+) {
+
+  if (!food) {
+    return null;
+  }
+
+
+  const unitIndex =
+    getAceStockReferenceIndexFromUnit(
+      food.unit ||
+      food.unidade
+    );
+
+
+  if (unitIndex != null) {
+    return {
+      index: unitIndex,
+      target:
+        ACE_STOCK_REFERENCE_20260912[unitIndex]
+    };
+  }
+
+
+  const foodName =
+    getAceStockReferenceNormalizedName(
+      food.name ||
+      food.nome
+    );
+
+
+  // Primeiro procura o nome oficial/atual. O apelido de compatibilidade
+  // só é usado quando o nome antigo realmente não existe mais no cadastro.
+  let index =
+    ACE_STOCK_REFERENCE_20260912
+      .findIndex(
+        target =>
+          [
+            target.name,
+            getAceStockReferenceEffectiveName(target)
+          ].some(
+            candidate =>
+              getAceStockReferenceNormalizedName(candidate) ===
+              foodName
+          )
+      );
+
+
+  if (index < 0) {
+
+    index =
+      ACE_STOCK_REFERENCE_20260912
+        .findIndex(
+          (target, targetIndex) => {
+
+            const canonicalNameExists =
+              (db.foods || [])
+                .some(
+                  candidateFood =>
+                    [
+                      target.name,
+                      getAceStockReferenceEffectiveName(target)
+                    ].some(
+                      candidateName =>
+                        getAceStockReferenceNormalizedName(candidateName) ===
+                        getAceStockReferenceNormalizedName(
+                          candidateFood.name ||
+                          candidateFood.nome
+                        )
+                    )
+                );
+
+
+            if (canonicalNameExists) {
+              return false;
+            }
+
+
+            return (
+              ACE_STOCK_REFERENCE_LEGACY_ALIASES[targetIndex] ||
+              []
+            ).some(
+              alias =>
+                getAceStockReferenceNormalizedName(alias) ===
+                foodName
+            );
+
+          }
+        );
+
+  }
+
+
+  return index >= 0
+    ? {
+        index,
+        target:
+          ACE_STOCK_REFERENCE_20260912[index]
+      }
+    : null;
+
+}
+
+
+function getAceFoodForStockReference(
+  target
+) {
+
+  const targetIndex =
+    ACE_STOCK_REFERENCE_20260912
+      .indexOf(target);
+
+
+  if (targetIndex < 0) {
+    return null;
+  }
+
+
+  return (
+    (db.foods || [])
+      .find(
+        food =>
+          getAceStockReferenceIndexFromUnit(
+            food.unit ||
+            food.unidade
+          ) ===
+          targetIndex
+      ) ||
+    (db.foods || [])
+      .find(
+        food =>
+          findAceStockReferenceForFood(food)?.index ===
+          targetIndex
+      ) ||
+    null
+  );
+
+}
+
+
 function loadAceStockReferenceRenames() {
 
   try {
@@ -16155,18 +16406,9 @@ function getAceStockReferenceDisplayRows() {
       target => {
 
         const food =
-          (db.foods || [])
-            .find(
-              item =>
-                getAceStockReferenceNormalizedName(
-                  item.name
-                ) ===
-                getAceStockReferenceNormalizedName(
-                  getAceStockReferenceEffectiveName(
-                    target
-                  )
-                )
-            );
+          getAceFoodForStockReference(
+            target
+          );
 
 
         const qty =
@@ -16188,6 +16430,7 @@ function getAceStockReferenceDisplayRows() {
 
         return {
           name:
+            food?.name ||
             getAceStockReferenceEffectiveName(
               target
             ),
@@ -28455,17 +28698,24 @@ function normalizeBasketCompositionForView(
             0
           );
 
-        const foodName =
-          String(
-            item.alimento ??
-            item.foodName ??
-            ""
-          ).trim() ||
+        // O cadastro atual (pelo ID) sempre prevalece sobre nomes antigos
+        // que tenham sido copiados para dentro da composição da cesta.
+        const currentFoodName =
           getName(
             db.foods,
             foodId
-          ) ||
-          "Alimento não identificado";
+          );
+
+
+        const foodName =
+          currentFoodName !== "—"
+            ? currentFoodName
+            : String(
+                item.alimento ??
+                item.foodName ??
+                ""
+              ).trim() ||
+              "Alimento não identificado";
 
 
         return {
