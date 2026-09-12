@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-estoque-quantidades-corrigidas-v9";
+  "2026.09.12-pwa-estoque-e-exclusao-alimentos-v10";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -3838,6 +3838,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     supabaseClient
       .from("Alimentos")
       .select("*")
+      .or("ativo.eq.true,ativo.is.null")
       .order("nome"),
 
     supabaseClient
@@ -6012,8 +6013,26 @@ async function deletePerson(id) {
 }
 
 async function deleteFood(id) {
-  const { error } = await supabaseClient.from("Alimentos").delete().eq("id", Number(id));
-  if (error) throw error;
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from("Alimentos")
+      .update({
+        ativo:
+          false
+      })
+      .eq(
+        "id",
+        Number(id)
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
 }
 
 async function deleteOrigin(id) {
@@ -10840,69 +10859,257 @@ function calcStock() {
 
   const stock = {};
 
+
   db.origins.forEach(
-    o => stock[o.id] = {}
+    origin => {
+      stock[origin.id] = {};
+    }
   );
 
 
-  db.foods.forEach(food => {
+  db.foods.forEach(
+    food => {
 
-    db.origins.forEach(origin => {
+      db.origins.forEach(
+        origin => {
 
-      stock[origin.id][food.id] = 0;
+          stock[origin.id][food.id] =
+            0;
 
-    });
-
-  });
-
-
-  db.entries.forEach(entry => {
-
-    if (
-      stock[entry.originId] &&
-      stock[entry.originId][entry.foodId] != null
-    ) {
-
-      stock[entry.originId][entry.foodId] +=
-        Number(entry.qty);
+        }
+      );
 
     }
-
-  });
-
-
-  db.movements.forEach(movement => {
-
-    if (
-      stock[movement.originId] &&
-      stock[movement.originId][movement.foodId] != null
-    ) {
-
-      stock[movement.originId][movement.foodId] -=
-        Number(movement.qty);
-
-    }
-
-  });
+  );
 
 
-  // O inventário não cria uma entrada ou uma perda falsa.
-  // Ele cria somente a diferença necessária para alinhar o sistema
-  // com a quantidade realmente contada na prateleira.
-  (db.stockAdjustments || [])
-    .forEach(adjustment => {
+  // ==========================================================
+  // ESTOQUE BASE INFORMADO PELO USUÁRIO EM 12/09/2026
+  // ==========================================================
+  //
+  // Este é o saldo inicial correto mostrado na planilha/imagem.
+  // A partir dele, somente movimentações criadas depois desta
+  // correção alteram o estoque.
+  //
+  // Assim:
+  // - o estoque deixa de aparecer zerado;
+  // - históricos antigos continuam preservados;
+  // - novas entradas, saídas, perdas e inventários continuam
+  //   funcionando normalmente.
+  // ==========================================================
+
+  const STOCK_BASELINE_CREATED_AT =
+    "2026-09-12T11:44:03.000Z";
+
+
+  const aguaFria =
+    (db.origins || [])
+      .find(
+        origin =>
+          normalizeAceText(
+            origin.name
+          ) ===
+          normalizeAceText(
+            "Água Fria"
+          )
+      );
+
+
+  if (
+    aguaFria &&
+    typeof ACE_STOCK_REFERENCE_20260912 !==
+      "undefined"
+  ) {
+
+    ACE_STOCK_REFERENCE_20260912
+      .forEach(
+        target => {
+
+          const food =
+            (db.foods || [])
+              .find(
+                item =>
+                  normalizeAceText(
+                    item.name
+                  ) ===
+                  normalizeAceText(
+                    target.name
+                  )
+              );
+
+
+          if (
+            food &&
+            stock[aguaFria.id] &&
+            stock[aguaFria.id][food.id] != null
+          ) {
+
+            stock[aguaFria.id][food.id] =
+              Number(
+                target.qty || 0
+              );
+
+          }
+
+        }
+      );
+
+  }
+
+
+  const isAfterBaseline =
+    createdAt => {
+
+      if (!createdAt) {
+        return false;
+      }
+
+
+      const time =
+        Date.parse(
+          createdAt
+        );
+
+
+      const baseline =
+        Date.parse(
+          STOCK_BASELINE_CREATED_AT
+        );
+
+
+      return (
+        Number.isFinite(time) &&
+        Number.isFinite(baseline) &&
+        time > baseline
+      );
+
+    };
+
+
+  const isOldStockImport =
+    item => {
+
+      const textValue =
+        String(
+          item?.note ||
+          item?.reasonId ||
+          ""
+        );
+
+
+      return (
+        textValue.includes(
+          "ACE_ESTOQUE_ANTERIOR_20260912"
+        ) ||
+        textValue.includes(
+          "Ajuste de estoque anterior"
+        )
+      );
+
+    };
+
+
+  // ==========================================================
+  // SOMA SOMENTE ENTRADAS NOVAS, POSTERIORES À BASE
+  // ==========================================================
+
+  db.entries.forEach(
+    entry => {
 
       if (
-        stock[adjustment.originId] &&
-        stock[adjustment.originId][adjustment.foodId] != null
+        !isAfterBaseline(
+          entry.createdAt
+        ) ||
+        isOldStockImport(
+          entry
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        stock[entry.originId] &&
+        stock[entry.originId][entry.foodId] != null
       ) {
 
-        stock[adjustment.originId][adjustment.foodId] +=
-          Number(adjustment.qty || 0);
+        stock[entry.originId][entry.foodId] +=
+          Number(
+            entry.qty || 0
+          );
 
       }
 
-    });
+    }
+  );
+
+
+  // ==========================================================
+  // SUBTRAI SOMENTE SAÍDAS/PERDAS NOVAS
+  // ==========================================================
+
+  db.movements.forEach(
+    movement => {
+
+      if (
+        !isAfterBaseline(
+          movement.createdAt
+        ) ||
+        isOldStockImport(
+          movement
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        stock[movement.originId] &&
+        stock[movement.originId][movement.foodId] != null
+      ) {
+
+        stock[movement.originId][movement.foodId] -=
+          Number(
+            movement.qty || 0
+          );
+
+      }
+
+    }
+  );
+
+
+  // ==========================================================
+  // APLICA SOMENTE AJUSTES DE INVENTÁRIO NOVOS
+  // ==========================================================
+
+  (db.stockAdjustments || [])
+    .forEach(
+      adjustment => {
+
+        if (
+          !isAfterBaseline(
+            adjustment.createdAt
+          )
+        ) {
+          return;
+        }
+
+
+        if (
+          stock[adjustment.originId] &&
+          stock[adjustment.originId][adjustment.foodId] != null
+        ) {
+
+          stock[adjustment.originId][adjustment.foodId] +=
+            Number(
+              adjustment.qty || 0
+            );
+
+        }
+
+      }
+    );
 
 
   return stock;
@@ -18283,11 +18490,19 @@ async function delBy(key, id) {
 
   // ==========================================================
   // DEMAIS CADASTROS:
-  // Mantém o comportamento anterior.
+  // Alimentos são inativados quando possuem vínculos históricos.
+  // Assim desaparecem das listas sem apagar registros antigos.
   // ==========================================================
 
+  const isFood =
+    key ===
+    "foods";
+
+
   if (!(await showAceConfirm(
-      "Excluir cadastro? Registros históricos que já usam este item continuarão salvos.",
+      isFood
+        ? "Excluir este alimento?\n\nEle será removido das listas do sistema. Registros históricos já existentes serão preservados."
+        : "Excluir cadastro? Registros históricos que já usam este item continuarão salvos.",
       "Excluir cadastro"
     ))) {
       return;
@@ -18304,7 +18519,9 @@ async function delBy(key, id) {
     await reloadFromSupabase();
 
     toast(
-      "Cadastro excluído."
+      key === "foods"
+        ? "Alimento excluído das listas com sucesso."
+        : "Cadastro excluído."
     );
 
 
@@ -18315,7 +18532,9 @@ async function delBy(key, id) {
     );
 
     toast(
-      "Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados."
+      key === "foods"
+        ? "Não foi possível excluir o alimento."
+        : "Não foi possível excluir o cadastro. Verifique se ele possui registros vinculados."
     );
 
   }
@@ -40927,26 +41146,6 @@ async function initApp() {
       }
 
       db = offlineDb;
-    }
-
-
-    if (
-      aceIsOnline()
-    ) {
-
-      try {
-
-        await applyAceStockReference20260912Once();
-
-      } catch (stockImportError) {
-
-        console.error(
-          "ACE - não foi possível aplicar o estoque físico de 12/09/2026:",
-          stockImportError
-        );
-
-      }
-
     }
 
 
