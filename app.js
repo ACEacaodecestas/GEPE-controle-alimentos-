@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.11-pwa-reset-tambem-zera-inventarios-v7";
+  "2026.09.12-pwa-estoque-fisico-referencia-v8";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14763,6 +14763,508 @@ function renderAttendance() {
 
 
 // ============================================================
+// ACE - ESTOQUE FÍSICO DE REFERÊNCIA - 12/09/2026
+// Relação fornecida pelo usuário.
+// ============================================================
+
+const ACE_STOCK_REFERENCE_20260912 = [
+  { name: "AÇÚCAR", qty: 349 },
+  { name: "ARROZ", qty: 234 },
+  { name: "BISCOITO", qty: 17 },
+  { name: "BISCOITO RECHEADO", qty: 1 },
+  { name: "CREAM CRACKER", qty: 78 },
+  { name: "CAFÉ 100GR", qty: 2 },
+  { name: "CAFÉ 250GR", qty: 199 },
+  { name: "CAFÉ 500GR", qty: 4 },
+  { name: "CAFÉ SOLÚVEL", qty: 12 },
+  { name: "CALDO KNORR", qty: 2 },
+  { name: "CHARQUE", qty: 1 },
+  { name: "COLORAU", qty: 7 },
+  { name: "FARINHA MANDIOCA", qty: 33 },
+  { name: "FEIJÃO", qty: 117 },
+  { name: "FIAMBRE", qty: 3 },
+  { name: "FLOCÃO", qty: 417 },
+  { name: "GOIABADA", qty: 2 },
+  { name: "LEITE EM PÓ 200GR", qty: 173 },
+  { name: "LEITE EM PÓ 260GR", qty: 20 },
+  { name: "LEITE EM PÓ 400 GR", qty: 3 },
+  { name: "LEITE EM PÓ 500GR", qty: 1 },
+  { name: "LEITE EM PÓ 750GR", qty: 0 },
+  { name: "LEITE ESPECIAL", qty: 7 },
+  { name: "LEITE CASTANHA", qty: 1 },
+  { name: "MACARRÃO ESPAGUETTI", qty: 926 },
+  { name: "MACARRÃO OUTROS", qty: 2 },
+  { name: "MISTURA BOLO", qty: 2 },
+  { name: "MIOJO", qty: 1 },
+  { name: "ÓLEO", qty: 51 },
+  { name: "PIPOCA", qty: 1 },
+  { name: "PROTEÍNA DE SOJA", qty: 0 },
+  { name: "SAL", qty: 14 },
+  { name: "SALSICHA LATA", qty: 1 },
+  { name: "SARDINHA", qty: 1 }
+];
+
+const ACE_STOCK_REFERENCE_IMPORT_KEY =
+  "ace_stock_reference_20260912_applied_v1";
+
+const ACE_STOCK_REFERENCE_MARKER_ID =
+  202609129001;
+
+const ACE_STOCK_REFERENCE_ROW_ID_BASE =
+  202609120000;
+
+
+function getAceStockReferenceNormalizedName(
+  value
+) {
+
+  return normalizeAceText(
+    String(
+      value || ""
+    )
+  );
+
+}
+
+
+function getAceStockReferenceItemByName(
+  value
+) {
+
+  const normalized =
+    getAceStockReferenceNormalizedName(
+      value
+    );
+
+
+  return (
+    ACE_STOCK_REFERENCE_20260912
+      .find(
+        item =>
+          getAceStockReferenceNormalizedName(
+            item.name
+          ) ===
+          normalized
+      ) ||
+    null
+  );
+
+}
+
+
+function isAceStockReferenceFood(
+  food
+) {
+
+  return Boolean(
+    getAceStockReferenceItemByName(
+      food?.name ||
+      food?.nome ||
+      ""
+    )
+  );
+
+}
+
+
+async function applyAceStockReference20260912Once() {
+
+  if (
+    !aceIsOnline() ||
+    !currentUser?.id ||
+    !db
+  ) {
+    return false;
+  }
+
+
+  if (
+    typeof isAceOperationalAdmin ===
+      "function" &&
+    !isAceOperationalAdmin()
+  ) {
+    return false;
+  }
+
+
+  if (
+    localStorage.getItem(
+      ACE_STOCK_REFERENCE_IMPORT_KEY
+    ) ===
+    "1"
+  ) {
+    return false;
+  }
+
+
+  // Esta importação é específica para a atualização física
+  // informada em 12/09/2026. Depois desse dia ela não reaplica
+  // automaticamente em aparelhos novos.
+  if (
+    isoToday() !==
+    "2026-09-12"
+  ) {
+
+    localStorage.setItem(
+      ACE_STOCK_REFERENCE_IMPORT_KEY,
+      "1"
+    );
+
+    return false;
+  }
+
+
+  const alreadyApplied =
+    (db.stockAdjustments || [])
+      .some(
+        row =>
+          Number(
+            row.id
+          ) ===
+          ACE_STOCK_REFERENCE_MARKER_ID
+      );
+
+
+  if (alreadyApplied) {
+
+    localStorage.setItem(
+      ACE_STOCK_REFERENCE_IMPORT_KEY,
+      "1"
+    );
+
+    return false;
+  }
+
+
+  // ==========================================================
+  // 1) GARANTE QUE TODOS OS ITENS DA LISTA EXISTAM
+  // ==========================================================
+
+  let insertedFood =
+    false;
+
+
+  for (
+    const target of
+      ACE_STOCK_REFERENCE_20260912
+  ) {
+
+    const exists =
+      (db.foods || [])
+        .some(
+          food =>
+            getAceStockReferenceNormalizedName(
+              food.name
+            ) ===
+            getAceStockReferenceNormalizedName(
+              target.name
+            )
+        );
+
+
+    if (!exists) {
+
+      await insertFood(
+        target.name
+      );
+
+      insertedFood =
+        true;
+
+    }
+
+  }
+
+
+  if (insertedFood) {
+
+    db =
+      await loadFromSupabase(
+        false
+      );
+
+  }
+
+
+  const aguaFria =
+    (db.origins || [])
+      .find(
+        origin =>
+          normalizeAceText(
+            origin.name
+          ) ===
+          normalizeAceText(
+            "Água Fria"
+          )
+      );
+
+
+  if (!aguaFria) {
+
+    throw new Error(
+      "Origem Água Fria não encontrada para aplicar o estoque físico."
+    );
+
+  }
+
+
+  // ==========================================================
+  // 2) CALCULA O SALDO ATUAL E CRIA SOMENTE AS DIFERENÇAS
+  // ==========================================================
+
+  const currentStock =
+    calcStock();
+
+
+  const targetByFoodId =
+    new Map();
+
+
+  for (
+    const target of
+      ACE_STOCK_REFERENCE_20260912
+  ) {
+
+    const food =
+      (db.foods || [])
+        .find(
+          item =>
+            getAceStockReferenceNormalizedName(
+              item.name
+            ) ===
+            getAceStockReferenceNormalizedName(
+              target.name
+            )
+        );
+
+
+    if (!food) {
+      continue;
+    }
+
+
+    targetByFoodId.set(
+      Number(
+        food.id
+      ),
+      Number(
+        target.qty || 0
+      )
+    );
+
+  }
+
+
+  const adjustmentRows =
+    [];
+
+
+  let adjustmentIndex =
+    0;
+
+
+  for (
+    const food of
+      db.foods || []
+  ) {
+
+    for (
+      const origin of
+        db.origins || []
+    ) {
+
+      const currentQty =
+        Number(
+          currentStock?.[origin.id]?.[food.id] ||
+          0
+        );
+
+
+      const targetQty =
+        (
+          Number(
+            origin.id
+          ) ===
+          Number(
+            aguaFria.id
+          ) &&
+          targetByFoodId.has(
+            Number(
+              food.id
+            )
+          )
+        )
+          ? Number(
+              targetByFoodId.get(
+                Number(
+                  food.id
+                )
+              ) || 0
+            )
+          : 0;
+
+
+      const delta =
+        targetQty -
+        currentQty;
+
+
+      if (
+        delta ===
+        0
+      ) {
+        continue;
+      }
+
+
+      adjustmentRows.push({
+        id:
+          ACE_STOCK_REFERENCE_ROW_ID_BASE +
+          adjustmentIndex +
+          1,
+        data:
+          "2026-09-12",
+        origem_id:
+          Number(
+            origin.id
+          ),
+        alimento_id:
+          Number(
+            food.id
+          ),
+        quantidade:
+          Number(
+            delta
+          ),
+        usuario_id:
+          currentUser.id
+      });
+
+
+      adjustmentIndex +=
+        1;
+
+    }
+
+  }
+
+
+  // Se já estiver exatamente igual à lista, não há saldo a corrigir.
+  if (
+    !adjustmentRows.length
+  ) {
+
+    localStorage.setItem(
+      ACE_STOCK_REFERENCE_IMPORT_KEY,
+      "1"
+    );
+
+    return false;
+
+  }
+
+
+  // O primeiro ajuste recebe um ID fixo e funciona como marcador
+  // global para impedir que outro aparelho reaplique a carga.
+  adjustmentRows[0].id =
+    ACE_STOCK_REFERENCE_MARKER_ID;
+
+
+  const {
+    error: adjustmentError
+  } =
+    await supabaseClient
+      .from(
+        "ajustes_estoque"
+      )
+      .insert(
+        adjustmentRows
+      );
+
+
+  if (adjustmentError) {
+    throw adjustmentError;
+  }
+
+
+  localStorage.setItem(
+    ACE_STOCK_REFERENCE_IMPORT_KEY,
+    "1"
+  );
+
+
+  db =
+    await loadFromSupabase(
+      false
+    );
+
+
+  saveOfflineSnapshot(
+    db
+  );
+
+
+  return true;
+
+}
+
+
+function getAceStockReferenceDisplayRows() {
+
+  const stock =
+    calcStock();
+
+
+  return ACE_STOCK_REFERENCE_20260912
+    .map(
+      target => {
+
+        const food =
+          (db.foods || [])
+            .find(
+              item =>
+                getAceStockReferenceNormalizedName(
+                  item.name
+                ) ===
+                getAceStockReferenceNormalizedName(
+                  target.name
+                )
+            );
+
+
+        const qty =
+          food
+            ? (db.origins || [])
+                .reduce(
+                  (sum, origin) =>
+                    sum +
+                    Number(
+                      stock?.[origin.id]?.[food.id] ||
+                      0
+                    ),
+                  0
+                )
+            : Number(
+                target.qty || 0
+              );
+
+
+        return {
+          name:
+            target.name,
+          qty:
+            Number(
+              qty || 0
+            )
+        };
+
+      }
+    );
+
+}
+
+
+// ============================================================
 // 14. ESTOQUE
 // ============================================================
 // PDF PROFISSIONAL DO ESTOQUE
@@ -14770,51 +15272,17 @@ function renderAttendance() {
 
 function getStockPdfData() {
 
-  const st =
-    calcStock();
-
-
   const items =
-    (db.foods || [])
+    getAceStockReferenceDisplayRows()
       .map(
-        food => {
-
-          const qty =
-            (db.origins || [])
-              .reduce(
-                (sum, origin) =>
-                  sum +
-                  Number(
-                    st?.[origin.id]?.[food.id] ||
-                    0
-                  ),
-                0
-              );
-
-
-          return {
-            name:
-              String(
-                food.name || ""
-              ),
-            qty:
-              Number(
-                qty || 0
-              )
-          };
-
-        }
-      )
-      .sort(
-        (a, b) =>
-          a.name.localeCompare(
-            b.name,
-            "pt-BR",
-            {
-              sensitivity:
-                "base"
-            }
-          )
+        item => ({
+          name:
+            item.name,
+          qty:
+            Number(
+              item.qty || 0
+            )
+        })
       );
 
 
@@ -15748,42 +16216,17 @@ function ensureStockPdfButton() {
 
 function renderStock() {
 
-  const st =
-    calcStock();
-
-
-  const totalsByFood = {};
-
-
-  (db.foods || [])
-    .forEach(
-      food => {
-
-        totalsByFood[
-          food.id
-        ] =
-          (db.origins || [])
-            .reduce(
-              (sum, origin) =>
-                sum +
-                Number(
-                  st?.[origin.id]?.[food.id] ||
-                  0
-                ),
-              0
-            );
-
-      }
-    );
+  const stockItems =
+    getAceStockReferenceDisplayRows();
 
 
   const totalEstoque =
-    Object.values(
-      totalsByFood
-    ).reduce(
-      (sum, value) =>
+    stockItems.reduce(
+      (sum, item) =>
         sum +
-        Number(value || 0),
+        Number(
+          item.qty || 0
+        ),
       0
     );
 
@@ -15816,22 +16259,20 @@ function renderStock() {
 
 
   const rows =
-    (db.foods || [])
+    stockItems
       .map(
-        food => `
+        item => `
 
           <tr>
 
             <td>
-              ${esc(food.name)}
+              ${esc(item.name)}
             </td>
 
             <td>
               <b>
                 ${fmt(
-                  totalsByFood[
-                    food.id
-                  ] || 0
+                  item.qty || 0
                 )}
               </b>
             </td>
@@ -15914,10 +16355,10 @@ function renderStock() {
   }
 
 
-  // Botão profissional de PDF ao lado de Atualizar.
   ensureStockPdfButton();
 
 }
+
 
 // ============================================================
 // 15. RELATÓRIO
@@ -40456,6 +40897,26 @@ async function initApp() {
       }
 
       db = offlineDb;
+    }
+
+
+    if (
+      aceIsOnline()
+    ) {
+
+      try {
+
+        await applyAceStockReference20260912Once();
+
+      } catch (stockImportError) {
+
+        console.error(
+          "ACE - não foi possível aplicar o estoque físico de 12/09/2026:",
+          stockImportError
+        );
+
+      }
+
     }
 
 
