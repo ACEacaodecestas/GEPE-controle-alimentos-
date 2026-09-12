@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-exclusao-alimento-somente-estoque-zero-v13";
+  "2026.09.12-pwa-mensagem-exclusao-alimento-profissional-v14";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -18836,8 +18836,9 @@ async function delBy(key, id) {
       renderCadastros();
 
 
-      showAceSuccess(
-        "Alimento excluído do cadastro com sucesso."
+      await showAceMessage(
+        "Alimento excluído do cadastro com sucesso.",
+        "Exclusão concluída"
       );
 
 
