@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-estoque-fisico-referencia-v8";
+  "2026.09.12-pwa-estoque-quantidades-corrigidas-v9";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14807,13 +14807,6 @@ const ACE_STOCK_REFERENCE_20260912 = [
 const ACE_STOCK_REFERENCE_IMPORT_KEY =
   "ace_stock_reference_20260912_applied_v1";
 
-const ACE_STOCK_REFERENCE_MARKER_ID =
-  202609129001;
-
-const ACE_STOCK_REFERENCE_ROW_ID_BASE =
-  202609120000;
-
-
 function getAceStockReferenceNormalizedName(
   value
 ) {
@@ -14878,54 +14871,40 @@ async function applyAceStockReference20260912Once() {
   }
 
 
-  if (
-    typeof isAceOperationalAdmin ===
-      "function" &&
-    !isAceOperationalAdmin()
-  ) {
-    return false;
+  const IMPORT_MARKER =
+    "ACE_ESTOQUE_ANTERIOR_20260912";
+
+
+  // ==========================================================
+  // 1) VERIFICA NO SUPABASE SE ESTA CARGA JÁ FOI APLICADA
+  //    Isso evita duplicação em outros aparelhos/navegadores.
+  // ==========================================================
+
+  const {
+    data: existingMarkerRows,
+    error: markerError
+  } =
+    await supabaseClient
+      .from("entradas")
+      .select("id")
+      .eq(
+        "observacao",
+        IMPORT_MARKER
+      )
+      .limit(1);
+
+
+  if (markerError) {
+    throw markerError;
   }
 
 
   if (
-    localStorage.getItem(
-      ACE_STOCK_REFERENCE_IMPORT_KEY
-    ) ===
-    "1"
+    Array.isArray(
+      existingMarkerRows
+    ) &&
+    existingMarkerRows.length
   ) {
-    return false;
-  }
-
-
-  // Esta importação é específica para a atualização física
-  // informada em 12/09/2026. Depois desse dia ela não reaplica
-  // automaticamente em aparelhos novos.
-  if (
-    isoToday() !==
-    "2026-09-12"
-  ) {
-
-    localStorage.setItem(
-      ACE_STOCK_REFERENCE_IMPORT_KEY,
-      "1"
-    );
-
-    return false;
-  }
-
-
-  const alreadyApplied =
-    (db.stockAdjustments || [])
-      .some(
-        row =>
-          Number(
-            row.id
-          ) ===
-          ACE_STOCK_REFERENCE_MARKER_ID
-      );
-
-
-  if (alreadyApplied) {
 
     localStorage.setItem(
       ACE_STOCK_REFERENCE_IMPORT_KEY,
@@ -14937,7 +14916,7 @@ async function applyAceStockReference20260912Once() {
 
 
   // ==========================================================
-  // 1) GARANTE QUE TODOS OS ITENS DA LISTA EXISTAM
+  // 2) GARANTE QUE TODOS OS ALIMENTOS DA IMAGEM EXISTAM
   // ==========================================================
 
   let insertedFood =
@@ -15000,24 +14979,29 @@ async function applyAceStockReference20260912Once() {
 
 
   if (!aguaFria) {
-
     throw new Error(
-      "Origem Água Fria não encontrada para aplicar o estoque físico."
+      "Origem Água Fria não encontrada para aplicar o estoque."
     );
-
   }
 
 
   // ==========================================================
-  // 2) CALCULA O SALDO ATUAL E CRIA SOMENTE AS DIFERENÇAS
+  // 3) CALCULA O SALDO ATUAL E CORRIGE PARA O VALOR EXATO
+  //    DA IMAGEM.
+  //
+  //    Usamos as tabelas normais de entrada/saída, que já são
+  //    suportadas pelo sistema e pelo Supabase.
   // ==========================================================
 
   const currentStock =
     calcStock();
 
 
-  const targetByFoodId =
-    new Map();
+  const entryRows =
+    [];
+
+  const outputRows =
+    [];
 
 
   for (
@@ -15043,91 +15027,39 @@ async function applyAceStockReference20260912Once() {
     }
 
 
-    targetByFoodId.set(
-      Number(
-        food.id
-      ),
-      Number(
-        target.qty || 0
-      )
-    );
-
-  }
-
-
-  const adjustmentRows =
-    [];
-
-
-  let adjustmentIndex =
-    0;
-
-
-  for (
-    const food of
-      db.foods || []
-  ) {
-
-    for (
-      const origin of
-        db.origins || []
-    ) {
-
-      const currentQty =
-        Number(
-          currentStock?.[origin.id]?.[food.id] ||
+    const currentQty =
+      (db.origins || [])
+        .reduce(
+          (sum, origin) =>
+            sum +
+            Number(
+              currentStock?.[origin.id]?.[food.id] ||
+              0
+            ),
           0
         );
 
 
-      const targetQty =
-        (
-          Number(
-            origin.id
-          ) ===
-          Number(
-            aguaFria.id
-          ) &&
-          targetByFoodId.has(
-            Number(
-              food.id
-            )
-          )
-        )
-          ? Number(
-              targetByFoodId.get(
-                Number(
-                  food.id
-                )
-              ) || 0
-            )
-          : 0;
+    const desiredQty =
+      Number(
+        target.qty || 0
+      );
 
 
-      const delta =
-        targetQty -
-        currentQty;
+    const delta =
+      desiredQty -
+      currentQty;
 
 
-      if (
-        delta ===
-        0
-      ) {
-        continue;
-      }
+    if (
+      delta > 0
+    ) {
 
-
-      adjustmentRows.push({
+      entryRows.push({
         id:
-          ACE_STOCK_REFERENCE_ROW_ID_BASE +
-          adjustmentIndex +
-          1,
-        data:
-          "2026-09-12",
-        origem_id:
-          Number(
-            origin.id
-          ),
+          newNumericId(),
+        data_entrada:
+          "2000-01-01",
         alimento_id:
           Number(
             food.id
@@ -15136,22 +15068,56 @@ async function applyAceStockReference20260912Once() {
           Number(
             delta
           ),
+        origem_id:
+          Number(
+            aguaFria.id
+          ),
+        observacao:
+          IMPORT_MARKER,
         usuario_id:
           currentUser.id
       });
 
+    } else if (
+      delta < 0
+    ) {
 
-      adjustmentIndex +=
-        1;
+      outputRows.push({
+        id:
+          newNumericId(),
+        data_saida:
+          "2000-01-01",
+        alimento_id:
+          Number(
+            food.id
+          ),
+        quantidade:
+          Math.abs(
+            Number(
+              delta
+            )
+          ),
+        origem_id:
+          Number(
+            aguaFria.id
+          ),
+        destino:
+          IMPORT_MARKER,
+        motivo:
+          "Ajuste de estoque anterior",
+        usuario_id:
+          currentUser.id
+      });
 
     }
 
   }
 
 
-  // Se já estiver exatamente igual à lista, não há saldo a corrigir.
+  // Se tudo já estiver com a quantidade correta, apenas marca localmente.
   if (
-    !adjustmentRows.length
+    !entryRows.length &&
+    !outputRows.length
   ) {
 
     localStorage.setItem(
@@ -15164,26 +15130,90 @@ async function applyAceStockReference20260912Once() {
   }
 
 
-  // O primeiro ajuste recebe um ID fixo e funciona como marcador
-  // global para impedir que outro aparelho reaplique a carga.
-  adjustmentRows[0].id =
-    ACE_STOCK_REFERENCE_MARKER_ID;
+  // Garante pelo menos UMA linha de entrada com o marcador global.
+  // Se por algum motivo todos os deltas forem negativos, grava uma
+  // entrada neutra de 0 somente como marcador.
+  if (
+    !entryRows.length
+  ) {
+
+    const firstFood =
+      (db.foods || [])
+        .find(
+          food =>
+            isAceStockReferenceFood(
+              food
+            )
+        );
 
 
-  const {
-    error: adjustmentError
-  } =
-    await supabaseClient
-      .from(
-        "ajustes_estoque"
-      )
-      .insert(
-        adjustmentRows
-      );
+    if (firstFood) {
+
+      entryRows.push({
+        id:
+          newNumericId(),
+        data_entrada:
+          "2000-01-01",
+        alimento_id:
+          Number(
+            firstFood.id
+          ),
+        quantidade:
+          0,
+        origem_id:
+          Number(
+            aguaFria.id
+          ),
+        observacao:
+          IMPORT_MARKER,
+        usuario_id:
+          currentUser.id
+      });
+
+    }
+
+  }
 
 
-  if (adjustmentError) {
-    throw adjustmentError;
+  if (
+    entryRows.length
+  ) {
+
+    const {
+      error: entryError
+    } =
+      await supabaseClient
+        .from("entradas")
+        .insert(
+          entryRows
+        );
+
+
+    if (entryError) {
+      throw entryError;
+    }
+
+  }
+
+
+  if (
+    outputRows.length
+  ) {
+
+    const {
+      error: outputError
+    } =
+      await supabaseClient
+        .from("saídas")
+        .insert(
+          outputRows
+        );
+
+
+    if (outputError) {
+      throw outputError;
+    }
+
   }
 
 
