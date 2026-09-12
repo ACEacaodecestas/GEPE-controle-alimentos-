@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-edicao-pessoa-no-cadastro-mensagens-v20";
+  "2026.09.12-pwa-relatorio-presentes-simplificado-v21";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -18110,7 +18110,7 @@ function renderReport() {
   const presentPeopleRows =
     presentDates
       .flatMap(
-        ([date, peopleIds]) =>
+        ([, peopleIds]) =>
           [...new Set(
             (
               Array.isArray(peopleIds)
@@ -18133,25 +18133,12 @@ function renderReport() {
 
 
               return {
-                date,
                 personId,
                 name:
                   person?.name ||
                   `Pessoa #${personId}`,
                 registration:
                   person?.registration ||
-                  "—",
-                ede:
-                  person?.ede ||
-                  "—",
-                studyDay:
-                  person?.studyDay ||
-                  "—",
-                studyTime:
-                  person?.studyTime ||
-                  "—",
-                sede:
-                  person?.sede ||
                   "—"
               };
 
@@ -18159,16 +18146,6 @@ function renderReport() {
       )
       .sort(
         (a, b) => {
-
-          const dateCompare =
-            String(a.date || "")
-              .localeCompare(
-                String(b.date || "")
-              );
-
-          if (dateCompare !== 0) {
-            return dateCompare;
-          }
 
           return String(a.name || "")
             .localeCompare(
@@ -18368,7 +18345,7 @@ function renderReport() {
               font-size:11px;
             "
           >
-            Relação das pessoas registradas como presentes, com os dados do cadastro.
+            Relação das pessoas registradas como presentes, com nome e matrícula.
           </div>
         </div>
 
@@ -18394,21 +18371,6 @@ function renderReport() {
           ? table(
               presentPeopleRows,
               [
-                ...(
-                  start &&
-                  end &&
-                  start === end
-                    ? []
-                    : [
-                        [
-                          "Data",
-                          x =>
-                            fmtDate(
-                              x.date
-                            )
-                        ]
-                      ]
-                ),
                 [
                   "Nome",
                   x =>
@@ -18421,34 +18383,6 @@ function renderReport() {
                   x =>
                     esc(
                       x.registration
-                    )
-                ],
-                [
-                  "EDE",
-                  x =>
-                    esc(
-                      x.ede
-                    )
-                ],
-                [
-                  "Dia de estudo",
-                  x =>
-                    esc(
-                      x.studyDay
-                    )
-                ],
-                [
-                  "Horário",
-                  x =>
-                    esc(
-                      x.studyTime
-                    )
-                ],
-                [
-                  "Sede",
-                  x =>
-                    esc(
-                      x.sede
                     )
                 ]
               ],
@@ -21037,27 +20971,20 @@ async function generateSignedReportPDF() {
 
 
         // Presentes:
-        // Nome | Matrícula | EDE | Dia de estudo | Horário | Sede
+        // Nome | Matrícula
         if (
-          headers.length === 6 &&
+          headers.length === 2 &&
+          headers.includes(
+            "nome"
+          ) &&
           headers.includes(
             "matrícula"
-          ) &&
-          headers.includes(
-            "ede"
-          ) &&
-          headers.includes(
-            "dia de estudo"
           )
         ) {
 
           applyWidths([
-            "24%",
-            "12%",
-            "12%",
-            "18%",
-            "12%",
-            "22%"
+            "72%",
+            "28%"
           ]);
 
         }
