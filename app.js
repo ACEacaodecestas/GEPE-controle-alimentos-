@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-mensagem-exclusao-alimento-profissional-v14";
+  "2026.09.12-pwa-esqueci-senha-cancelar-v15";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -7361,18 +7361,18 @@ function openForgotPasswordModal() {
 
         <button
           type="button"
-          id="forgotPasswordSend"
-          class="ace-password-primary"
-        >
-          📧 Enviar link
-        </button>
-
-        <button
-          type="button"
           id="forgotPasswordCancel"
           class="ace-password-secondary"
         >
           Cancelar
+        </button>
+
+        <button
+          type="button"
+          id="forgotPasswordSend"
+          class="ace-password-primary"
+        >
+          📧 Enviar link
         </button>
 
       </div>
@@ -7470,8 +7470,8 @@ function openForgotPasswordModal() {
     }
 
     .ace-password-actions{
-      display:flex;
-      justify-content:center;
+      display:grid;
+      grid-template-columns:1fr 1fr;
       gap:12px;
       margin-top:24px;
     }
@@ -7492,9 +7492,16 @@ function openForgotPasswordModal() {
     }
 
     .ace-password-secondary{
-      border:1px solid rgba(255,255,255,.95);
-      background:transparent;
-      color:#fff;
+      border:1px solid #b8cddd;
+      background:#ffffff;
+      color:#075a94;
+      box-shadow:0 4px 12px rgba(4,59,99,.06);
+    }
+
+    .ace-password-secondary:hover{
+      border-color:#84b9db;
+      background:#f4f9fd;
+      color:#064f83;
     }
 
     .ace-password-primary:disabled{
