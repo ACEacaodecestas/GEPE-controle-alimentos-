@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.13-dashboard-interativo-v27";
+  "2026.09.13-modo-economico-supabase-v29";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -3824,7 +3824,88 @@ function saveLocalReasons() {
 }
 
 
-async function loadFromSupabase(allowJwtRefresh = true) {
+// ============================================================
+// MODO ECONÔMICO DE DADOS
+// - transfere somente as colunas realmente usadas pelo aplicativo;
+// - compartilha uma carga que já esteja em andamento;
+// - mantém fallback automático para instalações com esquema antigo.
+// ============================================================
+
+let aceSupabaseLoadInFlight = null;
+
+
+function isAceMissingColumnError(error) {
+
+  const message =
+    String(error?.message || "")
+      .toLowerCase();
+
+
+  return (
+    error?.code === "42703" ||
+    message.includes("column") &&
+    (
+      message.includes("does not exist") ||
+      message.includes("not found")
+    )
+  );
+
+}
+
+
+async function aceEconomicSelect(
+  table,
+  columns,
+  configure = null
+) {
+
+  const buildQuery = selection => {
+
+    let query =
+      supabaseClient
+        .from(table)
+        .select(selection);
+
+
+    if (typeof configure === "function") {
+      query = configure(query);
+    }
+
+
+    return query;
+
+  };
+
+
+  let result =
+    await buildQuery(columns);
+
+
+  // Compatibilidade segura: caso uma instalação antiga não tenha uma
+  // coluna esperada, o aplicativo continua funcionando com select("*").
+  if (
+    result?.error &&
+    isAceMissingColumnError(result.error)
+  ) {
+
+    console.warn(
+      `ACE: esquema antigo detectado em ${table}; usando consulta compatível.`
+    );
+
+    result =
+      await buildQuery("*");
+
+  }
+
+
+  return result;
+
+}
+
+
+async function aceLoadFromSupabaseNetwork(
+  allowJwtRefresh = true
+) {
 
   if (!currentUser?.id) {
     throw new Error("Usuário não autenticado.");
@@ -3854,103 +3935,131 @@ async function loadFromSupabase(allowJwtRefresh = true) {
     stockAdjustmentsResult
   ] = await Promise.all([
 
-    supabaseClient
-      .from("Pessoas")
-      .select("*")
-      .or("ativo.eq.true,ativo.is.null")
-      .order("nome"),
+    aceEconomicSelect(
+      "Pessoas",
+      "id,nome,matrícula,ede,dia_estudo,horario,sede,ativo",
+      query => query
+        .or("ativo.eq.true,ativo.is.null")
+        .order("nome")
+    ),
 
-    supabaseClient
-      .from("Alimentos")
-      .select("*")
-      .or("ativo.eq.true,ativo.is.null")
-      .order("nome"),
+    aceEconomicSelect(
+      "Alimentos",
+      "id,nome,unidade,ativo",
+      query => query
+        .or("ativo.eq.true,ativo.is.null")
+        .order("nome")
+    ),
 
-    supabaseClient
-      .from("origens")
-      .select("*")
-      .order("nome"),
+    aceEconomicSelect(
+      "origens",
+      "id,nome",
+      query => query.order("nome")
+    ),
 
-    supabaseClient
-      .from("entradas")
-      .select("*")
-      .order("data_entrada", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "entradas",
+      "id,data_entrada,alimento_id,quantidade,origem_id,usuario_id,observacao,created_at",
+      query => query.order(
+        "data_entrada",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("saídas")
-      .select("*")
-      .order("data_saida", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "saídas",
+      "id,data_saida,alimento_id,quantidade,origem_id,usuario_id,motivo,destino,created_at",
+      query => query.order(
+        "data_saida",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("perdas")
-      .select("*")
-      .order("data_perda", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "perdas",
+      "id,data_perda,alimento_id,quantidade,origem_id,usuario_id,motivo,observacao,created_at",
+      query => query.order(
+        "data_perda",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("presença")
-      .select("*")
-      .order("data", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "presença",
+      "data,pessoa_id,present",
+      query => query.order(
+        "data",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("cestas")
-      .select("*")
-      .eq("ativo", true)
-      .order("id"),
+    aceEconomicSelect(
+      "cestas",
+      "id,nome,imagem,ativo",
+      query => query
+        .eq("ativo", true)
+        .order("id")
+    ),
 
-    supabaseClient
-      .from("cestas_itens")
-      .select("*")
-      .order("cesta_id"),
+    aceEconomicSelect(
+      "cestas_itens",
+      "id,cesta_id,alimento_id,quantidade",
+      query => query.order("cesta_id")
+    ),
 
-    supabaseClient
-      .from("cestas_saidas")
-      .select("*")
-      .order("data_saida", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "cestas_saidas",
+      "id,cesta_id,cesta_nome,cesta_imagem,quantidade_cestas,origem_id,destino,recebido_por,data_saida,usuario_id,composicao,created_at",
+      query => query.order(
+        "data_saida",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("historico_movimentacoes")
-      .select("*")
-      .order("created_at", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "historico_movimentacoes",
+      "id,data,tipo,origem_id,alimento_id,quantidade,motivo,tipo_cesta,observacao,usuario_id,created_at",
+      query => query.order(
+        "created_at",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("cestas_estoque")
-      .select("*")
-      .order("created_at", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "cestas_estoque",
+      "id,cesta_id,cesta_nome,cesta_imagem,destino,quantidade_montada,quantidade_disponivel,quantidade_retirada,quantidade_estornada,composicao,status,oculto_historico,data_montagem,usuario_id,created_at,updated_at",
+      query => query.order(
+        "created_at",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("cestas_retiradas")
-      .select("*")
-      .order("created_at", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "cestas_retiradas",
+      "id,estoque_cesta_id,cesta_id,cesta_nome,destino,quantidade,responsavel,observacao,composicao,data_retirada,usuario_id,created_at",
+      query => query.order(
+        "created_at",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("cestas_ajustes")
-      .select("*")
-      .order("created_at", {
-        ascending: false
-      }),
+    aceEconomicSelect(
+      "cestas_ajustes",
+      "id,estoque_cesta_id,tipo,quantidade,motivo,observacao,destino_anterior,destino_novo,composicao_anterior,composicao_nova,data_ajuste,usuario_id,created_at",
+      query => query.order(
+        "created_at",
+        { ascending: false }
+      )
+    ),
 
-    supabaseClient
-      .from("ajustes_estoque")
-      .select("*")
-      .order("created_at", {
-        ascending: false
-      })
+    aceEconomicSelect(
+      "ajustes_estoque",
+      "id,inventario_id,data,origem_id,alimento_id,quantidade,usuario_id,created_at",
+      query => query.order(
+        "created_at",
+        { ascending: false }
+      )
+    )
 
   ]);
 
@@ -4047,7 +4156,7 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
 
             // Recarrega somente uma vez para evitar loop.
-            return await loadFromSupabase(
+            return await aceLoadFromSupabaseNetwork(
               false
             );
 
@@ -4558,6 +4667,36 @@ async function loadFromSupabase(allowJwtRefresh = true) {
 
 
   return dbSupabase;
+
+}
+
+
+async function loadFromSupabase(
+  allowJwtRefresh = true
+) {
+
+  // Se duas partes do aplicativo solicitarem dados ao mesmo tempo,
+  // ambas recebem a mesma resposta. Antes, cada uma baixava tudo outra vez.
+  if (aceSupabaseLoadInFlight) {
+    return await aceSupabaseLoadInFlight;
+  }
+
+
+  aceSupabaseLoadInFlight =
+    aceLoadFromSupabaseNetwork(
+      allowJwtRefresh
+    );
+
+
+  try {
+
+    return await aceSupabaseLoadInFlight;
+
+  } finally {
+
+    aceSupabaseLoadInFlight = null;
+
+  }
 
 }
 
@@ -5876,6 +6015,21 @@ async function insertEntry({
     }
 
 
+    // A gravação já foi confirmada. Atualiza a cópia local e evita
+    // baixar novamente todas as tabelas após cada entrada.
+    applyLocalEntry({
+      id:
+        entryId,
+      historyId,
+      date,
+      originId,
+      foodId,
+      qty:
+        Number(qty),
+      note
+    });
+
+
   } catch (error) {
 
     if (
@@ -6815,6 +6969,13 @@ async function setAttendance(
     }
 
 
+    applyLocalAttendance(
+      date,
+      personId,
+      true
+    );
+
+
     return;
 
   }
@@ -6840,6 +7001,13 @@ async function setAttendance(
   if (error) {
     throw error;
   }
+
+
+  applyLocalAttendance(
+    date,
+    personId,
+    false
+  );
 
 }
 
@@ -12228,11 +12396,15 @@ function renderDashboard() {
       );
 
 
+  // Mantém o mapa completo para montar também o estoque por origem.
+  const st = calcStock();
+
+
   // O Resumo, a Consulta e o PDF usam a mesma fonte de dados.
   // Isso impede totais divergentes quando existe alimento novo,
   // renomeado ou cadastrado fora da antiga lista de referência.
   const estoque =
-    getAceUnifiedStockDisplayRows()
+    getAceUnifiedStockDisplayRows(st)
       .reduce(
         (sum, item) =>
           sum + Number(item.qty || 0),
@@ -15934,8 +16106,6 @@ function renderAttendance() {
                 present
               );
 
-              await reloadFromSupabase();
-
               toast(
                 present
                   ? "Presença registrada."
@@ -16822,9 +16992,12 @@ async function applyAceStockReference20260912Once() {
 }
 
 
-function getAceUnifiedStockDisplayRows() {
+function getAceUnifiedStockDisplayRows(
+  stockSnapshot = null
+) {
 
-  const stock = calcStock();
+  const stock =
+    stockSnapshot || calcStock();
   const consolidated = new Map();
 
 
@@ -26243,15 +26416,6 @@ function bindBulkEntryFormEvents() {
             note:
               item.note || ""
           });
-
-        }
-
-
-        if (
-          aceIsOnline()
-        ) {
-
-          await reloadFromSupabase();
 
         }
 
@@ -35997,7 +36161,45 @@ function setupMuralAcePage() {
 }
 
 
-async function loadMuralAcePosts() {
+const ACE_MURAL_CACHE_TTL_MS =
+  10 * 60 * 1000;
+
+
+function isAceMuralCacheFresh() {
+
+  try {
+
+    const parsed =
+      JSON.parse(
+        localStorage.getItem(
+          ACE_OFFLINE_MURAL_KEY
+        ) || "null"
+      );
+
+    const savedTime =
+      Date.parse(
+        parsed?.savedAt || ""
+      );
+
+
+    return (
+      Number.isFinite(savedTime) &&
+      Date.now() - savedTime <
+        ACE_MURAL_CACHE_TTL_MS
+    );
+
+  } catch {
+
+    return false;
+
+  }
+
+}
+
+
+async function loadMuralAcePosts(
+  forceNetwork = false
+) {
 
   // ==========================================================
   // OFFLINE:
@@ -36006,6 +36208,21 @@ async function loadMuralAcePosts() {
   // ==========================================================
 
   if (!aceIsOnline()) {
+
+    muralAcePosts =
+      loadOfflineMuralPosts();
+
+    return muralAcePosts;
+
+  }
+
+
+  // Durante dez minutos usa a cópia local. Abrir novamente o Mural
+  // não repete a mesma consulta nem baixa as mesmas imagens.
+  if (
+    !forceNetwork &&
+    isAceMuralCacheFresh()
+  ) {
 
     muralAcePosts =
       loadOfflineMuralPosts();
@@ -36025,7 +36242,9 @@ async function loadMuralAcePosts() {
         .from(
           "mural_ace"
         )
-        .select("*")
+        .select(
+          "id,titulo,descricao,ordem,ativo,tipo,arquivo_url,arquivo_path,data_publicacao,updated_at"
+        )
         .order(
           "ordem",
           {
@@ -36037,6 +36256,11 @@ async function loadMuralAcePosts() {
           {
             ascending: false
           }
+        )
+        .limit(
+          isMuralAceAdmin()
+            ? 100
+            : 10
         );
 
 
@@ -37854,7 +38078,7 @@ async function saveMuralAcePost(
       ?.remove();
 
 
-    await loadMuralAcePosts();
+    await loadMuralAcePosts(true);
 
     renderMuralAce();
 
@@ -38030,7 +38254,7 @@ async function deleteMuralAcePost(
     }
 
 
-    await loadMuralAcePosts();
+    await loadMuralAcePosts(true);
 
     renderMuralAce();
 
@@ -38466,7 +38690,7 @@ async function aceUploadAvatarBlob(
         blob,
         {
           cacheControl:
-            "3600",
+            "31536000",
           upsert:
             true,
           contentType:
@@ -39170,7 +39394,7 @@ async function aceManualSync() {
     );
 
 
-    await loadMuralAcePosts();
+    await loadMuralAcePosts(true);
 
     renderMuralAce();
 
@@ -44807,12 +45031,14 @@ async function refreshAceInventoryState(render = true) {
     return;
   }
 
-  const activeResult = await supabaseClient
-    .from("inventarios")
-    .select("*")
-    .eq("status", "em_andamento")
-    .order("iniciado_em", { ascending: false })
-    .limit(1);
+  const activeResult = await aceEconomicSelect(
+    "inventarios",
+    "id,status,iniciado_em,finalizado_em,origem_id,usuario_id,usuario_nome,total_sistema,total_contado,total_ajuste,oculto_historico",
+    query => query
+      .eq("status", "em_andamento")
+      .order("iniciado_em", { ascending: false })
+      .limit(1)
+  );
 
   if (activeResult.error) throw activeResult.error;
 
@@ -44820,45 +45046,53 @@ async function refreshAceInventoryState(render = true) {
   aceInventoryItems = [];
 
   if (aceInventoryActive) {
-    const itemsResult = await supabaseClient
-      .from("inventario_itens")
-      .select("*")
-      .eq("inventario_id", aceInventoryActive.id)
-      .order("alimento_nome");
+    const itemsResult = await aceEconomicSelect(
+      "inventario_itens",
+      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
+      query => query
+        .eq("inventario_id", aceInventoryActive.id)
+        .order("alimento_nome")
+    );
 
     if (itemsResult.error) throw itemsResult.error;
     aceInventoryItems = itemsResult.data || [];
   }
 
-  const historyResult = await supabaseClient
-    .from("inventarios")
-    .select("*")
-    .in("status", ["finalizado", "cancelado"])
-    .eq("oculto_historico", false)
-    .order("iniciado_em", { ascending: false })
-    .limit(10);
+  const historyResult = await aceEconomicSelect(
+    "inventarios",
+    "id,status,iniciado_em,finalizado_em,origem_id,usuario_id,usuario_nome,total_sistema,total_contado,total_ajuste,oculto_historico",
+    query => query
+      .in("status", ["finalizado", "cancelado"])
+      .eq("oculto_historico", false)
+      .order("iniciado_em", { ascending: false })
+      .limit(10)
+  );
 
   if (historyResult.error) throw historyResult.error;
   aceInventoryHistory = historyResult.data || [];
   aceInventoryLastItems = [];
 
-  const lastFinishedResult = await supabaseClient
-    .from("inventarios")
-    .select("*")
-    .eq("status", "finalizado")
-    .eq("oculto_historico", false)
-    .order("finalizado_em", { ascending: false })
-    .limit(1);
+  const lastFinishedResult = await aceEconomicSelect(
+    "inventarios",
+    "id,status,iniciado_em,finalizado_em,origem_id,usuario_id,usuario_nome,total_sistema,total_contado,total_ajuste,oculto_historico",
+    query => query
+      .eq("status", "finalizado")
+      .eq("oculto_historico", false)
+      .order("finalizado_em", { ascending: false })
+      .limit(1)
+  );
 
   if (lastFinishedResult.error) throw lastFinishedResult.error;
   aceInventoryLast = lastFinishedResult.data?.[0] || null;
 
   if (aceInventoryLast) {
-    const lastItemsResult = await supabaseClient
-      .from("inventario_itens")
-      .select("*")
-      .eq("inventario_id", aceInventoryLast.id)
-      .order("alimento_nome");
+    const lastItemsResult = await aceEconomicSelect(
+      "inventario_itens",
+      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
+      query => query
+        .eq("inventario_id", aceInventoryLast.id)
+        .order("alimento_nome")
+    );
 
     if (lastItemsResult.error) throw lastItemsResult.error;
     aceInventoryLastItems = lastItemsResult.data || [];
@@ -45915,7 +46149,7 @@ function buildAceInventoryPdfElement(inventory, items) {
 
 
 async function generateAceInventoryPDF(inventoryId, button = null) {
-  const inventory = aceInventoryHistory.find(
+  let inventory = aceInventoryHistory.find(
     item => Number(item.id) === Number(inventoryId)
   );
 
@@ -45936,14 +46170,35 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
 
     let items = [];
     if (aceIsOnline()) {
-      const result = await supabaseClient
-        .from("inventario_itens")
-        .select("*")
-        .eq("inventario_id", Number(inventoryId))
-        .order("alimento_nome");
+      // Assinaturas podem ser grandes. Só são transferidas quando o
+      // usuário solicita efetivamente o PDF deste inventário.
+      const [inventoryResult, itemsResult] =
+        await Promise.all([
+          aceEconomicSelect(
+            "inventarios",
+            "id,status,iniciado_em,finalizado_em,usuario_nome,responsavel_nome_assinatura,responsavel_assinatura,responsavel_assinado_em,conferente_nome,conferente_assinatura,conferente_assinado_em",
+            query => query
+              .eq("id", Number(inventoryId))
+              .limit(1)
+          ),
+          aceEconomicSelect(
+            "inventario_itens",
+            "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
+            query => query
+              .eq("inventario_id", Number(inventoryId))
+              .order("alimento_nome")
+          )
+        ]);
 
-      if (result.error) throw result.error;
-      items = result.data || [];
+      if (inventoryResult.error) throw inventoryResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+
+      inventory = {
+        ...inventory,
+        ...(inventoryResult.data?.[0] || {})
+      };
+
+      items = itemsResult.data || [];
     } else if (Number(aceInventoryLast?.id) === Number(inventoryId)) {
       items = aceInventoryLastItems || [];
     } else {
