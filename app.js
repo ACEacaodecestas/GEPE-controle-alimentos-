@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.13-pwa-nome-sobrenome-cabecalho-v24";
+  "2026.09.13-dashboard-interativo-v27";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -12228,20 +12228,14 @@ function renderDashboard() {
       );
 
 
-  const st = calcStock();
-
-
+  // O Resumo, a Consulta e o PDF usam a mesma fonte de dados.
+  // Isso impede totais divergentes quando existe alimento novo,
+  // renomeado ou cadastrado fora da antiga lista de referência.
   const estoque =
-    Object.values(st)
+    getAceUnifiedStockDisplayRows()
       .reduce(
-        (a, o) =>
-          a +
-          Object.values(o)
-            .reduce(
-              (x, v) =>
-                x + Number(v),
-              0
-            ),
+        (sum, item) =>
+          sum + Number(item.qty || 0),
         0
       );
 
@@ -12310,10 +12304,16 @@ function renderDashboard() {
       document.getElementById(id);
 
     if (el) {
-      el.textContent = fmt(value);
+      animateAceDashboardKpiValue(
+        el,
+        Number(value || 0)
+      );
     }
 
   });
+
+
+  applyAceDashboardRewardCards();
 
 
   const originSummary =
@@ -16822,53 +16822,88 @@ async function applyAceStockReference20260912Once() {
 }
 
 
-function getAceStockReferenceDisplayRows() {
+function getAceUnifiedStockDisplayRows() {
 
-  const stock =
-    calcStock();
+  const stock = calcStock();
+  const consolidated = new Map();
 
 
-  return ACE_STOCK_REFERENCE_20260912
-    .map(
-      target => {
+  // Usa o cadastro real de alimentos, sem depender de uma lista fixa.
+  // Cadastros com o mesmo nome são consolidados visualmente, mas nenhuma
+  // quantidade é descartada do total.
+  (db.foods || []).forEach(
+    food => {
 
-        const food =
-          getAceFoodForStockReference(
-            target
+      const name =
+        String(
+          food.name ||
+          food.nome ||
+          "Alimento sem nome"
+        ).trim();
+
+
+      const key =
+        normalizeAceText(name) ||
+        `ID:${food.id}`;
+
+
+      const qty =
+        (db.origins || [])
+          .reduce(
+            (sum, origin) =>
+              sum +
+              Number(
+                stock?.[origin.id]?.[food.id] ||
+                0
+              ),
+            0
           );
 
 
-        const qty =
-          food
-            ? (db.origins || [])
-                .reduce(
-                  (sum, origin) =>
-                    sum +
-                    Number(
-                      stock?.[origin.id]?.[food.id] ||
-                      0
-                    ),
-                  0
-                )
-            : Number(
-                target.qty || 0
-              );
+      const current =
+        consolidated.get(key);
 
 
-        return {
-          name:
-            food?.name ||
-            getAceStockReferenceEffectiveName(
-              target
-            ),
-          qty:
-            Number(
-              qty || 0
-            )
-        };
+      if (current) {
+
+        current.qty +=
+          Number(qty || 0);
+
+      } else {
+
+        consolidated.set(
+          key,
+          {
+            name,
+            qty: Number(qty || 0)
+          }
+        );
 
       }
-    );
+
+    }
+  );
+
+
+  return Array.from(
+    consolidated.values()
+  ).sort(
+    (a, b) =>
+      String(a.name).localeCompare(
+        String(b.name),
+        "pt-BR",
+        { sensitivity: "base" }
+      )
+  );
+
+}
+
+
+// Mantém compatibilidade com os pontos antigos do sistema e direciona
+// todos eles para a fonte unificada de estoque.
+function getAceStockReferenceDisplayRows() {
+
+  return getAceUnifiedStockDisplayRows();
 
 }
 
@@ -50626,4 +50661,521 @@ window.aceBuildStatisticsReportHtml =
   [0, 300, 900, 1800, 3500, 6000].forEach(delay => {
     window.setTimeout(bringThemeToTop, delay);
   });
+})();
+
+
+// ============================================================
+// ACE - MICROINTERAÇÕES PROFISSIONAIS DO RESUMO DO DIA
+// Mouse no computador, toque/deslize no celular e números animados.
+// Restrito exclusivamente aos seis indicadores do dashboard.
+// ============================================================
+
+const ACE_DASHBOARD_KPI_CONFIG = [
+  {
+    id: "kpiEntrada",
+    key: "entradas",
+    accent: "#11966f",
+    rgb: "17,150,111"
+  },
+  {
+    id: "kpiSaida",
+    key: "saidas",
+    accent: "#1689d0",
+    rgb: "22,137,208"
+  },
+  {
+    id: "kpiPerda",
+    key: "perdas",
+    accent: "#dc3b35",
+    rgb: "220,59,53"
+  },
+  {
+    id: "kpiEstoque",
+    key: "estoque",
+    accent: "#20a45b",
+    rgb: "32,164,91"
+  },
+  {
+    id: "kpiPresentes",
+    key: "presentes",
+    accent: "#7451b9",
+    rgb: "116,81,185"
+  },
+  {
+    id: "kpiCestas",
+    key: "cestas",
+    accent: "#e58a17",
+    rgb: "229,138,23"
+  }
+];
+
+
+function installAceDashboardRewardStyle() {
+
+  if (
+    document.getElementById(
+      "aceDashboardRewardStyleV1"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "aceDashboardRewardStyleV1";
+
+  style.textContent = `
+
+    #dashboard .cards .ace-kpi-reward-card{
+      --ace-kpi-accent:#1689d0;
+      --ace-kpi-rgb:22,137,208;
+      position:relative !important;
+      isolation:isolate;
+      overflow:hidden;
+      border-color:rgba(var(--ace-kpi-rgb),.22) !important;
+      background:
+        linear-gradient(145deg,rgba(var(--ace-kpi-rgb),.075),rgba(255,255,255,.99) 58%) !important;
+      box-shadow:
+        0 8px 22px rgba(4,59,99,.08),
+        inset 0 1px 0 rgba(255,255,255,.92) !important;
+      transform:translateZ(0);
+      transition:
+        transform .18s cubic-bezier(.2,.75,.25,1),
+        border-color .18s ease,
+        box-shadow .18s ease,
+        background .18s ease !important;
+      animation:aceKpiReveal .42s both cubic-bezier(.2,.8,.25,1);
+      animation-delay:var(--ace-kpi-delay,0ms);
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    #dashboard .cards .ace-kpi-reward-card::before{
+      content:"";
+      position:absolute;
+      z-index:-1;
+      top:0;
+      left:0;
+      width:100%;
+      height:4px;
+      border-radius:inherit;
+      background:linear-gradient(90deg,var(--ace-kpi-accent),rgba(var(--ace-kpi-rgb),.38));
+      transform:scaleX(.32);
+      transform-origin:left center;
+      transition:transform .22s ease;
+    }
+
+    #dashboard .cards .ace-kpi-reward-card::after{
+      content:"";
+      position:absolute;
+      z-index:-1;
+      right:-46px;
+      bottom:-60px;
+      width:150px;
+      height:150px;
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(var(--ace-kpi-rgb),.18),transparent 67%);
+      opacity:.42;
+      transform:scale(.72);
+      transition:opacity .2s ease,transform .25s ease;
+      pointer-events:none;
+    }
+
+    #dashboard .cards .ace-kpi-reward-card > span,
+    #dashboard .cards .ace-kpi-reward-card > strong,
+    #dashboard .cards .ace-kpi-reward-card > small{
+      position:relative;
+      z-index:1;
+    }
+
+    #dashboard .cards .ace-kpi-reward-card > span{
+      transition:color .18s ease,transform .18s ease;
+      transform-origin:left center;
+    }
+
+    #dashboard .cards .ace-kpi-reward-card > strong{
+      color:var(--ace-kpi-accent) !important;
+      display:block;
+      transform-origin:left center;
+      transition:transform .18s ease,filter .18s ease;
+    }
+
+    @media (hover:hover) and (pointer:fine){
+      #dashboard .cards .ace-kpi-reward-card:hover{
+        border-color:rgba(var(--ace-kpi-rgb),.62) !important;
+        background:
+          linear-gradient(145deg,rgba(var(--ace-kpi-rgb),.19),rgba(255,255,255,.99) 67%) !important;
+        box-shadow:
+          0 15px 32px rgba(var(--ace-kpi-rgb),.22),
+          0 5px 12px rgba(4,59,99,.1),
+          inset 0 1px 0 rgba(255,255,255,.95) !important;
+        transform:translateY(-4px) scale(1.012) !important;
+      }
+
+      #dashboard .cards .ace-kpi-reward-card:hover::before{
+        transform:scaleX(1);
+      }
+
+      #dashboard .cards .ace-kpi-reward-card:hover::after{
+        opacity:1;
+        transform:scale(1);
+      }
+
+      #dashboard .cards .ace-kpi-reward-card:hover > span{
+        color:var(--ace-kpi-accent) !important;
+        transform:translateX(2px) scale(1.025);
+      }
+
+      #dashboard .cards .ace-kpi-reward-card:hover > strong{
+        transform:scale(1.055);
+        filter:drop-shadow(0 4px 8px rgba(var(--ace-kpi-rgb),.18));
+      }
+    }
+
+    #dashboard .cards .ace-kpi-reward-card.is-touching{
+      border-color:rgba(var(--ace-kpi-rgb),.7) !important;
+      background:
+        linear-gradient(145deg,rgba(var(--ace-kpi-rgb),.22),rgba(255,255,255,.99) 70%) !important;
+      box-shadow:
+        0 10px 25px rgba(var(--ace-kpi-rgb),.24),
+        inset 0 1px 0 rgba(255,255,255,.95) !important;
+      transform:scale(.975) !important;
+    }
+
+    #dashboard .cards .ace-kpi-reward-card.is-touching::before,
+    #dashboard .cards .ace-kpi-reward-card.is-updating::before{
+      transform:scaleX(1);
+    }
+
+    #dashboard .cards .ace-kpi-reward-card.is-touching::after,
+    #dashboard .cards .ace-kpi-reward-card.is-updating::after{
+      opacity:1;
+      transform:scale(1);
+    }
+
+    #dashboard .cards .ace-kpi-reward-card.is-updating{
+      animation:aceKpiRewardPulse .58s ease both;
+    }
+
+    @keyframes aceKpiReveal{
+      from{opacity:0;transform:translateY(12px) scale(.985)}
+      to{opacity:1;transform:translateY(0) scale(1)}
+    }
+
+    @keyframes aceKpiRewardPulse{
+      0%,100%{filter:none}
+      45%{filter:drop-shadow(0 8px 13px rgba(var(--ace-kpi-rgb),.22))}
+    }
+
+    @media (prefers-reduced-motion:reduce){
+      #dashboard .cards .ace-kpi-reward-card,
+      #dashboard .cards .ace-kpi-reward-card::before,
+      #dashboard .cards .ace-kpi-reward-card::after,
+      #dashboard .cards .ace-kpi-reward-card > span,
+      #dashboard .cards .ace-kpi-reward-card > strong{
+        animation:none !important;
+        transition:none !important;
+      }
+    }
+
+  `;
+
+  document.head.appendChild(style);
+
+}
+
+
+function applyAceDashboardRewardCards() {
+
+  installAceDashboardRewardStyle();
+
+
+  ACE_DASHBOARD_KPI_CONFIG.forEach(
+    (config, index) => {
+
+      const valueElement =
+        document.getElementById(config.id);
+
+      const card =
+        valueElement?.closest(".card");
+
+
+      if (!card) {
+        return;
+      }
+
+
+      card.classList.add(
+        "ace-kpi-reward-card"
+      );
+
+      card.dataset.aceKpi =
+        config.key;
+
+      card.style.setProperty(
+        "--ace-kpi-accent",
+        config.accent
+      );
+
+      card.style.setProperty(
+        "--ace-kpi-rgb",
+        config.rgb
+      );
+
+      card.style.setProperty(
+        "--ace-kpi-delay",
+        `${index * 58}ms`
+      );
+
+    }
+  );
+
+
+  bindAceDashboardTouchFeedback();
+
+}
+
+
+function animateAceDashboardKpiValue(
+  element,
+  targetValue
+) {
+
+  if (!element) {
+    return;
+  }
+
+
+  const target =
+    Number.isFinite(targetValue)
+      ? targetValue
+      : 0;
+
+  const previousStored =
+    Number(
+      element.dataset.aceKpiValue
+    );
+
+  const currentText =
+    Number(
+      String(element.textContent || "0")
+        .replace(/[^0-9-]/g, "")
+    );
+
+  const start =
+    Number.isFinite(previousStored)
+      ? previousStored
+      : Number.isFinite(currentText)
+        ? currentText
+        : 0;
+
+
+  element.dataset.aceKpiValue =
+    String(target);
+
+
+  if (
+    start === target ||
+    window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)"
+    ).matches
+  ) {
+
+    element.textContent = fmt(target);
+    return;
+
+  }
+
+
+  if (element.aceKpiAnimationFrame) {
+    cancelAnimationFrame(
+      element.aceKpiAnimationFrame
+    );
+  }
+
+
+  const card =
+    element.closest(".card");
+
+  card?.classList.remove(
+    "is-updating"
+  );
+
+  void card?.offsetWidth;
+
+  card?.classList.add(
+    "is-updating"
+  );
+
+
+  const startedAt =
+    performance.now();
+
+  const duration = 560;
+
+
+  const frame = now => {
+
+    const progress =
+      Math.min(
+        1,
+        (now - startedAt) / duration
+      );
+
+    const eased =
+      1 - Math.pow(1 - progress, 3);
+
+    const value =
+      Math.round(
+        start +
+        (target - start) * eased
+      );
+
+    element.textContent = fmt(value);
+
+
+    if (progress < 1) {
+
+      element.aceKpiAnimationFrame =
+        requestAnimationFrame(frame);
+
+    } else {
+
+      element.textContent = fmt(target);
+      element.aceKpiAnimationFrame = null;
+
+      window.setTimeout(
+        () =>
+          card?.classList.remove(
+            "is-updating"
+          ),
+        120
+      );
+
+    }
+
+  };
+
+
+  element.aceKpiAnimationFrame =
+    requestAnimationFrame(frame);
+
+}
+
+
+function bindAceDashboardTouchFeedback() {
+
+  const dashboard =
+    document.getElementById("dashboard");
+
+
+  if (
+    !dashboard ||
+    dashboard.dataset.aceKpiTouchBound === "1"
+  ) {
+    return;
+  }
+
+
+  dashboard.dataset.aceKpiTouchBound = "1";
+
+  let activeCard = null;
+
+
+  const clearActive = () => {
+
+    activeCard?.classList.remove(
+      "is-touching"
+    );
+
+    activeCard = null;
+
+  };
+
+
+  const activateAt = (x, y) => {
+
+    const card =
+      document
+        .elementFromPoint(x, y)
+        ?.closest(
+          "#dashboard .ace-kpi-reward-card"
+        );
+
+
+    if (card === activeCard) {
+      return;
+    }
+
+
+    clearActive();
+
+
+    if (!card) {
+      return;
+    }
+
+
+    activeCard = card;
+    activeCard.classList.add(
+      "is-touching"
+    );
+
+
+    try {
+      navigator.vibrate?.(12);
+    } catch {
+      // Vibração não disponível neste aparelho.
+    }
+
+  };
+
+
+  dashboard.addEventListener(
+    "touchstart",
+    event => {
+      const touch = event.touches?.[0];
+      if (touch) {
+        activateAt(touch.clientX, touch.clientY);
+      }
+    },
+    { passive: true }
+  );
+
+
+  dashboard.addEventListener(
+    "touchmove",
+    event => {
+      const touch = event.touches?.[0];
+      if (touch) {
+        activateAt(touch.clientX, touch.clientY);
+      }
+    },
+    { passive: true }
+  );
+
+
+  ["touchend", "touchcancel"].forEach(
+    eventName =>
+      dashboard.addEventListener(
+        eventName,
+        clearActive,
+        { passive: true }
+      )
+  );
+
+}
+
+
+(function initializeAceDashboardRewards() {
+
+  installAceDashboardRewardStyle();
+
+  window.setTimeout(
+    applyAceDashboardRewardCards,
+    0
+  );
+
 })();
