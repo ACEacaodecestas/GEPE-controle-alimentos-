@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.13-pwa-edicao-usuarios-edge-v23";
+  "2026.09.13-pwa-nome-sobrenome-cabecalho-v24";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -3351,6 +3351,19 @@ function getCurrentFirstName() {
   }
 
   return fullName.split(/\s+/)[0];
+}
+
+
+function getCurrentHeaderName() {
+  const parts = String(getCurrentDisplayName() || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "Usuário";
+  if (parts.length === 1) return parts[0];
+
+  return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
 
@@ -11192,7 +11205,7 @@ function addUserBar() {
       class="user-email"
       title="${esc(getCurrentDisplayName())}"
     >
-      ${esc(getCurrentFirstName())}
+      ${esc(getCurrentHeaderName())}
     </span>
 
 
@@ -40891,7 +40904,7 @@ function setupProfessionalMobileLayout() {
 
         <div class="ace-mobile-user-name">
           ${esc(
-            getCurrentFirstName()
+            getCurrentHeaderName()
           )}
         </div>
 
@@ -41029,7 +41042,7 @@ function setupProfessionalMobileLayout() {
 
   if (mobileUserName) {
     mobileUserName.textContent =
-      getCurrentFirstName();
+      getCurrentHeaderName();
   }
 
 
