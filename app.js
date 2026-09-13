@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.12-pwa-relatorio-presentes-simplificado-v21";
+  "2026.09.13-pwa-edicao-usuarios-v22";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -3302,6 +3302,16 @@ function setupOfflineStatus() {
 // ============================================================
 
 function getCurrentDisplayName() {
+  const accessName =
+    String(
+      aceCurrentAccess?.display_name ||
+      ""
+    ).trim();
+
+
+  if (accessName) return accessName;
+
+
   const metadataName =
     currentUser?.user_metadata?.nome ||
     currentUser?.user_metadata?.full_name ||
@@ -3632,15 +3642,10 @@ function getMovementUserName(item) {
     return getCurrentDisplayName();
   }
 
-  // 2) Se a movimentação já possui o nome salvo, preserva esse nome.
-  if (item?.usuarioNome) {
-    return item.usuarioNome;
-  }
-
-
-  // 3) Procura no cadastro CENTRAL de usuários do Supabase.
+  // 2) Procura primeiro no cadastro CENTRAL de usuários do Supabase.
   // Isso permite identificar Abimael e qualquer outro usuário
-  // mesmo quando a movimentação foi feita em outro celular.
+  // mesmo quando a movimentação foi feita em outro celular. O cadastro
+  // atual prevalece sobre nomes antigos copiados nas movimentações.
   const centralName =
     getAceUserNameFromDirectory(
       userId
@@ -3648,6 +3653,12 @@ function getMovementUserName(item) {
 
   if (centralName) {
     return centralName;
+  }
+
+
+  // 3) Compatibilidade para registros sem usuário no diretório central.
+  if (item?.usuarioNome) {
+    return item.usuarioNome;
   }
 
 
@@ -10579,12 +10590,339 @@ function ensureAceUserAdminStyles() {
     #aceUserAdminModal .ace-user-email{overflow:hidden;text-overflow:ellipsis;color:#596b7a;font-size:13px}
     #aceUserAdminModal .ace-user-meta{margin-top:4px;font-size:12px;font-weight:800;color:#667085}
     #aceUserAdminModal .ace-user-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    #aceUserAdminModal .ace-user-edit{border:1px solid #1570a6;background:#eaf5fc;color:#075fa7}
     #aceUserAdminModal .ace-user-reset{border:1px solid #1570a6;background:#fff;color:#075fa7}
     #aceUserAdminModal .ace-user-toggle{border:1px solid #b42318;background:#fff;color:#b42318}
     #aceUserAdminModal .ace-user-toggle.activate{border-color:#16803a;color:#16803a}
+    #aceUserEditModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,31,58,.70);backdrop-filter:blur(5px)}
+    #aceUserEditModal .ace-user-edit-box{width:min(520px,100%);box-sizing:border-box;padding:25px;border:1px solid #d6e3ec;border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(0,31,58,.32)}
+    #aceUserEditModal h3{margin:0 0 6px;color:#0b2f55;font-size:23px}
+    #aceUserEditModal .ace-user-edit-subtitle{margin-bottom:18px;color:#667085;font-size:14px}
+    #aceUserEditModal .ace-user-edit-fields{display:grid;gap:13px}
+    #aceUserEditModal label{display:grid;gap:6px;color:#173750;font-size:13px;font-weight:850}
+    #aceUserEditModal input,#aceUserEditModal select{box-sizing:border-box;width:100%;min-height:46px;padding:10px 12px;border:1px solid #c3d4e0;border-radius:10px;background:#fff;color:#173750;font:inherit}
+    #aceUserEditModal input[readonly]{background:#f3f6f8;color:#667085;cursor:not-allowed}
+    #aceUserEditModal .ace-user-email-note{margin-top:-7px;color:#667085;font-size:11px}
+    #aceUserEditModal .ace-user-edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+    #aceUserEditModal .ace-user-edit-cancel{border:1px solid #b8c9d6;background:#fff;color:#344054}
+    #aceUserEditModal .ace-user-edit-save{border:1px solid #075fa7;background:#075fa7;color:#fff}
     @media(max-width:720px){#aceUserAdminModal .ace-users-form{grid-template-columns:1fr}#aceUserAdminModal .ace-user-row{grid-template-columns:1fr}#aceUserAdminModal .ace-user-actions{justify-content:flex-start}}
   `;
   document.head.appendChild(style);
+
+}
+
+
+async function updateAceManagedUser({
+  userId,
+  displayName,
+  email,
+  role
+}) {
+
+  const cleanName =
+    String(displayName || "")
+      .trim();
+
+  const cleanRole =
+    role === "admin"
+      ? "admin"
+      : "user";
+
+
+  if (!cleanName) {
+    throw new Error(
+      "Informe o nome completo do usuário."
+    );
+  }
+
+
+  let updatedByAdminFunction =
+    false;
+
+
+  try {
+
+    await callAceAdminUsers(
+      "update_user",
+      {
+        user_id:
+          userId,
+        display_name:
+          cleanName,
+        role:
+          cleanRole
+      }
+    );
+
+    updatedByAdminFunction =
+      true;
+
+  } catch (adminFunctionError) {
+
+    // Compatibilidade com instalações cuja função administrativa ainda
+    // não possua a ação update_user. A política RLS continua decidindo
+    // se o administrador atual tem permissão para executar a alteração.
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from("ace_app_users")
+        .update({
+          display_name:
+            cleanName,
+          role:
+            cleanRole
+        })
+        .eq(
+          "user_id",
+          userId
+        )
+        .select("user_id");
+
+
+    if (
+      error ||
+      !Array.isArray(data) ||
+      !data.length
+    ) {
+      throw new Error(
+        adminFunctionError?.message ||
+        error?.message ||
+        "Não foi possível atualizar o usuário."
+      );
+    }
+
+  }
+
+
+  // Mantém o diretório usado nos históricos e movimentações com o
+  // mesmo nome exibido no gerenciamento de usuários.
+  const {
+    error: directoryError
+  } =
+    await supabaseClient
+      .from("usuarios")
+      .upsert(
+        {
+          id:
+            userId,
+          nome:
+            cleanName,
+          email:
+            email ||
+            null
+        },
+        {
+          onConflict:
+            "id"
+        }
+      );
+
+
+  if (directoryError) {
+    console.warn(
+      "ACE: usuário atualizado, mas o diretório de nomes será sincronizado depois:",
+      directoryError
+    );
+  }
+
+
+  aceUsersDirectory =
+    aceUsersDirectory ||
+    {};
+
+  aceUsersDirectory[String(userId)] = {
+    nome:
+      cleanName,
+    email:
+      String(email || "")
+  };
+
+  saveAceUsersDirectoryLocal(
+    aceUsersDirectory
+  );
+
+
+  try {
+
+    const key =
+      "ace_usuarios_nomes_v1";
+
+    const savedNames =
+      JSON.parse(
+        localStorage.getItem(key) ||
+        "{}"
+      );
+
+    savedNames[userId] =
+      cleanName;
+
+    localStorage.setItem(
+      key,
+      JSON.stringify(savedNames)
+    );
+
+  } catch (localError) {
+    console.warn(
+      "ACE: não foi possível atualizar o nome local do usuário:",
+      localError
+    );
+  }
+
+
+  return {
+    display_name:
+      cleanName,
+    role:
+      cleanRole,
+    updatedByAdminFunction
+  };
+
+}
+
+
+function openAceUserEditDialog(
+  user
+) {
+
+  return new Promise(
+    resolve => {
+
+      document
+        .getElementById(
+          "aceUserEditModal"
+        )
+        ?.remove();
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+      overlay.id =
+        "aceUserEditModal";
+
+      overlay.innerHTML = `
+        <section class="ace-user-edit-box" role="dialog" aria-modal="true" aria-labelledby="aceUserEditTitle">
+          <h3 id="aceUserEditTitle">✏️ Editar usuário</h3>
+          <div class="ace-user-edit-subtitle">Atualize o nome e o nível de acesso.</div>
+
+          <div class="ace-user-edit-fields">
+            <label>
+              Nome completo
+              <input id="aceManagedUserName" type="text" maxlength="120" value="${esc(user.display_name || "")}" autocomplete="name">
+            </label>
+
+            <label>
+              E-mail
+              <input id="aceManagedUserEmail" type="email" value="${esc(user.email || "")}" readonly>
+            </label>
+            <div class="ace-user-email-note">O e-mail não pode ser alterado nesta tela para proteger o acesso da conta.</div>
+
+            <label>
+              Acesso
+              <select id="aceManagedUserRole">
+                <option value="user" ${user.role === "admin" ? "" : "selected"}>Usuário</option>
+                <option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="ace-user-edit-actions">
+            <button class="ace-user-edit-cancel" type="button">Cancelar</button>
+            <button class="ace-user-edit-save" type="button">Salvar alterações</button>
+          </div>
+        </section>
+      `;
+
+      document.body.appendChild(
+        overlay
+      );
+
+
+      let closed =
+        false;
+
+      const close =
+        value => {
+
+          if (closed) return;
+
+          closed =
+            true;
+
+          overlay.remove();
+          resolve(value);
+
+        };
+
+
+      overlay
+        .querySelector(
+          ".ace-user-edit-cancel"
+        )
+        .onclick =
+          () => close(null);
+
+      overlay
+        .querySelector(
+          ".ace-user-edit-save"
+        )
+        .onclick =
+          () => {
+
+            const displayName =
+              overlay
+                .querySelector(
+                  "#aceManagedUserName"
+                )
+                .value
+                .trim();
+
+            const role =
+              overlay
+                .querySelector(
+                  "#aceManagedUserRole"
+                )
+                .value;
+
+
+            if (!displayName) {
+              overlay
+                .querySelector(
+                  "#aceManagedUserName"
+                )
+                .focus();
+              return;
+            }
+
+
+            close({
+              displayName,
+              role
+            });
+
+          };
+
+
+      overlay.onclick =
+        event => {
+          if (event.target === overlay) {
+            close(null);
+          }
+        };
+
+      overlay
+        .querySelector(
+          "#aceManagedUserName"
+        )
+        .focus();
+
+    }
+  );
 
 }
 
@@ -10613,6 +10951,7 @@ async function renderAceAdminUsers() {
               </div>
             </div>
             <div class="ace-user-actions">
+              <button class="ace-user-edit" type="button" data-ace-user-edit="${esc(user.user_id)}">✏️ Editar</button>
               <button class="ace-user-reset" type="button" data-ace-user-reset="${esc(user.user_id)}" data-ace-user-email="${esc(user.email)}">Enviar link de senha</button>
               <button class="ace-user-toggle ${user.is_active ? "" : "activate"}" type="button" data-ace-user-toggle="${esc(user.user_id)}" data-ace-user-active="${user.is_active ? "1" : "0"}">
                 ${user.is_active ? "Bloquear" : "Ativar"}
@@ -10621,6 +10960,97 @@ async function renderAceAdminUsers() {
           </article>
         `).join("")
       : `<div class="empty">Nenhum usuário encontrado.</div>`;
+
+    list.querySelectorAll("[data-ace-user-edit]").forEach(button => {
+      button.onclick = async () => {
+        const userId = button.dataset.aceUserEdit;
+        const user = users.find(
+          item =>
+            String(item.user_id) ===
+            String(userId)
+        );
+
+        if (!user) return;
+
+        const edited =
+          await openAceUserEditDialog(user);
+
+        if (!edited) return;
+
+        if (message) {
+          message.textContent = "";
+        }
+
+        button.disabled = true;
+
+        try {
+          const updated =
+            await updateAceManagedUser({
+              userId:
+                user.user_id,
+              displayName:
+                edited.displayName,
+              email:
+                user.email,
+              role:
+                edited.role
+            });
+
+          const isCurrentUser =
+            String(user.user_id) ===
+            String(currentUser?.id || "");
+
+          if (isCurrentUser) {
+            aceCurrentAccess = {
+              ...(aceCurrentAccess || {}),
+              display_name:
+                updated.display_name,
+              role:
+                updated.role
+            };
+
+            refreshAceOfflineAuthorization(
+              currentUser?.email,
+              aceCurrentAccess
+            );
+
+            addUserBar();
+          }
+
+          renderAll();
+
+          if (
+            isCurrentUser &&
+            updated.role !== "admin"
+          ) {
+            document
+              .getElementById(
+                "aceUserAdminModal"
+              )
+              ?.remove();
+          } else {
+            await renderAceAdminUsers();
+          }
+
+          await showAceSuccess(
+            "As alterações do usuário foram realizadas com sucesso.",
+            "Usuário atualizado"
+          );
+
+        } catch (error) {
+          if (message) {
+            message.style.color = "#b42318";
+            message.textContent =
+              error?.message ||
+              "Não foi possível atualizar o usuário.";
+          }
+
+          if (button.isConnected) {
+            button.disabled = false;
+          }
+        }
+      };
+    });
 
     list.querySelectorAll("[data-ace-user-reset]").forEach(button => {
       button.onclick = async () => {
