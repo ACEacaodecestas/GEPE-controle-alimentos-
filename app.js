@@ -377,7 +377,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.13-pwa-edicao-usuarios-v22";
+  "2026.09.13-pwa-edicao-usuarios-edge-v23";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -10556,7 +10556,45 @@ async function callAceAdminUsers(action, payload = {}) {
       { body: { action, ...payload } }
     );
 
-  if (error) throw error;
+  if (error) {
+    let serverMessage =
+      String(data?.error || "")
+        .trim();
+
+    if (!serverMessage) {
+      try {
+        const response =
+          error?.context;
+
+        if (
+          response &&
+          typeof response.clone === "function"
+        ) {
+          const errorBody =
+            await response.clone().json();
+
+          serverMessage =
+            String(errorBody?.error || "")
+              .trim();
+        }
+      } catch {
+        // Usa a mensagem amigável abaixo.
+      }
+    }
+
+    const technicalMessage =
+      String(error?.message || "");
+
+    throw new Error(
+      serverMessage ||
+      (
+        /non-2xx|edge function/i.test(technicalMessage)
+          ? "Não foi possível concluir a alteração do usuário."
+          : technicalMessage
+      ) ||
+      "Não foi possível concluir a operação."
+    );
+  }
   if (!data?.ok) {
     throw new Error(data?.error || "Não foi possível concluir a operação.");
   }
@@ -10637,96 +10675,17 @@ async function updateAceManagedUser({
   }
 
 
-  let updatedByAdminFunction =
-    false;
-
-
-  try {
-
-    await callAceAdminUsers(
-      "update_user",
-      {
-        user_id:
-          userId,
-        display_name:
-          cleanName,
-        role:
-          cleanRole
-      }
-    );
-
-    updatedByAdminFunction =
-      true;
-
-  } catch (adminFunctionError) {
-
-    // Compatibilidade com instalações cuja função administrativa ainda
-    // não possua a ação update_user. A política RLS continua decidindo
-    // se o administrador atual tem permissão para executar a alteração.
-    const {
-      data,
-      error
-    } =
-      await supabaseClient
-        .from("ace_app_users")
-        .update({
-          display_name:
-            cleanName,
-          role:
-            cleanRole
-        })
-        .eq(
-          "user_id",
-          userId
-        )
-        .select("user_id");
-
-
-    if (
-      error ||
-      !Array.isArray(data) ||
-      !data.length
-    ) {
-      throw new Error(
-        adminFunctionError?.message ||
-        error?.message ||
-        "Não foi possível atualizar o usuário."
-      );
+  await callAceAdminUsers(
+    "update_user",
+    {
+      user_id:
+        userId,
+      display_name:
+        cleanName,
+      role:
+        cleanRole
     }
-
-  }
-
-
-  // Mantém o diretório usado nos históricos e movimentações com o
-  // mesmo nome exibido no gerenciamento de usuários.
-  const {
-    error: directoryError
-  } =
-    await supabaseClient
-      .from("usuarios")
-      .upsert(
-        {
-          id:
-            userId,
-          nome:
-            cleanName,
-          email:
-            email ||
-            null
-        },
-        {
-          onConflict:
-            "id"
-        }
-      );
-
-
-  if (directoryError) {
-    console.warn(
-      "ACE: usuário atualizado, mas o diretório de nomes será sincronizado depois:",
-      directoryError
-    );
-  }
+  );
 
 
   aceUsersDirectory =
@@ -10776,8 +10735,7 @@ async function updateAceManagedUser({
     display_name:
       cleanName,
     role:
-      cleanRole,
-    updatedByAdminFunction
+      cleanRole
   };
 
 }
