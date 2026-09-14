@@ -51434,3 +51434,217 @@ function bindAceDashboardTouchFeedback() {
   );
 
 })();
+
+
+// ============================================================
+// ACE - NAVEGAÇÃO PREMIUM PARA COMPUTADOR
+// ============================================================
+// Camada exclusivamente visual. Não altera abas, eventos, dados,
+// Supabase ou a navegação mobile.
+// ============================================================
+
+(function installAcePremiumDesktopNavigationV2() {
+
+  const STYLE_ID = "acePremiumDesktopNavigationV2";
+
+  if (document.getElementById(STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+
+  style.textContent = `
+    @media (min-width: 851px) {
+
+      /* Cabeçalho mais compacto, preservando todos os controles. */
+      html body .ace-header-v6 {
+        height: 276px !important;
+        min-height: 276px !important;
+        box-sizing: border-box !important;
+      }
+
+      html body .ace-header-v6 > img:first-of-type {
+        max-height: 222px !important;
+        width: auto !important;
+        object-fit: contain !important;
+      }
+
+      html body #userBar {
+        bottom: 20px !important;
+      }
+
+      /* Barra de navegação com identidade própria. */
+      html body .tabs {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100000 !important;
+        display: flex !important;
+        min-height: 76px !important;
+        box-sizing: border-box !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+        padding: 10px clamp(18px, 2.2vw, 38px) !important;
+        border-top: 1px solid rgba(255,255,255,.88) !important;
+        border-bottom: 1px solid #c5dcebcf !important;
+        background:
+          radial-gradient(circle at 14% -80%, rgba(22,137,208,.17), transparent 31rem),
+          linear-gradient(180deg, #f8fcff 0%, #edf6fc 100%) !important;
+        box-shadow:
+          0 10px 28px rgba(4,59,99,.10),
+          inset 0 1px 0 rgba(255,255,255,.95) !important;
+        backdrop-filter: blur(16px) saturate(1.1) !important;
+      }
+
+      html body .tabs .tab.ace-root-original-tab,
+      html body .tabs .ace-desktop-group-trigger {
+        position: relative !important;
+        display: inline-flex !important;
+        min-height: 54px !important;
+        box-sizing: border-box !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 9px !important;
+        margin: 0 !important;
+        padding: 0 clamp(17px, 1.35vw, 23px) !important;
+        border: 1px solid transparent !important;
+        border-radius: 15px !important;
+        background: transparent !important;
+        color: #294b66 !important;
+        font-size: 16px !important;
+        font-weight: 850 !important;
+        line-height: 1.1 !important;
+        letter-spacing: -.08px !important;
+        white-space: nowrap !important;
+        cursor: pointer !important;
+        box-shadow: none !important;
+        transform: translateY(0) !important;
+        transition:
+          color .18s ease,
+          border-color .18s ease,
+          background .18s ease,
+          box-shadow .18s ease,
+          transform .18s cubic-bezier(.2,.75,.25,1) !important;
+      }
+
+      html body .tabs .tab.ace-root-original-tab::after,
+      html body .tabs .ace-desktop-group-trigger::after {
+        content: "";
+        position: absolute;
+        right: 18px;
+        bottom: 5px;
+        left: 18px;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #0f74b8, #22a4dc);
+        opacity: 0;
+        transform: scaleX(.35);
+        transition: opacity .18s ease, transform .2s ease;
+        pointer-events: none;
+      }
+
+      html body .tabs .tab.ace-root-original-tab:hover,
+      html body .tabs .ace-desktop-group-trigger:hover {
+        border-color: #c5e0f1 !important;
+        background: rgba(255,255,255,.92) !important;
+        color: #075d9a !important;
+        box-shadow:
+          0 9px 20px rgba(4,90,148,.13),
+          inset 0 1px 0 #fff !important;
+        transform: translateY(-2px) !important;
+      }
+
+      html body .tabs .tab.ace-root-original-tab.active,
+      html body .tabs .ace-desktop-group-trigger.active,
+      html body .tabs .ace-desktop-group-trigger.open {
+        border-color: #abd3ea !important;
+        background: linear-gradient(180deg, #ffffff 0%, #e1f1fb 100%) !important;
+        color: #064f88 !important;
+        box-shadow:
+          0 9px 22px rgba(4,90,148,.14),
+          inset 0 0 0 1px rgba(22,137,208,.07),
+          inset 0 1px 0 #fff !important;
+        transform: translateY(-1px) !important;
+      }
+
+      html body .tabs .tab.ace-root-original-tab.active::after,
+      html body .tabs .ace-desktop-group-trigger.active::after,
+      html body .tabs .ace-desktop-group-trigger.open::after {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+
+      html body .tabs .tab.ace-root-original-tab:focus-visible,
+      html body .tabs .ace-desktop-group-trigger:focus-visible {
+        outline: 3px solid rgba(22,137,208,.27) !important;
+        outline-offset: 2px !important;
+      }
+
+      html body .tabs .ace-desktop-group-trigger .ace-group-arrow {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 18px !important;
+        height: 18px !important;
+        border-radius: 50% !important;
+        background: rgba(13,102,159,.09) !important;
+        font-size: 10px !important;
+      }
+
+      /* Dropdown alinhado ao acabamento da nova barra. */
+      html body #aceDesktopGroupedPopup {
+        min-width: 255px !important;
+        padding: 9px !important;
+        border-color: #c8ddea !important;
+        border-radius: 17px !important;
+        background: rgba(255,255,255,.985) !important;
+        box-shadow:
+          0 22px 55px rgba(5,47,78,.22),
+          0 4px 12px rgba(4,59,99,.08) !important;
+        backdrop-filter: blur(16px) !important;
+      }
+
+      html body #aceDesktopGroupedPopup button {
+        min-height: 50px !important;
+        padding: 11px 14px !important;
+        border-radius: 12px !important;
+        font-size: 15px !important;
+        transition: background .15s ease, color .15s ease, transform .15s ease !important;
+      }
+
+      html body #aceDesktopGroupedPopup button:hover,
+      html body #aceDesktopGroupedPopup button.active {
+        background: linear-gradient(180deg, #eef8fe, #e2f1fb) !important;
+        color: #075d9a !important;
+        transform: translateX(2px) !important;
+      }
+    }
+
+    @media (min-width: 851px) and (max-width: 1180px) {
+      html body .tabs {
+        gap: 4px !important;
+        padding-right: 12px !important;
+        padding-left: 12px !important;
+      }
+
+      html body .tabs .tab.ace-root-original-tab,
+      html body .tabs .ace-desktop-group-trigger {
+        padding-right: 14px !important;
+        padding-left: 14px !important;
+        font-size: 14px !important;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html body .tabs .tab.ace-root-original-tab,
+      html body .tabs .ace-desktop-group-trigger,
+      html body #aceDesktopGroupedPopup button {
+        transition: none !important;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+
+})();
