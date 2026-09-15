@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-7",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-8",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -25099,36 +25099,53 @@ async function addOrUpdateBulkEntryItem() {
     selectedFood.name;
 
 
-  if (aceBulkEntryEditingId) {
+  if (aceBulkEntryEditingId !== null) {
 
-    const item =
-      aceBulkEntryDraft.find(
+    const itemIndex =
+      aceBulkEntryDraft.findIndex(
         row =>
-          row.id ===
-          aceBulkEntryEditingId
+          String(row.id) ===
+          String(aceBulkEntryEditingId)
       );
 
 
-    if (item) {
+    if (itemIndex < 0) {
 
-      item.foodId =
-        selectedFood.id;
+      resetBulkEntryItemEditor();
 
-      item.foodName =
-        selectedFood.name;
+      renderBulkEntryDraft();
 
-      item.qty =
-        qty;
+      await showAceMessage(
+        "O item selecionado não foi encontrado no resumo. Selecione-o novamente e tente editar.",
+        "Item não encontrado"
+      );
 
-      item.note =
-        note;
-
+      return;
     }
+
+
+    const currentItem =
+      aceBulkEntryDraft[itemIndex];
+
+
+    aceBulkEntryDraft[itemIndex] = {
+      ...currentItem,
+      foodId:
+        selectedFood.id,
+      foodName:
+        selectedFood.name,
+      qty,
+      note
+    };
 
 
     resetBulkEntryItemEditor();
 
     renderBulkEntryDraft();
+
+    showAceSuccess(
+      "Item atualizado no resumo da entrada."
+    );
 
     return;
   }
@@ -25223,7 +25240,8 @@ function editBulkEntryItem(
   const item =
     aceBulkEntryDraft.find(
       row =>
-        row.id === id
+        String(row.id) ===
+        String(id)
     );
 
 
@@ -25233,7 +25251,7 @@ function editBulkEntryItem(
 
 
   aceBulkEntryEditingId =
-    id;
+    String(item.id);
 
 
   const food =
@@ -25371,7 +25389,46 @@ function bindBulkEntryFormEvents() {
     )
     ?.addEventListener(
       "click",
-      addOrUpdateBulkEntryItem
+      async event => {
+
+        event.preventDefault();
+
+        const button =
+          event.currentTarget;
+
+        if (button.disabled) {
+          return;
+        }
+
+        button.disabled =
+          true;
+
+
+        try {
+
+          await addOrUpdateBulkEntryItem();
+
+        } catch (error) {
+
+          console.error(
+            "ACE - ERRO AO EDITAR RESUMO DA ENTRADA:",
+            error
+          );
+
+          await showAceMessage(
+            "Não foi possível salvar a alteração do item.\n\n" +
+            (error?.message || "Tente novamente."),
+            "Erro na edição"
+          );
+
+        } finally {
+
+          button.disabled =
+            false;
+
+        }
+
+      }
     );
 
 
@@ -25433,15 +25490,19 @@ function bindBulkEntryFormEvents() {
           aceBulkEntryDraft =
             aceBulkEntryDraft.filter(
               item =>
-                item.id !==
-                deleteButton.dataset
-                  .bulkEntryDelete
+                String(item.id) !==
+                String(
+                  deleteButton.dataset
+                    .bulkEntryDelete
+                )
             );
 
           if (
-            aceBulkEntryEditingId ===
-            deleteButton.dataset
-              .bulkEntryDelete
+            String(aceBulkEntryEditingId) ===
+            String(
+              deleteButton.dataset
+                .bulkEntryDelete
+            )
           ) {
             resetBulkEntryItemEditor();
           }
@@ -34681,7 +34742,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-7",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-8",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
