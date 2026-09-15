@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-9",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-10",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -24940,6 +24940,92 @@ function renderBulkEntryDraft() {
 
   }
 
+
+  // Os itens são recriados com innerHTML a cada alteração. Por isso os
+  // botões recebem eventos DIRETOS após toda renderização, sem depender
+  // do listener delegado do painel (que falhava em alguns navegadores).
+  bindBulkEntryDraftItemActions();
+
+}
+
+
+function bindBulkEntryDraftItemActions() {
+
+  const list =
+    document.getElementById(
+      "bulkEntryList"
+    );
+
+
+  if (!list) {
+    return;
+  }
+
+
+  list
+    .querySelectorAll(
+      "[data-bulk-entry-edit]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          event => {
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            editBulkEntryItem(
+              button.dataset
+                .bulkEntryEdit
+            );
+
+          };
+
+      }
+    );
+
+
+  list
+    .querySelectorAll(
+      "[data-bulk-entry-delete]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          event => {
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const itemId =
+              button.dataset
+                .bulkEntryDelete;
+
+            aceBulkEntryDraft =
+              aceBulkEntryDraft.filter(
+                item =>
+                  String(item.id) !==
+                  String(itemId)
+              );
+
+
+            if (
+              String(aceBulkEntryEditingId) ===
+              String(itemId)
+            ) {
+              resetBulkEntryItemEditor();
+            }
+
+
+            renderBulkEntryDraft();
+
+          };
+
+      }
+    );
+
 }
 
 
@@ -25267,6 +25353,12 @@ function editBulkEntryItem(
 
 
   if (!item) {
+
+    showAceMessage(
+      "Não foi possível localizar este item no resumo. Atualize a página e tente novamente.",
+      "Item não encontrado"
+    );
+
     return;
   }
 
@@ -34766,7 +34858,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-9",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-10",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
