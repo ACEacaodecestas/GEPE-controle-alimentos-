@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-8",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-9",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -24772,6 +24772,10 @@ function setupBulkEntryForm() {
 
   renderBulkEntryDraft();
 
+  // Liga os comandos imediatamente aos elementos recém-criados.
+  // Não depende da ordem das demais rotinas de inicialização.
+  bindBulkEntryFormEvents();
+
 }
 
 
@@ -24986,6 +24990,9 @@ function resetBulkEntryItemEditor() {
   if (add) {
     add.textContent =
       "➕ Adicionar à entrada";
+
+    delete add.dataset
+      .bulkEntryEditingId;
   }
 
   if (cancel) {
@@ -24997,6 +25004,16 @@ function resetBulkEntryItemEditor() {
 
 
 async function addOrUpdateBulkEntryItem() {
+
+  const addButton =
+    document.getElementById(
+      "bulkEntryAdd"
+    );
+
+  const editingId =
+    addButton?.dataset
+      .bulkEntryEditingId ||
+    aceBulkEntryEditingId;
 
   const date =
     document.getElementById(
@@ -25099,13 +25116,17 @@ async function addOrUpdateBulkEntryItem() {
     selectedFood.name;
 
 
-  if (aceBulkEntryEditingId !== null) {
+  if (
+    editingId !== null &&
+    editingId !== undefined &&
+    String(editingId) !== ""
+  ) {
 
     const itemIndex =
       aceBulkEntryDraft.findIndex(
         row =>
           String(row.id) ===
-          String(aceBulkEntryEditingId)
+          String(editingId)
       );
 
 
@@ -25302,6 +25323,9 @@ function editBulkEntryItem(
   if (add) {
     add.textContent =
       "💾 Salvar alteração";
+
+    add.dataset.bulkEntryEditingId =
+      String(item.id);
   }
 
   if (cancel) {
@@ -34742,7 +34766,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-8",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-9",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
