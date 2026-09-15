@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-6",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-7",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -16168,83 +16168,42 @@ function getAceUnifiedStockDisplayRows(
 
   const stock =
     stockSnapshot || calcStock();
-  const consolidated = new Map();
 
 
-  // Usa o cadastro real de alimentos, sem depender de uma lista fixa.
-  // Cadastros com o mesmo nome são consolidados visualmente, mas nenhuma
-  // quantidade é descartada do total.
-  (db.foods || []).forEach(
-    food => {
-
-      const name =
-        String(
-          food.name ||
-          food.nome ||
-          "Alimento sem nome"
-        ).trim();
-
-
-      const key =
-        normalizeAceText(name) ||
-        `ID:${food.id}`;
-
-
-      const qty =
-        (db.origins || [])
-          .reduce(
-            (sum, origin) =>
-              sum +
-              Number(
-                stock?.[origin.id]?.[food.id] ||
-                0
-              ),
-            0
-          );
-
-
-      const current =
-        consolidated.get(key);
-
-
-      if (current) {
-
-        current.qty +=
-          Number(qty || 0);
-
-      } else {
-
-        consolidated.set(
-          key,
-          {
-            name,
-            qty: Number(qty || 0)
-          }
-        );
-
-      }
-
-    }
-  );
-
-
-  return Array.from(
-    consolidated.values()
-  )
-  // A consulta e o PDF de estoque mostram somente o que realmente
-  // existe. Itens sem saldo permanecem no Cadastro de Alimentos.
-  .filter(
-    item =>
-      Number(item.qty || 0) > 0
-  )
-  .sort(
+  // A tela de estoque usa exatamente o Cadastro de Alimentos — a mesma
+  // fonte do seletor de Entrada. Zerar o sistema apaga movimentações e
+  // quantidades, mas cada alimento cadastrado continua aparecendo com 0.
+  return (db.foods || [])
+    .map(
+      food => ({
+        id: Number(food.id),
+        name:
+          String(
+            food.name ||
+            food.nome ||
+            "Alimento sem nome"
+          ).trim(),
+        qty:
+          (db.origins || [])
+            .reduce(
+              (sum, origin) =>
+                sum +
+                Number(
+                  stock?.[origin.id]?.[food.id] ||
+                  0
+                ),
+              0
+            )
+      })
+    )
+    .sort(
     (a, b) =>
       String(a.name).localeCompare(
         String(b.name),
         "pt-BR",
         { sensitivity: "base" }
       )
-  );
+    );
 
 }
 
@@ -34722,7 +34681,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-6",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-7",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
