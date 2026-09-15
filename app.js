@@ -6075,6 +6075,67 @@ async function insertEntry({
 }
 
 
+function assertAceOutputStockAvailable({
+  originId,
+  foodId,
+  qty,
+  restoreQty = 0
+}) {
+
+  const requested =
+    Number(qty);
+
+  const stockSnapshot =
+    calcStock();
+
+  const available =
+    Number(
+      stockSnapshot?.[originId]?.[foodId] ||
+      stockSnapshot?.[String(originId)]?.[String(foodId)] ||
+      0
+    ) +
+    Math.max(
+      0,
+      Number(restoreQty || 0)
+    );
+
+
+  if (
+    !Number.isInteger(requested) ||
+    requested <= 0
+  ) {
+    throw new Error(
+      "A quantidade precisa ser um número inteiro maior que zero."
+    );
+  }
+
+
+  if (requested > available) {
+
+    const error =
+      new Error(
+        `Estoque insuficiente. Disponível: ${fmt(available)} unidade(s). Solicitado: ${fmt(requested)} unidade(s).`
+      );
+
+    error.code =
+      "ACE_STOCK_INSUFFICIENT";
+
+    error.available =
+      available;
+
+    error.requested =
+      requested;
+
+    throw error;
+
+  }
+
+
+  return available;
+
+}
+
+
 async function insertMovement({
   date,
   type,
@@ -6086,6 +6147,14 @@ async function insertMovement({
 }) {
 
   assertAceMovementAllowed();
+
+  // Revalida na própria função de gravação. Assim nenhuma tela,
+  // edição ou rotina offline consegue criar saldo negativo por engano.
+  assertAceOutputStockAvailable({
+    originId,
+    foodId,
+    qty
+  });
 
   const userId =
     getCurrentUserId();
@@ -6505,6 +6574,24 @@ async function updateMovement({ id, type, date, originId, foodId, qty, reasonId,
   if (!movement?.rawId || !movement.sourceTable) {
     throw new Error("Não foi possível identificar a movimentação no Supabase.");
   }
+
+  const restoresOriginalQuantity =
+    Number(movement.originId) === Number(originId) &&
+    Number(movement.foodId) === Number(foodId);
+
+
+  // Ao editar uma saída/perda, devolve virtualmente a quantidade antiga
+  // antes de conferir o novo valor. Isso permite reduzir/corrigir a linha,
+  // mas impede que a edição leve o alimento para saldo negativo.
+  assertAceOutputStockAvailable({
+    originId,
+    foodId,
+    qty,
+    restoreQty:
+      restoresOriginalQuantity
+        ? Number(movement.qty || 0)
+        : 0
+  });
 
   if (
     movement.sourceTable !==
@@ -12330,6 +12417,39 @@ function calcStock() {
     );
 
 
+  // ==========================================================
+  // REGRA DE INTEGRIDADE: ESTOQUE NUNCA PODE SER NEGATIVO
+  // ==========================================================
+  // Corrige saldos antigos inconsistentes e protege todas as telas,
+  // relatórios, cestas e validações que usam calcStock().
+  // Um saldo inválido ou menor que zero passa a ser indisponível (zero).
+
+  Object.values(stock)
+    .forEach(
+      originStock => {
+
+        Object.keys(originStock || {})
+          .forEach(
+            foodId => {
+
+              const quantity =
+                Number(
+                  originStock[foodId]
+                );
+
+
+              originStock[foodId] =
+                Number.isFinite(quantity)
+                  ? Math.max(0, quantity)
+                  : 0;
+
+            }
+          );
+
+      }
+    );
+
+
   return stock;
 
 }
@@ -17060,7 +17180,14 @@ function getAceUnifiedStockDisplayRows(
 
   return Array.from(
     consolidated.values()
-  ).sort(
+  )
+  // A consulta e o PDF de estoque mostram somente o que realmente
+  // existe. Itens sem saldo permanecem no Cadastro de Alimentos.
+  .filter(
+    item =>
+      Number(item.qty || 0) > 0
+  )
+  .sort(
     (a, b) =>
       String(a.name).localeCompare(
         String(b.name),
@@ -44960,6 +45087,170 @@ let aceInventoryShowOnlyAdjusted = false;
 let aceInventoryScrollInventoryId = null;
 
 
+function getAceCountableInventoryItems(
+  items = aceInventoryItems
+) {
+
+  return (items || [])
+    .slice()
+    .sort(
+      (a, b) =>
+        String(a?.alimento_nome || "")
+          .localeCompare(
+            String(b?.alimento_nome || ""),
+            "pt-BR",
+            { sensitivity: "base" }
+          )
+    );
+
+}
+
+
+function getAceCurrentInventorySystemQuantity(
+  item
+) {
+
+  const origin =
+    getAceInventoryOrigin();
+
+  const stock =
+    calcStock();
+
+
+  return Math.max(
+    0,
+    Number(
+      stock?.[origin?.id]?.[
+        Number(item?.alimento_id)
+      ] || 0
+    )
+  );
+
+}
+
+
+async function synchronizeAceInventorySystemStock(
+  strict = false
+) {
+
+  if (
+    !aceInventoryActive?.id ||
+    !Array.isArray(aceInventoryItems) ||
+    !aceInventoryItems.length
+  ) {
+    return false;
+  }
+
+
+  const corrections = [];
+
+
+  aceInventoryItems.forEach(
+    item => {
+
+      const correctQuantity =
+        getAceCurrentInventorySystemQuantity(
+          item
+        );
+
+
+      if (
+        Number(item.estoque_sistema || 0) !==
+        correctQuantity
+      ) {
+
+        const previousSystemQuantity =
+          Number(item.estoque_sistema || 0);
+
+        // Se a versão anterior marcou automaticamente zero enquanto o
+        // saldo-base também estava errado em zero, devolve o campo ao
+        // estado em branco. Assim o usuário obrigatoriamente conta o item.
+        const correctedCount =
+          previousSystemQuantity <= 0 &&
+          correctQuantity > 0 &&
+          Number(item.quantidade_contada) === 0
+            ? null
+            : item.quantidade_contada;
+
+        corrections.push({
+          id: Number(item.id),
+          inventario_id:
+            Number(item.inventario_id),
+          alimento_id:
+            Number(item.alimento_id),
+          alimento_nome:
+            String(item.alimento_nome || "Alimento"),
+          estoque_sistema:
+            correctQuantity,
+          quantidade_contada:
+            correctedCount == null
+              ? null
+              : Number(correctedCount)
+        });
+
+        item.estoque_sistema =
+          correctQuantity;
+
+        item.quantidade_contada =
+          correctedCount;
+
+        item.diferenca =
+          correctedCount == null
+            ? null
+            : Number(correctedCount) -
+              correctQuantity;
+
+      }
+
+    }
+  );
+
+
+  if (!corrections.length) {
+    return false;
+  }
+
+
+  // Todos os usuários visualizam imediatamente o saldo correto.
+  // Somente o responsável grava a correção do inventário em andamento.
+  if (
+    !isCurrentUserInventoryOwner() ||
+    !aceIsOnline()
+  ) {
+    return true;
+  }
+
+
+  const { error } =
+    await supabaseClient
+      .from("inventario_itens")
+      .upsert(
+        corrections,
+        { onConflict: "id" }
+      );
+
+
+  if (error) {
+
+    if (strict) {
+      throw error;
+    }
+
+    console.warn(
+      "ACE: não foi possível sincronizar o saldo do inventário com o estoque:",
+      error
+    );
+
+    return false;
+
+  }
+
+
+  return true;
+
+}
+
+
 function isAceInventoryInProgress() {
   return Boolean(
     aceInventoryActive &&
@@ -45056,6 +45347,10 @@ async function refreshAceInventoryState(render = true) {
 
     if (itemsResult.error) throw itemsResult.error;
     aceInventoryItems = itemsResult.data || [];
+
+    // O inventário usa a mesma fonte da tela Estoque. Isso evita casos
+    // como COLORAU com saldo no estoque e zero na contagem física.
+    await synchronizeAceInventorySystemStock(false);
   }
 
   const historyResult = await aceEconomicSelect(
@@ -45282,7 +45577,9 @@ function renderAceLastInventorySummary() {
   const origin = getAceInventoryOrigin();
   const stock = calcStock();
 
-  const preparedItems = aceInventoryLastItems.map(item => {
+  const preparedItems = getAceCountableInventoryItems(
+    aceInventoryLastItems
+  ).map(item => {
     const systemQuantity = Number(item.estoque_sistema || 0);
     const countedQuantity = Number(item.quantidade_contada || 0);
     const difference = item.diferenca == null
@@ -45442,8 +45739,10 @@ function renderAceInventory() {
   const pending = getOfflineQueue().length;
   const active = isAceInventoryInProgress();
   const owner = isCurrentUserInventoryOwner();
-  const counted = aceInventoryItems.filter(item => item.quantidade_contada != null).length;
-  const total = aceInventoryItems.length;
+  const countableItems =
+    getAceCountableInventoryItems();
+  const counted = countableItems.filter(item => item.quantidade_contada != null).length;
+  const total = countableItems.length;
   const percent = total ? Math.round((counted / total) * 100) : 0;
 
   let content = "";
@@ -45460,7 +45759,7 @@ function renderAceInventory() {
       ${renderAceLastInventorySummary()}
       ${renderAceInventoryHistory()}`;
   } else {
-    const rows = aceInventoryItems.map(item => {
+    const rows = countableItems.map(item => {
       const physical = item.quantidade_contada;
       const difference = physical == null
         ? null
@@ -45485,7 +45784,12 @@ function renderAceInventory() {
           </td>
           <td><b class="ace-inventory-diff ${diffClass}">${diffText}</b></td>
         </tr>`;
-    }).join("");
+    }).join("") || `
+      <tr>
+        <td colspan="4" style="padding:24px;text-align:center;color:#667085">
+          Nenhum alimento foi encontrado para este inventário.
+        </td>
+      </tr>`;
 
     content = `
       <div class="ace-inventory-panel">
@@ -45506,7 +45810,7 @@ function renderAceInventory() {
           </table>
         </div>
         <div class="ace-inventory-actions">
-          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${counted !== total ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
+          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${!total || counted !== total ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
           ${typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin() ? '<button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button">🗑️ Cancelar inventário</button>' : ""}
         </div>
       </div>`;
@@ -45894,13 +46198,20 @@ async function finishAceInventory() {
   if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para finalizar.", "🟠 Operação online");
   if (!isCurrentUserInventoryOwner()) return;
 
-  const missing = aceInventoryItems.filter(item => item.quantidade_contada == null);
+  // Antes de finalizar, confirma novamente que o saldo-base de cada
+  // alimento é exatamente o mesmo apresentado na tela Estoque.
+  await synchronizeAceInventorySystemStock(true);
+
+  const countableItems =
+    getAceCountableInventoryItems();
+
+  const missing = countableItems.filter(item => item.quantidade_contada == null);
   if (missing.length) {
     return showAceMessage(`Ainda faltam ${missing.length} alimento(s) para contar.`, "⚠️ Contagem incompleta");
   }
 
-  const systemTotal = aceInventoryItems.reduce((sum, item) => sum + Number(item.estoque_sistema || 0), 0);
-  const countedTotal = aceInventoryItems.reduce((sum, item) => sum + Number(item.quantidade_contada || 0), 0);
+  const systemTotal = countableItems.reduce((sum, item) => sum + Number(item.estoque_sistema || 0), 0);
+  const countedTotal = countableItems.reduce((sum, item) => sum + Number(item.quantidade_contada || 0), 0);
   const adjustment = countedTotal - systemTotal;
 
   const signatures =
@@ -45999,6 +46310,11 @@ function getAceSafeInventorySignature(value) {
 
 
 function buildAceInventoryPdfElement(inventory, items) {
+  items =
+    getAceCountableInventoryItems(
+      items
+    );
+
   const totalSystem = items.reduce(
     (sum, item) => sum + Number(item.estoque_sistema || 0),
     0
@@ -46204,6 +46520,11 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
     } else {
       throw new Error("Conecte-se à internet para gerar o PDF deste inventário.");
     }
+
+    items =
+      getAceCountableInventoryItems(
+        items
+      );
 
     if (!items.length) throw new Error("Os itens deste inventário não foram encontrados.");
 
