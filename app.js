@@ -12172,6 +12172,18 @@ function calcStock() {
   const stock = {};
 
 
+  // Durante a abertura, autenticação e restauração do cache, o objeto
+  // principal ainda pode estar temporariamente vazio. O cálculo deve
+  // aguardar os dados, nunca interromper a inicialização do aplicativo.
+  if (
+    !db ||
+    !Array.isArray(db.origins) ||
+    !Array.isArray(db.foods)
+  ) {
+    return stock;
+  }
+
+
   db.origins.forEach(
     origin => {
       stock[origin.id] = {};
@@ -45136,7 +45148,10 @@ async function synchronizeAceInventorySystemStock(
   if (
     !aceInventoryActive?.id ||
     !Array.isArray(aceInventoryItems) ||
-    !aceInventoryItems.length
+    !aceInventoryItems.length ||
+    !db ||
+    !Array.isArray(db.origins) ||
+    !Array.isArray(db.foods)
   ) {
     return false;
   }
