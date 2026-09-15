@@ -10,6 +10,39 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
   "ace_skip_startup_splash_once_v1";
 
 
+// Atualiza o Service Worker antes da inicialização do aplicativo.
+// Antes esta atualização acontecia somente depois de initApp(), então uma
+// versão com erro podia ficar presa no cache e nunca alcançar a correção.
+(function updateAceServiceWorkerBeforeStartup() {
+
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+
+  navigator.serviceWorker
+    .register(
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-5",
+      {
+        scope: "/GEPE-controle-alimentos-/",
+        updateViaCache: "none"
+      }
+    )
+    .then(
+      registration =>
+        registration.update()
+    )
+    .catch(
+      error =>
+        console.warn(
+          "ACE: atualização antecipada do aplicativo não concluída:",
+          error
+        )
+    );
+
+})();
+
+
 // ============================================================
 // ACE - ABERTURA SEM FLASH DO LAYOUT ANTIGO
 // Mantém a interface antiga invisível enquanto o layout novo monta.
@@ -2960,6 +2993,40 @@ async function syncOfflineOperation(
 
 async function syncOfflineQueue() {
 
+  let queue =
+    getOfflineQueue();
+
+
+  // Sem operações pendentes, não consulta inventário nem acessa o banco.
+  // Isso também evita chamadas desnecessárias ao Supabase na abertura.
+  if (!queue.length) {
+    return {
+      synced: 0,
+      remaining: 0
+    };
+  }
+
+
+  // A fila usa alimentos, origens, motivos e estoque. Portanto ela nunca
+  // pode ser processada antes de a base local estar disponível.
+  if (!db) {
+
+    const offlineDb =
+      await loadOfflineSnapshot();
+
+
+    if (offlineDb) {
+      db = offlineDb;
+    } else {
+      return {
+        synced: 0,
+        remaining: queue.length,
+        waitingForDatabase: true
+      };
+    }
+
+  }
+
   // Durante um inventário nenhuma movimentação pendente pode ser
   // enviada ao banco. Primeiro consultamos o bloqueio oficial.
   if (
@@ -2997,19 +3064,15 @@ async function syncOfflineQueue() {
   }
 
 
-  let queue =
-    getOfflineQueue();
+  // A fila pode ter mudado enquanto o bloqueio do inventário era verificado.
+  queue = getOfflineQueue();
 
 
   if (!queue.length) {
-
     return {
-      synced:
-        0,
-      remaining:
-        0
+      synced: 0,
+      remaining: 0
     };
-
   }
 
 
@@ -12167,6 +12230,117 @@ function refreshSelects() {
 // 8. ESTOQUE
 // ============================================================
 
+function getAceBaselineQuantityForFoodId(
+  foodId
+) {
+
+  const food =
+    (db?.foods || [])
+      .find(
+        item =>
+          Number(item.id) ===
+          Number(foodId)
+      );
+
+
+  if (!food) {
+    return 0;
+  }
+
+
+  // Usa primeiro o vínculo persistente ACE_REF gravado no alimento. Isso
+  // cobre toda a relação, inclusive itens que foram renomeados depois
+  // (por exemplo, 260GR para 250g). O nome é apenas a compatibilidade.
+  const reference =
+    typeof findAceStockReferenceForFood === "function"
+      ? findAceStockReferenceForFood(food)?.target
+      : typeof getAceStockReferenceItemByName === "function"
+        ? getAceStockReferenceItemByName(food.name)
+        : null;
+
+
+  return Math.max(
+    0,
+    Number(reference?.qty || 0)
+  );
+
+}
+
+
+function getAceBaselineMigrationInventoryId() {
+
+  const matchesByInventory =
+    new Map();
+
+
+  (db?.stockAdjustments || [])
+    .forEach(
+      adjustment => {
+
+        const inventoryId =
+          Number(adjustment.inventoryId);
+
+        const baselineQuantity =
+          getAceBaselineQuantityForFoodId(
+            adjustment.foodId
+          );
+
+
+        if (
+          !Number.isFinite(inventoryId) ||
+          inventoryId <= 0 ||
+          baselineQuantity <= 0
+        ) {
+          return;
+        }
+
+
+        if (
+          Math.abs(
+            Number(adjustment.qty || 0) -
+            baselineQuantity
+          ) < 0.000001
+        ) {
+          matchesByInventory.set(
+            inventoryId,
+            Number(
+              matchesByInventory.get(inventoryId) || 0
+            ) + 1
+          );
+        }
+
+      }
+    );
+
+
+  const migration =
+    [...matchesByInventory.entries()]
+      .sort(
+        (a, b) =>
+          b[1] - a[1]
+      )
+      .find(
+        ([, matches]) =>
+          matches >= 2
+      );
+
+
+  return migration
+    ? Number(migration[0])
+    : null;
+
+}
+
+
+function isAceStockBaselineMigrated() {
+
+  return Number.isFinite(
+    getAceBaselineMigrationInventoryId()
+  );
+
+}
+
+
 function calcStock() {
 
   const stock = {};
@@ -12242,7 +12416,8 @@ function calcStock() {
   if (
     aguaFria &&
     typeof ACE_STOCK_REFERENCE_20260912 !==
-      "undefined"
+      "undefined" &&
+    !isAceStockBaselineMigrated()
   ) {
 
     ACE_STOCK_REFERENCE_20260912
@@ -35658,7 +35833,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-5",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -45141,131 +45316,6 @@ function getAceCurrentInventorySystemQuantity(
 }
 
 
-async function synchronizeAceInventorySystemStock(
-  strict = false
-) {
-
-  if (
-    !aceInventoryActive?.id ||
-    !Array.isArray(aceInventoryItems) ||
-    !aceInventoryItems.length ||
-    !db ||
-    !Array.isArray(db.origins) ||
-    !Array.isArray(db.foods)
-  ) {
-    return false;
-  }
-
-
-  const corrections = [];
-
-
-  aceInventoryItems.forEach(
-    item => {
-
-      const correctQuantity =
-        getAceCurrentInventorySystemQuantity(
-          item
-        );
-
-
-      if (
-        Number(item.estoque_sistema || 0) !==
-        correctQuantity
-      ) {
-
-        const previousSystemQuantity =
-          Number(item.estoque_sistema || 0);
-
-        // Se a versão anterior marcou automaticamente zero enquanto o
-        // saldo-base também estava errado em zero, devolve o campo ao
-        // estado em branco. Assim o usuário obrigatoriamente conta o item.
-        const correctedCount =
-          previousSystemQuantity <= 0 &&
-          correctQuantity > 0 &&
-          Number(item.quantidade_contada) === 0
-            ? null
-            : item.quantidade_contada;
-
-        corrections.push({
-          id: Number(item.id),
-          inventario_id:
-            Number(item.inventario_id),
-          alimento_id:
-            Number(item.alimento_id),
-          alimento_nome:
-            String(item.alimento_nome || "Alimento"),
-          estoque_sistema:
-            correctQuantity,
-          quantidade_contada:
-            correctedCount == null
-              ? null
-              : Number(correctedCount)
-        });
-
-        item.estoque_sistema =
-          correctQuantity;
-
-        item.quantidade_contada =
-          correctedCount;
-
-        item.diferenca =
-          correctedCount == null
-            ? null
-            : Number(correctedCount) -
-              correctQuantity;
-
-      }
-
-    }
-  );
-
-
-  if (!corrections.length) {
-    return false;
-  }
-
-
-  // Todos os usuários visualizam imediatamente o saldo correto.
-  // Somente o responsável grava a correção do inventário em andamento.
-  if (
-    !isCurrentUserInventoryOwner() ||
-    !aceIsOnline()
-  ) {
-    return true;
-  }
-
-
-  const { error } =
-    await supabaseClient
-      .from("inventario_itens")
-      .upsert(
-        corrections,
-        { onConflict: "id" }
-      );
-
-
-  if (error) {
-
-    if (strict) {
-      throw error;
-    }
-
-    console.warn(
-      "ACE: não foi possível sincronizar o saldo do inventário com o estoque:",
-      error
-    );
-
-    return false;
-
-  }
-
-
-  return true;
-
-}
-
-
 function isAceInventoryInProgress() {
   return Boolean(
     aceInventoryActive &&
@@ -45363,9 +45413,8 @@ async function refreshAceInventoryState(render = true) {
     if (itemsResult.error) throw itemsResult.error;
     aceInventoryItems = itemsResult.data || [];
 
-    // O inventário usa a mesma fonte da tela Estoque. Isso evita casos
-    // como COLORAU com saldo no estoque e zero na contagem física.
-    await synchronizeAceInventorySystemStock(false);
+    // O valor de estoque do inventário é o snapshot oficial criado pelo
+    // Supabase. Não sobrescrevemos esse número apenas na interface.
   }
 
   const historyResult = await aceEconomicSelect(
@@ -45585,6 +45634,51 @@ function getAceInventoryMovementTotals(item, finishedAt, originId) {
 }
 
 
+function getAceInventoryDisplayValues(
+  inventoryId,
+  item
+) {
+
+  const rawSystemQuantity =
+    Number(item?.estoque_sistema || 0);
+
+  const countedQuantity =
+    Number(item?.quantidade_contada || 0);
+
+  // O primeiro inventário que incorporou a base histórica recebeu do
+  // servidor apenas as movimentações posteriores à base. A versão antiga
+  // mostrou a base no navegador e, ao finalizar, gravou-a novamente como
+  // ajuste. Para esse inventário de migração, recompomos o valor "antes"
+  // apenas na apresentação; o ajuste técnico já existente permanece
+  // preservado e não é duplicado no estoque.
+  const isBaselineMigration =
+    Number(inventoryId) ===
+    Number(getAceBaselineMigrationInventoryId());
+
+  const baselineQuantity =
+    isBaselineMigration
+      ? getAceBaselineQuantityForFoodId(
+          item?.alimento_id
+        )
+      : 0;
+
+  const systemQuantity =
+    Math.max(
+      0,
+      rawSystemQuantity + baselineQuantity
+    );
+
+
+  return {
+    systemQuantity,
+    countedQuantity,
+    difference:
+      countedQuantity - systemQuantity
+  };
+
+}
+
+
 function renderAceLastInventorySummary() {
   const last = aceInventoryLast;
   if (!last || !aceInventoryLastItems.length) return "";
@@ -45595,11 +45689,14 @@ function renderAceLastInventorySummary() {
   const preparedItems = getAceCountableInventoryItems(
     aceInventoryLastItems
   ).map(item => {
-    const systemQuantity = Number(item.estoque_sistema || 0);
-    const countedQuantity = Number(item.quantidade_contada || 0);
-    const difference = item.diferenca == null
-      ? countedQuantity - systemQuantity
-      : Number(item.diferenca || 0);
+    const {
+      systemQuantity,
+      countedQuantity,
+      difference
+    } = getAceInventoryDisplayValues(
+      last.id,
+      item
+    );
 
     return {
       item,
@@ -45702,21 +45799,73 @@ function renderAceInventoryHistory() {
     typeof isAceOperationalAdmin === "function" &&
     isAceOperationalAdmin();
 
-  const rows = aceInventoryHistory.map(row => `
-    <tr>
-      <td>${esc(formatAceInventoryDateTime(row.iniciado_em))}</td>
-      <td>${esc(row.usuario_nome || "Usuário")}</td>
-      <td>${row.status === "finalizado" ? '<span class="pill green">Finalizado</span>' : '<span class="pill red">Cancelado</span>'}</td>
-      <td>${fmt(row.total_sistema || 0)}</td>
-      <td>${row.status === "finalizado" ? fmt(row.total_contado || 0) : "—"}</td>
-      <td>${row.status === "finalizado" ? fmt(row.total_ajuste || 0) : "—"}</td>
-      <td>
-        <div class="ace-inventory-history-actions">
-          ${row.status === "finalizado" ? `<button type="button" class="ace-inventory-pdf-history" data-inventory-pdf="${row.id}">📄 PDF</button>` : ""}
-          ${admin ? `<button type="button" class="ace-inventory-delete-history" data-inventory-delete-history="${row.id}">🗑️ Excluir</button>` : ""}
-        </div>
-      </td>
-    </tr>`).join("");
+  const rows = aceInventoryHistory.map(row => {
+    let totalSystem = Number(row.total_sistema || 0);
+    let totalCounted = Number(row.total_contado || 0);
+    let totalDifference = Number(row.total_ajuste || 0);
+
+    const migrationInventoryId =
+      getAceBaselineMigrationInventoryId();
+
+    if (
+      Number(row.id) ===
+        Number(migrationInventoryId) &&
+      Number(row.id) !== Number(aceInventoryLast?.id)
+    ) {
+      const baselineTotal =
+        (ACE_STOCK_REFERENCE_20260912 || [])
+          .reduce(
+            (sum, item) =>
+              sum + Math.max(0, Number(item.qty || 0)),
+            0
+          );
+
+      totalSystem += baselineTotal;
+      totalDifference =
+        totalCounted - totalSystem;
+    }
+
+    if (
+      Number(row.id) === Number(aceInventoryLast?.id) &&
+      aceInventoryLastItems.length
+    ) {
+      const displayedItems =
+        aceInventoryLastItems.map(
+          item =>
+            getAceInventoryDisplayValues(
+              row.id,
+              item
+            )
+        );
+
+      totalSystem = displayedItems.reduce(
+        (sum, item) => sum + item.systemQuantity,
+        0
+      );
+      totalCounted = displayedItems.reduce(
+        (sum, item) => sum + item.countedQuantity,
+        0
+      );
+      totalDifference =
+        totalCounted - totalSystem;
+    }
+
+    return `
+      <tr>
+        <td>${esc(formatAceInventoryDateTime(row.iniciado_em))}</td>
+        <td>${esc(row.usuario_nome || "Usuário")}</td>
+        <td>${row.status === "finalizado" ? '<span class="pill green">Finalizado</span>' : '<span class="pill red">Cancelado</span>'}</td>
+        <td>${fmt(totalSystem)}</td>
+        <td>${row.status === "finalizado" ? fmt(totalCounted) : "—"}</td>
+        <td>${row.status === "finalizado" ? fmt(totalDifference) : "—"}</td>
+        <td>
+          <div class="ace-inventory-history-actions">
+            ${row.status === "finalizado" ? `<button type="button" class="ace-inventory-pdf-history" data-inventory-pdf="${row.id}">📄 PDF</button>` : ""}
+            ${admin ? `<button type="button" class="ace-inventory-delete-history" data-inventory-delete-history="${row.id}">🗑️ Excluir</button>` : ""}
+          </div>
+        </td>
+      </tr>`;
+  }).join("");
 
   return `
     <div class="ace-inventory-panel">
@@ -46213,10 +46362,6 @@ async function finishAceInventory() {
   if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para finalizar.", "🟠 Operação online");
   if (!isCurrentUserInventoryOwner()) return;
 
-  // Antes de finalizar, confirma novamente que o saldo-base de cada
-  // alimento é exatamente o mesmo apresentado na tela Estoque.
-  await synchronizeAceInventorySystemStock(true);
-
   const countableItems =
     getAceCountableInventoryItems();
 
@@ -46330,12 +46475,23 @@ function buildAceInventoryPdfElement(inventory, items) {
       items
     );
 
-  const totalSystem = items.reduce(
-    (sum, item) => sum + Number(item.estoque_sistema || 0),
+  const displayItems =
+    items.map(
+      item => ({
+        item,
+        ...getAceInventoryDisplayValues(
+          inventory.id,
+          item
+        )
+      })
+    );
+
+  const totalSystem = displayItems.reduce(
+    (sum, item) => sum + item.systemQuantity,
     0
   );
-  const totalCounted = items.reduce(
-    (sum, item) => sum + Number(item.quantidade_contada || 0),
+  const totalCounted = displayItems.reduce(
+    (sum, item) => sum + item.countedQuantity,
     0
   );
   const totalDifference = totalCounted - totalSystem;
@@ -46400,10 +46556,11 @@ function buildAceInventoryPdfElement(inventory, items) {
           <div style="border-top:1px solid #344054;padding-top:6px;text-align:center;font-size:11px">Conferente</div>
         </div>`;
 
-  const rows = items.map((item, index) => {
-    const system = Number(item.estoque_sistema || 0);
-    const counted = Number(item.quantidade_contada || 0);
-    const difference = counted - system;
+  const rows = displayItems.map((row, index) => {
+    const item = row.item;
+    const system = row.systemQuantity;
+    const counted = row.countedQuantity;
+    const difference = row.difference;
     const differenceColor = difference < 0
       ? "#c62828"
       : difference > 0
