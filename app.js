@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-inventario-igual-estoque-v36";
+  "2026.09.16-pwa-entradas-por-origem-v37";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -13241,43 +13241,115 @@ function renderDashboard() {
 
   if (originSummary) {
 
+    // ========================================================
+    // ENTRADAS POR ORIGEM DO DIA
+    // ========================================================
+    //
+    // IMPORTANTE:
+    // "Origem" aqui é SOMENTE a procedência da entrada.
+    // Não representa estoque separado.
+    //
+    // O estoque físico do ACE continua sendo ÚNICO e localizado
+    // em Água Fria. Esta área do Início mostra apenas quanto entrou
+    // pela origem informada na data selecionada.
+    // ========================================================
+
+    const dashboardEntriesOfDay =
+      (db.entries || [])
+        .filter(
+          entry =>
+            String(
+              entry.date || ""
+            ) ===
+            String(
+              date || ""
+            )
+        );
+
+
+    // Atualiza o título antigo "Estoque por origem"
+    // sem depender de alteração no index.html.
+    const originSectionTitle =
+      [...document.querySelectorAll(
+        "#dashboard h2, #dashboard h3, #dashboard h4, #dashboard .section-title"
+      )]
+        .find(
+          element =>
+            String(
+              element.textContent || ""
+            )
+              .trim()
+              .toLowerCase() ===
+            "estoque por origem"
+        );
+
+
+    if (originSectionTitle) {
+
+      originSectionTitle.textContent =
+        "Entradas por origem do dia";
+
+    }
+
+
     originSummary.innerHTML =
-      db.origins
-        .map(o => {
+      (db.origins || [])
+        .map(
+          origin => {
 
-          const total =
-            Object.values(
-              st[o.id] || {}
-            ).reduce(
-              (a, v) =>
-                a + Number(v),
-              0
-            );
+            const totalEntradas =
+              dashboardEntriesOfDay
+                .filter(
+                  entry =>
+                    Number(
+                      entry.originId
+                    ) ===
+                    Number(
+                      origin.id
+                    )
+                )
+                .reduce(
+                  (sum, entry) =>
+                    sum +
+                    Number(
+                      entry.qty || 0
+                    ),
+                  0
+                );
 
 
-          return `
-            <div class="origin-box">
+            return `
+              <div class="origin-box">
 
-              <div class="origin-title">
+                <div class="origin-title">
 
-                <span>
-                  📍 ${esc(o.name)}
-                </span>
+                  <span>
+                    📍 ${esc(origin.name)}
+                  </span>
 
-                <span class="badge">
-                  ${fmt(total)}
-                </span>
+                  <span
+                    class="badge"
+                    title="Total de entradas desta origem na data selecionada"
+                  >
+                    ${fmt(totalEntradas)}
+                  </span>
+
+                </div>
+
+                <div class="origin-value">
+                  ${fmt(totalEntradas)}
+                  ${
+                    Number(totalEntradas) === 1
+                      ? "unidade recebida"
+                      : "unidades recebidas"
+                  }
+                </div>
 
               </div>
+            `;
 
-              <div class="origin-value">
-                ${fmt(total)} itens
-              </div>
-
-            </div>
-          `;
-
-        })
+          }
+        )
         .join("");
 
   }
