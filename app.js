@@ -13085,7 +13085,10 @@ function closeRecentEditModal() {
 
 }
 
-function openRecentEditModal(id) {
+function openRecentEditModal(
+  id,
+  anchorElement = null
+) {
 
   closeRecentEditModal();
 
@@ -13102,38 +13105,46 @@ function openRecentEditModal(id) {
     x => String(x.id) === String(id)
   );
 
-  const modal = document.createElement("div");
+  const modal =
+    document.createElement(
+      "div"
+    );
 
-  modal.id = "aceRecentEditModal";
+  modal.id =
+    "aceRecentEditModal";
+
+  modal.setAttribute(
+    "style",
+    `
+      position:fixed !important;
+      inset:0 !important;
+      z-index:2147483100 !important;
+      display:block !important;
+      box-sizing:border-box !important;
+      background:rgba(7,39,66,.24) !important;
+      backdrop-filter:blur(2px) !important;
+      -webkit-backdrop-filter:blur(2px) !important;
+    `
+  );
 
   modal.innerHTML = `
 
-    <div
-      style="
-        position:fixed;
-        inset:0;
-        z-index:1002000;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        padding:20px;
-        background:rgba(0,35,70,.62);
-        backdrop-filter:blur(3px);
-      "
-    >
-
       <div
+        id="aceRecentEditCard"
         style="
-          width:min(500px,calc(100vw - 30px));
-          max-height:calc(100dvh - 28px);
-          overflow:auto;
-          box-sizing:border-box;
-          padding:24px;
-          padding-bottom:calc(24px + env(safe-area-inset-bottom));
-          border-radius:18px;
-          background:#fff;
-          color:#172b3a;
-          box-shadow:0 18px 50px rgba(0,0,0,.35);
+          position:fixed !important;
+          width:min(500px,calc(100vw - 30px)) !important;
+          max-height:calc(100dvh - 32px) !important;
+          overflow:auto !important;
+          box-sizing:border-box !important;
+          padding:24px !important;
+          padding-bottom:calc(24px + env(safe-area-inset-bottom)) !important;
+          border:1px solid #d6e3ed !important;
+          border-radius:18px !important;
+          background:#fff !important;
+          color:#172b3a !important;
+          box-shadow:0 22px 58px rgba(4,35,62,.30) !important;
+          overscroll-behavior:contain !important;
         "
       >
 
@@ -13319,11 +13330,267 @@ function openRecentEditModal(id) {
 
       </div>
 
-    </div>
-
   `;
 
-  document.body.appendChild(modal);
+
+  document.documentElement.appendChild(
+    modal
+  );
+
+
+  const card =
+    document.getElementById(
+      "aceRecentEditCard"
+    );
+
+
+  const buttonRect =
+    anchorElement
+      ?.getBoundingClientRect?.();
+
+
+  const rowRect =
+    anchorElement
+      ?.closest?.(
+        "tr"
+      )
+      ?.getBoundingClientRect?.() ||
+    buttonRect ||
+    null;
+
+
+  const positionCard =
+    () => {
+
+      if (!card) {
+        return;
+      }
+
+
+      const viewportWidth =
+        Math.max(
+          document.documentElement.clientWidth || 0,
+          window.innerWidth || 0
+        );
+
+
+      const viewportHeight =
+        Math.max(
+          document.documentElement.clientHeight || 0,
+          window.innerHeight || 0
+        );
+
+
+      if (
+        viewportWidth <=
+        720
+      ) {
+
+        card.style.left =
+          "12px";
+
+        card.style.right =
+          "12px";
+
+        card.style.top =
+          "50%";
+
+        card.style.bottom =
+          "auto";
+
+        card.style.width =
+          "auto";
+
+        card.style.maxHeight =
+          "calc(100dvh - 24px)";
+
+        card.style.transform =
+          "translateY(-50%)";
+
+        return;
+      }
+
+
+      const cardWidth =
+        Math.min(
+          500,
+          viewportWidth -
+            32
+        );
+
+
+      const anchorTop =
+        rowRect
+          ? rowRect.top
+          : 16;
+
+
+      const maxTop =
+        Math.max(
+          16,
+          viewportHeight -
+            280
+        );
+
+
+      const top =
+        Math.max(
+          16,
+          Math.min(
+            anchorTop -
+              8,
+            maxTop
+          )
+        );
+
+
+      let left =
+        Math.max(
+          16,
+          (
+            viewportWidth -
+            cardWidth
+          ) /
+          2
+        );
+
+
+      if (buttonRect) {
+
+        const spaceLeft =
+          buttonRect.left -
+          16;
+
+
+        const spaceRight =
+          viewportWidth -
+          buttonRect.right -
+          16;
+
+
+        if (
+          spaceLeft >=
+          cardWidth +
+            12
+        ) {
+
+          left =
+            buttonRect.left -
+            cardWidth -
+            12;
+
+        } else if (
+          spaceRight >=
+          cardWidth +
+            12
+        ) {
+
+          left =
+            buttonRect.right +
+            12;
+
+        } else {
+
+          left =
+            Math.max(
+              16,
+              Math.min(
+                buttonRect.left -
+                  (
+                    cardWidth -
+                    buttonRect.width
+                  ) /
+                  2,
+                viewportWidth -
+                  cardWidth -
+                  16
+              )
+            );
+
+        }
+
+      }
+
+
+      card.style.left =
+        `${Math.round(left)}px`;
+
+      card.style.right =
+        "auto";
+
+      card.style.top =
+        `${Math.round(top)}px`;
+
+      card.style.bottom =
+        "auto";
+
+      card.style.width =
+        `${Math.round(cardWidth)}px`;
+
+      card.style.maxHeight =
+        `${Math.max(
+          260,
+          viewportHeight -
+            top -
+            16
+        )}px`;
+
+      card.style.transform =
+        "none";
+
+    };
+
+
+  window.requestAnimationFrame(
+    () =>
+      window.requestAnimationFrame(
+        positionCard
+      )
+  );
+
+
+  const repositionRecentEditModal =
+    () =>
+      positionCard();
+
+
+  window.addEventListener(
+    "resize",
+    repositionRecentEditModal,
+    {
+      passive:
+        true
+    }
+  );
+
+
+  modal.addEventListener(
+    "click",
+    event => {
+
+      if (
+        event.target ===
+        modal
+      ) {
+
+        window.aceEntryHistoryEditingId =
+          null;
+
+        window.aceMovementHistoryEditingId =
+          null;
+
+        window.removeEventListener(
+          "resize",
+          repositionRecentEditModal
+        );
+
+        closeRecentEditModal();
+
+      }
+
+    }
+  );
+
 
   const typeSelect =
     document.getElementById("recentEditType");
@@ -13357,6 +13624,11 @@ function openRecentEditModal(id) {
 
         window.aceMovementHistoryEditingId =
           null;
+
+        window.removeEventListener(
+          "resize",
+          repositionRecentEditModal
+        );
 
         closeRecentEditModal();
 
@@ -14360,7 +14632,8 @@ function bindEntryActionButtons() {
 
             // Usa a rotina de edição já existente.
             openRecentEditModal(
-              id
+              id,
+              button
             );
 
           }
@@ -15314,7 +15587,8 @@ function bindMovementHistoryActions() {
 
             openRecentEditModal(
               button.dataset
-                .movementHistoryEdit
+                .movementHistoryEdit,
+              button
             );
 
           }
