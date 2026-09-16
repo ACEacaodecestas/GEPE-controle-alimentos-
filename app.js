@@ -13133,12 +13133,12 @@ function openRecentEditModal(
         id="aceRecentEditCard"
         style="
           position:fixed !important;
-          width:min(500px,calc(100vw - 30px)) !important;
-          max-height:calc(100dvh - 32px) !important;
+          width:min(560px,calc(100vw - 48px)) !important;
+          max-height:min(680px,calc(100dvh - 48px)) !important;
           overflow:auto !important;
           box-sizing:border-box !important;
-          padding:24px !important;
-          padding-bottom:calc(24px + env(safe-area-inset-bottom)) !important;
+          padding:26px !important;
+          padding-bottom:calc(26px + env(safe-area-inset-bottom)) !important;
           border:1px solid #d6e3ed !important;
           border-radius:18px !important;
           background:#fff !important;
@@ -13404,6 +13404,9 @@ function openRecentEditModal(
         card.style.maxHeight =
           "calc(100dvh - 24px)";
 
+        card.style.padding =
+          "20px";
+
         card.style.transform =
           "translateY(-50%)";
 
@@ -13413,33 +13416,57 @@ function openRecentEditModal(
 
       const cardWidth =
         Math.min(
-          500,
+          560,
           viewportWidth -
-            32
+            48
+        );
+
+
+      // Altura profissional:
+      // o modal pode ocupar até 680px, mas nunca ultrapassa
+      // o espaço útil do viewport.
+      const cardMaxHeight =
+        Math.min(
+          680,
+          viewportHeight -
+            48
+        );
+
+
+      // Mede a altura real já renderizada, limitada ao padrão.
+      const measuredCardHeight =
+        Math.min(
+          Math.max(
+            card.scrollHeight,
+            420
+          ),
+          cardMaxHeight
         );
 
 
       const anchorTop =
         rowRect
           ? rowRect.top
-          : 16;
+          : (
+              (
+                viewportHeight -
+                measuredCardHeight
+              ) /
+              2
+            );
 
 
-      const maxTop =
-        Math.max(
-          16,
-          viewportHeight -
-            280
-        );
-
-
+      // Começa perto da linha clicada, mas sobe automaticamente
+      // quando necessário para exibir uma janela de tamanho normal.
       const top =
         Math.max(
-          16,
+          24,
           Math.min(
             anchorTop -
-              8,
-            maxTop
+              28,
+            viewportHeight -
+              measuredCardHeight -
+              24
           )
         );
 
@@ -13528,12 +13555,10 @@ function openRecentEditModal(
         `${Math.round(cardWidth)}px`;
 
       card.style.maxHeight =
-        `${Math.max(
-          260,
-          viewportHeight -
-            top -
-            16
-        )}px`;
+        `${Math.round(cardMaxHeight)}px`;
+
+      card.style.padding =
+        "26px";
 
       card.style.transform =
         "none";
