@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-inventario-resultado-fechado-v40";
+  "2026.09.16-pwa-calendario-resumo-dia-profissional-v41";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -13098,35 +13098,11 @@ function installAceDashboardSummaryHeaderLayout() {
     );
 
 
-  const duplicateDate =
-    document.getElementById(
-      "todayLabel"
-    );
-
-
   if (
     !dashboard ||
     !dateInput
   ) {
     return;
-  }
-
-
-  // A data já aparece dentro do seletor.
-  // Evita repetir a mesma informação abaixo de "Resumo do dia".
-  if (duplicateDate) {
-
-    duplicateDate.style.setProperty(
-      "display",
-      "none",
-      "important"
-    );
-
-    duplicateDate.setAttribute(
-      "aria-hidden",
-      "true"
-    );
-
   }
 
 
@@ -13149,55 +13125,265 @@ function installAceDashboardSummaryHeaderLayout() {
       );
 
 
-  const titleBlock =
-    duplicateDate?.parentElement &&
-    heading &&
-    duplicateDate.parentElement
-      .contains(
-        heading
+  if (!heading) {
+    return;
+  }
+
+
+  // Remove definitivamente a data duplicada abaixo do título.
+  // A data continuará disponível no seletor de calendário.
+  const duplicateDate =
+    document.getElementById(
+      "todayLabel"
+    );
+
+
+  if (duplicateDate) {
+    duplicateDate.remove();
+  }
+
+
+  let header =
+    document.getElementById(
+      "aceDashboardSummaryHeader"
+    );
+
+
+  if (!header) {
+
+    const legacyTitleHost =
+      heading.parentElement;
+
+
+    const legacyDateHost =
+      dateInput.parentElement;
+
+
+    // Procura o ancestral comum mais próximo para inserir o novo
+    // cabeçalho exatamente onde o bloco antigo já estava.
+    let insertionParent =
+      legacyTitleHost?.parentElement ||
+      dashboard;
+
+
+    while (
+      insertionParent &&
+      insertionParent !==
+        dashboard &&
+      !insertionParent.contains(
+        dateInput
       )
-      ? duplicateDate.parentElement
-      : heading?.parentElement ||
-        null;
+    ) {
+
+      insertionParent =
+        insertionParent.parentElement;
+
+    }
 
 
-  const dateBlock =
-    dateInput.parentElement;
+    if (
+      !insertionParent ||
+      !dashboard.contains(
+        insertionParent
+      )
+    ) {
+
+      insertionParent =
+        dashboard;
+
+    }
 
 
-  if (titleBlock) {
+    let referenceNode =
+      heading;
 
-    titleBlock.classList.add(
-      "ace-dashboard-summary-title"
+
+    while (
+      referenceNode.parentElement &&
+      referenceNode.parentElement !==
+        insertionParent
+    ) {
+
+      referenceNode =
+        referenceNode.parentElement;
+
+    }
+
+
+    header =
+      document.createElement(
+        "div"
+      );
+
+
+    header.id =
+      "aceDashboardSummaryHeader";
+
+
+    header.className =
+      "ace-dashboard-summary-header";
+
+
+    const titleBox =
+      document.createElement(
+        "div"
+      );
+
+
+    titleBox.className =
+      "ace-dashboard-summary-title-box";
+
+
+    titleBox.appendChild(
+      heading
     );
 
-  }
+
+    const dateControl =
+      document.createElement(
+        "label"
+      );
 
 
-  if (dateBlock) {
+    dateControl.className =
+      "ace-dashboard-date-control";
 
-    dateBlock.classList.add(
-      "ace-dashboard-summary-date"
+
+    dateControl.setAttribute(
+      "for",
+      "dashboardDate"
     );
 
-  }
+
+    const dateIcon =
+      document.createElement(
+        "span"
+      );
 
 
-  // Só estiliza a linha quando título e data realmente compartilham
-  // o mesmo contêiner. Assim nenhum outro bloco do dashboard é afetado.
-  if (
-    titleBlock &&
-    dateBlock &&
-    titleBlock.parentElement &&
-    titleBlock.parentElement ===
-      dateBlock.parentElement &&
-    titleBlock.parentElement !==
-      dashboard
-  ) {
+    dateIcon.className =
+      "ace-dashboard-date-icon";
 
-    titleBlock.parentElement.classList.add(
-      "ace-dashboard-summary-row"
+
+    dateIcon.setAttribute(
+      "aria-hidden",
+      "true"
     );
+
+
+    dateIcon.textContent =
+      "📅";
+
+
+    const dateText =
+      document.createElement(
+        "span"
+      );
+
+
+    dateText.className =
+      "ace-dashboard-date-label";
+
+
+    dateText.textContent =
+      "Data";
+
+
+    dateControl.appendChild(
+      dateIcon
+    );
+
+
+    dateControl.appendChild(
+      dateText
+    );
+
+
+    // Move o input original. Isso preserva valor,
+    // change event e o calendário nativo do navegador.
+    dateControl.appendChild(
+      dateInput
+    );
+
+
+    header.appendChild(
+      titleBox
+    );
+
+
+    header.appendChild(
+      dateControl
+    );
+
+
+    insertionParent.insertBefore(
+      header,
+      referenceNode
+    );
+
+
+    // Remove apenas os wrappers antigos que ficaram realmente vazios.
+    [
+      legacyTitleHost,
+      legacyDateHost
+    ]
+      .forEach(
+        host => {
+
+          if (
+            !host ||
+            host ===
+              dashboard ||
+            host ===
+              header ||
+            header.contains(
+              host
+            )
+          ) {
+            return;
+          }
+
+
+          if (
+            host.childElementCount ===
+              0 &&
+            !String(
+              host.textContent || ""
+            ).trim()
+          ) {
+
+            host.style.setProperty(
+              "display",
+              "none",
+              "important"
+            );
+
+          }
+
+        }
+      );
+
+  } else {
+
+    // Proteção idempotente: se algum render externo mover o input,
+    // devolve o calendário para o cabeçalho correto.
+    const control =
+      header.querySelector(
+        ".ace-dashboard-date-control"
+      );
+
+
+    if (
+      control &&
+      dateInput.parentElement !==
+        control
+    ) {
+
+      control.appendChild(
+        dateInput
+      );
+
+    }
 
   }
 
@@ -13219,90 +13405,158 @@ function installAceDashboardSummaryHeaderLayout() {
 
 
     style.textContent = `
-      #dashboard .ace-dashboard-summary-row{
-        display:flex !important;
-        align-items:center !important;
-        justify-content:flex-start !important;
-        gap:18px !important;
-        flex-wrap:nowrap !important;
-        margin-bottom:18px !important;
+      #dashboard .ace-dashboard-summary-header{
+        width:100%;
+        display:flex;
+        align-items:center;
+        justify-content:flex-start;
+        gap:20px;
+        margin:0 0 18px 0;
+        padding:4px 0 2px;
+        box-sizing:border-box;
       }
 
-      #dashboard .ace-dashboard-summary-title{
-        flex:0 0 auto !important;
-        min-width:0 !important;
+      #dashboard .ace-dashboard-summary-title-box{
+        flex:0 0 auto;
+        min-width:0;
+        display:flex;
+        align-items:center;
+      }
+
+      #dashboard .ace-dashboard-summary-title-box h1,
+      #dashboard .ace-dashboard-summary-title-box h2,
+      #dashboard .ace-dashboard-summary-title-box h3,
+      #dashboard .ace-dashboard-summary-title-box h4{
         margin:0 !important;
+        color:#0b416c;
+        font-weight:950;
+        line-height:1.1;
+        white-space:nowrap;
       }
 
-      #dashboard .ace-dashboard-summary-title h1,
-      #dashboard .ace-dashboard-summary-title h2,
-      #dashboard .ace-dashboard-summary-title h3,
-      #dashboard .ace-dashboard-summary-title h4{
-        margin:0 !important;
-        white-space:nowrap !important;
-        line-height:1.12 !important;
+      #dashboard .ace-dashboard-date-control{
+        flex:0 0 auto;
+        min-height:48px;
+        display:flex;
+        align-items:center;
+        gap:8px;
+        padding:5px 9px 5px 11px;
+        border:1px solid #b8d3e8;
+        border-radius:13px;
+        background:#ffffff;
+        box-shadow:0 5px 14px rgba(10,75,120,.07);
+        box-sizing:border-box;
+        cursor:pointer;
+        transition:
+          border-color .16s ease,
+          box-shadow .16s ease,
+          transform .16s ease;
       }
 
-      #dashboard #todayLabel{
-        display:none !important;
+      #dashboard .ace-dashboard-date-control:hover{
+        border-color:#7ebae1;
+        box-shadow:0 7px 18px rgba(10,75,120,.10);
       }
 
-      #dashboard .ace-dashboard-summary-date{
-        flex:0 0 220px !important;
-        width:220px !important;
-        max-width:220px !important;
-        margin:0 !important;
+      #dashboard .ace-dashboard-date-control:focus-within{
+        border-color:#1689d0;
+        box-shadow:
+          0 0 0 3px rgba(22,137,208,.11),
+          0 7px 18px rgba(10,75,120,.09);
+      }
+
+      #dashboard .ace-dashboard-date-icon{
+        flex:0 0 auto;
+        font-size:17px;
+        line-height:1;
+      }
+
+      #dashboard .ace-dashboard-date-label{
+        flex:0 0 auto;
+        color:#5f7285;
+        font-size:13px;
+        font-weight:850;
       }
 
       #dashboard #dashboardDate{
-        width:220px !important;
-        max-width:220px !important;
-        min-width:0 !important;
-        height:46px !important;
-        min-height:46px !important;
-        box-sizing:border-box !important;
+        display:block !important;
+        flex:0 0 160px !important;
+        width:160px !important;
+        max-width:160px !important;
+        min-width:160px !important;
+        height:36px !important;
+        min-height:36px !important;
         margin:0 !important;
-        padding:0 42px 0 14px !important;
-        border:1px solid #b8d2e6 !important;
-        border-radius:12px !important;
-        background:#fff !important;
-        color:#173b5c !important;
+        padding:0 6px 0 8px !important;
+        border:0 !important;
+        outline:0 !important;
+        border-radius:8px !important;
+        background:#f7fbfe !important;
+        color:#153c5d !important;
         font:inherit !important;
-        font-weight:750 !important;
-        box-shadow:0 4px 12px rgba(7,75,125,.055) !important;
+        font-size:14px !important;
+        font-weight:850 !important;
+        line-height:36px !important;
+        box-shadow:none !important;
+        box-sizing:border-box !important;
+        cursor:pointer !important;
+        color-scheme:light;
+        opacity:1 !important;
+        visibility:visible !important;
       }
 
-      #dashboard #dashboardDate:focus{
-        outline:none !important;
-        border-color:#1689d0 !important;
-        box-shadow:
-          0 0 0 3px rgba(22,137,208,.12),
-          0 4px 12px rgba(7,75,125,.07) !important;
+      #dashboard #dashboardDate::-webkit-calendar-picker-indicator{
+        display:block !important;
+        opacity:1 !important;
+        cursor:pointer !important;
+        width:18px !important;
+        height:18px !important;
+        margin:0 !important;
+      }
+
+      #dashboard #dashboardDate::-webkit-datetime-edit{
+        display:flex;
+        align-items:center;
+        color:#153c5d;
+      }
+
+      #dashboard #dashboardDate::-webkit-datetime-edit-fields-wrapper{
+        padding:0;
       }
 
       @media (max-width:700px){
-        #dashboard .ace-dashboard-summary-row{
-          display:grid !important;
-          grid-template-columns:1fr !important;
-          gap:10px !important;
-          align-items:stretch !important;
-          margin-bottom:16px !important;
+        #dashboard .ace-dashboard-summary-header{
+          display:grid;
+          grid-template-columns:1fr;
+          gap:10px;
+          margin-bottom:15px;
+          padding-top:2px;
         }
 
-        #dashboard .ace-dashboard-summary-title{
-          width:100% !important;
+        #dashboard .ace-dashboard-summary-title-box{
+          width:100%;
         }
 
-        #dashboard .ace-dashboard-summary-date{
-          width:100% !important;
-          max-width:none !important;
-          flex:auto !important;
+        #dashboard .ace-dashboard-summary-title-box h1,
+        #dashboard .ace-dashboard-summary-title-box h2,
+        #dashboard .ace-dashboard-summary-title-box h3,
+        #dashboard .ace-dashboard-summary-title-box h4{
+          white-space:normal;
+        }
+
+        #dashboard .ace-dashboard-date-control{
+          width:100%;
+          min-height:50px;
+          padding:6px 10px 6px 12px;
         }
 
         #dashboard #dashboardDate{
+          flex:1 1 auto !important;
           width:100% !important;
           max-width:none !important;
-          height:48px !important;
+          min-width:0 !important;
+          height:38px !important;
+          min-height:38px !important;
         }
       }
     `;
@@ -13326,17 +13580,6 @@ function renderDashboard() {
     document.getElementById(
       "dashboardDate"
     )?.value || isoToday();
-
-
-  const todayLabel =
-    document.getElementById(
-      "todayLabel"
-    );
-
-  if (todayLabel) {
-    todayLabel.textContent =
-      fmtDate(date);
-  }
 
 
   const ent =
