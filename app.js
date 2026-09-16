@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-reverter-inventario-corrigido-v34";
+  "2026.09.16-pwa-restaura-estoque-antes-inventario-v35";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4208,7 +4208,7 @@ async function aceLoadFromSupabaseNetwork(
 
     aceEconomicSelect(
       "ajustes_estoque",
-      "id,inventario_id,data,origem_id,alimento_id,quantidade,usuario_id,created_at",
+      "id,inventario_id,data,origem_id,alimento_id,quantidade,usuario_id,created_at,quantidade_original,revertido_em,revertido_por,revertido_motivo",
       query => query.order(
         "created_at",
         { ascending: false }
@@ -4771,6 +4771,19 @@ async function aceLoadFromSupabaseNetwork(
         originId: Number(row.origem_id),
         foodId: Number(row.alimento_id),
         qty: Number(row.quantidade || 0),
+        originalQty:
+          row.quantidade_original != null
+            ? Number(row.quantidade_original)
+            : null,
+        revertedAt:
+          row.revertido_em ||
+          null,
+        revertedBy:
+          row.revertido_por ||
+          null,
+        revertedReason:
+          row.revertido_motivo ||
+          "",
         usuarioId: row.usuario_id || null,
         createdAt:
           row.created_at ||
@@ -46651,12 +46664,12 @@ function renderAceLastInventorySummary() {
   return `
     <div class="ace-inventory-panel">
       ${
-        lastAdjustmentState.reverted
+        lastAdjustmentState.restoredExact
           ? `
             <div class="ace-inventory-reverted-notice">
-              <b>↩️ Inventário revertido</b>
+              <b>↩️ Estoque restaurado</b>
               <span>
-                Os ajustes deste inventário foram anulados. Entradas, saídas e perdas posteriores continuam válidas no estoque atual.
+                O estoque atual foi restaurado exatamente para os valores registrados em "Antes do inventário". As movimentações posteriores continuam no histórico para auditoria, mas seu efeito no saldo foi neutralizado pela restauração.
               </span>
             </div>
           `
@@ -46717,6 +46730,17 @@ function getAceInventoryAdjustmentState(
       );
 
 
+  const restoredExact =
+    rows.some(
+      row =>
+        String(
+          row.revertedReason || ""
+        )
+          .trim() ===
+        'Restauração exata ao estoque anterior ao inventário'
+    );
+
+
   const netByFood =
     new Map();
 
@@ -46764,17 +46788,6 @@ function getAceInventoryAdjustmentState(
       );
 
 
-  const hasRows =
-    rows.length >
-    0;
-
-
-  const reverted =
-    hasRows &&
-    activeAdjustments.length ===
-      0;
-
-
   const increase =
     activeAdjustments
       .filter(
@@ -46811,44 +46824,21 @@ function getAceInventoryAdjustmentState(
       );
 
 
-  const sortedRows =
-    rows
-      .slice()
-      .sort(
-        (a, b) =>
-          String(
-            b.createdAt || ""
-          ).localeCompare(
-            String(
-              a.createdAt || ""
-            )
-          )
-      );
-
-
-  const latest =
-    sortedRows[0] ||
-    null;
-
-
   return {
     rows,
-    hasRows,
+    hasRows:
+      rows.length >
+      0,
     activeAdjustments,
     activeCount:
       activeAdjustments.length,
     increase,
     reduction,
-    reverted,
+    reverted:
+      restoredExact,
+    restoredExact,
     canRevert:
-      activeAdjustments.length >
-      0,
-    latestCreatedAt:
-      latest?.createdAt ||
-      "",
-    latestUserId:
-      latest?.usuarioId ||
-      null
+      !restoredExact
   };
 
 }
@@ -46886,7 +46876,7 @@ function getAceInventoryStatusHtml(
 
     return `
       <span class="pill blue">
-        Revertido
+        Restaurado
       </span>
     `;
 
@@ -46999,24 +46989,12 @@ async function revertAceInventory(
 
 
   if (
-    state.reverted
+    state.restoredExact
   ) {
 
     return showAceMessage(
-      "Este inventário já foi revertido. Nenhum novo ajuste foi aplicado.",
-      "Inventário já revertido"
-    );
-
-  }
-
-
-  if (
-    !state.canRevert
-  ) {
-
-    return showAceMessage(
-      "Este inventário não possui ajuste ativo para desfazer.",
-      "Nenhum ajuste para reverter"
+      "O estoque deste inventário já foi restaurado exatamente aos valores de antes do inventário.",
+      "Estoque já restaurado"
     );
 
   }
@@ -47024,16 +47002,13 @@ async function revertAceInventory(
 
   const confirmed =
     await showAceConfirm(
-      `Reverter este inventário?\n\n` +
+      `Restaurar o estoque para os valores de antes deste inventário?\n\n` +
       `Data: ${formatAceInventoryDateTime(inventory.iniciado_em)}\n` +
-      `Responsável: ${inventory.usuario_nome || "Usuário"}\n` +
-      `Itens com ajuste ativo: ${state.activeCount}\n` +
-      `Acréscimos aplicados: ${state.increase ? "+" + fmt(state.increase) : "—"}\n` +
-      `Reduções aplicadas: ${state.reduction ? "−" + fmt(state.reduction) : "—"}\n\n` +
-      `A reversão desfará SOMENTE os ajustes causados por este inventário.\n` +
-      `Entradas, saídas, perdas e outras movimentações feitas depois dele serão preservadas.\n\n` +
-      `O inventário continuará no histórico com o status "Revertido".`,
-      "↩️ Reverter inventário"
+      `Responsável: ${inventory.usuario_nome || "Usuário"}\n\n` +
+      `O sistema usará a coluna "Antes do inventário" como referência oficial e fará um ajuste administrativo para que o estoque atual volte exatamente àqueles valores.\n\n` +
+      `As entradas, saídas e perdas registradas depois do inventário NÃO serão apagadas do histórico, porém o efeito delas no saldo atual será neutralizado por esta restauração.\n\n` +
+      `Esta operação ficará registrada para auditoria e não poderá ser aplicada duas vezes.`,
+      "↩️ Restaurar estoque anterior"
     );
 
 
@@ -47123,7 +47098,7 @@ async function revertAceInventory(
       ) {
 
         throw new Error(
-          "A versão antiga da função de reversão ainda está instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO_CORRIGIDO.txt e tente novamente."
+          "A versão antiga da função de reversão ainda está instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO_RESTAURA_ESTOQUE_ANTERIOR.txt e tente novamente."
         );
 
       }
@@ -47138,7 +47113,7 @@ async function revertAceInventory(
       ) {
 
         throw new Error(
-          "A função de reversão ainda não foi instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO_CORRIGIDO.txt fornecido junto com este script."
+          "A função de reversão ainda não foi instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO_RESTAURA_ESTOQUE_ANTERIOR.txt fornecido junto com este script."
         );
 
       }
@@ -47169,8 +47144,8 @@ async function revertAceInventory(
 
 
     await showAceMessage(
-      "Inventário revertido com sucesso. Os ajustes daquele inventário foram anulados e as movimentações posteriores foram preservadas.",
-      "Reversão concluída"
+      "Estoque restaurado com sucesso. As quantidades atuais voltaram exatamente aos valores registrados em \"Antes do inventário\".",
+      "Estoque restaurado"
     );
 
 
@@ -47258,22 +47233,22 @@ function renderAceInventoryHistory() {
       admin &&
       row.status ===
         "finalizado" &&
-      adjustmentState.canRevert
+      !adjustmentState.restoredExact
         ? `
           <button
             type="button"
             class="ace-inventory-revert-history"
             data-inventory-revert="${row.id}"
-            title="Desfazer somente os ajustes deste inventário"
+            title="Restaurar o estoque exatamente aos valores de antes deste inventário"
           >
-            ↩️ Reverter
+            ↩️ Restaurar
           </button>
         `
         : "";
 
 
     return `
-      <tr class="${adjustmentState.reverted ? "ace-inventory-reverted-row" : ""}">
+      <tr class="${adjustmentState.restoredExact ? "ace-inventory-reverted-row" : ""}">
         <td>${esc(formatAceInventoryDateTime(row.iniciado_em))}</td>
         <td>${esc(row.usuario_nome || "Usuário")}</td>
         <td>${getAceInventoryStatusHtml(row)}</td>
@@ -47283,8 +47258,8 @@ function renderAceInventoryHistory() {
           ${
             row.status === "finalizado"
               ? (
-                  adjustmentState.reverted
-                    ? '<span style="color:#667085;font-weight:900">Anulado</span>'
+                  adjustmentState.restoredExact
+                    ? '<span style="color:#667085;font-weight:900">Restaurado</span>'
                     : fmt(totalDifference)
                 )
               : "—"
