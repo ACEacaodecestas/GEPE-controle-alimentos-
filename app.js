@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-estoque-unico-reverter-inventario-v33";
+  "2026.09.16-pwa-reverter-inventario-corrigido-v34";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -46884,55 +46884,10 @@ function getAceInventoryStatusHtml(
     adjustmentState.reverted
   ) {
 
-    const revertedAt =
-      adjustmentState
-        .latestCreatedAt
-        ? formatAceInventoryDateTime(
-            adjustmentState
-              .latestCreatedAt
-          )
-        : "";
-
-
-    const revertedBy =
-      adjustmentState
-        .latestUserId
-        ? (
-            getAceUserNameFromDirectory(
-              adjustmentState
-                .latestUserId
-            ) ||
-            ""
-          )
-        : "";
-
-
     return `
       <span class="pill blue">
         Revertido
       </span>
-      ${
-        revertedAt
-          ? `
-            <div
-              style="
-                margin-top:4px;
-                color:#667085;
-                font-size:11px;
-                font-weight:700;
-                line-height:1.25;
-              "
-            >
-              ${esc(revertedAt)}
-              ${
-                revertedBy
-                  ? ` · ${esc(revertedBy)}`
-                  : ""
-              }
-            </div>
-          `
-          : ""
-      }
     `;
 
   }
@@ -47153,18 +47108,37 @@ async function revertAceInventory(
         );
 
 
-      if (
+      const normalizedMessage =
         message
-          .toLowerCase()
-          .includes(
-            "ace_reverter_inventario"
-          ) ||
+          .toLowerCase();
+
+
+      if (
+        normalizedMessage.includes(
+          "duplicate key value violates unique constraint"
+        ) ||
+        normalizedMessage.includes(
+          "ajustes_estoque_inventario_id_alimento_id_key"
+        )
+      ) {
+
+        throw new Error(
+          "A versão antiga da função de reversão ainda está instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO_CORRIGIDO.txt e tente novamente."
+        );
+
+      }
+
+
+      if (
+        normalizedMessage.includes(
+          "ace_reverter_inventario"
+        ) ||
         result.error?.code ===
           "PGRST202"
       ) {
 
         throw new Error(
-          "A função de reversão ainda não foi instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO.txt fornecido junto com este script."
+          "A função de reversão ainda não foi instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_REVERTER_INVENTARIO_CORRIGIDO.txt fornecido junto com este script."
         );
 
       }
