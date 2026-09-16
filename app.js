@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-entradas-origem-visual-limpo-v38";
+  "2026.09.16-pwa-inventario-resultado-fechado-v40";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -13084,7 +13084,243 @@ function getAceGlobalStockQty(
 // 9. DASHBOARD
 // ============================================================
 
+function installAceDashboardSummaryHeaderLayout() {
+
+  const dashboard =
+    document.getElementById(
+      "dashboard"
+    );
+
+
+  const dateInput =
+    document.getElementById(
+      "dashboardDate"
+    );
+
+
+  const duplicateDate =
+    document.getElementById(
+      "todayLabel"
+    );
+
+
+  if (
+    !dashboard ||
+    !dateInput
+  ) {
+    return;
+  }
+
+
+  // A data já aparece dentro do seletor.
+  // Evita repetir a mesma informação abaixo de "Resumo do dia".
+  if (duplicateDate) {
+
+    duplicateDate.style.setProperty(
+      "display",
+      "none",
+      "important"
+    );
+
+    duplicateDate.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+  }
+
+
+  const heading =
+    [...dashboard.querySelectorAll(
+      "h1,h2,h3,h4"
+    )]
+      .find(
+        element =>
+          String(
+            element.textContent || ""
+          )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim()
+            .toLowerCase() ===
+          "resumo do dia"
+      );
+
+
+  const titleBlock =
+    duplicateDate?.parentElement &&
+    heading &&
+    duplicateDate.parentElement
+      .contains(
+        heading
+      )
+      ? duplicateDate.parentElement
+      : heading?.parentElement ||
+        null;
+
+
+  const dateBlock =
+    dateInput.parentElement;
+
+
+  if (titleBlock) {
+
+    titleBlock.classList.add(
+      "ace-dashboard-summary-title"
+    );
+
+  }
+
+
+  if (dateBlock) {
+
+    dateBlock.classList.add(
+      "ace-dashboard-summary-date"
+    );
+
+  }
+
+
+  // Só estiliza a linha quando título e data realmente compartilham
+  // o mesmo contêiner. Assim nenhum outro bloco do dashboard é afetado.
+  if (
+    titleBlock &&
+    dateBlock &&
+    titleBlock.parentElement &&
+    titleBlock.parentElement ===
+      dateBlock.parentElement &&
+    titleBlock.parentElement !==
+      dashboard
+  ) {
+
+    titleBlock.parentElement.classList.add(
+      "ace-dashboard-summary-row"
+    );
+
+  }
+
+
+  if (
+    !document.getElementById(
+      "aceDashboardSummaryHeaderStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      "aceDashboardSummaryHeaderStyle";
+
+
+    style.textContent = `
+      #dashboard .ace-dashboard-summary-row{
+        display:flex !important;
+        align-items:center !important;
+        justify-content:flex-start !important;
+        gap:18px !important;
+        flex-wrap:nowrap !important;
+        margin-bottom:18px !important;
+      }
+
+      #dashboard .ace-dashboard-summary-title{
+        flex:0 0 auto !important;
+        min-width:0 !important;
+        margin:0 !important;
+      }
+
+      #dashboard .ace-dashboard-summary-title h1,
+      #dashboard .ace-dashboard-summary-title h2,
+      #dashboard .ace-dashboard-summary-title h3,
+      #dashboard .ace-dashboard-summary-title h4{
+        margin:0 !important;
+        white-space:nowrap !important;
+        line-height:1.12 !important;
+      }
+
+      #dashboard #todayLabel{
+        display:none !important;
+      }
+
+      #dashboard .ace-dashboard-summary-date{
+        flex:0 0 220px !important;
+        width:220px !important;
+        max-width:220px !important;
+        margin:0 !important;
+      }
+
+      #dashboard #dashboardDate{
+        width:220px !important;
+        max-width:220px !important;
+        min-width:0 !important;
+        height:46px !important;
+        min-height:46px !important;
+        box-sizing:border-box !important;
+        margin:0 !important;
+        padding:0 42px 0 14px !important;
+        border:1px solid #b8d2e6 !important;
+        border-radius:12px !important;
+        background:#fff !important;
+        color:#173b5c !important;
+        font:inherit !important;
+        font-weight:750 !important;
+        box-shadow:0 4px 12px rgba(7,75,125,.055) !important;
+      }
+
+      #dashboard #dashboardDate:focus{
+        outline:none !important;
+        border-color:#1689d0 !important;
+        box-shadow:
+          0 0 0 3px rgba(22,137,208,.12),
+          0 4px 12px rgba(7,75,125,.07) !important;
+      }
+
+      @media (max-width:700px){
+        #dashboard .ace-dashboard-summary-row{
+          display:grid !important;
+          grid-template-columns:1fr !important;
+          gap:10px !important;
+          align-items:stretch !important;
+          margin-bottom:16px !important;
+        }
+
+        #dashboard .ace-dashboard-summary-title{
+          width:100% !important;
+        }
+
+        #dashboard .ace-dashboard-summary-date{
+          width:100% !important;
+          max-width:none !important;
+          flex:auto !important;
+        }
+
+        #dashboard #dashboardDate{
+          width:100% !important;
+          max-width:none !important;
+          height:48px !important;
+        }
+      }
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+}
+
+
 function renderDashboard() {
+
+  installAceDashboardSummaryHeaderLayout();
+
 
   const date =
     document.getElementById(
@@ -46952,30 +47188,62 @@ function getAceInventoryDisplayValues(
 
 function renderAceLastInventorySummary() {
   const last = aceInventoryLast;
-  if (!last || !aceInventoryLastItems.length) return "";
 
-  const origin = getAceInventoryOrigin();
-  const stock = calcStock();
+  if (
+    !last ||
+    !aceInventoryLastItems.length
+  ) {
+    return "";
+  }
 
-  const preparedItems = getAceCountableInventoryItems(
-    aceInventoryLastItems
-  ).map(item => {
-    const {
-      systemQuantity,
-      countedQuantity,
-      difference
-    } = getAceInventoryDisplayValues(
-      last.id,
-      item
-    );
 
-    return {
-      item,
-      systemQuantity,
-      countedQuantity,
-      difference
-    };
-  });
+  // ==========================================================
+  // RESULTADO FECHADO DO INVENTÁRIO
+  // ==========================================================
+  //
+  // Esta tela representa a fotografia oficial do inventário no
+  // instante em que ele foi finalizado.
+  //
+  // Movimentações feitas DEPOIS (entradas, saídas e perdas)
+  // NÃO alteram mais esta tabela.
+  //
+  // Se o usuário quiser uma nova conferência do estoque atual,
+  // deverá iniciar um novo inventário.
+  // ==========================================================
+
+  const preparedItems =
+    getAceCountableInventoryItems(
+      aceInventoryLastItems
+    )
+      .map(
+        item => {
+
+          const {
+            systemQuantity,
+            countedQuantity,
+            difference
+          } =
+            getAceInventoryDisplayValues(
+              last.id,
+              item
+            );
+
+
+          return {
+            item,
+            systemQuantity,
+            countedQuantity,
+            difference,
+
+            // O resultado oficial do inventário é o valor contado
+            // no momento da finalização.
+            resultQuantity:
+              countedQuantity
+          };
+
+        }
+      );
+
 
   const lastAdjustmentState =
     getAceInventoryAdjustmentState(
@@ -46983,105 +47251,224 @@ function renderAceLastInventorySummary() {
     );
 
 
-  const adjustedItems = preparedItems.filter(row => row.difference !== 0);
-  const totalIncreases = adjustedItems
-    .filter(row => row.difference > 0)
-    .reduce((sum, row) => sum + row.difference, 0);
-  const totalReductions = adjustedItems
-    .filter(row => row.difference < 0)
-    .reduce((sum, row) => sum + Math.abs(row.difference), 0);
-  const visibleItems = aceInventoryShowOnlyAdjusted
-    ? adjustedItems
-    : preparedItems;
-
-  const signedMovement = (value, sign) => {
-    const quantity = Number(value || 0);
-    return quantity === 0 ? "—" : `${sign}${fmt(quantity)}`;
-  };
-
-  const rows = visibleItems.map(({ item, systemQuantity, countedQuantity, difference }) => {
-    const totals = getAceInventoryMovementTotals(
-      item,
-      last.finalizado_em,
-      last.origem_id
-    );
-    const current =
-      getAceGlobalStockQty(
-        Number(
-          item.alimento_id
-        ),
-        stock
+  const adjustedItems =
+    preparedItems
+      .filter(
+        row =>
+          row.difference !==
+          0
       );
-    const adjustmentClass = difference > 0
-      ? "positive"
-      : difference < 0 ? "negative" : "zero";
-    const adjustmentText = difference === 0
-      ? "—"
-      : `${difference > 0 ? "+" : ""}${fmt(difference)}`;
 
-    return `
-      <tr class="${difference !== 0 ? "ace-inventory-adjusted-row" : ""}">
-        <td>${esc(item.alimento_nome)}</td>
-        <td>${fmt(systemQuantity)}</td>
-        <td><b>${fmt(countedQuantity)}</b></td>
-        <td><span class="ace-inventory-adjustment-badge ${adjustmentClass}">${adjustmentText}</span></td>
-        <td class="ace-inventory-movement-positive">${signedMovement(totals.entries, "+")}</td>
-        <td class="ace-inventory-movement-output">${signedMovement(totals.outputs, "−")}</td>
-        <td class="ace-inventory-movement-loss">${signedMovement(totals.losses, "−")}</td>
-        <td><b>${fmt(current)}</b></td>
-      </tr>`;
-  }).join("") || `
+
+  const totalIncreases =
+    adjustedItems
+      .filter(
+        row =>
+          row.difference >
+          0
+      )
+      .reduce(
+        (sum, row) =>
+          sum +
+          row.difference,
+        0
+      );
+
+
+  const totalReductions =
+    adjustedItems
+      .filter(
+        row =>
+          row.difference <
+          0
+      )
+      .reduce(
+        (sum, row) =>
+          sum +
+          Math.abs(
+            row.difference
+          ),
+        0
+      );
+
+
+  const visibleItems =
+    aceInventoryShowOnlyAdjusted
+      ? adjustedItems
+      : preparedItems;
+
+
+  const rows =
+    visibleItems
+      .map(
+        ({
+          item,
+          systemQuantity,
+          countedQuantity,
+          difference,
+          resultQuantity
+        }) => {
+
+          const adjustmentClass =
+            difference >
+            0
+              ? "positive"
+              : (
+                  difference <
+                  0
+                    ? "negative"
+                    : "zero"
+                );
+
+
+          const adjustmentText =
+            difference ===
+            0
+              ? "—"
+              : `${
+                  difference >
+                  0
+                    ? "+"
+                    : ""
+                }${fmt(difference)}`;
+
+
+          return `
+            <tr class="${difference !== 0 ? "ace-inventory-adjusted-row" : ""}">
+              <td>${esc(item.alimento_nome)}</td>
+              <td>${fmt(systemQuantity)}</td>
+              <td><b>${fmt(countedQuantity)}</b></td>
+              <td>
+                <span class="ace-inventory-adjustment-badge ${adjustmentClass}">
+                  ${adjustmentText}
+                </span>
+              </td>
+              <td><b>${fmt(resultQuantity)}</b></td>
+            </tr>
+          `;
+
+        }
+      )
+      .join("") ||
+    `
       <tr>
-        <td colspan="8" style="padding:22px;text-align:center;color:#667085">
+        <td
+          colspan="5"
+          style="
+            padding:22px;
+            text-align:center;
+            color:#667085;
+          "
+        >
           Nenhum item teve ajuste neste inventário.
         </td>
-      </tr>`;
+      </tr>
+    `;
+
 
   return `
     <div class="ace-inventory-panel">
+
       ${
         lastAdjustmentState.restoredExact
           ? `
             <div class="ace-inventory-reverted-notice">
               <b>↩️ Estoque restaurado</b>
               <span>
-                O estoque atual foi restaurado exatamente para os valores registrados em "Antes do inventário". As movimentações posteriores continuam no histórico para auditoria, mas seu efeito no saldo foi neutralizado pela restauração.
+                Este inventário foi restaurado administrativamente ao estoque anterior. O resultado original abaixo permanece preservado como registro de auditoria.
               </span>
             </div>
           `
           : ""
       }
+
       <div class="ace-inventory-summary-head">
+
         <div>
-          <h3>📊 Resultado do último inventário e movimentações posteriores</h3>
-          <p>Inventário finalizado em ${esc(formatAceInventoryDateTime(last.finalizado_em))}.</p>
+          <h3>📊 Resultado do último inventário</h3>
+          <p>
+            Inventário finalizado em
+            ${esc(formatAceInventoryDateTime(last.finalizado_em))}.
+            Este resultado permanece inalterado após a finalização.
+          </p>
         </div>
-        <button id="aceInventoryAdjustedToggle" class="ace-inventory-summary-filter ${aceInventoryShowOnlyAdjusted ? "active" : ""}" type="button">
-          ${aceInventoryShowOnlyAdjusted ? "Mostrar todos os itens" : "Mostrar somente itens ajustados"}
+
+        <button
+          id="aceInventoryAdjustedToggle"
+          class="ace-inventory-summary-filter ${aceInventoryShowOnlyAdjusted ? "active" : ""}"
+          type="button"
+        >
+          ${
+            aceInventoryShowOnlyAdjusted
+              ? "Mostrar todos os itens"
+              : "Mostrar somente itens ajustados"
+          }
         </button>
+
       </div>
+
+
       <div class="ace-inventory-summary-metrics">
+
         <div class="ace-inventory-summary-metric">
           <span>Itens ajustados</span>
           <strong>${adjustedItems.length}</strong>
         </div>
+
         <div class="ace-inventory-summary-metric">
           <span>Acréscimos</span>
-          <strong class="positive">${totalIncreases ? `+${fmt(totalIncreases)}` : "—"}</strong>
+          <strong class="positive">
+            ${
+              totalIncreases
+                ? `+${fmt(totalIncreases)}`
+                : "—"
+            }
+          </strong>
         </div>
+
         <div class="ace-inventory-summary-metric">
           <span>Reduções</span>
-          <strong class="negative">${totalReductions ? `−${fmt(totalReductions)}` : "—"}</strong>
+          <strong class="negative">
+            ${
+              totalReductions
+                ? `−${fmt(totalReductions)}`
+                : "—"
+            }
+          </strong>
         </div>
+
       </div>
+
+
       <div class="ace-inventory-table-wrap">
+
         <table class="ace-inventory-table ace-inventory-summary-table">
-          <thead><tr><th>Alimento</th><th>Antes do inventário</th><th>Contado</th><th>Ajuste do inventário</th><th>Entradas posteriores</th><th>Saídas</th><th>Perdas</th><th>Estoque atual</th></tr></thead>
-          <tbody>${rows}</tbody>
+
+          <thead>
+            <tr>
+              <th>Alimento</th>
+              <th>Antes do inventário</th>
+              <th>Contado</th>
+              <th>Ajuste do inventário</th>
+              <th>Resultado do inventário</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${rows}
+          </tbody>
+
         </table>
+
       </div>
-      <small class="ace-inventory-summary-formula">Estoque atual = contado + entradas posteriores − saídas − perdas.</small>
-    </div>`;
+
+
+      <small class="ace-inventory-summary-formula">
+        Resultado do inventário = quantidade contada no momento da finalização. Movimentações posteriores não alteram este registro.
+      </small>
+
+    </div>
+  `;
 }
 
 
