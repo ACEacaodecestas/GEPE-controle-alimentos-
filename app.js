@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.13-modo-economico-supabase-v29";
+  "2026.09.16-pwa-jwt-expired-entrada-v30";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -6121,6 +6121,155 @@ function findAceEntryHistoryIncrementTarget({
 }
 
 
+function isAceJwtExpiredError(
+  error
+) {
+
+  const message =
+    String(
+      error?.message ||
+      error?.details ||
+      error?.hint ||
+      error ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const code =
+    String(
+      error?.code ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    message.includes(
+      "jwt expired"
+    ) ||
+    message.includes(
+      "jwt has expired"
+    ) ||
+    message.includes(
+      "token expired"
+    ) ||
+    message.includes(
+      "token has expired"
+    ) ||
+    (
+      code ===
+        "pgrst301" &&
+      message.includes(
+        "jwt"
+      )
+    )
+  );
+
+}
+
+
+async function refreshAceSessionForEntryWrite() {
+
+  console.warn(
+    "ACE: sessão expirada durante a entrada. Renovando token automaticamente."
+  );
+
+
+  const {
+    data,
+    error
+  } =
+    await supabaseClient.auth
+      .refreshSession();
+
+
+  if (
+    error ||
+    !data?.session?.access_token ||
+    !data?.session?.user
+  ) {
+
+    const refreshError =
+      error ||
+      new Error(
+        "Não foi possível renovar a sessão."
+      );
+
+
+    if (
+      isAceNetworkError(
+        refreshError
+      )
+    ) {
+      throw refreshError;
+    }
+
+
+    const sessionError =
+      new Error(
+        "Sua sessão expirou e não pôde ser renovada automaticamente. Entre novamente para continuar."
+      );
+
+
+    sessionError.code =
+      "ACE_SESSION_EXPIRED";
+
+
+    throw sessionError;
+
+  }
+
+
+  currentUser =
+    data.session.user;
+
+
+  saveOfflineUser(
+    currentUser
+  );
+
+
+  rememberCurrentUser();
+
+
+  // Atualiza também a autenticação do Realtime, quando disponível.
+  try {
+
+    if (
+      supabaseClient.realtime
+        ?.setAuth
+    ) {
+
+      await supabaseClient.realtime
+        .setAuth(
+          data.session.access_token
+        );
+
+    }
+
+  } catch (realtimeError) {
+
+    console.warn(
+      "ACE: sessão foi renovada, mas o Realtime ainda não atualizou o token:",
+      realtimeError
+    );
+
+  }
+
+
+  console.log(
+    "ACE: sessão renovada automaticamente. Repetindo a entrada."
+  );
+
+
+  return data.session;
+
+}
+
+
 async function insertEntry({
   date,
   originId,
@@ -6210,51 +6359,122 @@ async function insertEntry({
     );
 
 
-  const entryRow = {
-    id:
-      entryId,
-    data_entrada:
-      date,
-    alimento_id:
-      Number(foodId),
-    quantidade:
-      entryTotalQty,
-    origem_id:
-      Number(originId),
-    observacao:
-      mergedEntryNote,
-    usuario_id:
-      userId
-  };
+  const buildEntryRow =
+    () => ({
+      id:
+        entryId,
+      data_entrada:
+        date,
+      alimento_id:
+        Number(foodId),
+      quantidade:
+        entryTotalQty,
+      origem_id:
+        Number(originId),
+      observacao:
+        mergedEntryNote,
+      usuario_id:
+        getCurrentUserId()
+    });
 
 
-  const historyRow = {
-    id:
-      historyId,
-    data:
-      date,
-    tipo:
-      "entrada",
-    origem_id:
-      Number(originId),
-    alimento_id:
-      Number(foodId),
-    quantidade:
-      historyTotalQty,
-    motivo:
-      "—",
-    tipo_cesta:
-      "—",
-    observacao:
-      mergedHistoryNote,
-    usuario_id:
-      userId
-  };
+  const buildHistoryRow =
+    () => ({
+      id:
+        historyId,
+      data:
+        date,
+      tipo:
+        "entrada",
+      origem_id:
+        Number(originId),
+      alimento_id:
+        Number(foodId),
+      quantidade:
+        historyTotalQty,
+      motivo:
+        "—",
+      tipo_cesta:
+        "—",
+      observacao:
+        mergedHistoryNote,
+      usuario_id:
+        getCurrentUserId()
+    });
+
+
+  const writeEntryToSupabase =
+    async () => {
+
+      const entryRow =
+        buildEntryRow();
+
+
+      const historyRow =
+        buildHistoryRow();
+
+
+      const {
+        error
+      } =
+        await supabaseClient
+          .from(
+            "entradas"
+          )
+          .upsert(
+            entryRow,
+            {
+              onConflict:
+                "id"
+            }
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      const {
+        error: historyError
+      } =
+        await supabaseClient
+          .from(
+            "historico_movimentacoes"
+          )
+          .upsert(
+            historyRow,
+            {
+              onConflict:
+                "id"
+            }
+          );
+
+
+      if (historyError) {
+        throw historyError;
+      }
+
+
+      return {
+        entryRow,
+        historyRow
+      };
+
+    };
 
 
   if (
     !aceIsOnline()
   ) {
+
+    const entryRow =
+      buildEntryRow();
+
+
+    const historyRow =
+      buildHistoryRow();
+
 
     applyLocalEntry({
       id:
@@ -6286,45 +6506,38 @@ async function insertEntry({
 
   try {
 
-    const {
-      error
-    } =
-      await supabaseClient
-        .from(
-          "entradas"
+    try {
+
+      await writeEntryToSupabase();
+
+
+    } catch (error) {
+
+      // ======================================================
+      // CORREÇÃO JWT EXPIRED
+      //
+      // O token pode vencer com o sistema aberto.
+      // Nesse caso a entrada NÃO falha para o usuário:
+      // renovamos a sessão e repetimos a mesma gravação 1 vez.
+      //
+      // Como os IDs são os mesmos e a operação usa UPSERT,
+      // a repetição é idempotente e não duplica a entrada.
+      // ======================================================
+
+      if (
+        !isAceJwtExpiredError(
+          error
         )
-        .upsert(
-          entryRow,
-          {
-            onConflict:
-              "id"
-          }
-        );
+      ) {
+        throw error;
+      }
 
 
-    if (error) {
-      throw error;
-    }
+      await refreshAceSessionForEntryWrite();
 
 
-    const {
-      error: historyError
-    } =
-      await supabaseClient
-        .from(
-          "historico_movimentacoes"
-        )
-        .upsert(
-          historyRow,
-          {
-            onConflict:
-              "id"
-          }
-        );
+      await writeEntryToSupabase();
 
-
-    if (historyError) {
-      throw historyError;
     }
 
 
@@ -6344,40 +6557,79 @@ async function insertEntry({
 
   } catch (error) {
 
+    // Se a rede caiu no meio da tentativa ou da renovação,
+    // continua usando exatamente o modo offline já existente.
     if (
-      !isAceNetworkError(error)
+      isAceNetworkError(
+        error
+      )
     ) {
-      throw error;
+
+      setAceNetworkState(
+        false,
+        true
+      );
+
+
+      const entryRow =
+        buildEntryRow();
+
+
+      const historyRow =
+        buildHistoryRow();
+
+
+      applyLocalEntry({
+        id:
+          entryId,
+        historyId,
+        date,
+        originId,
+        foodId,
+        qty:
+          entryTotalQty,
+        note:
+          mergedEntryNote
+      });
+
+
+      enqueueOfflineOperation(
+        "entry",
+        {
+          entryRow,
+          historyRow
+        }
+      );
+
+
+      return;
+
     }
 
 
-    setAceNetworkState(
-      false,
-      true
-    );
+    // Nunca expõe "JWT expired" diretamente ao usuário.
+    if (
+      isAceJwtExpiredError(
+        error
+      )
+    ) {
+
+      const sessionError =
+        new Error(
+          "Sua sessão expirou. Atualize o acesso entrando novamente no sistema."
+        );
 
 
-    applyLocalEntry({
-      id:
-        entryId,
-      historyId,
-      date,
-      originId,
-      foodId,
-      qty:
-        entryTotalQty,
-      note:
-        mergedEntryNote
-    });
+      sessionError.code =
+        "ACE_SESSION_EXPIRED";
 
 
-    enqueueOfflineOperation(
-      "entry",
-      {
-        entryRow,
-        historyRow
-      }
-    );
+      throw sessionError;
+
+    }
+
+
+    throw error;
 
   }
 
