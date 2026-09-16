@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-restaura-estoque-antes-inventario-v35";
+  "2026.09.16-pwa-inventario-igual-estoque-v36";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -46118,6 +46118,7 @@ let aceInventoryRefreshTimer = null;
 let aceInventoryHorizontalScroll = 0;
 let aceInventoryShowOnlyAdjusted = false;
 let aceInventoryScrollInventoryId = null;
+let aceInventorySnapshotSyncError = "";
 
 
 function getAceCountableInventoryItems(
@@ -46166,6 +46167,293 @@ function getAceInventoryOrigin() {
       normalizeAceText(origin.name) ===
       normalizeAceText(ACE_INVENTORY_ORIGIN_NAME)
   ) || null;
+}
+
+
+function buildAceCanonicalInventorySnapshot(
+  items = aceInventoryItems
+) {
+
+  return (items || [])
+    .map(
+      item => ({
+        alimento_id:
+          Number(
+            item?.alimento_id
+          ),
+        quantidade:
+          getAceGlobalStockQty(
+            Number(
+              item?.alimento_id
+            )
+          )
+      })
+    )
+    .filter(
+      item =>
+        Number.isFinite(
+          item.alimento_id
+        )
+    );
+
+}
+
+
+function hasAceInventorySnapshotMismatch(
+  items = aceInventoryItems
+) {
+
+  return (items || [])
+    .some(
+      item => {
+
+        const stored =
+          Number(
+            item?.estoque_sistema ||
+            0
+          );
+
+
+        const canonical =
+          getAceGlobalStockQty(
+            Number(
+              item?.alimento_id
+            )
+          );
+
+
+        return (
+          Math.abs(
+            stored -
+            canonical
+          ) >
+          0.000001
+        );
+
+      }
+    );
+
+}
+
+
+async function syncAceInventorySnapshotWithGlobalStock({
+  force = false
+} = {}) {
+
+  if (
+    !aceInventoryActive ||
+    aceInventoryActive.status !==
+      "em_andamento"
+  ) {
+    return false;
+  }
+
+
+  if (!aceIsOnline()) {
+
+    throw new Error(
+      "Conecte-se à internet para sincronizar o estoque do inventário."
+    );
+
+  }
+
+
+  const allowed =
+    isCurrentUserInventoryOwner() ||
+    (
+      typeof isAceOperationalAdmin ===
+        "function" &&
+      isAceOperationalAdmin()
+    );
+
+
+  if (!allowed) {
+    return false;
+  }
+
+
+  if (
+    !force &&
+    !hasAceInventorySnapshotMismatch()
+  ) {
+
+    aceInventorySnapshotSyncError =
+      "";
+
+    return false;
+
+  }
+
+
+  const snapshot =
+    buildAceCanonicalInventorySnapshot();
+
+
+  if (!snapshot.length) {
+
+    throw new Error(
+      "Não foi possível montar o snapshot do estoque para o inventário."
+    );
+
+  }
+
+
+  let result =
+    await supabaseClient.rpc(
+      "ace_sincronizar_snapshot_inventario",
+      {
+        p_inventario_id:
+          Number(
+            aceInventoryActive.id
+          ),
+        p_itens:
+          snapshot
+      }
+    );
+
+
+  if (
+    result.error &&
+    typeof isAceJwtExpiredError ===
+      "function" &&
+    isAceJwtExpiredError(
+      result.error
+    ) &&
+    typeof refreshAceSessionForEntryWrite ===
+      "function"
+  ) {
+
+    await refreshAceSessionForEntryWrite();
+
+
+    result =
+      await supabaseClient.rpc(
+        "ace_sincronizar_snapshot_inventario",
+        {
+          p_inventario_id:
+            Number(
+              aceInventoryActive.id
+            ),
+          p_itens:
+            snapshot
+        }
+      );
+
+  }
+
+
+  if (result.error) {
+
+    const message =
+      String(
+        result.error?.message ||
+        ""
+      );
+
+
+    if (
+      result.error?.code ===
+        "PGRST202" ||
+      message
+        .toLowerCase()
+        .includes(
+          "ace_sincronizar_snapshot_inventario"
+        )
+    ) {
+
+      throw new Error(
+        "A sincronização do Inventário com o Estoque Geral ainda não foi instalada no Supabase. Execute uma única vez o arquivo SQL_ACE_SINCRONIZAR_INVENTARIO_COM_ESTOQUE_UNICO.txt."
+      );
+
+    }
+
+
+    throw result.error;
+
+  }
+
+
+  const byFood =
+    new Map(
+      snapshot.map(
+        row => [
+          Number(
+            row.alimento_id
+          ),
+          Number(
+            row.quantidade ||
+            0
+          )
+        ]
+      )
+    );
+
+
+  aceInventoryItems
+    .forEach(
+      item => {
+
+        const foodId =
+          Number(
+            item.alimento_id
+          );
+
+
+        if (
+          !byFood.has(
+            foodId
+          )
+        ) {
+          return;
+        }
+
+
+        const systemQty =
+          Number(
+            byFood.get(
+              foodId
+            ) ||
+            0
+          );
+
+
+        item.estoque_sistema =
+          systemQty;
+
+
+        item.diferenca =
+          item.quantidade_contada ==
+            null
+            ? null
+            : (
+                Number(
+                  item.quantidade_contada
+                ) -
+                systemQty
+              );
+
+      }
+    );
+
+
+  aceInventoryActive.total_sistema =
+    snapshot.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.quantidade ||
+          0
+        ),
+      0
+    );
+
+
+  aceInventorySnapshotSyncError =
+    "";
+
+
+  return true;
+
 }
 
 
@@ -46249,8 +46537,31 @@ async function refreshAceInventoryState(render = true) {
     if (itemsResult.error) throw itemsResult.error;
     aceInventoryItems = itemsResult.data || [];
 
-    // O valor de estoque do inventário é o snapshot oficial criado pelo
-    // Supabase. Não sobrescrevemos esse número apenas na interface.
+    // O inventário DEVE usar exatamente a mesma fonte da tela Estoque.
+    // Se a RPC antiga tiver criado valores diferentes, sincronizamos
+    // imediatamente o snapshot persistido no Supabase.
+    try {
+
+      await syncAceInventorySnapshotWithGlobalStock();
+
+    } catch (snapshotError) {
+
+      aceInventorySnapshotSyncError =
+        snapshotError?.message ||
+        "Não foi possível sincronizar o inventário com o estoque atual.";
+
+      console.error(
+        "ACE - SNAPSHOT DO INVENTÁRIO DIVERGENTE:",
+        snapshotError
+      );
+
+    }
+
+  } else {
+
+    aceInventorySnapshotSyncError =
+      "";
+
   }
 
   const historyResult = await aceEconomicSelect(
@@ -47365,6 +47676,26 @@ function renderAceInventory() {
 
     content = `
       <div class="ace-inventory-panel">
+        ${
+          aceInventorySnapshotSyncError
+            ? `
+              <div
+                class="ace-inventory-status"
+                style="
+                  background:#fff1f0;
+                  border-color:#fda29b;
+                  color:#b42318;
+                "
+              >
+                <b>❌ INVENTÁRIO NÃO SINCRONIZADO COM O ESTOQUE</b><br>
+                ${esc(aceInventorySnapshotSyncError)}<br>
+                <small>
+                  A finalização está bloqueada para impedir qualquer diferença entre Inventário e Estoque Geral.
+                </small>
+              </div>
+            `
+            : ""
+        }
         <div class="ace-inventory-status">
           <b>🟠 INVENTÁRIO EM ANDAMENTO</b><br>
           Responsável: ${esc(aceInventoryActive.usuario_nome || "Usuário")}<br>
@@ -47382,7 +47713,7 @@ function renderAceInventory() {
           </table>
         </div>
         <div class="ace-inventory-actions">
-          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${!total || counted !== total ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
+          ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${!total || counted !== total || aceInventorySnapshotSyncError ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
           ${typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin() ? '<button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button">🗑️ Cancelar inventário</button>' : ""}
         </div>
       </div>`;
@@ -47514,8 +47845,45 @@ async function startAceInventory() {
   if (error) throw error;
 
   await refreshAceInventoryState(false);
+
+
+  if (
+    aceInventorySnapshotSyncError
+  ) {
+
+    renderAll();
+
+
+    return showAceMessage(
+      aceInventorySnapshotSyncError,
+      "❌ Inventário não sincronizado"
+    );
+
+  }
+
+
+  // Validação final: nenhum item pode iniciar com quantidade
+  // diferente da tela Estoque Geral.
+  if (
+    hasAceInventorySnapshotMismatch()
+  ) {
+
+    renderAll();
+
+
+    return showAceMessage(
+      "O inventário foi bloqueado porque o estoque inicial ainda está diferente do Estoque Geral. Nenhuma contagem deve ser realizada até a sincronização.",
+      "❌ Divergência de estoque"
+    );
+
+  }
+
+
   renderAll();
-  showAceSuccess("Inventário iniciado. Todas as movimentações foram bloqueadas.");
+
+  showAceSuccess(
+    "Inventário iniciado com o mesmo estoque exibido no Estoque Geral."
+  );
 }
 
 
@@ -47770,6 +48138,28 @@ async function finishAceInventory() {
   if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para finalizar.", "🟠 Operação online");
   if (!isCurrentUserInventoryOwner()) return;
 
+
+  // Segurança final:
+  // o inventário nunca pode ser finalizado usando um estoque_sistema
+  // diferente daquele mostrado na tela Estoque Geral.
+  await syncAceInventorySnapshotWithGlobalStock({
+    force:
+      true
+  });
+
+
+  if (
+    hasAceInventorySnapshotMismatch()
+  ) {
+
+    return showAceMessage(
+      "O inventário não pode ser finalizado porque o estoque do inventário está diferente do Estoque Geral.",
+      "❌ Divergência de estoque"
+    );
+
+  }
+
+
   const countableItems =
     getAceCountableInventoryItems();
 
@@ -47778,7 +48168,17 @@ async function finishAceInventory() {
     return showAceMessage(`Ainda faltam ${missing.length} alimento(s) para contar.`, "⚠️ Contagem incompleta");
   }
 
-  const systemTotal = countableItems.reduce((sum, item) => sum + Number(item.estoque_sistema || 0), 0);
+  const systemTotal =
+    countableItems.reduce(
+      (sum, item) =>
+        sum +
+        getAceGlobalStockQty(
+          Number(
+            item.alimento_id
+          )
+        ),
+      0
+    );
   const countedTotal = countableItems.reduce((sum, item) => sum + Number(item.quantidade_contada || 0), 0);
   const adjustment = countedTotal - systemTotal;
 
