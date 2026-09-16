@@ -2251,7 +2251,24 @@ function applyLocalEntry({
     db.history || [];
 
 
-  db.entries.unshift({
+  const userId =
+    currentUser?.id ||
+    null;
+
+
+  const userName =
+    getCurrentDisplayName();
+
+
+  const existingEntryIndex =
+    db.entries.findIndex(
+      item =>
+        Number(item.id) ===
+        Number(id)
+    );
+
+
+  const localEntry = {
     id:
       Number(id),
     date,
@@ -2262,35 +2279,109 @@ function applyLocalEntry({
     originId:
       Number(originId),
     usuarioId:
-      currentUser?.id ||
-      null,
+      userId,
     usuarioNome:
-      getCurrentDisplayName(),
+      userName,
     note:
       note || "",
     createdAt:
-      new Date()
-        .toISOString()
-  });
+      existingEntryIndex >= 0
+        ? (
+            db.entries[
+              existingEntryIndex
+            ]?.createdAt ||
+            new Date().toISOString()
+          )
+        : new Date().toISOString()
+  };
 
 
-  db.history.unshift(
-    makeLocalHistoryRecord({
-      id:
-        historyId,
-      date,
-      type:
-        "entrada",
-      originId,
-      foodId,
-      qty,
-      reason:
-        "—",
-      basketType:
-        "—",
-      note
-    })
-  );
+  if (
+    existingEntryIndex >=
+    0
+  ) {
+
+    db.entries[
+      existingEntryIndex
+    ] = {
+      ...db.entries[
+        existingEntryIndex
+      ],
+      ...localEntry
+    };
+
+  } else {
+
+    db.entries.unshift(
+      localEntry
+    );
+
+  }
+
+
+  const existingHistoryIndex =
+    db.history.findIndex(
+      item =>
+        Number(item.id) ===
+        Number(historyId)
+    );
+
+
+  const localHistory = {
+    id:
+      Number(historyId),
+    date,
+    type:
+      "entrada",
+    originId:
+      Number(originId),
+    foodId:
+      Number(foodId),
+    qty:
+      Number(qty),
+    reason:
+      "—",
+    basketType:
+      "—",
+    note:
+      note || "",
+    usuarioId:
+      userId,
+    usuarioNome:
+      userName,
+    createdAt:
+      existingHistoryIndex >= 0
+        ? (
+            db.history[
+              existingHistoryIndex
+            ]?.createdAt ||
+            new Date().toISOString()
+          )
+        : new Date().toISOString()
+  };
+
+
+  if (
+    existingHistoryIndex >=
+    0
+  ) {
+
+    db.history[
+      existingHistoryIndex
+    ] = {
+      ...db.history[
+        existingHistoryIndex
+      ],
+      ...localHistory
+    };
+
+  } else {
+
+    db.history.unshift(
+      localHistory
+    );
+
+  }
 
 
   saveOfflineDbNow();
@@ -5908,6 +5999,128 @@ async function insertHistoryRecord({
 }
 
 
+function mergeAceEntryNotes(
+  currentNote,
+  newNote
+) {
+
+  const current =
+    String(
+      currentNote || ""
+    ).trim();
+
+
+  const incoming =
+    String(
+      newNote || ""
+    ).trim();
+
+
+  if (!incoming) {
+    return current;
+  }
+
+
+  if (!current) {
+    return incoming;
+  }
+
+
+  const notes =
+    current
+      .split(" | ")
+      .map(
+        value =>
+          value.trim()
+      )
+      .filter(Boolean);
+
+
+  if (
+    notes.includes(
+      incoming
+    )
+  ) {
+    return current;
+  }
+
+
+  return (
+    current +
+    " | " +
+    incoming
+  );
+
+}
+
+
+function findAceEntryIncrementTarget({
+  date,
+  originId,
+  foodId,
+  userId
+}) {
+
+  return (
+    (db.entries || [])
+      .filter(
+        item =>
+          String(item.date || "") ===
+            String(date || "") &&
+          Number(item.originId) ===
+            Number(originId) &&
+          Number(item.foodId) ===
+            Number(foodId) &&
+          String(item.usuarioId || "") ===
+            String(userId || "")
+      )
+      .sort(
+        (a, b) =>
+          String(b.createdAt || "")
+            .localeCompare(
+              String(a.createdAt || "")
+            )
+      )[0] ||
+    null
+  );
+
+}
+
+
+function findAceEntryHistoryIncrementTarget({
+  date,
+  originId,
+  foodId,
+  userId
+}) {
+
+  return (
+    (db.history || [])
+      .filter(
+        item =>
+          item.type === "entrada" &&
+          String(item.date || "") ===
+            String(date || "") &&
+          Number(item.originId) ===
+            Number(originId) &&
+          Number(item.foodId) ===
+            Number(foodId) &&
+          String(item.usuarioId || "") ===
+            String(userId || "")
+      )
+      .sort(
+        (a, b) =>
+          String(b.createdAt || "")
+            .localeCompare(
+              String(a.createdAt || "")
+            )
+      )[0] ||
+    null
+  );
+
+}
+
+
 async function insertEntry({
   date,
   originId,
@@ -5921,11 +6134,80 @@ async function insertEntry({
   rememberCurrentUser();
 
 
+  const userId =
+    getCurrentUserId();
+
+
+  const numericQty =
+    Number(qty);
+
+
+  // Incrementa somente quando coincidem:
+  // usuário + alimento + dia + origem.
+  const existingEntry =
+    findAceEntryIncrementTarget({
+      date,
+      originId,
+      foodId,
+      userId
+    });
+
+
+  const existingHistory =
+    findAceEntryHistoryIncrementTarget({
+      date,
+      originId,
+      foodId,
+      userId
+    });
+
+
   const entryId =
-    newNumericId();
+    existingEntry
+      ? Number(existingEntry.id)
+      : newNumericId();
+
 
   const historyId =
-    newNumericId();
+    existingHistory
+      ? Number(existingHistory.id)
+      : newNumericId();
+
+
+  const entryTotalQty =
+    Number(
+      existingEntry?.qty ||
+      0
+    ) +
+    numericQty;
+
+
+  // Se o histórico anterior tiver sido apagado manualmente,
+  // cria uma nova linha de histórico só para o novo lançamento.
+  const historyTotalQty =
+    existingHistory
+      ? (
+          Number(
+            existingHistory.qty ||
+            0
+          ) +
+          numericQty
+        )
+      : numericQty;
+
+
+  const mergedEntryNote =
+    mergeAceEntryNotes(
+      existingEntry?.note,
+      note
+    );
+
+
+  const mergedHistoryNote =
+    mergeAceEntryNotes(
+      existingHistory?.note,
+      note
+    );
 
 
   const entryRow = {
@@ -5934,21 +6216,15 @@ async function insertEntry({
     data_entrada:
       date,
     alimento_id:
-      Number(
-        foodId
-      ),
+      Number(foodId),
     quantidade:
-      Number(
-        qty
-      ),
+      entryTotalQty,
     origem_id:
-      Number(
-        originId
-      ),
+      Number(originId),
     observacao:
-      note || "",
+      mergedEntryNote,
     usuario_id:
-      getCurrentUserId()
+      userId
   };
 
 
@@ -5960,25 +6236,19 @@ async function insertEntry({
     tipo:
       "entrada",
     origem_id:
-      Number(
-        originId
-      ),
+      Number(originId),
     alimento_id:
-      Number(
-        foodId
-      ),
+      Number(foodId),
     quantidade:
-      Number(
-        qty
-      ),
+      historyTotalQty,
     motivo:
       "—",
     tipo_cesta:
       "—",
     observacao:
-      note || "",
+      mergedHistoryNote,
     usuario_id:
-      getCurrentUserId()
+      userId
   };
 
 
@@ -5994,10 +6264,9 @@ async function insertEntry({
       originId,
       foodId,
       qty:
-        Number(
-          qty
-        ),
-      note
+        entryTotalQty,
+      note:
+        mergedEntryNote
     });
 
 
@@ -6024,8 +6293,12 @@ async function insertEntry({
         .from(
           "entradas"
         )
-        .insert(
-          entryRow
+        .upsert(
+          entryRow,
+          {
+            onConflict:
+              "id"
+          }
         );
 
 
@@ -6041,8 +6314,12 @@ async function insertEntry({
         .from(
           "historico_movimentacoes"
         )
-        .insert(
-          historyRow
+        .upsert(
+          historyRow,
+          {
+            onConflict:
+              "id"
+          }
         );
 
 
@@ -6051,8 +6328,6 @@ async function insertEntry({
     }
 
 
-    // A gravação já foi confirmada. Atualiza a cópia local e evita
-    // baixar novamente todas as tabelas após cada entrada.
     applyLocalEntry({
       id:
         entryId,
@@ -6061,8 +6336,9 @@ async function insertEntry({
       originId,
       foodId,
       qty:
-        Number(qty),
-      note
+        entryTotalQty,
+      note:
+        mergedEntryNote
     });
 
 
@@ -6075,8 +6351,6 @@ async function insertEntry({
     }
 
 
-    // A rede caiu durante a gravação.
-    // Mantém o lançamento no aparelho e sincroniza depois.
     setAceNetworkState(
       false,
       true
@@ -6091,10 +6365,9 @@ async function insertEntry({
       originId,
       foodId,
       qty:
-        Number(
-          qty
-        ),
-      note
+        entryTotalQty,
+      note:
+        mergedEntryNote
     });
 
 
