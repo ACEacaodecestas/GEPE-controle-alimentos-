@@ -24342,6 +24342,18 @@ function nav() {
               b.dataset.page;
 
 
+            // A janela "Editar lançamento" pertence exclusivamente
+            // à tela em que foi aberta. Ao navegar para outra aba,
+            // fecha imediatamente e limpa o contexto da edição.
+            window.aceEntryHistoryEditingId =
+              null;
+
+            window.aceMovementHistoryEditingId =
+              null;
+
+            closeRecentEditModal();
+
+
             document
               .querySelectorAll(
                 ".tab"
