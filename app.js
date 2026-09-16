@@ -25340,21 +25340,766 @@ async function addOrUpdateBulkEntryItem() {
 }
 
 
-function editBulkEntryItem(
+function ensureBulkEntryEditModalStyles() {
+
+  if (
+    document.getElementById(
+      "aceBulkEntryEditModalStyles"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceBulkEntryEditModalStyles";
+
+
+  style.textContent = `
+    #aceBulkEntryEditModal{
+      position:fixed !important;
+      inset:0 !important;
+      z-index:2147483200 !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      padding:20px !important;
+      box-sizing:border-box !important;
+      background:rgba(7,39,66,.62) !important;
+      backdrop-filter:blur(6px) !important;
+      -webkit-backdrop-filter:blur(6px) !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-card{
+      width:min(620px,calc(100vw - 40px)) !important;
+      max-height:calc(100vh - 40px) !important;
+      overflow:auto !important;
+      box-sizing:border-box !important;
+      padding:28px !important;
+      border:1px solid #d8e5ef !important;
+      border-radius:22px !important;
+      background:#ffffff !important;
+      box-shadow:0 28px 70px rgba(4,35,62,.28) !important;
+      color:#17324d !important;
+      font-family:inherit !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-head{
+      display:flex !important;
+      align-items:flex-start !important;
+      gap:14px !important;
+      margin-bottom:20px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-icon{
+      width:54px !important;
+      height:54px !important;
+      flex:0 0 54px !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      border:1px solid #c7dff0 !important;
+      border-radius:16px !important;
+      background:#eef7fd !important;
+      color:#0872b9 !important;
+      font-size:25px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-title{
+      margin:0 !important;
+      color:#0b3a63 !important;
+      font-size:24px !important;
+      line-height:1.15 !important;
+      font-weight:950 !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-subtitle{
+      margin-top:6px !important;
+      color:#667085 !important;
+      font-size:14px !important;
+      line-height:1.45 !important;
+      font-weight:650 !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-context{
+      display:grid !important;
+      grid-template-columns:1fr 1fr !important;
+      gap:10px !important;
+      margin-bottom:20px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-context-item{
+      padding:11px 13px !important;
+      border:1px solid #e2e8ef !important;
+      border-radius:11px !important;
+      background:#f8fafc !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-context-label{
+      display:block !important;
+      margin-bottom:3px !important;
+      color:#667085 !important;
+      font-size:11px !important;
+      font-weight:850 !important;
+      text-transform:uppercase !important;
+      letter-spacing:.35px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-context-value{
+      color:#17324d !important;
+      font-size:14px !important;
+      font-weight:900 !important;
+      overflow-wrap:anywhere !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-grid{
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) 150px !important;
+      gap:14px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-field{
+      display:flex !important;
+      flex-direction:column !important;
+      gap:7px !important;
+      min-width:0 !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-field.full{
+      grid-column:1 / -1 !important;
+      margin-top:14px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-field label{
+      color:#243b53 !important;
+      font-size:13px !important;
+      font-weight:900 !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-field select,
+    #aceBulkEntryEditModal .ace-bulk-edit-field input{
+      width:100% !important;
+      min-height:50px !important;
+      box-sizing:border-box !important;
+      padding:10px 13px !important;
+      border:1px solid #bfd1df !important;
+      border-radius:11px !important;
+      outline:none !important;
+      background:#fff !important;
+      color:#172b3a !important;
+      font:inherit !important;
+      font-size:15px !important;
+      font-weight:750 !important;
+      transition:border-color .16s ease,box-shadow .16s ease !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-field select:focus,
+    #aceBulkEntryEditModal .ace-bulk-edit-field input:focus{
+      border-color:#1688c9 !important;
+      box-shadow:0 0 0 3px rgba(22,136,201,.13) !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-error{
+      display:none !important;
+      margin-top:14px !important;
+      padding:10px 12px !important;
+      border:1px solid #fecaca !important;
+      border-radius:10px !important;
+      background:#fff1f1 !important;
+      color:#b42318 !important;
+      font-size:13px !important;
+      font-weight:800 !important;
+      line-height:1.4 !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-error.show{
+      display:block !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-actions{
+      display:grid !important;
+      grid-template-columns:1fr 1fr !important;
+      gap:12px !important;
+      margin-top:22px !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-btn{
+      min-height:50px !important;
+      border-radius:11px !important;
+      padding:10px 16px !important;
+      font-family:inherit !important;
+      font-size:15px !important;
+      font-weight:950 !important;
+      cursor:pointer !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-cancel{
+      border:1px solid #b8cddd !important;
+      background:#fff !important;
+      color:#075a94 !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-save{
+      border:1px solid #0b5d92 !important;
+      background:linear-gradient(135deg,#0c77b7,#075a94) !important;
+      color:#fff !important;
+      box-shadow:0 8px 20px rgba(7,90,148,.18) !important;
+    }
+
+    #aceBulkEntryEditModal .ace-bulk-edit-save:disabled{
+      opacity:.62 !important;
+      cursor:wait !important;
+    }
+
+    @media(max-width:620px){
+
+      #aceBulkEntryEditModal{
+        padding:12px !important;
+        align-items:flex-end !important;
+      }
+
+      #aceBulkEntryEditModal .ace-bulk-edit-card{
+        width:100% !important;
+        max-height:92vh !important;
+        padding:22px 18px 18px !important;
+        border-radius:22px 22px 16px 16px !important;
+      }
+
+      #aceBulkEntryEditModal .ace-bulk-edit-title{
+        font-size:21px !important;
+      }
+
+      #aceBulkEntryEditModal .ace-bulk-edit-context,
+      #aceBulkEntryEditModal .ace-bulk-edit-grid{
+        grid-template-columns:1fr !important;
+      }
+
+      #aceBulkEntryEditModal .ace-bulk-edit-field.full{
+        grid-column:auto !important;
+        margin-top:0 !important;
+      }
+
+    }
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function formatBulkEntryEditDateBR(
+  value
+) {
+
+  const parts =
+    String(
+      value || ""
+    )
+      .split("-");
+
+
+  if (
+    parts.length === 3 &&
+    parts[0] &&
+    parts[1] &&
+    parts[2]
+  ) {
+
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+  }
+
+
+  return "Não informada";
+
+}
+
+
+function openBulkEntryItemEditModal(
+  item
+) {
+
+  return new Promise(
+    resolve => {
+
+      ensureBulkEntryEditModalStyles();
+
+
+      document
+        .getElementById(
+          "aceBulkEntryEditModal"
+        )
+        ?.remove();
+
+
+      const date =
+        document.getElementById(
+          "entryDate"
+        )?.value ||
+        "";
+
+
+      const originId =
+        document.getElementById(
+          "entryOrigin"
+        )?.value ||
+        "";
+
+
+      const origin =
+        (db.origins || [])
+          .find(
+            row =>
+              String(row.id) ===
+              String(originId)
+          );
+
+
+      const foodsOptions =
+        (db.foods || [])
+          .map(
+            food => `
+              <option
+                value="${esc(food.id)}"
+                ${
+                  String(food.id) ===
+                  String(item.foodId)
+                    ? "selected"
+                    : ""
+                }
+              >
+                ${esc(food.name)}
+              </option>
+            `
+          )
+          .join("");
+
+
+      const overlay =
+        document.createElement(
+          "div"
+        );
+
+
+      overlay.id =
+        "aceBulkEntryEditModal";
+
+
+      overlay.innerHTML = `
+        <div
+          class="ace-bulk-edit-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="aceBulkEntryEditTitle"
+        >
+
+          <div class="ace-bulk-edit-head">
+
+            <div
+              class="ace-bulk-edit-icon"
+              aria-hidden="true"
+            >
+              ✏️
+            </div>
+
+            <div>
+
+              <h3
+                id="aceBulkEntryEditTitle"
+                class="ace-bulk-edit-title"
+              >
+                Editar item da entrada
+              </h3>
+
+              <div class="ace-bulk-edit-subtitle">
+                Altere o alimento, a quantidade ou a observação antes de registrar a entrada completa.
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="ace-bulk-edit-context">
+
+            <div class="ace-bulk-edit-context-item">
+              <span class="ace-bulk-edit-context-label">
+                Data da entrada
+              </span>
+              <span class="ace-bulk-edit-context-value">
+                ${esc(
+                  formatBulkEntryEditDateBR(
+                    date
+                  )
+                )}
+              </span>
+            </div>
+
+            <div class="ace-bulk-edit-context-item">
+              <span class="ace-bulk-edit-context-label">
+                Origem
+              </span>
+              <span class="ace-bulk-edit-context-value">
+                ${esc(
+                  origin?.name ||
+                  "Não selecionada"
+                )}
+              </span>
+            </div>
+
+          </div>
+
+
+          <div class="ace-bulk-edit-grid">
+
+            <div class="ace-bulk-edit-field">
+
+              <label for="aceBulkEntryEditFood">
+                Alimento
+              </label>
+
+              <select id="aceBulkEntryEditFood">
+                ${foodsOptions}
+              </select>
+
+            </div>
+
+
+            <div class="ace-bulk-edit-field">
+
+              <label for="aceBulkEntryEditQty">
+                Quantidade
+              </label>
+
+              <input
+                id="aceBulkEntryEditQty"
+                type="number"
+                min="1"
+                step="1"
+                inputmode="numeric"
+                value="${esc(item.qty)}"
+              >
+
+            </div>
+
+
+            <div class="ace-bulk-edit-field full">
+
+              <label for="aceBulkEntryEditNote">
+                Observação
+              </label>
+
+              <input
+                id="aceBulkEntryEditNote"
+                type="text"
+                maxlength="250"
+                placeholder="Opcional"
+                value="${esc(item.note || "")}"
+              >
+
+            </div>
+
+          </div>
+
+
+          <div
+            id="aceBulkEntryEditError"
+            class="ace-bulk-edit-error"
+          ></div>
+
+
+          <div class="ace-bulk-edit-actions">
+
+            <button
+              type="button"
+              class="ace-bulk-edit-btn ace-bulk-edit-cancel"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              class="ace-bulk-edit-btn ace-bulk-edit-save"
+            >
+              💾 Salvar alterações
+            </button>
+
+          </div>
+
+        </div>
+      `;
+
+
+      document.body.appendChild(
+        overlay
+      );
+
+
+      const food =
+        overlay.querySelector(
+          "#aceBulkEntryEditFood"
+        );
+
+
+      const qty =
+        overlay.querySelector(
+          "#aceBulkEntryEditQty"
+        );
+
+
+      const note =
+        overlay.querySelector(
+          "#aceBulkEntryEditNote"
+        );
+
+
+      const errorBox =
+        overlay.querySelector(
+          "#aceBulkEntryEditError"
+        );
+
+
+      const save =
+        overlay.querySelector(
+          ".ace-bulk-edit-save"
+        );
+
+
+      let closed =
+        false;
+
+
+      const close =
+        value => {
+
+          if (closed) {
+            return;
+          }
+
+
+          closed =
+            true;
+
+          overlay.remove();
+
+          resolve(
+            value
+          );
+
+        };
+
+
+      const showError =
+        message => {
+
+          errorBox.textContent =
+            String(
+              message || ""
+            );
+
+          errorBox.classList.add(
+            "show"
+          );
+
+        };
+
+
+      const trySave =
+        () => {
+
+          errorBox.classList.remove(
+            "show"
+          );
+
+
+          const selectedFoodId =
+            food?.value ||
+            "";
+
+
+          const selectedFood =
+            (db.foods || [])
+              .find(
+                row =>
+                  String(row.id) ===
+                  String(selectedFoodId)
+              );
+
+
+          const quantity =
+            Number(
+              qty?.value
+            );
+
+
+          const observation =
+            String(
+              note?.value ||
+              ""
+            )
+              .trim();
+
+
+          if (!selectedFood) {
+
+            showError(
+              "Selecione um alimento válido."
+            );
+
+            food?.focus();
+
+            return;
+          }
+
+
+          if (
+            !Number.isInteger(
+              quantity
+            ) ||
+            quantity <= 0
+          ) {
+
+            showError(
+              "Informe uma quantidade inteira maior que zero."
+            );
+
+            qty?.focus();
+            qty?.select();
+
+            return;
+          }
+
+
+          save.disabled =
+            true;
+
+
+          close({
+            foodId:
+              selectedFood.id,
+            foodName:
+              selectedFood.name,
+            qty:
+              quantity,
+            note:
+              observation
+          });
+
+        };
+
+
+      overlay
+        .querySelector(
+          ".ace-bulk-edit-cancel"
+        )
+        .addEventListener(
+          "click",
+          () =>
+            close(
+              null
+            )
+        );
+
+
+      save.addEventListener(
+        "click",
+        trySave
+      );
+
+
+      overlay.addEventListener(
+        "click",
+        event => {
+
+          if (
+            event.target ===
+            overlay
+          ) {
+            close(
+              null
+            );
+          }
+
+        }
+      );
+
+
+      overlay.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key ===
+            "Escape"
+          ) {
+
+            event.preventDefault();
+
+            close(
+              null
+            );
+
+          }
+
+
+          if (
+            event.key ===
+              "Enter" &&
+            event.target?.tagName !==
+              "SELECT"
+          ) {
+
+            event.preventDefault();
+
+            trySave();
+
+          }
+
+        }
+      );
+
+
+      window.setTimeout(
+        () => {
+
+          food?.focus();
+
+        },
+        30
+      );
+
+    }
+  );
+
+}
+
+
+async function editBulkEntryItem(
   id
 ) {
 
-  const item =
-    aceBulkEntryDraft.find(
+  const itemIndex =
+    aceBulkEntryDraft.findIndex(
       row =>
         String(row.id) ===
         String(id)
     );
 
 
-  if (!item) {
+  if (
+    itemIndex < 0
+  ) {
 
-    showAceMessage(
+    await showAceMessage(
       "Não foi possível localizar este item no resumo. Atualize a página e tente novamente.",
       "Item não encontrado"
     );
@@ -25363,29 +26108,60 @@ function editBulkEntryItem(
   }
 
 
+  const currentItem =
+    aceBulkEntryDraft[
+      itemIndex
+    ];
+
+
+  const edited =
+    await openBulkEntryItemEditModal(
+      currentItem
+    );
+
+
+  if (!edited) {
+    return;
+  }
+
+
+  aceBulkEntryDraft[
+    itemIndex
+  ] = {
+    ...currentItem,
+    foodId:
+      edited.foodId,
+    foodName:
+      edited.foodName,
+    qty:
+      edited.qty,
+    note:
+      edited.note
+  };
+
+
+  // Garante que o modo antigo de edição pelo formulário principal
+  // não fique ativo em paralelo.
   aceBulkEntryEditingId =
-    String(item.id);
+    null;
 
-
-  const food =
-    document.getElementById(
-      "entryFood"
-    );
-
-  const qty =
-    document.getElementById(
-      "entryQty"
-    );
-
-  const note =
-    document.getElementById(
-      "entryNote"
-    );
 
   const add =
     document.getElementById(
       "bulkEntryAdd"
     );
+
+
+  if (add) {
+
+    delete add.dataset
+      .bulkEntryEditingId;
+
+    add.textContent =
+      "➕ Adicionar à entrada";
+
+  }
+
 
   const cancel =
     document.getElementById(
@@ -25393,49 +26169,19 @@ function editBulkEntryItem(
     );
 
 
-  if (food) {
-    food.value =
-      String(
-        item.foodId
-      );
-  }
-
-  if (qty) {
-    qty.value =
-      String(
-        item.qty
-      );
-  }
-
-  if (note) {
-    note.value =
-      item.note || "";
-  }
-
-  if (add) {
-    add.textContent =
-      "💾 Salvar alteração";
-
-    add.dataset.bulkEntryEditingId =
-      String(item.id);
-  }
-
   if (cancel) {
     cancel.style.display =
-      "";
+      "none";
   }
 
 
-  document
-    .getElementById(
-      "entryFood"
-    )
-    ?.scrollIntoView({
-      behavior:
-        "smooth",
-      block:
-        "center"
-    });
+  renderBulkEntryDraft();
+
+
+  await showAceMessage(
+    "Item atualizado no resumo da entrada.",
+    "Alteração concluída"
+  );
 
 }
 
