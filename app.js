@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-entradas-por-origem-v37";
+  "2026.09.16-pwa-entradas-origem-visual-limpo-v38";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -13327,21 +13327,14 @@ function renderDashboard() {
                     📍 ${esc(origin.name)}
                   </span>
 
-                  <span
-                    class="badge"
-                    title="Total de entradas desta origem na data selecionada"
-                  >
-                    ${fmt(totalEntradas)}
-                  </span>
-
                 </div>
 
                 <div class="origin-value">
                   ${fmt(totalEntradas)}
                   ${
                     Number(totalEntradas) === 1
-                      ? "unidade recebida"
-                      : "unidades recebidas"
+                      ? "unidade"
+                      : "unidades"
                   }
                 </div>
 
