@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-jwt-expired-entrada-v30";
+  "2026.09.16-pwa-entrada-obs-separada-v31";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -6058,8 +6058,24 @@ function findAceEntryIncrementTarget({
   date,
   originId,
   foodId,
-  userId
+  userId,
+  note
 }) {
+
+  const incomingNote =
+    String(
+      note || ""
+    )
+      .trim();
+
+
+  // Se o NOVO lançamento possui observação,
+  // ele deve ficar isolado para preservar a quantidade
+  // exata associada àquela observação.
+  if (incomingNote) {
+    return null;
+  }
+
 
   return (
     (db.entries || [])
@@ -6072,7 +6088,10 @@ function findAceEntryIncrementTarget({
           Number(item.foodId) ===
             Number(foodId) &&
           String(item.usuarioId || "") ===
-            String(userId || "")
+            String(userId || "") &&
+          !String(
+            item.note || ""
+          ).trim()
       )
       .sort(
         (a, b) =>
@@ -6091,8 +6110,24 @@ function findAceEntryHistoryIncrementTarget({
   date,
   originId,
   foodId,
-  userId
+  userId,
+  note
 }) {
+
+  const incomingNote =
+    String(
+      note || ""
+    )
+      .trim();
+
+
+  // Histórico com observação NUNCA é usado como alvo
+  // de incremento. Assim a quantidade daquela observação
+  // permanece identificável e não é misturada.
+  if (incomingNote) {
+    return null;
+  }
+
 
   return (
     (db.history || [])
@@ -6106,7 +6141,10 @@ function findAceEntryHistoryIncrementTarget({
           Number(item.foodId) ===
             Number(foodId) &&
           String(item.usuarioId || "") ===
-            String(userId || "")
+            String(userId || "") &&
+          !String(
+            item.note || ""
+          ).trim()
       )
       .sort(
         (a, b) =>
@@ -6292,13 +6330,18 @@ async function insertEntry({
 
 
   // Incrementa somente quando coincidem:
-  // usuário + alimento + dia + origem.
+  // usuário + alimento + dia + origem
+  // E as duas observações estão vazias.
+  //
+  // Qualquer lançamento com observação fica em linha separada
+  // para manter a quantidade daquela observação identificável.
   const existingEntry =
     findAceEntryIncrementTarget({
       date,
       originId,
       foodId,
-      userId
+      userId,
+      note
     });
 
 
@@ -6307,7 +6350,8 @@ async function insertEntry({
       date,
       originId,
       foodId,
-      userId
+      userId,
+      note
     });
 
 
