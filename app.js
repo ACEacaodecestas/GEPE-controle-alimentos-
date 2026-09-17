@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-fluxo-primeiro-acesso-login-v48";
+  "2026.09.17-apk-primeiro-acesso-sem-loop-v49";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -9440,6 +9440,25 @@ function showPasswordResetScreen() {
 
   closeAcePasswordModal();
 
+
+  const isFirstAccessInvite =
+    Boolean(
+      window.aceInvitePasswordSetupActive
+    );
+
+
+  const passwordScreenTitle =
+    isFirstAccessInvite
+      ? "🔐 Criar senha de acesso"
+      : "🔐 Redefinir senha";
+
+
+  const passwordScreenSubtitle =
+    isFirstAccessInvite
+      ? "Crie sua senha para concluir o primeiro acesso ao ACE."
+      : "Digite sua nova senha e confirme para salvar.";
+
+
   const oldLogin =
     document.getElementById("loginScreen");
 
@@ -9458,11 +9477,11 @@ function showPasswordResetScreen() {
     <div class="ace-reset-box">
 
       <div class="ace-reset-title">
-        🔐 Redefinir senha
+        ${esc(passwordScreenTitle)}
       </div>
 
       <div class="ace-reset-subtitle">
-        Digite sua nova senha e confirme para salvar.
+        ${esc(passwordScreenSubtitle)}
       </div>
 
       <div
@@ -9746,11 +9765,20 @@ async function updateRecoveredPassword() {
       "resetPasswordButton"
     );
 
+
+  const isFirstAccessInvite =
+    Boolean(
+      window.aceInvitePasswordSetupActive
+    );
+
+
   error.classList.remove("show");
   error.textContent = "";
 
+
   const passwordError =
     validateAceStrongPassword(password);
+
 
   if (passwordError) {
 
@@ -9763,6 +9791,7 @@ async function updateRecoveredPassword() {
 
   }
 
+
   if (password !== confirmPassword) {
 
     error.textContent =
@@ -9774,148 +9803,239 @@ async function updateRecoveredPassword() {
 
   }
 
+
   button.disabled = true;
   button.textContent = "Salvando...";
 
+
+  let authenticatedUser =
+    currentUser || null;
+
+
   try {
 
-    const { error: updateError } =
+    const {
+      data: updateData,
+      error: updateError
+    } =
       await supabaseClient.auth
         .updateUser({
           password
         });
 
+
     if (updateError) {
-      throw updateError;
+
+      const updateMessage =
+        String(
+          updateError?.message ||
+          ""
+        );
+
+
+      const passwordAlreadySaved =
+        isFirstAccessInvite &&
+        /different from the old password/i.test(
+          updateMessage
+        );
+
+
+      if (!passwordAlreadySaved) {
+        throw updateError;
+      }
+
+
+      const {
+        data: currentAuthData,
+        error: currentAuthError
+      } =
+        await supabaseClient.auth
+          .getUser();
+
+
+      if (currentAuthError) {
+        throw currentAuthError;
+      }
+
+
+      authenticatedUser =
+        currentAuthData?.user ||
+        currentUser ||
+        null;
+
+    } else {
+
+      authenticatedUser =
+        updateData?.user ||
+        currentUser ||
+        null;
+
     }
 
+
+    if (!authenticatedUser?.id) {
+
+      throw new Error(
+        "Não foi possível confirmar a sessão do usuário. Abra novamente o link de acesso enviado por e-mail."
+      );
+
+    }
+
+
     const recoveredEmail =
-      String(currentUser?.email || "")
+      String(
+        authenticatedUser?.email ||
+        currentUser?.email ||
+        ""
+      )
         .trim()
         .toLowerCase();
 
 
-    // Guarda o contexto ANTES de limpar as flags.
-    // Assim o sistema distingue corretamente:
-    // - convite / primeiro acesso;
-    // - recuperação de senha existente.
-    const isFirstAccessInvite =
-      Boolean(
-        window.aceInvitePasswordSetupActive
-      );
+    revokeAceOfflineCredentials(
+      recoveredEmail
+    );
 
 
-    // A senha antiga não pode continuar autorizando o modo offline.
-    revokeAceOfflineCredentials(currentUser?.email);
+    window.acePasswordResetCompleted = true;
+    window.acePasswordRecoveryActive = false;
+    window.aceInvitePasswordSetupActive = false;
 
 
-    // --------------------------------------------------------
-    // PRIMEIRO mostra a confirmação.
-    //
-    // Antes o logout acontecia antes desta mensagem. O evento
-    // SIGNED_OUT podia recarregar a página e a confirmação nunca
-    // chegava a aparecer.
-    // --------------------------------------------------------
+    clearAceAuthActionUrl();
+
+
+    // O modal de senha usa z-index máximo.
+    // Fecha ANTES da confirmação para ela ficar visível.
+    closeAcePasswordModal();
+
 
     if (isFirstAccessInvite) {
 
       await showAceMessage(
         "Sua senha foi criada com sucesso.\n\n" +
         "Seu acesso ao ACE – Ação de Cestas está pronto.\n\n" +
-        "Agora entre com seu e-mail e a senha que você acabou de criar.",
-        "Acesso configurado"
+        "Clique em Concluir para entrar no sistema.",
+        "Acesso configurado com sucesso"
       );
 
     } else {
 
       await showAceMessage(
         "Sua senha foi redefinida com sucesso.\n\n" +
-        "Agora entre com seu e-mail e a nova senha.",
-        "Senha alterada"
+        "Clique em Concluir para continuar no sistema.",
+        "Senha alterada com sucesso"
       );
 
     }
 
 
-    // A partir daqui o usuário já clicou em Concluir.
-    window.acePasswordResetCompleted = true;
-    window.acePasswordRecoveryActive = false;
-    window.aceInvitePasswordSetupActive = false;
+    // NÃO faz logout: a sessão do convite/recovery já está autenticada.
+    currentUser =
+      authenticatedUser;
 
 
-    // Remove type=invite / type=recovery e tokens temporários da URL.
-    // Assim um login normal nunca reabre o fluxo de criação de senha.
-    clearAceAuthActionUrl();
+    const access =
+      await loadAceOnlineAccess(
+        currentUser
+      );
 
 
-    // Protege esta transição contra SIGNED_OUT duplicado/atrasado.
-    window.aceSuppressSignedOutReloadUntil =
-      Date.now() + 10000;
+    refreshAceOfflineAuthorization(
+      recoveredEmail,
+      access
+    );
+
+
+    saveOfflineUser(
+      currentUser
+    );
 
 
     try {
 
-      await supabaseClient.auth.signOut({
-        scope: "local"
-      });
+      await saveOfflineCredentials(
+        recoveredEmail,
+        password,
+        currentUser
+      );
 
-    } catch (signOutError) {
+    } catch (offlineCredentialError) {
 
       console.warn(
-        "ACE: não foi possível encerrar imediatamente a sessão temporária da senha:",
-        signOutError
+        "ACE: senha criada, mas a autorização offline não pôde ser atualizada agora:",
+        offlineCredentialError
       );
 
     }
 
 
-    currentUser = null;
-    aceCurrentAccess = null;
+    localStorage.setItem(
+      ACE_OFFLINE_LOGOUT_KEY,
+      "0"
+    );
+
+
+    rememberCurrentUser();
+
+
     appStarted = false;
 
-    closeAcePasswordModal();
 
-
-    const oldLogin =
-      document.getElementById(
+    document
+      .getElementById(
         "loginScreen"
-      );
+      )
+      ?.remove();
 
 
-    if (oldLogin) {
-      oldLogin.remove();
-    }
+    window.aceShowStartupShield?.();
 
 
-    createLoginScreen(
-      recoveredEmail
-    );
+    await initApp();
 
 
-    window.setTimeout(
-      () =>
-        document
-          .getElementById(
-            "loginPassword"
-          )
-          ?.focus(),
-      80
-    );
+    window.acePasswordResetCompleted = false;
+    window.aceSuppressSignedOutReloadUntil = 0;
+
 
   } catch (err) {
 
     console.error(
-      "ACE - ERRO AO REDEFINIR SENHA:",
+      "ACE - ERRO AO SALVAR SENHA:",
       err
     );
 
-    error.textContent =
-      err?.message ||
-      "Não foi possível redefinir sua senha.";
+
+    const rawMessage =
+      String(
+        err?.message ||
+        ""
+      );
+
+
+    if (
+      /different from the old password/i.test(
+        rawMessage
+      )
+    ) {
+
+      error.textContent =
+        "A nova senha precisa ser diferente da senha atual.";
+
+    } else {
+
+      error.textContent =
+        rawMessage ||
+        "Não foi possível salvar sua senha.";
+
+    }
+
 
     error.classList.add("show");
 
     button.disabled = false;
+
     button.textContent =
       "🔐 Salvar nova senha";
 
