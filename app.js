@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-inventario-usuario-v46";
+  "2026.09.17-pwa-primeiro-acesso-mensagem-v47";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -9674,6 +9674,17 @@ async function updateRecoveredPassword() {
         .trim()
         .toLowerCase();
 
+
+    // Guarda o contexto ANTES de limpar as flags.
+    // Assim o sistema distingue corretamente:
+    // - convite / primeiro acesso;
+    // - recuperação de senha existente.
+    const isFirstAccessInvite =
+      Boolean(
+        window.aceInvitePasswordSetupActive
+      );
+
+
     // A senha antiga não pode continuar autorizando o modo offline.
     revokeAceOfflineCredentials(currentUser?.email);
 
@@ -9694,11 +9705,25 @@ async function updateRecoveredPassword() {
 
     createLoginScreen(recoveredEmail);
 
-    await showAceConfirm(
-      "Sua senha foi redefinida com sucesso.\n\n" +
-      "Agora entre com seu e-mail e a nova senha.",
-      "✅ Senha alterada"
-    );
+
+    if (isFirstAccessInvite) {
+
+      await showAceMessage(
+        "Sua senha foi criada com sucesso.\n\n" +
+        "Seu acesso ao ACE – Ação de Cestas está pronto.\n\n" +
+        "Agora entre com seu e-mail e a senha que você acabou de criar.",
+        "Acesso configurado"
+      );
+
+    } else {
+
+      await showAceMessage(
+        "Sua senha foi redefinida com sucesso.\n\n" +
+        "Agora entre com seu e-mail e a nova senha.",
+        "Senha alterada"
+      );
+
+    }
 
   } catch (err) {
 
