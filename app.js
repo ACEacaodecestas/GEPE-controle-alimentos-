@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.16-pwa-resumo-dia-limpo-v42";
+  "2026.09.17-pwa-editar-nome-cesta-v43";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -29682,6 +29682,44 @@ function ensureBasketStyles() {
       font-weight:900;
     }
 
+    .ace-basket-name-edit-field{
+      display:grid;
+      gap:6px;
+      margin-bottom:18px;
+    }
+
+    .ace-basket-name-edit-label{
+      color:#344054;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .ace-basket-name-edit-input{
+      width:100%;
+      min-height:44px;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border:1px solid #cfdbe5;
+      border-radius:10px;
+      background:#fff;
+      color:#17324d;
+      font:inherit;
+      font-size:15px;
+      font-weight:800;
+      outline:none;
+    }
+
+    .ace-basket-name-edit-input:focus{
+      border-color:#1689d0;
+      box-shadow:0 0 0 3px rgba(22,137,208,.10);
+    }
+
+    .ace-basket-name-edit-help{
+      color:#667085;
+      font-size:12px;
+      line-height:1.35;
+    }
+
     .ace-basket-edit-list{
       display:grid;
       gap:10px;
@@ -36032,8 +36070,30 @@ function openBasketEditModal(basketId) {
     <div class="ace-basket-edit-box">
 
       <div class="ace-basket-edit-title">
-        ✏️ Editar ${esc(basket.name)}
+        ✏️ Editar cesta
       </div>
+
+      <label class="ace-basket-name-edit-field">
+
+        <span class="ace-basket-name-edit-label">
+          Nome da cesta
+        </span>
+
+        <input
+          id="aceBasketEditName"
+          class="ace-basket-name-edit-input"
+          type="text"
+          maxlength="120"
+          autocomplete="off"
+          value="${esc(basket.name)}"
+          aria-label="Nome da cesta"
+        >
+
+        <span class="ace-basket-name-edit-help">
+          O nome ficará salvo até uma próxima alteração.
+        </span>
+
+      </label>
 
       <div
         id="aceBasketEditList"
@@ -36390,6 +36450,38 @@ function openBasketEditModal(basketId) {
             "aceBasketSaveEdit"
           );
 
+
+        const nameInput =
+          document.getElementById(
+            "aceBasketEditName"
+          );
+
+
+        const newBasketName =
+          String(
+            nameInput?.value ||
+            ""
+          )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
+
+
+        if (!newBasketName) {
+
+          toast(
+            "Informe o nome da cesta."
+          );
+
+          nameInput?.focus();
+
+          return;
+
+        }
+
+
         if (!draftItems.length) {
           toast(
             "A cesta precisa ter pelo menos um alimento."
@@ -36444,6 +36536,49 @@ function openBasketEditModal(basketId) {
             throw insertError;
           }
 
+
+          // --------------------------------------------------
+          // NOME DA CESTA
+          //
+          // Persiste no cadastro da cesta e permanece até uma
+          // próxima edição. A Cesta Personalizada não passa por
+          // este modal e permanece com o comportamento atual.
+          // --------------------------------------------------
+
+          if (
+            newBasketName !==
+            String(
+              basket.name ||
+              ""
+            ).trim()
+          ) {
+
+            const {
+              error: basketNameError
+            } =
+              await supabaseClient
+                .from(
+                  "cestas"
+                )
+                .update({
+                  nome:
+                    newBasketName
+                })
+                .eq(
+                  "id",
+                  Number(
+                    basketId
+                  )
+                );
+
+
+            if (basketNameError) {
+              throw basketNameError;
+            }
+
+          }
+
+
           db =
             await loadFromSupabase();
 
@@ -36452,7 +36587,7 @@ function openBasketEditModal(basketId) {
           renderAll();
 
           toast(
-            "Composição da cesta atualizada."
+            "Cesta atualizada com sucesso."
           );
 
         } catch (error) {
