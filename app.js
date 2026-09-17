@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-primeiro-acesso-mensagem-v47";
+  "2026.09.17-pwa-fluxo-primeiro-acesso-login-v48";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -428,6 +428,126 @@ const supabaseClient = window.supabase.createClient(
 // Um convite abre o mesmo formulário seguro usado para criar uma nova senha.
 window.aceInvitePasswordSetupActive =
   /(?:[?#&])type=invite(?:&|$)/i.test(window.location.href);
+
+
+// Durante a conclusão de primeiro acesso/redefinição, o Supabase pode
+// emitir mais de um SIGNED_OUT. Esta janela impede que um evento atrasado
+// recarregue a página e jogue o usuário de volta para o fluxo de convite.
+window.aceSuppressSignedOutReloadUntil = 0;
+
+
+// Remove SOMENTE os parâmetros de autenticação temporários do Supabase.
+// Isso é essencial depois que a senha foi criada/redefinida: se type=invite
+// ou type=recovery continuar na URL, um próximo login pode ser interpretado
+// novamente como fluxo de criação de senha.
+function clearAceAuthActionUrl() {
+
+  try {
+
+    const url =
+      new URL(
+        window.location.href
+      );
+
+
+    const authKeys = [
+      "access_token",
+      "refresh_token",
+      "expires_in",
+      "expires_at",
+      "token_type",
+      "type",
+      "code",
+      "error",
+      "error_code",
+      "error_description"
+    ];
+
+
+    authKeys.forEach(
+      key =>
+        url.searchParams.delete(
+          key
+        )
+    );
+
+
+    const rawHash =
+      String(
+        url.hash || ""
+      ).replace(
+        /^#/,
+        ""
+      );
+
+
+    if (rawHash) {
+
+      const hashParams =
+        new URLSearchParams(
+          rawHash
+        );
+
+
+      let authHashChanged =
+        false;
+
+
+      authKeys.forEach(
+        key => {
+
+          if (
+            hashParams.has(
+              key
+            )
+          ) {
+
+            hashParams.delete(
+              key
+            );
+
+            authHashChanged =
+              true;
+
+          }
+
+        }
+      );
+
+
+      if (authHashChanged) {
+
+        const nextHash =
+          hashParams.toString();
+
+        url.hash =
+          nextHash
+            ? `#${nextHash}`
+            : "";
+
+      }
+
+    }
+
+
+    window.history.replaceState(
+      window.history.state,
+      document.title,
+      url.pathname +
+      url.search +
+      url.hash
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível limpar os parâmetros temporários de autenticação:",
+      error
+    );
+
+  }
+
+}
 
 
 // ============================================================
@@ -9688,23 +9808,14 @@ async function updateRecoveredPassword() {
     // A senha antiga não pode continuar autorizando o modo offline.
     revokeAceOfflineCredentials(currentUser?.email);
 
-    window.acePasswordResetCompleted = true;
-    window.acePasswordRecoveryActive = false;
-    window.aceInvitePasswordSetupActive = false;
 
-    await supabaseClient.auth.signOut();
-
-    closeAcePasswordModal();
-
-    const oldLogin =
-      document.getElementById("loginScreen");
-
-    if (oldLogin) {
-      oldLogin.remove();
-    }
-
-    createLoginScreen(recoveredEmail);
-
+    // --------------------------------------------------------
+    // PRIMEIRO mostra a confirmação.
+    //
+    // Antes o logout acontecia antes desta mensagem. O evento
+    // SIGNED_OUT podia recarregar a página e a confirmação nunca
+    // chegava a aparecer.
+    // --------------------------------------------------------
 
     if (isFirstAccessInvite) {
 
@@ -9724,6 +9835,72 @@ async function updateRecoveredPassword() {
       );
 
     }
+
+
+    // A partir daqui o usuário já clicou em Concluir.
+    window.acePasswordResetCompleted = true;
+    window.acePasswordRecoveryActive = false;
+    window.aceInvitePasswordSetupActive = false;
+
+
+    // Remove type=invite / type=recovery e tokens temporários da URL.
+    // Assim um login normal nunca reabre o fluxo de criação de senha.
+    clearAceAuthActionUrl();
+
+
+    // Protege esta transição contra SIGNED_OUT duplicado/atrasado.
+    window.aceSuppressSignedOutReloadUntil =
+      Date.now() + 10000;
+
+
+    try {
+
+      await supabaseClient.auth.signOut({
+        scope: "local"
+      });
+
+    } catch (signOutError) {
+
+      console.warn(
+        "ACE: não foi possível encerrar imediatamente a sessão temporária da senha:",
+        signOutError
+      );
+
+    }
+
+
+    currentUser = null;
+    aceCurrentAccess = null;
+    appStarted = false;
+
+    closeAcePasswordModal();
+
+
+    const oldLogin =
+      document.getElementById(
+        "loginScreen"
+      );
+
+
+    if (oldLogin) {
+      oldLogin.remove();
+    }
+
+
+    createLoginScreen(
+      recoveredEmail
+    );
+
+
+    window.setTimeout(
+      () =>
+        document
+          .getElementById(
+            "loginPassword"
+          )
+          ?.focus(),
+      80
+    );
 
   } catch (err) {
 
@@ -10969,6 +11146,17 @@ async function loginUser(e) {
       throw authError;
     }
 
+
+    // Este clique já é um LOGIN NORMAL.
+    // Remove qualquer resíduo do fluxo anterior de convite/recovery
+    // antes que o aplicativo seja inicializado.
+    window.aceInvitePasswordSetupActive = false;
+    window.acePasswordRecoveryActive = false;
+    window.acePasswordResetCompleted = false;
+
+    clearAceAuthActionUrl();
+
+
     // O login do Supabase confirma a identidade. Esta consulta confirma
     // se a pessoa realmente está autorizada a usar o aplicativo.
     await loadAceOnlineAccess(data.user);
@@ -10994,6 +11182,10 @@ async function loginUser(e) {
     await initApp();
 
     window.aceInteractiveLoginInProgress = false;
+
+    // O login terminou corretamente; a proteção da transição de senha
+    // já não é mais necessária.
+    window.aceSuppressSignedOutReloadUntil = 0;
 
   } catch (err) {
 
@@ -45639,20 +45831,32 @@ async function startAuth() {
           return;
         }
 
-        if (window.acePasswordResetCompleted) {
+        // Durante a conclusão de convite/redefinição o logout é
+        // intencional. O Supabase pode emitir SIGNED_OUT mais de uma vez;
+        // nenhum desses eventos pode recarregar a página.
+        if (
+          Date.now() <
+          Number(
+            window.aceSuppressSignedOutReloadUntil ||
+            0
+          )
+        ) {
 
           window.acePasswordResetCompleted = false;
-
-          const loginScreen =
-            document.getElementById("loginScreen");
-
-          if (!loginScreen) {
-            createLoginScreen();
-          }
 
           return;
 
         }
+
+
+        if (window.acePasswordResetCompleted) {
+
+          window.acePasswordResetCompleted = false;
+
+          return;
+
+        }
+
 
         location.reload();
 
