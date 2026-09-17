@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-apk-primeiro-acesso-sem-loop-v49";
+  "2026.09.17-pwa-configuracoes-admin-chats-v50";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -20998,6 +20998,996 @@ function ensureAceFoodCadastroActionsStyles() {
 }
 
 
+
+// ============================================================
+// CONFIGURAÇÕES — CADASTROS + OPÇÕES ADMINISTRATIVAS
+// ============================================================
+
+function getAceConfigurationsPage() {
+
+  return (
+    document
+      .getElementById(
+        "foodsTable"
+      )
+      ?.closest(
+        ".page"
+      )
+    ||
+    document
+      .getElementById(
+        "peopleTable"
+      )
+      ?.closest(
+        ".page"
+      )
+    ||
+    null
+  );
+
+}
+
+
+function ensureAceConfigurationsStyles() {
+
+  if (
+    document.getElementById(
+      "aceConfigurationsStyles"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceConfigurationsStyles";
+
+
+  style.textContent = `
+
+    #aceConfigurationsRoot{
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    .ace-config-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      margin:0 0 18px;
+    }
+
+    .ace-config-title{
+      margin:0;
+      color:#0b3a63;
+      font-size:28px;
+      font-weight:950;
+      line-height:1.15;
+    }
+
+    .ace-config-subtitle{
+      margin-top:5px;
+      color:#667085;
+      font-size:14px;
+      line-height:1.45;
+    }
+
+    .ace-config-admin-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      padding:8px 12px;
+      border-radius:999px;
+      background:#eaf7ef;
+      color:#157347;
+      font-size:12px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .ace-config-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-bottom:18px;
+    }
+
+    .ace-config-tab{
+      min-height:50px;
+      padding:11px 15px;
+      border:1px solid #cfe0ec;
+      border-radius:12px;
+      background:#f7fbfe;
+      color:#244b66;
+      font:inherit;
+      font-size:15px;
+      font-weight:900;
+      cursor:pointer;
+      transition:.16s ease;
+    }
+
+    .ace-config-tab:hover{
+      background:#edf7fd;
+      border-color:#a8cde6;
+    }
+
+    .ace-config-tab.active{
+      border-color:#0b6ea8;
+      background:#e9f5fd;
+      color:#075a94;
+      box-shadow:inset 0 -3px 0 #1592d0;
+    }
+
+    .ace-config-view{
+      display:none;
+    }
+
+    .ace-config-view.active{
+      display:block;
+    }
+
+    #aceConfigOptionsHome{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+
+    .ace-config-option-card{
+      display:flex;
+      flex-direction:column;
+      min-height:205px;
+      padding:21px;
+      border:1px solid #d8e5ee;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 8px 24px rgba(4,59,99,.07);
+      box-sizing:border-box;
+    }
+
+    .ace-config-option-icon{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:48px;
+      height:48px;
+      margin-bottom:14px;
+      border-radius:14px;
+      background:#eef7fd;
+      font-size:24px;
+    }
+
+    .ace-config-option-card h3{
+      margin:0 0 7px;
+      color:#0b3a63;
+      font-size:19px;
+      font-weight:950;
+    }
+
+    .ace-config-option-card p{
+      flex:1;
+      margin:0 0 17px;
+      color:#667085;
+      font-size:13px;
+      line-height:1.55;
+    }
+
+    .ace-config-option-open{
+      width:100%;
+      min-height:46px;
+      padding:10px 14px;
+      border:1px solid #0b6ea8;
+      border-radius:10px;
+      background:#fff;
+      color:#075a94;
+      font:inherit;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ace-config-option-open:hover{
+      background:#eef7fd;
+    }
+
+    .ace-config-admin-only{
+      padding:24px;
+      border:1px solid #d8e5ee;
+      border-radius:15px;
+      background:#f8fafc;
+      color:#475467;
+      text-align:center;
+      line-height:1.55;
+    }
+
+    .ace-config-detail{
+      display:none;
+    }
+
+    .ace-config-detail.active{
+      display:block;
+    }
+
+    .ace-config-back{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      min-height:42px;
+      margin-bottom:13px;
+      padding:8px 13px;
+      border:1px solid #cbd9e4;
+      border-radius:10px;
+      background:#fff;
+      color:#244b66;
+      font:inherit;
+      font-weight:850;
+      cursor:pointer;
+    }
+
+    .ace-config-back:hover{
+      background:#f4f8fb;
+    }
+
+    /* GERENCIAR CHATS */
+    #aceConfigChatManager{
+      overflow:hidden;
+      border:1px solid #cfdeea;
+      border-radius:17px;
+      background:#f3f8fc;
+      box-shadow:0 8px 25px rgba(4,59,99,.08);
+    }
+
+    .ace-config-chat-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:17px 18px;
+      background:#0d659d;
+      color:#fff;
+    }
+
+    .ace-config-chat-head strong{
+      display:block;
+      font-size:20px;
+      font-weight:950;
+    }
+
+    .ace-config-chat-head small{
+      display:block;
+      margin-top:3px;
+      color:rgba(255,255,255,.88);
+      font-size:12px;
+    }
+
+    .ace-config-chat-count{
+      padding:7px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.16);
+      font-size:12px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    #aceConfigChatMessages{
+      height:min(48vh,480px);
+      overflow:auto;
+      padding:16px;
+      background:#f4f9fd;
+      box-sizing:border-box;
+    }
+
+    #aceConfigChatMessages .ace-chat-row{
+      margin-bottom:10px;
+    }
+
+    .ace-config-chat-empty{
+      display:flex;
+      min-height:180px;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      color:#667085;
+      text-align:center;
+      line-height:1.5;
+    }
+
+    .ace-config-chat-footer{
+      padding:15px 16px;
+      border-top:1px solid #d9e6ef;
+      background:#fff;
+    }
+
+    #aceConfigClearAllChats{
+      width:100%;
+      min-height:50px;
+      padding:11px 15px;
+      border:1px solid #e23d34;
+      border-radius:11px;
+      background:#fff1f0;
+      color:#b42318;
+      font:inherit;
+      font-weight:950;
+      cursor:pointer;
+    }
+
+    #aceConfigClearAllChats:hover{
+      background:#ffe9e7;
+    }
+
+    #aceConfigClearAllChats:disabled{
+      opacity:.58;
+      cursor:wait;
+    }
+
+    .ace-config-chat-note{
+      margin-top:9px;
+      color:#667085;
+      font-size:12px;
+      line-height:1.45;
+      text-align:center;
+    }
+
+    @media(max-width:700px){
+
+      .ace-config-title{
+        font-size:24px;
+      }
+
+      .ace-config-tabs{
+        grid-template-columns:1fr 1fr;
+      }
+
+      #aceConfigOptionsHome{
+        grid-template-columns:1fr;
+      }
+
+      .ace-config-option-card{
+        min-height:0;
+      }
+
+      #aceConfigChatMessages{
+        height:45vh;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function setAceConfigurationSection(
+  section = "cadastros"
+) {
+
+  const root =
+    document.getElementById(
+      "aceConfigurationsRoot"
+    );
+
+
+  if (!root) {
+    return;
+  }
+
+
+  const selected =
+    section === "opcoes"
+      ? "opcoes"
+      : "cadastros";
+
+
+  root
+    .querySelectorAll(
+      "[data-ace-config-tab]"
+    )
+    .forEach(
+      button =>
+        button.classList.toggle(
+          "active",
+          button.dataset
+            .aceConfigTab ===
+            selected
+        )
+    );
+
+
+  root
+    .querySelector(
+      "#aceConfigCadastrosView"
+    )
+    ?.classList.toggle(
+      "active",
+      selected ===
+        "cadastros"
+    );
+
+
+  root
+    .querySelector(
+      "#aceConfigOptionsView"
+    )
+    ?.classList.toggle(
+      "active",
+      selected ===
+        "opcoes"
+    );
+
+
+  if (
+    selected ===
+    "opcoes"
+  ) {
+
+    showAceConfigurationOptionsHome();
+
+  }
+
+}
+
+
+function showAceConfigurationOptionsHome() {
+
+  const home =
+    document.getElementById(
+      "aceConfigOptionsHome"
+    );
+
+
+  const adminDetail =
+    document.getElementById(
+      "aceConfigAdminDetail"
+    );
+
+
+  const chatDetail =
+    document.getElementById(
+      "aceConfigChatDetail"
+    );
+
+
+  adminDetail?.classList.remove(
+    "active"
+  );
+
+  chatDetail?.classList.remove(
+    "active"
+  );
+
+
+  if (!home) {
+    return;
+  }
+
+
+  home.style.display =
+    "grid";
+
+
+  if (
+    !isAceSecurityAdmin()
+  ) {
+
+    home.innerHTML = `
+      <div
+        class="ace-config-admin-only"
+        style="grid-column:1 / -1;"
+      >
+        🔐 As opções administrativas estão disponíveis somente para administradores.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  home.innerHTML = `
+
+    <article class="ace-config-option-card">
+
+      <div class="ace-config-option-icon">
+        🔐
+      </div>
+
+      <h3>
+        Administração do sistema
+      </h3>
+
+      <p>
+        Backup completo, restauração e zeramento dos dados operacionais.
+        Os cadastros permanecem preservados no reset operacional.
+      </p>
+
+      <button
+        class="ace-config-option-open"
+        type="button"
+        data-ace-config-option="admin"
+      >
+        Abrir administração
+      </button>
+
+    </article>
+
+
+    <article class="ace-config-option-card">
+
+      <div class="ace-config-option-icon">
+        💬
+      </div>
+
+      <h3>
+        Gerenciar chats
+      </h3>
+
+      <p>
+        Consulte as mensagens armazenadas no chat da equipe e,
+        quando necessário, exclua permanentemente todo o histórico do chat.
+      </p>
+
+      <button
+        class="ace-config-option-open"
+        type="button"
+        data-ace-config-option="chat"
+      >
+        Abrir gerenciamento de chats
+      </button>
+
+    </article>
+
+  `;
+
+
+  home
+    .querySelectorAll(
+      "[data-ace-config-option]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            openAceConfigurationOption(
+              button.dataset
+                .aceConfigOption
+            );
+
+      }
+    );
+
+}
+
+
+async function openAceConfigurationOption(
+  option
+) {
+
+  if (
+    !isAceSecurityAdmin()
+  ) {
+
+    await showAceMessage(
+      "Esta opção está disponível somente para administradores.",
+      "🔐 Acesso restrito"
+    );
+
+    return;
+
+  }
+
+
+  const home =
+    document.getElementById(
+      "aceConfigOptionsHome"
+    );
+
+
+  const adminDetail =
+    document.getElementById(
+      "aceConfigAdminDetail"
+    );
+
+
+  const chatDetail =
+    document.getElementById(
+      "aceConfigChatDetail"
+    );
+
+
+  if (home) {
+    home.style.display =
+      "none";
+  }
+
+
+  adminDetail?.classList.toggle(
+    "active",
+    option ===
+      "admin"
+  );
+
+
+  chatDetail?.classList.toggle(
+    "active",
+    option ===
+      "chat"
+  );
+
+
+  if (
+    option ===
+    "admin"
+  ) {
+
+    ensureAceAdminOperationsPanel();
+
+  }
+
+
+  if (
+    option ===
+    "chat"
+  ) {
+
+    await loadAceChatManagementScreen(
+      true
+    );
+
+  }
+
+}
+
+
+function ensureAceConfigurationsLayout() {
+
+  const page =
+    getAceConfigurationsPage();
+
+
+  if (!page) {
+    return;
+  }
+
+
+  ensureAceConfigurationsStyles();
+
+
+  let root =
+    document.getElementById(
+      "aceConfigurationsRoot"
+    );
+
+
+  if (!root) {
+
+    const originalChildren =
+      Array.from(
+        page.children
+      );
+
+
+    root =
+      document.createElement(
+        "section"
+      );
+
+
+    root.id =
+      "aceConfigurationsRoot";
+
+
+    root.innerHTML = `
+
+      <div class="ace-config-head">
+
+        <div>
+
+          <h2 class="ace-config-title">
+            ⚙️ Configurações
+          </h2>
+
+          <div class="ace-config-subtitle">
+            Cadastros do sistema e opções administrativas.
+          </div>
+
+        </div>
+
+        <div
+          id="aceConfigAdminBadge"
+          class="ace-config-admin-badge"
+          style="display:none;"
+        ></div>
+
+      </div>
+
+
+      <div class="ace-config-tabs">
+
+        <button
+          class="ace-config-tab active"
+          type="button"
+          data-ace-config-tab="cadastros"
+        >
+          📁 Cadastros
+        </button>
+
+        <button
+          class="ace-config-tab"
+          type="button"
+          data-ace-config-tab="opcoes"
+        >
+          ⚙️ Opções
+        </button>
+
+      </div>
+
+
+      <section
+        id="aceConfigCadastrosView"
+        class="ace-config-view active"
+      ></section>
+
+
+      <section
+        id="aceConfigOptionsView"
+        class="ace-config-view"
+      >
+
+        <div id="aceConfigOptionsHome"></div>
+
+
+        <div
+          id="aceConfigAdminDetail"
+          class="ace-config-detail"
+        >
+
+          <button
+            class="ace-config-back"
+            type="button"
+            data-ace-config-back
+          >
+            ← Voltar às opções
+          </button>
+
+        </div>
+
+
+        <div
+          id="aceConfigChatDetail"
+          class="ace-config-detail"
+        >
+
+          <button
+            class="ace-config-back"
+            type="button"
+            data-ace-config-back
+          >
+            ← Voltar às opções
+          </button>
+
+
+          <section id="aceConfigChatManager">
+
+            <div class="ace-config-chat-head">
+
+              <div>
+
+                <strong>
+                  💬 Gerenciar chats
+                </strong>
+
+                <small>
+                  Histórico do chat da Equipe ACE
+                </small>
+
+              </div>
+
+              <span
+                id="aceConfigChatCount"
+                class="ace-config-chat-count"
+              >
+                Carregando...
+              </span>
+
+            </div>
+
+
+            <div id="aceConfigChatMessages">
+
+              <div class="ace-config-chat-empty">
+                Carregando mensagens...
+              </div>
+
+            </div>
+
+
+            <div class="ace-config-chat-footer">
+
+              <button
+                id="aceConfigClearAllChats"
+                type="button"
+              >
+                🧹 Limpar todos os chats
+              </button>
+
+              <div class="ace-config-chat-note">
+                A exclusão é permanente e somente administradores podem executá-la.
+              </div>
+
+            </div>
+
+          </section>
+
+        </div>
+
+      </section>
+
+    `;
+
+
+    page.appendChild(
+      root
+    );
+
+
+    const cadastrosView =
+      root.querySelector(
+        "#aceConfigCadastrosView"
+      );
+
+
+    originalChildren.forEach(
+      child => {
+
+        if (
+          child !== root &&
+          child.id !==
+            "aceAdminOperationsPanel"
+        ) {
+
+          cadastrosView.appendChild(
+            child
+          );
+
+        }
+
+      }
+    );
+
+
+    root
+      .querySelectorAll(
+        "[data-ace-config-tab]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            () =>
+              setAceConfigurationSection(
+                button.dataset
+                  .aceConfigTab
+              );
+
+        }
+      );
+
+
+    root
+      .querySelectorAll(
+        "[data-ace-config-back]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            showAceConfigurationOptionsHome;
+
+        }
+      );
+
+
+    root
+      .querySelector(
+        "#aceConfigClearAllChats"
+      )
+      .onclick =
+        clearAllAceTeamChats;
+
+  }
+
+
+  const badge =
+    root.querySelector(
+      "#aceConfigAdminBadge"
+    );
+
+
+  if (
+    badge
+  ) {
+
+    if (
+      isAceSecurityAdmin()
+    ) {
+
+      badge.style.display =
+        "inline-flex";
+
+      badge.textContent =
+        "👤 Administrador: " +
+        (
+          currentUser
+            ?.user_metadata
+            ?.nome
+          ||
+          currentUser
+            ?.user_metadata
+            ?.name
+          ||
+          aceCurrentAccess
+            ?.display_name
+          ||
+          currentUser
+            ?.email
+          ||
+          "Administrador"
+        );
+
+    } else {
+
+      badge.style.display =
+        "none";
+
+      badge.textContent =
+        "";
+
+    }
+
+  }
+
+
+  showAceConfigurationOptionsHome();
+
+
+  // O identificador interno da aba continua "cadastro" para não quebrar
+  // navegação antiga. Apenas o nome visual passa a ser Configurações.
+  const originalTab =
+    typeof findAceOriginalTab ===
+      "function"
+      ? findAceOriginalTab(
+          "cadastro"
+        )
+      : null;
+
+
+  if (
+    originalTab
+  ) {
+
+    originalTab.innerHTML =
+      "⚙️ Configurações";
+
+    originalTab.title =
+      "Configurações";
+
+  }
+
+}
+
+
 function renderCadastros() {
 
   ensurePersonExtraFields();
@@ -21318,7 +22308,10 @@ function renderCadastros() {
     );
 
 
-  // Área administrativa exclusiva do administrador autorizado.
+  // A aba antiga "Cadastros" passa a ser a área "Configurações".
+  ensureAceConfigurationsLayout();
+
+  // Administração fica dentro de Configurações > Opções.
   ensureAceAdminOperationsPanel();
 
 }
@@ -23701,37 +24694,7 @@ function isAceOperationalAdmin() {
 
 function getAceCadastrosPage() {
 
-  return (
-    document
-      .getElementById(
-        "foodsTable"
-      )
-      ?.closest(
-        ".page"
-      )
-    ||
-    document
-      .getElementById(
-        "peopleTable"
-      )
-      ?.closest(
-        ".page"
-      )
-    ||
-    document
-      .querySelector(
-        '[data-page="cadastros"]'
-      )
-      ?.dataset?.page
-      ? document.getElementById(
-          document
-            .querySelector(
-              '[data-page="cadastros"]'
-            )
-            ?.dataset?.page
-        )
-      : null
-  );
+  return getAceConfigurationsPage();
 
 }
 
@@ -24100,6 +25063,14 @@ function ensureAceAdminOperationsPanel() {
   ensureAceAdminOperationsStyles();
 
 
+  const host =
+    document.getElementById(
+      "aceConfigAdminDetail"
+    )
+    ||
+    page;
+
+
   let panel =
     existing;
 
@@ -24115,8 +25086,15 @@ function ensureAceAdminOperationsPanel() {
     panel.id =
       "aceAdminOperationsPanel";
 
+  }
 
-    page.appendChild(
+
+  if (
+    panel.parentElement !==
+    host
+  ) {
+
+    host.appendChild(
       panel
     );
 
@@ -42438,7 +43416,8 @@ function findAceOriginalTab(
 
     cadastro:
       [
-        "cadastro"
+        "cadastro",
+        "configuracoes"
       ]
 
   };
@@ -45337,6 +46316,487 @@ function removeAceTeamChatMessage(id) {
 }
 
 
+
+function clearAceTeamChatLocalState() {
+
+  aceTeamChatMessages =
+    [];
+
+  aceTeamUnread =
+    0;
+
+  aceTeamChatLoaded =
+    true;
+
+
+  try {
+
+    localStorage.removeItem(
+      ACE_TEAM_CHAT_CACHE_KEY
+    );
+
+  } catch {}
+
+
+  renderAceTeamStatus();
+  renderAceTeamChat();
+
+}
+
+
+async function loadAceChatManagementScreen(
+  force = false
+) {
+
+  const target =
+    document.getElementById(
+      "aceConfigChatMessages"
+    );
+
+
+  const counter =
+    document.getElementById(
+      "aceConfigChatCount"
+    );
+
+
+  if (
+    !target ||
+    !counter
+  ) {
+    return;
+  }
+
+
+  if (
+    !isAceSecurityAdmin()
+  ) {
+
+    counter.textContent =
+      "Acesso restrito";
+
+    target.innerHTML = `
+      <div class="ace-config-chat-empty">
+        🔐 Somente administradores podem gerenciar o histórico do chat.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    counter.textContent =
+      "Offline";
+
+    target.innerHTML = `
+      <div class="ace-config-chat-empty">
+        🟠 O gerenciamento de chats precisa de conexão com a internet.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    !force &&
+    target.dataset.loaded ===
+      "1"
+  ) {
+    return;
+  }
+
+
+  counter.textContent =
+    "Carregando...";
+
+
+  target.innerHTML = `
+    <div class="ace-config-chat-empty">
+      Carregando mensagens...
+    </div>
+  `;
+
+
+  try {
+
+    const [
+      countResult,
+      messageResult
+    ] =
+      await Promise.all([
+
+        supabaseClient
+          .from(
+            ACE_TEAM_CHAT_TABLE
+          )
+          .select(
+            "id",
+            {
+              count:
+                "exact",
+              head:
+                true
+            }
+          ),
+
+        supabaseClient
+          .from(
+            ACE_TEAM_CHAT_TABLE
+          )
+          .select(
+            "id,user_id,sender_name,message,created_at"
+          )
+          .order(
+            "created_at",
+            {
+              ascending:
+                false
+            }
+          )
+          .limit(
+            50
+          )
+
+      ]);
+
+
+    if (
+      countResult.error
+    ) {
+      throw countResult.error;
+    }
+
+
+    if (
+      messageResult.error
+    ) {
+      throw messageResult.error;
+    }
+
+
+    const total =
+      Number(
+        countResult.count ||
+        0
+      );
+
+
+    const rows =
+      (
+        Array.isArray(
+          messageResult.data
+        )
+          ? messageResult.data
+          : []
+      )
+        .map(
+          normalizeAceChatMessage
+        )
+        .filter(
+          Boolean
+        )
+        .reverse();
+
+
+    counter.textContent =
+      `${total} mensagem(ns)`;
+
+
+    target.dataset.loaded =
+      "1";
+
+
+    if (
+      !rows.length
+    ) {
+
+      target.innerHTML = `
+        <div class="ace-config-chat-empty">
+          💬 Nenhuma mensagem armazenada no chat.
+        </div>
+      `;
+
+      return;
+
+    }
+
+
+    target.innerHTML =
+      rows
+        .map(
+          row => `
+
+            <div class="ace-chat-row">
+
+              ${aceTeamAvatarHtml(
+                row.sender_name,
+                getAceOnlineUserById(
+                  row.user_id
+                )?.avatar_url ||
+                ""
+              )}
+
+              <div class="ace-chat-bubble">
+
+                <div class="ace-chat-name">
+                  ${esc(
+                    row.sender_name
+                  )}
+                </div>
+
+                <div class="ace-chat-text">
+                  ${esc(
+                    row.message
+                  )}
+                </div>
+
+                <div class="ace-chat-meta">
+                  <span>
+                    ${esc(
+                      formatAceChatTime(
+                        row.created_at
+                      )
+                    )}
+                  </span>
+                </div>
+
+              </div>
+
+            </div>
+
+          `
+        )
+        .join("");
+
+
+    requestAnimationFrame(
+      () => {
+
+        target.scrollTop =
+          target.scrollHeight;
+
+      }
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE Chat Admin: erro ao carregar:",
+      error
+    );
+
+
+    counter.textContent =
+      "Erro";
+
+
+    target.innerHTML = `
+      <div class="ace-config-chat-empty">
+        Não foi possível carregar o histórico do chat.<br>
+        ${esc(
+          error?.message ||
+          "Verifique sua conexão."
+        )}
+      </div>
+    `;
+
+  }
+
+}
+
+
+async function clearAllAceTeamChats() {
+
+  if (
+    !isAceSecurityAdmin()
+  ) {
+
+    await showAceMessage(
+      "Somente administradores podem limpar todos os chats.",
+      "🔐 Acesso restrito"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !aceIsOnline()
+  ) {
+
+    await showAceMessage(
+      "A limpeza do chat precisa de conexão com a internet.",
+      "📶 Sem conexão"
+    );
+
+    return;
+
+  }
+
+
+  const confirmed =
+    await showAceConfirm(
+      "Esta ação excluirá permanentemente TODAS as mensagens do chat da Equipe ACE.\n\n" +
+      "A exclusão não poderá ser desfeita.\n\n" +
+      "Deseja continuar?",
+      "🧹 Limpar todos os chats"
+    );
+
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+
+  const button =
+    document.getElementById(
+      "aceConfigClearAllChats"
+    );
+
+
+  if (
+    button
+  ) {
+
+    button.disabled =
+      true;
+
+    button.textContent =
+      "Limpando...";
+
+  }
+
+
+  try {
+
+    const result =
+      await aceRunAuthenticatedWrite(
+        () =>
+          supabaseClient.rpc(
+            "ace_admin_limpar_todos_chats"
+          ),
+        "a limpeza de todos os chats"
+      );
+
+
+    const payload =
+      result?.data ||
+      {};
+
+
+    clearAceTeamChatLocalState();
+
+
+    const managerTarget =
+      document.getElementById(
+        "aceConfigChatMessages"
+      );
+
+
+    if (
+      managerTarget
+    ) {
+
+      managerTarget.dataset.loaded =
+        "0";
+
+    }
+
+
+    if (
+      aceTeamChannelStatus ===
+      "SUBSCRIBED"
+    ) {
+
+      try {
+
+        await aceTeamChannel.send({
+          type:
+            "broadcast",
+          event:
+            "chat-clear-all",
+          payload: {
+            cleared_at:
+              new Date()
+                .toISOString()
+          }
+        });
+
+      } catch (broadcastError) {
+
+        console.warn(
+          "ACE Chat: limpeza concluída, mas o aviso em tempo real não foi enviado:",
+          broadcastError
+        );
+
+      }
+
+    }
+
+
+    await loadAceChatManagementScreen(
+      true
+    );
+
+
+    showAceSuccess(
+      Number(
+        payload?.deleted ||
+        0
+      ) > 0
+        ? `Todos os chats foram limpos com sucesso. ${Number(payload.deleted)} mensagem(ns) excluída(s).`
+        : "O chat já estava vazio."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE Chat Admin: erro ao limpar todos os chats:",
+      error
+    );
+
+
+    await showAceMessage(
+      "Não foi possível limpar todos os chats.\n\n" +
+      (
+        error?.message ||
+        "Verifique o Supabase."
+      ),
+      "❌ Limpeza não concluída"
+    );
+
+
+  } finally {
+
+    if (
+      button
+    ) {
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        "🧹 Limpar todos os chats";
+
+    }
+
+  }
+
+}
+
+
 function setAceTeamTab(tab) {
   aceTeamActiveTab = tab === "chat" ? "chat" : "online";
 
@@ -45451,6 +46911,30 @@ async function setupAceTeamRealtime() {
       })
       .on("broadcast", { event: "chat-delete" }, event => {
         removeAceTeamChatMessage(event?.payload?.id);
+      })
+      .on("broadcast", { event: "chat-clear-all" }, () => {
+        clearAceTeamChatLocalState();
+
+        const managerTarget =
+          document.getElementById(
+            "aceConfigChatMessages"
+          );
+
+        if (managerTarget) {
+          managerTarget.dataset.loaded = "0";
+        }
+
+        if (
+          document
+            .getElementById(
+              "aceConfigChatDetail"
+            )
+            ?.classList.contains(
+              "active"
+            )
+        ) {
+          loadAceChatManagementScreen(true);
+        }
       })
       .subscribe(async (status, error) => {
         aceTeamChannelStatus = status;
@@ -54904,6 +56388,26 @@ window.aceBuildStatisticsReportHtml =
     const tabs = document.querySelector(".tabs");
     if (!tabs || !requiredTabsReady()) return false;
 
+
+    const configurationsTab =
+      getOriginal(
+        "cadastro"
+      );
+
+
+    if (
+      configurationsTab
+    ) {
+
+      configurationsTab.innerHTML =
+        "⚙️ Configurações";
+
+      configurationsTab.title =
+        "Configurações";
+
+    }
+
+
     tabs.querySelectorAll('[data-ace-group-nav="1"]').forEach(node => node.remove());
 
     // Remove somente as classes visuais criadas por este bloco.
@@ -55041,7 +56545,7 @@ window.aceBuildStatisticsReportHtml =
             "settings",
             "⚙️",
             "Configurações",
-            [{ target: "cadastro", label: "🗃️ Cadastros" }]
+            [{ target: "cadastro", label: "⚙️ Configurações" }]
           )}
         </div>
       `;
@@ -55177,7 +56681,7 @@ window.aceBuildStatisticsReportHtml =
       ${section("Movimentações", groups.movements.items)}
       ${section("Consultas", groups.queries.items)}
       ${section("Gestão", groups.management.items)}
-      ${directButton("cadastro", "🗃️ Cadastros")}
+      ${directButton("cadastro", "⚙️ Configurações")}
     `;
 
     drawerList.querySelectorAll("[data-ace-open-page]").forEach(button => {
