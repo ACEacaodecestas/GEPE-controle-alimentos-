@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-configuracoes-admin-chats-v50";
+  "2026.09.17-pwa-configuracoes-menu-hierarquico-v51";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -21334,6 +21334,15 @@ function ensureAceConfigurationsStyles() {
       text-align:center;
     }
 
+    /* V51:
+       a navegação Cadastros > Opções passa a acontecer pelo menu
+       principal, como Movimentações / Consultas / Gestão. */
+    .ace-config-tabs,
+    #aceConfigOptionsHome,
+    .ace-config-back{
+      display:none !important;
+    }
+
     @media(max-width:700px){
 
       .ace-config-title{
@@ -21368,9 +21377,18 @@ function ensureAceConfigurationsStyles() {
 }
 
 
-function setAceConfigurationSection(
-  section = "cadastros"
-) {
+let aceConfigurationDestination =
+  "cadastros";
+
+
+function getAceConfigurationDestination() {
+
+  return aceConfigurationDestination;
+
+}
+
+
+function applyAceConfigurationDestination() {
 
   const root =
     document.getElementById(
@@ -21383,198 +21401,135 @@ function setAceConfigurationSection(
   }
 
 
-  const selected =
-    section === "opcoes"
-      ? "opcoes"
+  const destination =
+    [
+      "cadastros",
+      "admin",
+      "chat"
+    ].includes(
+      aceConfigurationDestination
+    )
+      ? aceConfigurationDestination
       : "cadastros";
 
 
-  root
-    .querySelectorAll(
-      "[data-ace-config-tab]"
-    )
-    .forEach(
-      button =>
-        button.classList.toggle(
-          "active",
-          button.dataset
-            .aceConfigTab ===
-            selected
-        )
-    );
-
-
-  root
-    .querySelector(
+  const cadastrosView =
+    root.querySelector(
       "#aceConfigCadastrosView"
-    )
-    ?.classList.toggle(
-      "active",
-      selected ===
-        "cadastros"
     );
 
 
-  root
-    .querySelector(
+  const optionsView =
+    root.querySelector(
       "#aceConfigOptionsView"
-    )
-    ?.classList.toggle(
-      "active",
-      selected ===
-        "opcoes"
     );
 
-
-  if (
-    selected ===
-    "opcoes"
-  ) {
-
-    showAceConfigurationOptionsHome();
-
-  }
-
-}
-
-
-function showAceConfigurationOptionsHome() {
 
   const home =
-    document.getElementById(
-      "aceConfigOptionsHome"
+    root.querySelector(
+      "#aceConfigOptionsHome"
     );
 
 
   const adminDetail =
-    document.getElementById(
-      "aceConfigAdminDetail"
+    root.querySelector(
+      "#aceConfigAdminDetail"
     );
 
 
   const chatDetail =
-    document.getElementById(
-      "aceConfigChatDetail"
+    root.querySelector(
+      "#aceConfigChatDetail"
     );
 
 
-  adminDetail?.classList.remove(
-    "active"
-  );
+  cadastrosView
+    ?.classList.toggle(
+      "active",
+      destination ===
+        "cadastros"
+    );
 
-  chatDetail?.classList.remove(
-    "active"
-  );
+
+  optionsView
+    ?.classList.toggle(
+      "active",
+      destination !==
+        "cadastros"
+    );
 
 
-  if (!home) {
-    return;
+  if (home) {
+    home.style.display =
+      "none";
   }
 
 
-  home.style.display =
-    "grid";
+  adminDetail
+    ?.classList.toggle(
+      "active",
+      destination ===
+        "admin"
+    );
+
+
+  chatDetail
+    ?.classList.toggle(
+      "active",
+      destination ===
+        "chat"
+    );
 
 
   if (
-    !isAceSecurityAdmin()
+    destination ===
+    "admin"
   ) {
 
-    home.innerHTML = `
-      <div
-        class="ace-config-admin-only"
-        style="grid-column:1 / -1;"
-      >
-        🔐 As opções administrativas estão disponíveis somente para administradores.
-      </div>
-    `;
-
-    return;
+    ensureAceAdminOperationsPanel();
 
   }
 
 
-  home.innerHTML = `
+  if (
+    destination ===
+    "chat"
+  ) {
 
-    <article class="ace-config-option-card">
-
-      <div class="ace-config-option-icon">
-        🔐
-      </div>
-
-      <h3>
-        Administração do sistema
-      </h3>
-
-      <p>
-        Backup completo, restauração e zeramento dos dados operacionais.
-        Os cadastros permanecem preservados no reset operacional.
-      </p>
-
-      <button
-        class="ace-config-option-open"
-        type="button"
-        data-ace-config-option="admin"
-      >
-        Abrir administração
-      </button>
-
-    </article>
-
-
-    <article class="ace-config-option-card">
-
-      <div class="ace-config-option-icon">
-        💬
-      </div>
-
-      <h3>
-        Gerenciar chats
-      </h3>
-
-      <p>
-        Consulte as mensagens armazenadas no chat da equipe e,
-        quando necessário, exclua permanentemente todo o histórico do chat.
-      </p>
-
-      <button
-        class="ace-config-option-open"
-        type="button"
-        data-ace-config-option="chat"
-      >
-        Abrir gerenciamento de chats
-      </button>
-
-    </article>
-
-  `;
-
-
-  home
-    .querySelectorAll(
-      "[data-ace-config-option]"
-    )
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            openAceConfigurationOption(
-              button.dataset
-                .aceConfigOption
-            );
-
-      }
+    loadAceChatManagementScreen(
+      true
     );
+
+  }
 
 }
 
 
-async function openAceConfigurationOption(
-  option
+async function openAceConfigurationDestination(
+  destination = "cadastros"
 ) {
 
+  const selected =
+    [
+      "cadastros",
+      "admin",
+      "chat"
+    ].includes(
+      destination
+    )
+      ? destination
+      : "cadastros";
+
+
   if (
+    (
+      selected ===
+        "admin"
+      ||
+      selected ===
+        "chat"
+    )
+    &&
     !isAceSecurityAdmin()
   ) {
 
@@ -21588,67 +21543,91 @@ async function openAceConfigurationOption(
   }
 
 
-  const home =
-    document.getElementById(
-      "aceConfigOptionsHome"
-    );
+  aceConfigurationDestination =
+    selected;
 
 
-  const adminDetail =
-    document.getElementById(
-      "aceConfigAdminDetail"
-    );
-
-
-  const chatDetail =
-    document.getElementById(
-      "aceConfigChatDetail"
-    );
-
-
-  if (home) {
-    home.style.display =
-      "none";
-  }
-
-
-  adminDetail?.classList.toggle(
-    "active",
-    option ===
-      "admin"
-  );
-
-
-  chatDetail?.classList.toggle(
-    "active",
-    option ===
-      "chat"
-  );
+  // Abre a aba original de Configurações/Cadastros.
+  // O identificador interno continua "cadastro" para preservar
+  // toda a navegação existente do aplicativo.
+  const originalTab =
+    typeof findAceOriginalTab ===
+      "function"
+      ? findAceOriginalTab(
+          "cadastro"
+        )
+      : null;
 
 
   if (
-    option ===
-    "admin"
+    originalTab &&
+    !originalTab.classList.contains(
+      "active"
+    )
   ) {
 
-    ensureAceAdminOperationsPanel();
+    originalTab.click();
 
   }
 
 
+  // Aplica imediatamente e reforça após o ciclo de renderização.
+  ensureAceConfigurationsLayout();
+  applyAceConfigurationDestination();
+
+
+  window.setTimeout(
+    () => {
+
+      ensureAceConfigurationsLayout();
+      applyAceConfigurationDestination();
+
+    },
+    50
+  );
+
+}
+
+
+function setAceConfigurationSection(
+  section = "cadastros"
+) {
+
   if (
-    option ===
-    "chat"
+    section ===
+    "cadastros"
   ) {
 
-    await loadAceChatManagementScreen(
-      true
+    openAceConfigurationDestination(
+      "cadastros"
     );
 
   }
 
 }
 
+
+function showAceConfigurationOptionsHome() {
+
+  // A antiga tela intermediária de cartões não faz mais parte do fluxo.
+  // Mantida apenas como função compatível para versões/cache anteriores.
+  applyAceConfigurationDestination();
+
+}
+
+
+async function openAceConfigurationOption(
+  option
+) {
+
+  await openAceConfigurationDestination(
+    option ===
+      "chat"
+      ? "chat"
+      : "admin"
+  );
+
+}
 
 function ensureAceConfigurationsLayout() {
 
@@ -21959,7 +21938,7 @@ function ensureAceConfigurationsLayout() {
   }
 
 
-  showAceConfigurationOptionsHome();
+  applyAceConfigurationDestination();
 
 
   // O identificador interno da aba continua "cadastro" para não quebrar
@@ -55909,19 +55888,28 @@ window.aceBuildStatisticsReportHtml =
         { target: "inventario", label: "📦 Inventário" },
         { target: "relatorio", label: "📑 Relatórios" }
       ]
+    },
+    settings: {
+      label: "⚙️ Configurações",
+      items: []
     }
   };
 
   const directDesktop = [
     { target: "mural", order: 10 },
     { target: "inicio", order: 20 },
-    { target: "presenca", order: 30 },
-    { target: "cadastro", order: 70 }
+    { target: "presenca", order: 30 }
   ];
 
   const groupedTargets = new Set(
     Object.values(groups)
       .flatMap(group => group.items.map(item => item.target))
+      .filter(Boolean)
+  );
+
+  // Configurações também passa a ser representada pelo botão agrupado.
+  groupedTargets.add(
+    "cadastro"
   );
 
   function norm(value) {
@@ -55973,6 +55961,62 @@ window.aceBuildStatisticsReportHtml =
     return Boolean(document.querySelector(".tabs")) &&
       required.every(target => Boolean(getOriginal(target)));
   }
+
+  function canUseAceAdminSettings() {
+
+    try {
+
+      return (
+        typeof isAceSecurityAdmin ===
+          "function"
+        &&
+        isAceSecurityAdmin()
+      );
+
+    } catch {
+
+      return false;
+
+    }
+
+  }
+
+
+  function openConfigurationDestination(
+    destination
+  ) {
+
+    closeDesktopPopup();
+    closeMobileSheet();
+
+
+    if (
+      typeof openAceConfigurationDestination ===
+      "function"
+    ) {
+
+      openAceConfigurationDestination(
+        destination
+      );
+
+      window.setTimeout(
+        updateAllNavigationState,
+        60
+      );
+
+      return;
+
+    }
+
+
+    // Fallback: nunca quebra a navegação caso uma versão antiga
+    // ainda esteja em cache.
+    openOriginal(
+      "cadastro"
+    );
+
+  }
+
 
   function openOriginal(target) {
     closeDesktopPopup();
@@ -56096,6 +56140,60 @@ window.aceBuildStatisticsReportHtml =
       #${DESKTOP_POPUP_ID} button.active {
         background: #eef6fc;
         color: #0756a0;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-settings-options-wrap{
+        position:relative;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-settings-options-trigger{
+        justify-content:space-between;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-settings-side-arrow{
+        margin-left:auto;
+        font-size:20px;
+        font-weight:900;
+        line-height:1;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-settings-side-menu{
+        position:absolute;
+        z-index:2147482501;
+        display:none;
+        top:0;
+        left:100%;
+        min-width:265px;
+        padding:8px;
+        border:1px solid #dce6ee;
+        border-radius:16px;
+        background:#fff;
+        box-shadow:0 18px 48px rgba(9,47,78,.20);
+      }
+
+      #${DESKTOP_POPUP_ID}.ace-settings-submenu-left
+      .ace-settings-side-menu{
+        right:100%;
+        left:auto;
+      }
+
+      #${DESKTOP_POPUP_ID}
+      .ace-settings-options-wrap:hover
+      .ace-settings-side-menu,
+      #${DESKTOP_POPUP_ID}
+      .ace-settings-options-wrap.open
+      .ace-settings-side-menu{
+        display:block;
+      }
+
+      #${DESKTOP_POPUP_ID}
+      .ace-settings-options-wrap:hover
+      > .ace-settings-options-trigger,
+      #${DESKTOP_POPUP_ID}
+      .ace-settings-options-wrap.open
+      > .ace-settings-options-trigger{
+        background:#eef6fc;
+        color:#0756a0;
       }
 
       /* ======================================================
@@ -56295,8 +56393,95 @@ window.aceBuildStatisticsReportHtml =
         background: #f7fafc;
       }
 
+      #${MOBILE_SHEET_ID} .ace-settings-mobile-level2{
+        margin:4px 0;
+        overflow:hidden;
+        border:1px solid #e0eaf1;
+        border-radius:12px;
+        background:#fff;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-settings-mobile-options-trigger{
+        display:flex;
+        width:100%;
+        min-height:50px;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        padding:10px 14px;
+        border:0;
+        background:#f7fafc;
+        color:#28445e;
+        font:inherit;
+        font-size:16px;
+        font-weight:800;
+        text-align:left;
+        cursor:pointer;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-settings-mobile-options-panel{
+        max-height:0;
+        overflow:hidden;
+        padding:0 8px;
+        opacity:0;
+        transition:max-height .20s ease,opacity .16s ease,padding .20s ease;
+      }
+
+      #${MOBILE_SHEET_ID}
+      .ace-settings-mobile-level2.open
+      .ace-settings-mobile-options-panel{
+        max-height:180px;
+        padding:5px 8px 8px;
+        opacity:1;
+      }
+
+      #${MOBILE_SHEET_ID}
+      .ace-settings-mobile-level2.open
+      .ace-settings-mobile-options-arrow{
+        transform:rotate(90deg);
+      }
+
+      #${MOBILE_SHEET_ID} .ace-settings-mobile-options-arrow{
+        font-size:20px;
+        font-weight:900;
+        transition:transform .16s ease;
+      }
+
       #aceMobileDrawerList .ace-drawer-section {
         padding: 2px 0 5px;
+      }
+
+      #aceMobileDrawerList .ace-drawer-settings-level2{
+        margin:4px 8px 7px;
+        overflow:hidden;
+        border:1px solid #e0e9f0;
+        border-radius:12px;
+      }
+
+      #aceMobileDrawerList .ace-drawer-settings-toggle{
+        display:flex;
+        width:100%;
+        align-items:center;
+        justify-content:space-between;
+        min-height:48px;
+        padding:10px 12px;
+        border:0;
+        background:#f7fafc;
+        color:#28445e;
+        font:inherit;
+        font-weight:800;
+        text-align:left;
+      }
+
+      #aceMobileDrawerList .ace-drawer-settings-panel{
+        display:none;
+        padding:4px 7px 7px;
+      }
+
+      #aceMobileDrawerList
+      .ace-drawer-settings-level2.open
+      .ace-drawer-settings-panel{
+        display:block;
       }
     `;
 
@@ -56326,40 +56511,286 @@ window.aceBuildStatisticsReportHtml =
   }
 
   function openDesktopGroup(groupKey, trigger) {
-    const group = groups[groupKey];
-    if (!group) return;
 
-    const popup = ensureDesktopPopup();
-    const wasOpen = popup.classList.contains("open") && popup.dataset.group === groupKey;
+    const group =
+      groups[groupKey];
+
+
+    if (!group) {
+      return;
+    }
+
+
+    const popup =
+      ensureDesktopPopup();
+
+
+    const wasOpen =
+      popup.classList.contains(
+        "open"
+      )
+      &&
+      popup.dataset.group ===
+        groupKey;
+
 
     closeDesktopPopup();
 
-    if (wasOpen) return;
 
-    popup.dataset.group = groupKey;
-    popup.innerHTML = group.items.map(item => `
-      <button type="button" data-ace-group-target="${item.target}">
-        ${item.label}
-      </button>
-    `).join("");
+    if (wasOpen) {
+      return;
+    }
 
-    popup.querySelectorAll("[data-ace-group-target]").forEach(button => {
-      button.onclick = () => openOriginal(button.dataset.aceGroupTarget);
-    });
 
-    const rect = trigger.getBoundingClientRect();
-    const popupWidth = 250;
-    const left = Math.min(
-      Math.max(10, rect.left),
-      Math.max(10, window.innerWidth - popupWidth - 10)
+    popup.dataset.group =
+      groupKey;
+
+
+    popup.classList.remove(
+      "ace-settings-submenu-left"
     );
 
-    popup.style.left = `${left}px`;
-    popup.style.top = `${Math.min(window.innerHeight - 20, rect.bottom + 7)}px`;
-    popup.classList.add("open");
-    trigger.classList.add("open");
+
+    if (
+      groupKey ===
+      "settings"
+    ) {
+
+      const adminOptions =
+        canUseAceAdminSettings()
+          ? `
+              <div class="ace-settings-options-wrap">
+
+                <button
+                  type="button"
+                  class="ace-settings-options-trigger"
+                  data-ace-settings-options-trigger
+                >
+                  <span>
+                    ⚙️ Opções
+                  </span>
+
+                  <span class="ace-settings-side-arrow">
+                    ›
+                  </span>
+                </button>
+
+
+                <div class="ace-settings-side-menu">
+
+                  <button
+                    type="button"
+                    data-ace-config-destination="admin"
+                  >
+                    🔐 Administração do sistema
+                  </button>
+
+                  <button
+                    type="button"
+                    data-ace-config-destination="chat"
+                  >
+                    💬 Gerenciar chats
+                  </button>
+
+                </div>
+
+              </div>
+            `
+          : "";
+
+
+      popup.innerHTML = `
+
+        <button
+          type="button"
+          data-ace-config-destination="cadastros"
+        >
+          📁 Cadastros
+        </button>
+
+        ${adminOptions}
+
+      `;
+
+
+      popup
+        .querySelectorAll(
+          "[data-ace-config-destination]"
+        )
+        .forEach(
+          button => {
+
+            const destination =
+              button.dataset
+                .aceConfigDestination;
+
+
+            button.classList.toggle(
+              "active",
+              targetMatchesTab(
+                "cadastro",
+                activeOriginalTab()
+              )
+              &&
+              typeof getAceConfigurationDestination ===
+                "function"
+              &&
+              getAceConfigurationDestination() ===
+                destination
+            );
+
+
+            button.onclick =
+              event => {
+
+                event.stopPropagation();
+
+                openConfigurationDestination(
+                  destination
+                );
+
+              };
+
+          }
+        );
+
+
+      const optionsWrap =
+        popup.querySelector(
+          ".ace-settings-options-wrap"
+        );
+
+
+      const optionsTrigger =
+        popup.querySelector(
+          "[data-ace-settings-options-trigger]"
+        );
+
+
+      if (
+        optionsWrap &&
+        optionsTrigger
+      ) {
+
+        optionsTrigger.onclick =
+          event => {
+
+            event.stopPropagation();
+
+            optionsWrap.classList.toggle(
+              "open"
+            );
+
+          };
+
+      }
+
+    } else {
+
+      popup.innerHTML =
+        group.items
+          .map(
+            item => `
+              <button
+                type="button"
+                data-ace-group-target="${item.target}"
+              >
+                ${item.label}
+              </button>
+            `
+          )
+          .join("");
+
+
+      popup
+        .querySelectorAll(
+          "[data-ace-group-target]"
+        )
+        .forEach(
+          button => {
+
+            button.onclick =
+              () =>
+                openOriginal(
+                  button.dataset
+                    .aceGroupTarget
+                );
+
+          }
+        );
+
+    }
+
+
+    const rect =
+      trigger.getBoundingClientRect();
+
+
+    const popupWidth =
+      groupKey ===
+        "settings"
+        ? 245
+        : 250;
+
+
+    const left =
+      Math.min(
+        Math.max(
+          10,
+          rect.left
+        ),
+        Math.max(
+          10,
+          window.innerWidth -
+            popupWidth -
+            10
+        )
+      );
+
+
+    popup.style.left =
+      `${left}px`;
+
+
+    popup.style.top =
+      `${
+        Math.min(
+          window.innerHeight - 20,
+          rect.bottom + 7
+        )
+      }px`;
+
+
+    if (
+      groupKey ===
+        "settings"
+      &&
+      left +
+        popupWidth +
+        275 >
+        window.innerWidth -
+        10
+    ) {
+
+      popup.classList.add(
+        "ace-settings-submenu-left"
+      );
+
+    }
+
+
+    popup.classList.add(
+      "open"
+    );
+
+
+    trigger.classList.add(
+      "open"
+    );
+
 
     updateDesktopGroupState();
+
   }
 
   function createDesktopGroupSlot(groupKey, order) {
@@ -56433,6 +56864,7 @@ window.aceBuildStatisticsReportHtml =
     tabs.appendChild(createDesktopGroupSlot("movements", 40));
     tabs.appendChild(createDesktopGroupSlot("queries", 50));
     tabs.appendChild(createDesktopGroupSlot("management", 60));
+    tabs.appendChild(createDesktopGroupSlot("settings", 70));
 
     updateDesktopGroupState();
     return true;
@@ -56449,9 +56881,39 @@ window.aceBuildStatisticsReportHtml =
   }
 
   function groupContainsActive(groupKey) {
-    const active = activeOriginalTab();
-    const group = groups[groupKey];
-    return Boolean(group && group.items.some(item => targetMatchesTab(item.target, active)));
+
+    const active =
+      activeOriginalTab();
+
+
+    if (
+      groupKey ===
+      "settings"
+    ) {
+
+      return targetMatchesTab(
+        "cadastro",
+        active
+      );
+
+    }
+
+
+    const group =
+      groups[groupKey];
+
+
+    return Boolean(
+      group &&
+      group.items.some(
+        item =>
+          targetMatchesTab(
+            item.target,
+            active
+          )
+      )
+    );
+
   }
 
   function updateDesktopGroupState() {
@@ -56541,12 +57003,88 @@ window.aceBuildStatisticsReportHtml =
         <div class="ace-more-accordion">
           ${accordionSection("queries", "🗂️", "Consultas", groups.queries.items)}
           ${accordionSection("management", "📈", "Gestão", groups.management.items)}
-          ${accordionSection(
-            "settings",
-            "⚙️",
-            "Configurações",
-            [{ target: "cadastro", label: "⚙️ Configurações" }]
-          )}
+          <div
+            class="ace-more-accordion-section"
+            data-ace-more-section="settings"
+          >
+
+            <button
+              class="ace-more-accordion-trigger"
+              type="button"
+              data-ace-more-toggle="settings"
+              aria-expanded="false"
+            >
+              <span class="ace-more-accordion-title">
+                ⚙️ Configurações
+              </span>
+
+              <span
+                class="ace-more-accordion-arrow"
+                aria-hidden="true"
+              >
+                ›
+              </span>
+            </button>
+
+
+            <div class="ace-more-accordion-panel">
+
+              <button
+                class="ace-group-sheet-item"
+                type="button"
+                data-ace-config-destination="cadastros"
+              >
+                📁 Cadastros
+              </button>
+
+              ${
+                canUseAceAdminSettings()
+                  ? `
+                      <div class="ace-settings-mobile-level2">
+
+                        <button
+                          class="ace-settings-mobile-options-trigger"
+                          type="button"
+                          data-ace-mobile-settings-options
+                        >
+                          <span>
+                            ⚙️ Opções
+                          </span>
+
+                          <span class="ace-settings-mobile-options-arrow">
+                            ›
+                          </span>
+                        </button>
+
+
+                        <div class="ace-settings-mobile-options-panel">
+
+                          <button
+                            class="ace-group-sheet-item"
+                            type="button"
+                            data-ace-config-destination="admin"
+                          >
+                            🔐 Administração do sistema
+                          </button>
+
+                          <button
+                            class="ace-group-sheet-item"
+                            type="button"
+                            data-ace-config-destination="chat"
+                          >
+                            💬 Gerenciar chats
+                          </button>
+
+                        </div>
+
+                      </div>
+                    `
+                  : ""
+              }
+
+            </div>
+
+          </div>
         </div>
       `;
 
@@ -56579,6 +57117,72 @@ window.aceBuildStatisticsReportHtml =
 
       button.onclick = () => openOriginal(button.dataset.aceSheetTarget);
     });
+
+
+    content
+      .querySelectorAll(
+        "[data-ace-config-destination]"
+      )
+      .forEach(
+        button => {
+
+          const destination =
+            button.dataset
+              .aceConfigDestination;
+
+
+          button.classList.toggle(
+            "active",
+            targetMatchesTab(
+              "cadastro",
+              activeOriginalTab()
+            )
+            &&
+            typeof getAceConfigurationDestination ===
+              "function"
+            &&
+            getAceConfigurationDestination() ===
+              destination
+          );
+
+
+          button.onclick =
+            () =>
+              openConfigurationDestination(
+                destination
+              );
+
+        }
+      );
+
+
+    const mobileSettingsOptions =
+      content.querySelector(
+        "[data-ace-mobile-settings-options]"
+      );
+
+
+    if (
+      mobileSettingsOptions
+    ) {
+
+      mobileSettingsOptions.onclick =
+        event => {
+
+          event.stopPropagation();
+
+          mobileSettingsOptions
+            .closest(
+              ".ace-settings-mobile-level2"
+            )
+            ?.classList.toggle(
+              "open"
+            );
+
+        };
+
+    }
+
 
     sheet.classList.add("open");
   }
@@ -56658,35 +57262,225 @@ window.aceBuildStatisticsReportHtml =
   }
 
   function aceBuildGroupedMobileDrawer() {
-    const drawerList = document.getElementById("aceMobileDrawerList");
-    if (!drawerList) return;
 
-    const directButton = (target, label) => `
-      <button class="ace-drawer-item" type="button" data-ace-open-page="${target}">
-        <span>${label}</span>
-      </button>
-    `;
+    const drawerList =
+      document.getElementById(
+        "aceMobileDrawerList"
+      );
 
-    const section = (title, items) => `
-      <div class="ace-drawer-section">
-        <div class="ace-drawer-section-title">${title}</div>
-        ${items.map(item => directButton(item.target, item.label)).join("")}
-      </div>
-    `;
+
+    if (!drawerList) {
+      return;
+    }
+
+
+    const directButton =
+      (
+        target,
+        label
+      ) => `
+        <button
+          class="ace-drawer-item"
+          type="button"
+          data-ace-open-page="${target}"
+        >
+          <span>
+            ${label}
+          </span>
+        </button>
+      `;
+
+
+    const section =
+      (
+        title,
+        items
+      ) => `
+        <div class="ace-drawer-section">
+
+          <div class="ace-drawer-section-title">
+            ${title}
+          </div>
+
+          ${
+            items
+              .map(
+                item =>
+                  directButton(
+                    item.target,
+                    item.label
+                  )
+              )
+              .join("")
+          }
+
+        </div>
+      `;
+
+
+    const settingsAdmin =
+      canUseAceAdminSettings()
+        ? `
+            <div class="ace-drawer-settings-level2">
+
+              <button
+                type="button"
+                class="ace-drawer-settings-toggle"
+                data-ace-drawer-settings-toggle
+              >
+                <span>
+                  ⚙️ Opções
+                </span>
+
+                <span>
+                  ›
+                </span>
+              </button>
+
+
+              <div class="ace-drawer-settings-panel">
+
+                <button
+                  class="ace-drawer-item"
+                  type="button"
+                  data-ace-config-destination="admin"
+                >
+                  <span>
+                    🔐 Administração do sistema
+                  </span>
+                </button>
+
+                <button
+                  class="ace-drawer-item"
+                  type="button"
+                  data-ace-config-destination="chat"
+                >
+                  <span>
+                    💬 Gerenciar chats
+                  </span>
+                </button>
+
+              </div>
+
+            </div>
+          `
+        : "";
+
 
     drawerList.innerHTML = `
-      ${directButton("mural", "📣 Mural ACE")}
-      ${directButton("inicio", "🏠 Início")}
-      ${directButton("presenca", "👥 Presença")}
-      ${section("Movimentações", groups.movements.items)}
-      ${section("Consultas", groups.queries.items)}
-      ${section("Gestão", groups.management.items)}
-      ${directButton("cadastro", "⚙️ Configurações")}
+
+      ${directButton(
+        "mural",
+        "📣 Mural ACE"
+      )}
+
+      ${directButton(
+        "inicio",
+        "🏠 Início"
+      )}
+
+      ${directButton(
+        "presenca",
+        "👥 Presença"
+      )}
+
+      ${section(
+        "Movimentações",
+        groups.movements.items
+      )}
+
+      ${section(
+        "Consultas",
+        groups.queries.items
+      )}
+
+      ${section(
+        "Gestão",
+        groups.management.items
+      )}
+
+
+      <div class="ace-drawer-section">
+
+        <div class="ace-drawer-section-title">
+          Configurações
+        </div>
+
+        <button
+          class="ace-drawer-item"
+          type="button"
+          data-ace-config-destination="cadastros"
+        >
+          <span>
+            📁 Cadastros
+          </span>
+        </button>
+
+        ${settingsAdmin}
+
+      </div>
+
     `;
 
-    drawerList.querySelectorAll("[data-ace-open-page]").forEach(button => {
-      button.onclick = () => openOriginal(button.dataset.aceOpenPage);
-    });
+
+    drawerList
+      .querySelectorAll(
+        "[data-ace-open-page]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            () =>
+              openOriginal(
+                button.dataset
+                  .aceOpenPage
+              );
+
+        }
+      );
+
+
+    drawerList
+      .querySelectorAll(
+        "[data-ace-config-destination]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            () =>
+              openConfigurationDestination(
+                button.dataset
+                  .aceConfigDestination
+              );
+
+        }
+      );
+
+
+    const optionsToggle =
+      drawerList.querySelector(
+        "[data-ace-drawer-settings-toggle]"
+      );
+
+
+    if (
+      optionsToggle
+    ) {
+
+      optionsToggle.onclick =
+        () =>
+          optionsToggle
+            .closest(
+              ".ace-drawer-settings-level2"
+            )
+            ?.classList.toggle(
+              "open"
+            );
+
+    }
+
   }
 
   function updateAllNavigationState() {
