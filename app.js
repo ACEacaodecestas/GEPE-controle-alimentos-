@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-1",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-2",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -50947,6 +50947,9 @@ function setupAceInventoryRealtime() {
 // estatístico incluído no Relatório Geral.
 // ============================================================
 
+let aceStatsEvolutionMetric =
+  "entries";
+
 function aceStatsEsc(value) {
   try {
     if (typeof esc === "function") return esc(value ?? "");
@@ -51452,6 +51455,107 @@ function aceStatsEnsureStyles() {
       border-radius:999px;
     }
 
+    #estatisticas .ace-stats-evolution-controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:0 0 14px;
+    }
+
+    #estatisticas .ace-stats-evolution-button{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:7px;
+      min-height:38px;
+      padding:8px 14px;
+      border:1px solid #cbdce9;
+      border-radius:999px;
+      background:#f7fbfe;
+      color:#46647b;
+      font:inherit;
+      font-size:12px;
+      font-weight:900;
+      cursor:pointer;
+      transition:
+        transform .16s ease,
+        background .16s ease,
+        border-color .16s ease,
+        color .16s ease,
+        box-shadow .16s ease;
+    }
+
+    #estatisticas .ace-stats-evolution-button:hover{
+      transform:translateY(-1px);
+      border-color:#83b6dc;
+      background:#eef7fd;
+    }
+
+    #estatisticas .ace-stats-evolution-button.active{
+      border-color:var(--ace-evolution-color,#0b5fa5);
+      background:var(--ace-evolution-color,#0b5fa5);
+      color:#fff;
+      box-shadow:0 7px 17px rgba(11,95,165,.18);
+    }
+
+    #estatisticas .ace-stats-evolution-button i{
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--ace-evolution-color,#0b5fa5);
+    }
+
+    #estatisticas .ace-stats-evolution-button.active i{
+      background:#fff;
+    }
+
+    #estatisticas .ace-stats-evolution-summary{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:9px;
+      margin-top:12px;
+    }
+
+    #estatisticas .ace-stats-evolution-summary > div{
+      padding:11px 12px;
+      border:1px solid #deebf3;
+      border-radius:12px;
+      background:#f8fbfd;
+      color:#617789;
+      font-size:11px;
+      font-weight:800;
+      line-height:1.35;
+    }
+
+    #estatisticas .ace-stats-evolution-summary strong{
+      display:block;
+      margin-top:3px;
+      color:#123f60;
+      font-size:14px;
+      font-weight:950;
+    }
+
+    #estatisticas .ace-stats-evolution-empty{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      min-height:190px;
+      padding:24px;
+      border:1px dashed #cbdde9;
+      border-radius:14px;
+      background:#f8fbfd;
+      color:#5f7689;
+      text-align:center;
+      line-height:1.55;
+    }
+
+    #estatisticas .ace-stats-evolution-empty strong{
+      margin-bottom:5px;
+      color:#164c70;
+      font-size:15px;
+    }
+
     @media(max-width:1100px){
       #estatisticas .ace-stats-filter-card{
         grid-template-columns:repeat(3,minmax(0,1fr));
@@ -51513,6 +51617,19 @@ function aceStatsEnsureStyles() {
 
       #estatisticas .ace-stats-bar-row{
         grid-template-columns:minmax(76px,115px) minmax(0,1fr) auto;
+      }
+
+      #estatisticas .ace-stats-evolution-controls{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+
+      #estatisticas .ace-stats-evolution-button{
+        width:100%;
+      }
+
+      #estatisticas .ace-stats-evolution-summary{
+        grid-template-columns:1fr;
       }
     }
   `;
@@ -52318,12 +52435,35 @@ function aceStatsEvolutionChart(
 
   if (!months.length) {
     return `
-      <div class="ace-stats-chart-card">
+      <div class="ace-stats-chart-card" style="grid-column:1/-1;">
         <div class="ace-stats-chart-title">
           Evolução mensal
         </div>
         <div class="ace-stats-empty">
           Sem dados no período selecionado.
+        </div>
+      </div>
+    `;
+  }
+
+
+  if (months.length < 2) {
+    return `
+      <div class="ace-stats-chart-card" style="grid-column:1/-1;">
+        <div class="ace-stats-chart-title">
+          Evolução mensal
+        </div>
+
+        <div class="ace-stats-evolution-empty">
+          <strong>
+            Ainda não há meses suficientes para comparar
+          </strong>
+
+          <span>
+            Existe movimentação registrada em apenas um mês.
+            Quando houver dados em pelo menos dois meses, o gráfico
+            mostrará valores exatos e a variação entre eles.
+          </span>
         </div>
       </div>
     `;
@@ -52364,23 +52504,36 @@ function aceStatsEvolutionChart(
     }
   ];
 
+
+  const selectedSeries =
+    series.find(
+      item =>
+        item.key ===
+        aceStatsEvolutionMetric
+    ) ||
+    series[0];
+
+
+  aceStatsEvolutionMetric =
+    selectedSeries.key;
+
   const width =
     760;
 
   const height =
-    285;
+    305;
 
   const left =
-    50;
+    58;
 
   const right =
-    18;
+    24;
 
   const top =
-    22;
+    36;
 
   const bottom =
-    42;
+    48;
 
   const innerWidth =
     width - left - right;
@@ -52389,21 +52542,23 @@ function aceStatsEvolutionChart(
     height - top - bottom;
 
   const values =
-    months.flatMap(month =>
-      series.map(item =>
-        Number(
-          monthMap.get(month)?.[
-            item.key
-          ] || 0
-        )
+    months.map(month =>
+      Number(
+        monthMap.get(month)?.[
+          selectedSeries.key
+        ] || 0
       )
     );
 
-  const max =
+  const rawMax =
     Math.max(
       1,
       ...values
     );
+
+
+  const max =
+    rawMax;
 
   const xFor =
     index =>
@@ -52453,6 +52608,96 @@ function aceStatsEvolutionChart(
       }/${String(year).slice(-2)}`;
     };
 
+
+  const variationInfo =
+    (current, previous, index) => {
+
+      if (index === 0) {
+        return {
+          short: "Primeiro mês da comparação",
+          full: "Primeiro mês da comparação",
+          tone: "#617789"
+        };
+      }
+
+
+      const difference =
+        Number(current || 0) -
+        Number(previous || 0);
+
+
+      if (difference === 0) {
+        return {
+          short: "Sem alteração",
+          full: "Sem alteração em relação ao mês anterior",
+          tone: "#617789"
+        };
+      }
+
+
+      const direction =
+        difference > 0
+          ? "Aumento"
+          : "Redução";
+
+
+      const signal =
+        difference > 0
+          ? "+"
+          : "−";
+
+
+      const absoluteDifference =
+        Math.abs(difference);
+
+
+      if (!Number(previous || 0)) {
+        return {
+          short:
+            `${signal}${aceStatsFmt(absoluteDifference)}`,
+          full:
+            `${direction} de ${aceStatsFmt(absoluteDifference)}; o mês anterior estava zerado`,
+          tone:
+            difference > 0
+              ? "#16784b"
+              : "#b04b4b"
+        };
+      }
+
+
+      const percentage =
+        Math.abs(
+          difference /
+          Number(previous) *
+          100
+        );
+
+
+      const percentageText =
+        new Intl.NumberFormat(
+          "pt-BR",
+          {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1
+          }
+        ).format(
+          percentage
+        );
+
+
+      return {
+        short:
+          `${signal}${aceStatsFmt(absoluteDifference)} (${signal}${percentageText}%)`,
+        full:
+          `${direction} de ${aceStatsFmt(absoluteDifference)} (${percentageText}%) em relação ao mês anterior`,
+        tone:
+          difference > 0
+            ? "#16784b"
+            : "#b04b4b"
+      };
+
+    };
+
   const grid =
     [0, .25, .5, .75, 1]
       .map(part => {
@@ -52464,7 +52709,7 @@ function aceStatsEvolutionChart(
 
         const value =
           Math.round(
-            max *
+            rawMax *
             part
           );
 
@@ -52492,66 +52737,79 @@ function aceStatsEvolutionChart(
       })
       .join("");
 
-  const paths =
-    series.map(item => {
-      const points =
-        months.map(
-          (month, index) => {
-            const value =
-              Number(
-                monthMap.get(month)?.[
-                  item.key
-                ] || 0
-              );
+  const points =
+    months.map(
+      (month, index) =>
+        `${xFor(index)},${yFor(values[index])}`
+    )
+      .join(" ");
 
-            return `${
-              xFor(index)
-            },${
-              yFor(value)
-            }`;
-          }
-        )
-          .join(" ");
 
-      const circles =
-        months.map(
-          (month, index) => {
-            const value =
-              Number(
-                monthMap.get(month)?.[
-                  item.key
-                ] || 0
-              );
+  const circles =
+    months.map(
+      (month, index) => {
 
-            return `
-              <circle
-                cx="${xFor(index)}"
-                cy="${yFor(value)}"
-                r="3.5"
-                fill="${item.color}"
-              >
-                <title>
-                  ${aceStatsEsc(item.label)}:
-                  ${aceStatsFmt(value)}
-                </title>
-              </circle>
-            `;
-          }
-        )
-          .join("");
+        const value =
+          values[index];
 
-      return `
-        <polyline
-          fill="none"
-          stroke="${item.color}"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          points="${points}"
-        />
-        ${circles}
-      `;
-    })
+
+        const previous =
+          index > 0
+            ? values[index - 1]
+            : 0;
+
+
+        const variation =
+          variationInfo(
+            value,
+            previous,
+            index
+          );
+
+
+        const labelY =
+          Math.max(
+            15,
+            yFor(value) - 11
+          );
+
+
+        return `
+          <g>
+            <circle
+              cx="${xFor(index)}"
+              cy="${yFor(value)}"
+              r="5"
+              fill="#fff"
+              stroke="${selectedSeries.color}"
+              stroke-width="3"
+              tabindex="0"
+            >
+              <title>
+                ${aceStatsEsc(labelMonth(month))} —
+                ${aceStatsEsc(selectedSeries.label)}:
+                ${aceStatsFmt(value)}.
+                ${aceStatsEsc(variation.full)}.
+              </title>
+            </circle>
+
+            <text
+              x="${xFor(index)}"
+              y="${labelY}"
+              text-anchor="middle"
+              font-size="12"
+              font-weight="900"
+              fill="${selectedSeries.color}"
+            >
+              ${aceStatsEsc(
+                aceStatsFmt(value)
+              )}
+            </text>
+          </g>
+        `;
+
+      }
+    )
       .join("");
 
   const labels =
@@ -52573,18 +52831,64 @@ function aceStatsEvolutionChart(
     )
       .join("");
 
+
+  const latestIndex =
+    months.length - 1;
+
+
+  const latestMonth =
+    months[latestIndex];
+
+
+  const previousMonth =
+    months[latestIndex - 1];
+
+
+  const latestValue =
+    values[latestIndex];
+
+
+  const previousValue =
+    values[latestIndex - 1];
+
+
+  const latestVariation =
+    variationInfo(
+      latestValue,
+      previousValue,
+      latestIndex
+    );
+
   return `
     <div class="ace-stats-chart-card" style="grid-column:1/-1;">
       <div class="ace-stats-chart-title">
-        Evolução mensal — últimos 6 meses com movimentação
+        Evolução mensal — ${aceStatsEsc(selectedSeries.label)}
       </div>
 
-      <div class="ace-stats-evolution-legend">
+      <div
+        class="ace-stats-evolution-controls"
+        role="group"
+        aria-label="Indicador da evolução mensal"
+      >
         ${series.map(item => `
-          <span>
-            <i style="background:${item.color};"></i>
+          <button
+            type="button"
+            class="ace-stats-evolution-button ${
+              item.key === selectedSeries.key
+                ? "active"
+                : ""
+            }"
+            style="--ace-evolution-color:${item.color};"
+            data-ace-stats-evolution-metric="${item.key}"
+            aria-pressed="${
+              item.key === selectedSeries.key
+                ? "true"
+                : "false"
+            }"
+          >
+            <i></i>
             ${aceStatsEsc(item.label)}
-          </span>
+          </button>
         `).join("")}
       </div>
 
@@ -52595,9 +52899,42 @@ function aceStatsEvolutionChart(
           aria-label="Evolução mensal"
         >
           ${grid}
-          ${paths}
+          <polyline
+            fill="none"
+            stroke="${selectedSeries.color}"
+            stroke-width="3.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            points="${points}"
+          />
+          ${circles}
           ${labels}
         </svg>
+      </div>
+
+      <div class="ace-stats-evolution-summary">
+        <div>
+          Mês atual
+          <strong>
+            ${aceStatsEsc(labelMonth(latestMonth))} —
+            ${aceStatsFmt(latestValue)}
+          </strong>
+        </div>
+
+        <div>
+          Mês anterior
+          <strong>
+            ${aceStatsEsc(labelMonth(previousMonth))} —
+            ${aceStatsFmt(previousValue)}
+          </strong>
+        </div>
+
+        <div>
+          Variação mensal
+          <strong style="color:${latestVariation.tone};">
+            ${aceStatsEsc(latestVariation.short)}
+          </strong>
+        </div>
       </div>
     </div>
   `;
@@ -53185,6 +53522,41 @@ function renderAceStatistics() {
 
     </section>
   `;
+
+
+  body
+    .querySelectorAll(
+      "[data-ace-stats-evolution-metric]"
+    )
+    .forEach(button => {
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          const metric =
+            String(
+              button.dataset
+                .aceStatsEvolutionMetric ||
+              ""
+            );
+
+
+          if (!metric) {
+            return;
+          }
+
+
+          aceStatsEvolutionMetric =
+            metric;
+
+
+          renderAceStatistics();
+
+        }
+      );
+
+    });
 }
 
 
