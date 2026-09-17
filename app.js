@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-editar-nome-cesta-v43";
+  "2026.09.17-pwa-destino-outro-cestas-v44";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -29625,6 +29625,14 @@ function ensureBasketStyles() {
       display:flex;
     }
 
+    .ace-basket-other-destination{
+      display:none;
+    }
+
+    .ace-basket-other-destination.show{
+      display:flex;
+    }
+
     .ace-basket-register{
       width:100%;
       margin-top:13px;
@@ -33734,7 +33742,24 @@ function renderBasketModule() {
                           <option value="Comunidade">
                             Comunidade
                           </option>
+                          <option value="Outro">
+                            Outro
+                          </option>
                         </select>
+                      </label>
+
+                      <label
+                        class="ace-basket-field ace-basket-other-destination"
+                        data-basket-other-destination-wrap="${basket.id}"
+                      >
+                        Informe o destino
+                        <input
+                          type="text"
+                          maxlength="120"
+                          autocomplete="off"
+                          data-basket-other-destination="${basket.id}"
+                          placeholder="Ex.: Associação São José"
+                        >
                       </label>
 
                       <label
@@ -34080,27 +34105,87 @@ function renderBasketModule() {
               `[data-basket-received-wrap="${basketId}"]`
             );
 
+
           const input =
             module.querySelector(
               `[data-basket-received="${basketId}"]`
             );
 
+
+          const otherWrap =
+            module.querySelector(
+              `[data-basket-other-destination-wrap="${basketId}"]`
+            );
+
+
+          const otherInput =
+            module.querySelector(
+              `[data-basket-other-destination="${basketId}"]`
+            );
+
+
           const community =
             select.value ===
             "Comunidade";
 
+
+          const other =
+            select.value ===
+            "Outro";
+
+
           if (wrap) {
+
             wrap.classList.toggle(
               "show",
               community
             );
+
           }
+
+
+          if (otherWrap) {
+
+            otherWrap.classList.toggle(
+              "show",
+              other
+            );
+
+          }
+
 
           if (
             input &&
             !community
           ) {
-            input.value = "";
+
+            input.value =
+              "";
+
+          }
+
+
+          if (
+            otherInput &&
+            !other
+          ) {
+
+            otherInput.value =
+              "";
+
+          }
+
+
+          if (
+            other &&
+            otherInput
+          ) {
+
+            requestAnimationFrame(
+              () =>
+                otherInput.focus()
+            );
+
           }
 
         }
@@ -34156,10 +34241,44 @@ function renderBasketModule() {
                   basketId
               );
 
-          const destination =
+          const destinationSelect =
             module.querySelector(
               `[data-basket-destination="${basketId}"]`
-            )?.value || "";
+            );
+
+
+          const selectedDestination =
+            String(
+              destinationSelect?.value ||
+              ""
+            )
+              .trim();
+
+
+          const otherDestinationInput =
+            module.querySelector(
+              `[data-basket-other-destination="${basketId}"]`
+            );
+
+
+          const customDestination =
+            String(
+              otherDestinationInput?.value ||
+              ""
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
+
+
+          const destination =
+            selectedDestination ===
+              "Outro"
+              ? customDestination
+              : selectedDestination;
+
 
           const qty =
             Number(
@@ -34171,12 +34290,35 @@ function renderBasketModule() {
           const receivedBy =
             "";
 
-          if (!destination) {
+          if (!selectedDestination) {
+
             toast(
               "Selecione o destino da cesta."
             );
+
+            destinationSelect?.focus();
+
             return;
+
           }
+
+
+          if (
+            selectedDestination ===
+              "Outro" &&
+            !customDestination
+          ) {
+
+            toast(
+              "Informe o destino da cesta."
+            );
+
+            otherDestinationInput?.focus();
+
+            return;
+
+          }
+
 
           if (
             !Number.isInteger(qty) ||
