@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-10",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-1",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -3188,8 +3188,12 @@ async function syncOfflineQueue() {
 
       try {
 
-        await syncOfflineOperation(
-          item
+        await aceRunAuthenticatedWrite(
+          () =>
+            syncOfflineOperation(
+              item
+            ),
+          "sincronização das operações offline"
         );
 
 
@@ -6210,6 +6214,12 @@ function isAceJwtExpiredError(
     message.includes(
       "token has expired"
     ) ||
+    message.includes(
+      "jwt issued at future"
+    ) ||
+    message.includes(
+      "invalid jwt"
+    ) ||
     (
       code ===
         "pgrst301" &&
@@ -6222,10 +6232,27 @@ function isAceJwtExpiredError(
 }
 
 
-async function refreshAceSessionForEntryWrite() {
+let aceSessionRefreshPromise =
+  null;
+
+
+async function refreshAceSessionForWrite(
+  context = "gravação"
+) {
+
+  // Uma única renovação atende todas as gravações que perceberem
+  // o token vencido ao mesmo tempo. Isso evita várias chamadas de
+  // refresh concorrentes e a invalidação acidental do token novo.
+  if (aceSessionRefreshPromise) {
+    return await aceSessionRefreshPromise;
+  }
+
+
+  aceSessionRefreshPromise =
+    (async () => {
 
   console.warn(
-    "ACE: sessão expirada durante a entrada. Renovando token automaticamente."
+    `ACE: sessão expirada durante ${context}. Renovando token automaticamente.`
   );
 
 
@@ -6312,12 +6339,97 @@ async function refreshAceSessionForEntryWrite() {
 
 
   console.log(
-    "ACE: sessão renovada automaticamente. Repetindo a entrada."
+    `ACE: sessão renovada automaticamente. Repetindo ${context}.`
   );
 
 
   return data.session;
 
+    })();
+
+
+  try {
+    return await aceSessionRefreshPromise;
+  } finally {
+    aceSessionRefreshPromise =
+      null;
+  }
+
+}
+
+
+async function aceRunAuthenticatedWrite(
+  operation,
+  context = "a gravação"
+) {
+
+  const execute =
+    async () => {
+
+      const result =
+        await operation();
+
+
+      // Aceita tanto callbacks que lançam erro quanto chamadas diretas
+      // do Supabase, que retornam o erro dentro do próprio resultado.
+      if (result?.error) {
+        throw result.error;
+      }
+
+
+      return result;
+
+    };
+
+
+  try {
+    return await execute();
+  } catch (error) {
+
+    if (!isAceJwtExpiredError(error)) {
+      throw error;
+    }
+
+
+    await refreshAceSessionForWrite(
+      context
+    );
+
+
+    try {
+      return await execute();
+    } catch (retryError) {
+
+      if (!isAceJwtExpiredError(retryError)) {
+        throw retryError;
+      }
+
+
+      const sessionError =
+        new Error(
+          "Sua sessão expirou e não pôde ser renovada automaticamente. Entre novamente para continuar."
+        );
+
+
+      sessionError.code =
+        "ACE_SESSION_EXPIRED";
+
+
+      throw sessionError;
+
+    }
+
+  }
+
+}
+
+
+// Compatibilidade com chamadas antigas: toda renovação agora passa pelo
+// mesmo controlador central, inclusive Entrada e Inventário.
+async function refreshAceSessionForEntryWrite() {
+  return await refreshAceSessionForWrite(
+    "a entrada"
+  );
 }
 
 
@@ -6563,39 +6675,10 @@ async function insertEntry({
 
   try {
 
-    try {
-
-      await writeEntryToSupabase();
-
-
-    } catch (error) {
-
-      // ======================================================
-      // CORREÇÃO JWT EXPIRED
-      //
-      // O token pode vencer com o sistema aberto.
-      // Nesse caso a entrada NÃO falha para o usuário:
-      // renovamos a sessão e repetimos a mesma gravação 1 vez.
-      //
-      // Como os IDs são os mesmos e a operação usa UPSERT,
-      // a repetição é idempotente e não duplica a entrada.
-      // ======================================================
-
-      if (
-        !isAceJwtExpiredError(
-          error
-        )
-      ) {
-        throw error;
-      }
-
-
-      await refreshAceSessionForEntryWrite();
-
-
-      await writeEntryToSupabase();
-
-    }
+    await aceRunAuthenticatedWrite(
+      writeEntryToSupabase,
+      "a entrada"
+    );
 
 
     applyLocalEntry({
@@ -6921,46 +7004,60 @@ async function insertMovement({
 
   try {
 
-    const {
-      error
-    } =
-      await supabaseClient
-        .from(
-          table
-        )
-        .upsert(
-          row,
-          {
-            onConflict:
-              "id"
-          }
-        );
+    await aceRunAuthenticatedWrite(
+      async () => {
+
+        const {
+          error
+        } =
+          await supabaseClient
+            .from(
+              table
+            )
+            .upsert(
+              row,
+              {
+                onConflict:
+                  "id"
+              }
+            );
 
 
-    if (error) {
-      throw error;
-    }
+        if (error) {
+          throw error;
+        }
 
 
-    const {
-      error: historyError
-    } =
-      await supabaseClient
-        .from(
-          "historico_movimentacoes"
-        )
-        .upsert(
-          historyRow,
-          {
-            onConflict:
-              "id"
-          }
-        );
+        const {
+          error: historyError
+        } =
+          await supabaseClient
+            .from(
+              "historico_movimentacoes"
+            )
+            .upsert(
+              historyRow,
+              {
+                onConflict:
+                  "id"
+              }
+            );
 
 
-    if (historyError) {
-      throw historyError;
-    }
+        if (historyError) {
+          throw historyError;
+        }
+
+
+        return {
+          error: null
+        };
+
+      },
+      type === "perda"
+        ? "o registro da perda"
+        : "o registro da saída"
+    );
 
 
     // A movimentação já foi confirmada no Supabase.
@@ -7126,14 +7223,13 @@ async function updateEntryHistoryAfterEdit({
   }
 
 
-  const {
-    error
-  } =
-    await supabaseClient
-      .from(
-        "historico_movimentacoes"
-      )
-      .update({
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient
+        .from(
+          "historico_movimentacoes"
+        )
+        .update({
         data:
           date,
         tipo:
@@ -7156,33 +7252,32 @@ async function updateEntryHistoryAfterEdit({
           "—",
         observacao:
           note || ""
-      })
-      .eq(
-        "id",
-        targetHistoryId
-      );
-
-
-  if (error) {
-    throw error;
-  }
+        })
+        .eq(
+          "id",
+          targetHistoryId
+        ),
+    "a atualização do histórico da entrada"
+  );
 
 }
 
 
 async function updateEntry({ id, date, originId, foodId, qty, note }) {
-  const { error } = await supabaseClient
-    .from("entradas")
-    .update({
-      data_entrada: date,
-      alimento_id: Number(foodId),
-      quantidade: Number(qty),
-      origem_id: Number(originId),
-      observacao: note || ""
-    })
-    .eq("id", Number(id));
-
-  if (error) throw error;
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient
+        .from("entradas")
+        .update({
+          data_entrada: date,
+          alimento_id: Number(foodId),
+          quantidade: Number(qty),
+          origem_id: Number(originId),
+          observacao: note || ""
+        })
+        .eq("id", Number(id)),
+    "a edição da entrada"
+  );
 }
 
 async function updateMovement({ id, type, date, originId, foodId, qty, reasonId, note }) {
@@ -7210,61 +7305,176 @@ async function updateMovement({ id, type, date, originId, foodId, qty, reasonId,
         : 0
   });
 
-  if (
-    movement.sourceTable !==
-    (type === "saida" ? "saídas" : "perdas")
-  ) {
-    await deleteMovement(id);
+  const targetTable =
+    type === "saida"
+      ? "saídas"
+      : "perdas";
 
-    await insertMovement({
-      date,
-      type,
-      originId,
-      foodId,
-      qty: Number(qty),
-      reasonId,
-      note
-    });
 
-    return;
-  }
+  const reasonName =
+    db.reasons.find(
+      r => r.id === reasonId
+    )?.name ||
+    reasonId ||
+    "Outro";
 
   const payload =
     type === "saida"
       ? {
+          id: Number(movement.rawId),
           data_saida: date,
           alimento_id: Number(foodId),
           quantidade: Number(qty),
           origem_id: Number(originId),
           destino: note || "",
-          motivo:
-            db.reasons.find(r => r.id === reasonId)?.name ||
-            reasonId ||
-            "Outro"
+          motivo: reasonName,
+          usuario_id:
+            movement.usuarioId ||
+            getCurrentUserId()
         }
       : {
+          id: Number(movement.rawId),
           data_perda: date,
           alimento_id: Number(foodId),
           quantidade: Number(qty),
           origem_id: Number(originId),
-          motivo:
-            db.reasons.find(r => r.id === reasonId)?.name ||
-            reasonId ||
-            "Outro",
-          observacao: note || ""
+          motivo: reasonName,
+          observacao: note || "",
+          usuario_id:
+            movement.usuarioId ||
+            getCurrentUserId()
         };
 
-  const { error } = await supabaseClient
-    .from(movement.sourceTable)
-    .update(payload)
-    .eq("id", Number(movement.rawId));
 
-  if (error) throw error;
+  if (
+    movement.sourceTable ===
+    targetTable
+  ) {
+
+    const updatePayload =
+      { ...payload };
+
+    delete updatePayload.id;
+    delete updatePayload.usuario_id;
+
+
+    await aceRunAuthenticatedWrite(
+      () =>
+        supabaseClient
+          .from(
+            movement.sourceTable
+          )
+          .update(
+            updatePayload
+          )
+          .eq(
+            "id",
+            Number(movement.rawId)
+          ),
+      "a edição da movimentação"
+    );
+
+
+    return {
+      typeChanged: false,
+      rawId: Number(movement.rawId),
+      sourceTable:
+        movement.sourceTable,
+      targetTable
+    };
+
+  }
+
+
+  // TROCA SAÍDA ↔ PERDA
+  //
+  // Mantém o mesmo ID da movimentação e NÃO chama insertMovement(),
+  // pois ela criaria outra linha em historico_movimentacoes. O histórico
+  // original será atualizado uma única vez por saveRecentEdit().
+  await aceRunAuthenticatedWrite(
+    async () => {
+
+      const {
+        error: targetError
+      } =
+        await supabaseClient
+          .from(
+            targetTable
+          )
+          .upsert(
+            payload,
+            {
+              onConflict: "id"
+            }
+          );
+
+
+      if (targetError) {
+        throw targetError;
+      }
+
+
+      const {
+        error: sourceDeleteError
+      } =
+        await supabaseClient
+          .from(
+            movement.sourceTable
+          )
+          .delete()
+          .eq(
+            "id",
+            Number(movement.rawId)
+          );
+
+
+      if (sourceDeleteError) {
+
+        // Compensação: se a linha antiga não pôde ser removida, apaga a
+        // linha recém-criada para não deixar duas movimentações ativas.
+        await supabaseClient
+          .from(
+            targetTable
+          )
+          .delete()
+          .eq(
+            "id",
+            Number(movement.rawId)
+          );
+
+
+        throw sourceDeleteError;
+
+      }
+
+
+      return {
+        error: null
+      };
+
+    },
+    "a troca entre Saída e Perda"
+  );
+
+
+  return {
+    typeChanged: true,
+    rawId: Number(movement.rawId),
+    sourceTable:
+      movement.sourceTable,
+    targetTable
+  };
 }
 
 async function deletePerson(id) {
-  const { error } = await supabaseClient.from("Pessoas").delete().eq("id", Number(id));
-  if (error) throw error;
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient
+        .from("Pessoas")
+        .delete()
+        .eq("id", Number(id)),
+    "a exclusão da pessoa"
+  );
 }
 
 const ACE_HIDDEN_FOOD_IDS_KEY =
@@ -7487,19 +7697,23 @@ async function deleteFood(id) {
       data,
       error
     } =
-      await supabaseClient
-        .from("Alimentos")
-        .update({
+      await aceRunAuthenticatedWrite(
+        () =>
+          supabaseClient
+            .from("Alimentos")
+            .update({
           ativo:
             false
-        })
-        .eq(
-          "id",
-          foodId
-        )
-        .select(
-          "id"
-        );
+            })
+            .eq(
+              "id",
+              foodId
+            )
+            .select(
+              "id"
+            ),
+        "a inativação do alimento"
+      );
 
 
     if (error) {
@@ -7534,8 +7748,14 @@ async function deleteFood(id) {
 }
 
 async function deleteOrigin(id) {
-  const { error } = await supabaseClient.from("origens").delete().eq("id", Number(id));
-  if (error) throw error;
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient
+        .from("origens")
+        .delete()
+        .eq("id", Number(id)),
+    "a exclusão da origem"
+  );
 }
 
 async function deleteReasonLocalOnly(id) {
@@ -7544,15 +7764,27 @@ async function deleteReasonLocalOnly(id) {
 }
 
 async function deleteEntry(id) {
-  const { error } = await supabaseClient.from("entradas").delete().eq("id", Number(id));
-  if (error) throw error;
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient
+        .from("entradas")
+        .delete()
+        .eq("id", Number(id)),
+    "a exclusão da entrada"
+  );
 }
 
 async function deleteMovement(id) {
   const movement = db.movements.find(x => x.id === id);
   if (!movement?.rawId || !movement.sourceTable) throw new Error("Não foi possível identificar a movimentação no Supabase.");
-  const { error } = await supabaseClient.from(movement.sourceTable).delete().eq("id", Number(movement.rawId));
-  if (error) throw error;
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient
+        .from(movement.sourceTable)
+        .delete()
+        .eq("id", Number(movement.rawId)),
+    "a exclusão da movimentação"
+  );
 }
 
 async function setAttendance(
@@ -7639,20 +7871,24 @@ async function setAttendance(
       const {
         error
       } =
-        await table.insert({
-          id:
-            newNumericId(),
-          data:
-            date,
-          pessoa_id:
-            Number(
-              personId
-            ),
-          present:
-            true,
-          usuario_id:
-            getCurrentUserId()
-        });
+        await aceRunAuthenticatedWrite(
+          () =>
+            table.insert({
+              id:
+                newNumericId(),
+              data:
+                date,
+              pessoa_id:
+                Number(
+                  personId
+                ),
+              present:
+                true,
+              usuario_id:
+                getCurrentUserId()
+            }),
+          "o registro da presença"
+        );
 
 
       if (error) {
@@ -7677,18 +7913,22 @@ async function setAttendance(
   const {
     error
   } =
-    await table
-      .delete()
-      .eq(
-        "data",
-        date
-      )
-      .eq(
-        "pessoa_id",
-        Number(
-          personId
-        )
-      );
+    await aceRunAuthenticatedWrite(
+      () =>
+        table
+          .delete()
+          .eq(
+            "data",
+            date
+          )
+          .eq(
+            "pessoa_id",
+            Number(
+              personId
+            )
+          ),
+      "a remoção da presença"
+    );
 
 
   if (error) {
@@ -14789,6 +15029,85 @@ async function saveRecentEdit(id, isEntry) {
 
     } else {
 
+      let historyId =
+        Number(
+          window
+            .aceMovementHistoryEditingId ||
+          0
+        );
+
+
+      // A edição também pode ser aberta por "Últimos lançamentos".
+      // Nesse caso, localiza primeiro o histórico original e reutiliza
+      // exatamente o mesmo ID; nunca cria uma segunda linha.
+      if (!historyId) {
+
+        const matchingHistory =
+          (db.history || [])
+            .filter(
+              history =>
+                history.type ===
+                  original.type &&
+                history.date ===
+                  original.date &&
+                Number(
+                  history.originId
+                ) ===
+                  Number(
+                    original.originId
+                  ) &&
+                Number(
+                  history.foodId
+                ) ===
+                  Number(
+                    original.foodId
+                  ) &&
+                Number(
+                  history.qty
+                ) ===
+                  Number(
+                    original.qty
+                  ) &&
+                (
+                  !history.usuarioId ||
+                  !original.usuarioId ||
+                  String(
+                    history.usuarioId
+                  ) ===
+                    String(
+                      original.usuarioId
+                    )
+                )
+            )
+            .sort(
+              (a, b) =>
+                String(
+                  b.createdAt ||
+                  ""
+                ).localeCompare(
+                  String(
+                    a.createdAt ||
+                    ""
+                  )
+                )
+            )[0];
+
+
+        historyId =
+          Number(
+            matchingHistory?.id ||
+            0
+          );
+
+      }
+
+
+      if (!historyId) {
+        throw new Error(
+          "Não foi possível localizar o histórico original desta movimentação. A edição foi cancelada para evitar duplicidade."
+        );
+      }
+
       await updateMovement({
         id,
         type,
@@ -14799,14 +15118,6 @@ async function saveRecentEdit(id, isEntry) {
         reasonId,
         note
       });
-
-
-      const historyId =
-        Number(
-          window
-            .aceMovementHistoryEditingId ||
-          0
-        );
 
 
       if (historyId) {
@@ -14825,15 +15136,13 @@ async function saveRecentEdit(id, isEntry) {
           "—";
 
 
-        const {
-          error:
-            historyUpdateError
-        } =
-          await supabaseClient
-            .from(
-              "historico_movimentacoes"
-            )
-            .update({
+        await aceRunAuthenticatedWrite(
+          () =>
+            supabaseClient
+              .from(
+                "historico_movimentacoes"
+              )
+              .update({
               data:
                 date,
               tipo:
@@ -14856,18 +15165,13 @@ async function saveRecentEdit(id, isEntry) {
                 "—",
               observacao:
                 note || ""
-            })
-            .eq(
-              "id",
-              historyId
-            );
-
-
-        if (
-          historyUpdateError
-        ) {
-          throw historyUpdateError;
-        }
+              })
+              .eq(
+                "id",
+                historyId
+              ),
+          "a atualização do histórico da movimentação"
+        );
 
       }
 
@@ -33864,6 +34168,16 @@ function renderBasketModule() {
           >
         </label>
 
+        <label class="ace-manual-basket-field">
+          Recebido por (quando for Comunidade)
+          <input
+            id="manualBasketReceivedBy"
+            type="text"
+            maxlength="120"
+            placeholder="Nome da pessoa que recebeu"
+          >
+        </label>
+
         <div class="ace-manual-items-box">
 
           <div class="ace-manual-items-title">
@@ -34287,8 +34601,25 @@ function renderBasketModule() {
               )?.value || 0
             );
 
+          const receivedByInput =
+            module.querySelector(
+              `[data-basket-received="${basketId}"]`
+            );
+
+
           const receivedBy =
-            "";
+            selectedDestination ===
+              "Comunidade"
+              ? String(
+                  receivedByInput?.value ||
+                  ""
+                )
+                  .replace(
+                    /\s+/g,
+                    " "
+                  )
+                  .trim()
+              : "";
 
           if (!selectedDestination) {
 
@@ -34314,6 +34645,23 @@ function renderBasketModule() {
             );
 
             otherDestinationInput?.focus();
+
+            return;
+
+          }
+
+
+          if (
+            selectedDestination ===
+              "Comunidade" &&
+            !receivedBy
+          ) {
+
+            toast(
+              "Informe o nome da pessoa que recebeu a cesta."
+            );
+
+            receivedByInput?.focus();
 
             return;
 
@@ -34648,7 +34996,17 @@ function renderBasketModule() {
           )?.value || "";
 
         const receivedBy =
-          "";
+          String(
+            module.querySelector(
+              "#manualBasketReceivedBy"
+            )?.value ||
+            ""
+          )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
 
 
         if (!name) {
@@ -34675,6 +35033,27 @@ function renderBasketModule() {
             "Digite o destino."
           );
           return;
+        }
+
+
+        if (
+          normalizeAceText(
+            destination
+          ) ===
+            "comunidade" &&
+          !receivedBy
+        ) {
+
+          toast(
+            "Informe o nome da pessoa que recebeu a cesta."
+          );
+
+          module.querySelector(
+            "#manualBasketReceivedBy"
+          )?.focus();
+
+          return;
+
         }
 
 
@@ -35684,11 +36063,13 @@ async function registerManualBasketOutput({
   const {
     error: basketError
   } =
-    await supabaseClient
-      .from(
-        "cestas"
-      )
-      .insert({
+    await aceRunAuthenticatedWrite(
+      () =>
+        supabaseClient
+          .from(
+            "cestas"
+          )
+          .insert({
         id:
           manualBasketId,
         nome:
@@ -35697,7 +36078,9 @@ async function registerManualBasketOutput({
           "cesta-personalizada-fechada.png",
         ativo:
           false
-      });
+          }),
+      "o cadastro da cesta personalizada"
+    );
 
 
   if (basketError) {
@@ -35721,13 +36104,17 @@ async function registerManualBasketOutput({
   const {
     error: basketItemsError
   } =
-    await supabaseClient
-      .from(
-        "cestas_itens"
-      )
-      .insert(
-        basketItemRows
-      );
+    await aceRunAuthenticatedWrite(
+      () =>
+        supabaseClient
+          .from(
+            "cestas_itens"
+          )
+          .insert(
+            basketItemRows
+          ),
+      "a composição da cesta personalizada"
+    );
 
 
   if (basketItemsError) {
@@ -36015,7 +36402,7 @@ async function registerBasketOutput({
         qtyCestas,
       destination,
       receivedBy:
-        "",
+        receivedBy || "",
       items
     });
 
@@ -36029,7 +36416,7 @@ async function registerBasketOutput({
           qtyCestas,
         destination,
         receivedBy:
-          ""
+          receivedBy || ""
       }
     );
 
@@ -36043,9 +36430,11 @@ async function registerBasketOutput({
     data,
     error
   } =
-    await supabaseClient.rpc(
-      "ace_montar_cesta",
-      {
+    await aceRunAuthenticatedWrite(
+      () =>
+        supabaseClient.rpc(
+          "ace_montar_cesta",
+          {
         p_cesta_id:
           Number(
             basket.id
@@ -36058,6 +36447,11 @@ async function registerBasketOutput({
           ),
         p_destino:
           destination,
+        p_recebido_por:
+          destination ===
+            "Comunidade"
+            ? receivedBy || ""
+            : "",
         p_quantidade:
           qtyCestas,
         p_composicao:
@@ -36066,7 +36460,9 @@ async function registerBasketOutput({
           getCurrentUserId(),
         p_data:
           isoToday()
-      }
+          }
+        ),
+      "a montagem da cesta"
     );
 
 
