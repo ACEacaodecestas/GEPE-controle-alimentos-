@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-2",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-3",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-destino-outro-cestas-v44";
+  "2026.09.17-pwa-inventario-usuario-v46";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -37835,7 +37835,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260915-10",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-3",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -47820,6 +47820,8 @@ function ensureAceInventoryStyles() {
     .ace-inventory-summary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
     .ace-inventory-summary-head h3{margin:0 0 5px}
     .ace-inventory-summary-head p{margin:0;color:#667085}
+    .ace-inventory-performed-by{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;border:1px solid #cfe1ef;border-radius:999px;background:#eef7fd;color:#315a76;font-size:12px;font-weight:800}
+    .ace-inventory-performed-by strong{color:#0b4b7a;font-size:13px;font-weight:950}
     .ace-inventory-summary-filter{min-height:40px;padding:8px 13px;border:1px solid #0b5a8f;border-radius:9px;background:#fff;color:#0b5a8f;font:inherit;font-size:13px;font-weight:900;cursor:pointer}
     .ace-inventory-summary-filter.active{background:#0b5a8f;color:#fff}
     .ace-inventory-summary-metrics{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-bottom:14px}
@@ -48246,6 +48248,11 @@ function renderAceLastInventorySummary() {
             ${esc(formatAceInventoryDateTime(last.finalizado_em))}.
             Este resultado permanece inalterado após a finalização.
           </p>
+
+          <div class="ace-inventory-performed-by">
+            <span>👤 Realizado no sistema por:</span>
+            <strong>${esc(last.usuario_nome || "Usuário não identificado")}</strong>
+          </div>
         </div>
 
         <button
@@ -48898,7 +48905,7 @@ function renderAceInventoryHistory() {
       <h3>🕘 Histórico de inventários</h3>
       <div class="ace-inventory-table-wrap">
         <table class="ace-inventory-table">
-          <thead><tr><th>Início</th><th>Responsável</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Início</th><th>Realizado por</th><th>Status</th><th>Sistema</th><th>Contado</th><th>Ajuste</th><th>Ações</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -49558,7 +49565,7 @@ async function deleteAceInventoryHistory(inventoryId) {
   );
 
   const confirmed = await showAceConfirm(
-    `Excluir este inventário do histórico?\n\nData: ${formatAceInventoryDateTime(inventory?.iniciado_em)}\nResponsável: ${inventory?.usuario_nome || "Usuário"}\n\nO ajuste e o estoque atual NÃO serão alterados.`,
+    `Excluir este inventário do histórico?\n\nData: ${formatAceInventoryDateTime(inventory?.iniciado_em)}\nRealizado por: ${inventory?.usuario_nome || "Usuário"}\n\nO ajuste e o estoque atual NÃO serão alterados.`,
     "🗑️ Excluir do histórico"
   );
   if (!confirmed) return;
@@ -49623,6 +49630,11 @@ function buildAceInventoryPdfElement(inventory, items) {
     inventory.responsavel_nome_assinatura ||
     inventory.usuario_nome ||
     "Usuário"
+  );
+
+  const performedByName = String(
+    inventory.usuario_nome ||
+    "Usuário não identificado"
   );
 
   const checkerName = String(
@@ -49707,6 +49719,7 @@ function buildAceInventoryPdfElement(inventory, items) {
         <div><strong>Situação:</strong> Finalizado</div>
         <div><strong>Início:</strong> ${esc(formatAceInventoryDateTime(inventory.iniciado_em))}</div>
         <div><strong>Finalização:</strong> ${esc(formatAceInventoryDateTime(inventory.finalizado_em))}</div>
+        <div style="grid-column:1/-1;padding:8px 10px;border:1px solid #cfe1ef;border-radius:7px;background:#eef7fd;color:#0b4b7a"><strong>Realizado no sistema por:</strong> ${esc(performedByName)}</div>
         <div><strong>Responsável:</strong> ${esc(responsibleName)}</div>
         <div><strong>Conferente:</strong> ${esc(checkerName)}</div>
         <div style="grid-column:1/-1"><strong>Documento gerado por:</strong> ${esc(generatedBy)} em ${esc(generatedAt)}</div>
