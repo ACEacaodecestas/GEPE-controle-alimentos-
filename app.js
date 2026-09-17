@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-configuracoes-menu-hierarquico-v51";
+  "2026.09.17-pwa-icone-opcoes-diferente-v52";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -21707,7 +21707,7 @@ function ensureAceConfigurationsLayout() {
           type="button"
           data-ace-config-tab="opcoes"
         >
-          ⚙️ Opções
+          🛠️ Opções
         </button>
 
       </div>
@@ -56567,7 +56567,7 @@ window.aceBuildStatisticsReportHtml =
                   data-ace-settings-options-trigger
                 >
                   <span>
-                    ⚙️ Opções
+                    🛠️ Opções
                   </span>
 
                   <span class="ace-settings-side-arrow">
@@ -57048,7 +57048,7 @@ window.aceBuildStatisticsReportHtml =
                           data-ace-mobile-settings-options
                         >
                           <span>
-                            ⚙️ Opções
+                            🛠️ Opções
                           </span>
 
                           <span class="ace-settings-mobile-options-arrow">
@@ -57329,7 +57329,7 @@ window.aceBuildStatisticsReportHtml =
                 data-ace-drawer-settings-toggle
               >
                 <span>
-                  ⚙️ Opções
+                  🛠️ Opções
                 </span>
 
                 <span>
