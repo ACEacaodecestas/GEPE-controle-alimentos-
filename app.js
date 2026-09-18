@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-3",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-auditoria-v53",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.17-pwa-icone-opcoes-diferente-v52";
+  "2026.09.18-auditoria-edicoes-v53";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4210,7 +4210,8 @@ async function aceLoadFromSupabaseNetwork(
     basketStockResult,
     basketWithdrawalsResult,
     basketAdjustmentsResult,
-    stockAdjustmentsResult
+    stockAdjustmentsResult,
+    movementAuditResult
   ] = await Promise.all([
 
     aceEconomicSelect(
@@ -4335,6 +4336,17 @@ async function aceLoadFromSupabaseNetwork(
       "id,inventario_id,data,origem_id,alimento_id,quantidade,usuario_id,created_at,quantidade_original,revertido_em,revertido_por,revertido_motivo",
       query => query.order(
         "created_at",
+        { ascending: false }
+      )
+    ),
+
+    // A auditoria é carregada separadamente porque registra a data da
+    // CORREÇÃO, sem alterar o autor nem a data do lançamento original.
+    aceEconomicSelect(
+      "auditoria_movimentacoes",
+      "id,movimentacao_chave,historico_id,tipo_original,tipo_novo,data_movimentacao_original,data_movimentacao_nova,data_edicao,usuario_original_id,usuario_original_nome,usuario_editor_id,usuario_editor_nome,motivo_edicao,dados_anteriores,dados_novos,editado_em",
+      query => query.order(
+        "editado_em",
         { ascending: false }
       )
     )
@@ -4540,6 +4552,24 @@ async function aceLoadFromSupabaseNetwork(
 
   const stockAdjustmentRows =
     stockAdjustmentsResult.data || [];
+
+  // Se o SQL da auditoria ainda não tiver sido executado, o restante do
+  // aplicativo continua abrindo. A edição, porém, será bloqueada até a
+  // tabela ser instalada, para não existir correção sem identificação.
+  const movementAuditRows =
+    movementAuditResult?.error
+      ? []
+      : (movementAuditResult?.data || []);
+
+  window.aceMovementAuditReady =
+    !movementAuditResult?.error;
+
+  if (movementAuditResult?.error) {
+    console.warn(
+      "ACE: tabela auditoria_movimentacoes indisponível. Execute o SQL de auditoria antes de editar lançamentos.",
+      movementAuditResult.error
+    );
+  }
 
   const reasons =
     loadLocalReasons();
@@ -4912,6 +4942,49 @@ async function aceLoadFromSupabaseNetwork(
         createdAt:
           row.created_at ||
           `${row.data || isoToday()}T00:00:00Z`
+      })),
+
+    movementAudits:
+      movementAuditRows.map(row => ({
+        id: Number(row.id),
+        movementKey: row.movimentacao_chave || "",
+        historyId:
+          row.historico_id != null
+            ? Number(row.historico_id)
+            : null,
+        originalType: row.tipo_original || "",
+        newType: row.tipo_novo || "",
+        originalMovementDate:
+          row.data_movimentacao_original || "",
+        newMovementDate:
+          row.data_movimentacao_nova || "",
+        editDate:
+          row.data_edicao ||
+          String(row.editado_em || "").slice(0, 10),
+        originalUserId:
+          row.usuario_original_id || null,
+        originalUserName:
+          row.usuario_original_nome ||
+          getAceUserNameFromDirectory(
+            row.usuario_original_id
+          ) ||
+          "Usuário não identificado",
+        editorUserId:
+          row.usuario_editor_id || null,
+        editorUserName:
+          row.usuario_editor_nome ||
+          getAceUserNameFromDirectory(
+            row.usuario_editor_id
+          ) ||
+          "Usuário não identificado",
+        editReason:
+          row.motivo_edicao || "",
+        before:
+          row.dados_anteriores || {},
+        after:
+          row.dados_novos || {},
+        editedAt:
+          row.editado_em || ""
       })),
 
     reasons
@@ -7380,6 +7453,8 @@ async function updateEntryHistoryAfterEdit({
     "a atualização do histórico da entrada"
   );
 
+  return targetHistoryId;
+
 }
 
 
@@ -7398,6 +7473,208 @@ async function updateEntry({ id, date, originId, foodId, qty, note }) {
         .eq("id", Number(id)),
     "a edição da entrada"
   );
+}
+
+
+function buildAceMovementAuditSnapshot({
+  type,
+  date,
+  originId,
+  foodId,
+  qty,
+  reasonId,
+  note
+}) {
+
+  const reasonName =
+    type === "entrada"
+      ? "Entrada"
+      : (
+          db.reasons.find(
+            reason =>
+              String(reason.id) ===
+              String(reasonId || "")
+          )?.name ||
+          reasonId ||
+          "—"
+        );
+
+
+  return {
+    tipo: type,
+    data: date || "",
+    origem_id:
+      originId != null
+        ? Number(originId)
+        : null,
+    origem_nome:
+      getName(
+        db.origins,
+        originId
+      ) || "—",
+    alimento_id:
+      foodId != null
+        ? Number(foodId)
+        : null,
+    alimento_nome:
+      getName(
+        db.foods,
+        foodId
+      ) || "—",
+    quantidade:
+      Number(qty || 0),
+    motivo:
+      reasonName,
+    observacao:
+      note || ""
+  };
+
+}
+
+
+function resolveAceMovementHistoryId(
+  original,
+  preferredHistoryId = 0
+) {
+
+  const preferred =
+    Number(preferredHistoryId || 0);
+
+  if (preferred) {
+    return preferred;
+  }
+
+  const originalType =
+    original.type || "entrada";
+
+  const candidate =
+    (db.history || [])
+      .filter(history =>
+        history.type === originalType &&
+        history.date === original.date &&
+        Number(history.originId) === Number(original.originId) &&
+        Number(history.foodId) === Number(original.foodId) &&
+        Number(history.qty) === Number(original.qty) &&
+        (
+          !history.usuarioId ||
+          !original.usuarioId ||
+          String(history.usuarioId) ===
+            String(original.usuarioId)
+        )
+      )
+      .sort(
+        (a, b) =>
+          String(b.createdAt || "")
+            .localeCompare(
+              String(a.createdAt || "")
+            )
+      )[0];
+
+  return Number(candidate?.id || 0);
+
+}
+
+
+async function executeAceAuditedMovementEdit({
+  original,
+  historyId,
+  type,
+  date,
+  originId,
+  foodId,
+  qty,
+  reasonId,
+  note,
+  editReason
+}) {
+
+  const originalType =
+    original.type || "entrada";
+
+  const recordId =
+    originalType === "entrada"
+      ? Number(original.id)
+      : Number(original.rawId);
+
+  const reasonName =
+    type === "entrada"
+      ? "Entrada"
+      : (
+          db.reasons.find(
+            reason =>
+              String(reason.id) ===
+              String(reasonId || "")
+          )?.name ||
+          reasonId ||
+          "—"
+        );
+
+  const beforeSnapshot =
+    buildAceMovementAuditSnapshot({
+      type: originalType,
+      date: original.date,
+      originId: original.originId,
+      foodId: original.foodId,
+      qty: original.qty,
+      reasonId: original.reasonId,
+      note: original.note
+    });
+
+  const afterSnapshot =
+    buildAceMovementAuditSnapshot({
+      type,
+      date,
+      originId,
+      foodId,
+      qty,
+      reasonId,
+      note
+    });
+
+  await aceRunAuthenticatedWrite(
+    () =>
+      supabaseClient.rpc(
+        "ace_editar_movimentacao_auditada",
+        {
+          p_chave:
+            `${originalType}-${recordId}`,
+          p_tipo_original:
+            originalType,
+          p_tipo_novo:
+            type,
+          p_registro_id:
+            recordId,
+          p_historico_id:
+            Number(historyId),
+          p_data_nova:
+            date,
+          p_origem_nova:
+            Number(originId),
+          p_alimento_novo:
+            Number(foodId),
+          p_quantidade_nova:
+            Number(qty),
+          p_motivo_novo:
+            reasonName,
+          p_observacao_nova:
+            note || "",
+          p_justificativa:
+            editReason,
+          p_usuario_original_nome:
+            original.usuarioNome ||
+            getAceUserNameFromDirectory(
+              original.usuarioId
+            ) ||
+            "Usuário não identificado",
+          p_dados_anteriores:
+            beforeSnapshot,
+          p_dados_novos:
+            afterSnapshot
+        }
+      ),
+    "a correção auditada da movimentação"
+  );
+
 }
 
 async function updateMovement({ id, type, date, originId, foodId, qty, reasonId, note }) {
@@ -13255,6 +13532,122 @@ function populateSelect(
 }
 
 
+const ACE_GENERAL_STOCK_OPTION_VALUE =
+  "__ace_estoque_geral__";
+
+
+function getAceGeneralStockOrigin() {
+
+  const origins =
+    Array.isArray(db?.origins)
+      ? db.origins
+      : [];
+
+
+  const normalized = value =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+
+
+  return (
+    origins.find(
+      item =>
+        normalized(item.name) ===
+        "estoque geral"
+    ) ||
+    origins.find(
+      item =>
+        normalized(item.name) ===
+        "agua fria"
+    ) ||
+    origins[0] ||
+    null
+  );
+
+}
+
+
+function setupAceMovementGeneralStockSelect() {
+
+  const select =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+
+  if (!select) {
+    return;
+  }
+
+
+  const currentValue =
+    String(select.value || "");
+
+
+  select.innerHTML =
+    `<option value="">Selecione...</option>` +
+    `<option value="${ACE_GENERAL_STOCK_OPTION_VALUE}">Estoque Geral</option>` +
+    (db.origins || [])
+      .map(
+        item => `
+          <option value="${esc(item.id)}">
+            ${esc(item.name)}
+          </option>
+        `
+      )
+      .join("");
+
+
+  if (
+    [...select.options]
+      .some(
+        option =>
+          option.value ===
+          currentValue
+      )
+  ) {
+    select.value =
+      currentValue;
+  } else {
+    select.value = "";
+  }
+
+
+  select.dataset.aceGeneralStock =
+    "1";
+
+
+  const page =
+    select.closest(".page");
+
+
+  const subtitle =
+    page
+      ? [...page.querySelectorAll("p")]
+          .find(
+            element =>
+              String(element.textContent || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .includes(
+                  "estoque e descontado automaticamente pela origem"
+                )
+          )
+      : null;
+
+
+  if (subtitle) {
+    subtitle.textContent =
+      "O estoque é descontado automaticamente conforme a opção selecionada.";
+  }
+
+}
+
+
 function setDates() {
 
   [
@@ -13301,10 +13694,7 @@ function refreshSelects() {
     db.origins
   );
 
-  populateSelect(
-    "movementOrigin",
-    db.origins
-  );
+  setupAceMovementGeneralStockSelect();
 
   populateSelect(
     "entryFood",
@@ -14748,6 +15138,7 @@ function openRecentEditModal(
     x => String(x.id) === String(id)
   );
 
+
   const modal =
     document.createElement(
       "div"
@@ -14836,6 +15227,15 @@ function openRecentEditModal(
             id="recentEditOrigin"
             style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
           >
+            ${
+              !isEntry
+                ? `
+                    <option value="${ACE_GENERAL_STOCK_OPTION_VALUE}">
+                      Estoque Geral
+                    </option>
+                  `
+                : ""
+            }
             ${db.origins.map(o => `
               <option value="${o.id}" ${Number(item.originId) === Number(o.id) ? "selected" : ""}>
                 ${esc(o.name)}
@@ -14903,6 +15303,20 @@ function openRecentEditModal(
             value="${esc(item.note || "")}"
             style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;box-sizing:border-box;"
           >
+        </label>
+
+        <label style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-weight:800;">
+          Motivo da correção <span style="color:#b42318;">*</span>
+          <textarea
+            id="recentEditAuditReason"
+            rows="3"
+            maxlength="500"
+            placeholder="Ex.: alimento e quantidade digitados incorretamente"
+            style="padding:11px;border:1px solid #d0d5dd;border-radius:9px;font-size:15px;font-family:inherit;line-height:1.4;box-sizing:border-box;resize:vertical;"
+          ></textarea>
+          <small style="color:#667085;font-weight:650;line-height:1.35;">
+            Esta justificativa ficará registrada com o nome de quem fez a edição.
+          </small>
         </label>
 
         <div
@@ -15330,10 +15744,21 @@ async function saveRecentEdit(id, isEntry) {
       "recentEditDate"
     )?.value;
 
-  const originId =
+  const originSelection =
     document.getElementById(
       "recentEditOrigin"
     )?.value;
+
+
+  const originId =
+    originSelection ===
+      ACE_GENERAL_STOCK_OPTION_VALUE
+      ? String(
+          getAceGeneralStockOrigin()
+            ?.id ||
+          ""
+        )
+      : originSelection;
 
   const foodId =
     document.getElementById(
@@ -15350,6 +15775,12 @@ async function saveRecentEdit(id, isEntry) {
   const note =
     document.getElementById(
       "recentEditNote"
+    )?.value
+      ?.trim() || "";
+
+  const editReason =
+    document.getElementById(
+      "recentEditAuditReason"
     )?.value
       ?.trim() || "";
 
@@ -15396,6 +15827,20 @@ async function saveRecentEdit(id, isEntry) {
   if (!isEntry && type === "perda" && !reasonId) {
     error.textContent =
       "Selecione o motivo da perda.";
+    error.style.display = "block";
+    return;
+  }
+
+  if (!editReason) {
+    error.textContent =
+      "Informe o motivo da correção. Ele ficará registrado na auditoria.";
+    error.style.display = "block";
+    return;
+  }
+
+  if (!window.aceMovementAuditReady) {
+    error.textContent =
+      "A auditoria ainda não foi instalada. Execute primeiro o arquivo SQL enviado junto com o app.js.";
     error.style.display = "block";
     return;
   }
@@ -15469,179 +15914,43 @@ async function saveRecentEdit(id, isEntry) {
 
   try {
 
-    if (isEntry) {
-
-      await updateEntry({
-        id,
-        date,
-        originId,
-        foodId,
-        qty,
-        note
-      });
-
-
-      await updateEntryHistoryAfterEdit({
-        historyId:
-          window
-            .aceEntryHistoryEditingId,
+    const historyId =
+      resolveAceMovementHistoryId(
         original,
-        date,
-        originId,
-        foodId,
-        qty,
-        note
-      });
+        isEntry
+          ? window.aceEntryHistoryEditingId
+          : window.aceMovementHistoryEditingId
+      );
 
-    } else {
-
-      let historyId =
-        Number(
-          window
-            .aceMovementHistoryEditingId ||
-          0
-        );
-
-
-      // A edição também pode ser aberta por "Últimos lançamentos".
-      // Nesse caso, localiza primeiro o histórico original e reutiliza
-      // exatamente o mesmo ID; nunca cria uma segunda linha.
-      if (!historyId) {
-
-        const matchingHistory =
-          (db.history || [])
-            .filter(
-              history =>
-                history.type ===
-                  original.type &&
-                history.date ===
-                  original.date &&
-                Number(
-                  history.originId
-                ) ===
-                  Number(
-                    original.originId
-                  ) &&
-                Number(
-                  history.foodId
-                ) ===
-                  Number(
-                    original.foodId
-                  ) &&
-                Number(
-                  history.qty
-                ) ===
-                  Number(
-                    original.qty
-                  ) &&
-                (
-                  !history.usuarioId ||
-                  !original.usuarioId ||
-                  String(
-                    history.usuarioId
-                  ) ===
-                    String(
-                      original.usuarioId
-                    )
-                )
-            )
-            .sort(
-              (a, b) =>
-                String(
-                  b.createdAt ||
-                  ""
-                ).localeCompare(
-                  String(
-                    a.createdAt ||
-                    ""
-                  )
-                )
-            )[0];
-
-
-        historyId =
-          Number(
-            matchingHistory?.id ||
-            0
-          );
-
-      }
-
-
-      if (!historyId) {
-        throw new Error(
-          "Não foi possível localizar o histórico original desta movimentação. A edição foi cancelada para evitar duplicidade."
-        );
-      }
-
-      await updateMovement({
-        id,
-        type,
-        date,
-        originId,
-        foodId,
-        qty,
-        reasonId,
-        note
-      });
-
-
-      if (historyId) {
-
-        const reasonName =
-          db.reasons.find(
-            reason =>
-              String(
-                reason.id
-              ) ===
-              String(
-                reasonId
-              )
-          )?.name ||
-          reasonId ||
-          "—";
-
-
-        await aceRunAuthenticatedWrite(
-          () =>
-            supabaseClient
-              .from(
-                "historico_movimentacoes"
-              )
-              .update({
-              data:
-                date,
-              tipo:
-                type,
-              origem_id:
-                Number(
-                  originId
-                ),
-              alimento_id:
-                Number(
-                  foodId
-                ),
-              quantidade:
-                Number(
-                  qty
-                ),
-              motivo:
-                reasonName,
-              tipo_cesta:
-                "—",
-              observacao:
-                note || ""
-              })
-              .eq(
-                "id",
-                historyId
-              ),
-          "a atualização do histórico da movimentação"
-        );
-
-      }
-
+    if (!historyId) {
+      throw new Error(
+        "Não foi possível localizar o histórico original desta movimentação. A edição foi cancelada para evitar duplicidade."
+      );
     }
+
+    // A função SQL executa, na MESMA transação:
+    // 1) correção da entrada/saída/perda;
+    // 2) atualização da linha do histórico;
+    // 3) inclusão da auditoria com autor original e novo editor.
+    // Se uma dessas etapas falhar, nenhuma mudança fica gravada.
+    await executeAceAuditedMovementEdit({
+      original,
+      historyId,
+      type:
+        isEntry
+          ? "entrada"
+          : type,
+      date,
+      originId,
+      foodId,
+      qty,
+      reasonId:
+        isEntry
+          ? "Entrada"
+          : reasonId,
+      note,
+      editReason
+    });
 
     window.aceMovementHistoryEditingId =
       null;
@@ -19707,6 +20016,75 @@ function renderReport() {
     );
 
 
+  // As edições entram no relatório pela DATA EM QUE FORAM FEITAS,
+  // independentemente da data original da entrada/saída/perda.
+  const movementAuditReportRows =
+    (db.movementAudits || [])
+      .filter(row => {
+
+        const auditOriginId =
+          row.after?.origem_id ??
+          row.before?.origem_id ??
+          null;
+
+        return (
+          (!start || row.editDate >= start) &&
+          (!end || row.editDate <= end) &&
+          (
+            !origin ||
+            Number(auditOriginId) ===
+              Number(origin)
+          )
+        );
+
+      });
+
+
+  const formatAuditSnapshot =
+    snapshot => {
+
+      if (!snapshot) {
+        return "—";
+      }
+
+      const typeLabel =
+        snapshot.tipo === "entrada"
+          ? "Entrada"
+          : snapshot.tipo === "perda"
+            ? "Perda"
+            : "Saída";
+
+      const parts = [
+        typeLabel,
+        snapshot.alimento_nome || "—",
+        `${fmt(snapshot.quantidade || 0)} un.`,
+        snapshot.origem_nome || "—",
+        snapshot.data
+          ? fmtDate(snapshot.data)
+          : "—"
+      ];
+
+      if (
+        snapshot.motivo &&
+        snapshot.motivo !== "—" &&
+        snapshot.motivo !== "Entrada"
+      ) {
+        parts.push(
+          `Motivo: ${snapshot.motivo}`
+        );
+      }
+
+      if (snapshot.observacao) {
+        parts.push(
+          `Obs.: ${snapshot.observacao}`
+        );
+      }
+
+      return parts.join(" • ");
+
+    };
+
+
   // ========================================================
   // RELATÓRIO - MOVIMENTAÇÕES DE CESTA
   //
@@ -20346,6 +20724,88 @@ function renderReport() {
             baskets: basketStatsRows
           })
         : ""
+    }
+
+    <h3>✏️ Correções auditadas no período</h3>
+
+    <div style="margin:-6px 0 12px;color:#667085;font-size:12px;line-height:1.45;">
+      Esta seção considera a data da edição. O autor original permanece identificado e o novo usuário aparece como responsável pela correção.
+    </div>
+
+    ${
+      movementAuditReportRows.length
+
+        ? table(
+            movementAuditReportRows,
+            [
+              [
+                "Editado em",
+                x =>
+                  `${fmtDate(x.editDate)}${
+                    x.editedAt
+                      ? ` ${esc(
+                          new Date(x.editedAt)
+                            .toLocaleTimeString(
+                              "pt-BR",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              }
+                            )
+                        )}`
+                      : ""
+                  }`
+              ],
+              [
+                "Autor original",
+                x =>
+                  esc(
+                    x.originalUserName ||
+                    "Usuário não identificado"
+                  )
+              ],
+              [
+                "Corrigido por",
+                x =>
+                  esc(
+                    x.editorUserName ||
+                    "Usuário não identificado"
+                  )
+              ],
+              [
+                "Antes",
+                x =>
+                  esc(
+                    formatAuditSnapshot(
+                      x.before
+                    )
+                  )
+              ],
+              [
+                "Depois",
+                x =>
+                  esc(
+                    formatAuditSnapshot(
+                      x.after
+                    )
+                  )
+              ],
+              [
+                "Justificativa",
+                x =>
+                  esc(
+                    x.editReason || "—"
+                  )
+              ]
+            ],
+            null
+          )
+
+        : `
+          <div class="empty">
+            Sem correções registradas no período.
+          </div>
+        `
     }
 
     <section
@@ -30292,7 +30752,17 @@ function bindEvents() {
       const f = new FormData(e.target);
       const date = f.get("date");
       const type = f.get("type");
-      const originId = f.get("origin");
+      const originSelection =
+        f.get("origin");
+      const originId =
+        originSelection ===
+          ACE_GENERAL_STOCK_OPTION_VALUE
+          ? String(
+              getAceGeneralStockOrigin()
+                ?.id ||
+              ""
+            )
+          : originSelection;
       const foodId = f.get("foodId");
       const qty = Number(f.get("qty"));
       const reasonId = f.get("reasonId");
@@ -30322,10 +30792,13 @@ function bindEvents() {
           );
 
         const originName =
-          getName(
-            db.origins,
-            originId
-          );
+          originSelection ===
+            ACE_GENERAL_STOCK_OPTION_VALUE
+            ? "Estoque Geral"
+            : getName(
+                db.origins,
+                originId
+              );
 
 
         await showAceConfirm(
@@ -39258,7 +39731,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260917-3",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-auditoria-v53",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
