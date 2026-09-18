@@ -14158,11 +14158,30 @@ function renderDashboard() {
       .length;
 
 
+  const cestasMontadas =
+    (db.basketStock || [])
+      .filter(
+        x =>
+          String(x.date || "") ===
+            String(date || "") &&
+          !x.hiddenHistory
+      )
+      .reduce(
+        (total, x) =>
+          total +
+          Number(
+            x.mountedQty || 0
+          ),
+        0
+      );
+
+
   const cestasSaidas =
     (db.basketWithdrawals || [])
       .filter(
         x =>
-          x.date === date
+          String(x.date || "") ===
+          String(date || "")
       )
       .reduce(
         (total, x) =>
@@ -14174,30 +14193,117 @@ function renderDashboard() {
       );
 
 
-  // Cria automaticamente o cartão de Cestas no Resumo do dia.
-  let kpiCestas =
-    document.getElementById("kpiCestas");
+  const cestasEstornadas =
+    (db.basketAdjustments || [])
+      .filter(
+        x =>
+          String(x.date || "") ===
+            String(date || "") &&
+          x.type === "estorno"
+      )
+      .reduce(
+        (total, x) =>
+          total +
+          Number(
+            x.qty || 0
+          ),
+        0
+      );
 
-  if (!kpiCestas) {
-    const cards =
-      document.querySelector("#dashboard .cards");
 
-    if (cards) {
+  // Cria e mantém os três indicadores de cestas no Resumo do dia.
+  // Cada cartão usa os mesmos efeitos profissionais dos demais KPIs.
+  const basketKpiCards = [
+    {
+      id: "kpiCestas",
+      label: "🧺 Cestas montadas"
+    },
+    {
+      id: "kpiCestasSaidas",
+      label: "🚚 Saídas de cestas"
+    },
+    {
+      id: "kpiCestasEstornadas",
+      label: "↩️ Estornos de cestas"
+    }
+  ];
+
+
+  const dashboardCards =
+    document.querySelector(
+      "#dashboard .cards"
+    );
+
+
+  basketKpiCards.forEach(item => {
+
+    let valueElement =
+      document.getElementById(
+        item.id
+      );
+
+
+    if (
+      !valueElement &&
+      dashboardCards
+    ) {
+
       const card =
-        document.createElement("div");
+        document.createElement(
+          "div"
+        );
+
 
       card.className = "card";
       card.innerHTML = `
-        <span>🧺 Cestas</span>
-        <strong id="kpiCestas">0</strong>
+        <span>${item.label}</span>
+        <strong id="${item.id}">0</strong>
         <small>cestas</small>
       `;
 
-      cards.appendChild(card);
-      kpiCestas =
-        document.getElementById("kpiCestas");
+
+      dashboardCards.appendChild(
+        card
+      );
+
+
+      valueElement =
+        document.getElementById(
+          item.id
+        );
+
     }
-  }
+
+
+    const card =
+      valueElement?.closest(
+        ".card"
+      );
+
+
+    if (card) {
+
+      const label =
+        card.querySelector("span");
+
+      const unit =
+        card.querySelector("small");
+
+
+      if (label) {
+        label.textContent =
+          item.label;
+      }
+
+
+      if (unit) {
+        unit.textContent =
+          "cestas";
+      }
+
+    }
+
+  });
 
 
   const ids = [
@@ -14206,7 +14312,9 @@ function renderDashboard() {
     ["kpiPerda", per],
     ["kpiEstoque", estoque],
     ["kpiPresentes", pres],
-    ["kpiCestas", cestasSaidas]
+    ["kpiCestas", cestasMontadas],
+    ["kpiCestasSaidas", cestasSaidas],
+    ["kpiCestasEstornadas", cestasEstornadas]
   ];
 
 
@@ -14350,6 +14458,23 @@ function renderDashboard() {
 
   if (recent) {
 
+    const recentTitle =
+      recent
+        .closest(
+          ".panel,.box,.section,.card"
+        )
+        ?.querySelector(
+          "h1,h2,h3,h4"
+        );
+
+
+    if (recentTitle) {
+
+      recentTitle.textContent =
+        "Histórico das movimentações do dia";
+
+    }
+
     const all = [
 
       ...db.entries.map(x => ({
@@ -14373,14 +14498,18 @@ function renderDashboard() {
       }))
 
     ]
+      .filter(
+        x =>
+          String(x.date || "") ===
+          String(date || "")
+      )
       .sort(
         (a, b) =>
           (b.createdAt || "")
             .localeCompare(
               a.createdAt || ""
             )
-      )
-      .slice(0, 8);
+      );
 
     recent.innerHTML =
       all.length
@@ -14438,7 +14567,7 @@ function renderDashboard() {
 
         : `
           <div class="empty">
-            Nenhum lançamento ainda.
+            Nenhuma movimentação registrada neste dia.
           </div>
         `;
 
@@ -55877,7 +56006,7 @@ window.aceBuildStatisticsReportHtml =
     queries: {
       label: "🗂️ Consultas",
       items: [
-        { target: "historico", label: "📜 Histórico" },
+        { target: "relatorio", label: "📑 Relatórios" },
         { target: "estatisticas", label: "📊 Estatísticas" },
         { target: "estoque", label: "🏬 Estoque" }
       ]
@@ -55885,8 +56014,7 @@ window.aceBuildStatisticsReportHtml =
     management: {
       label: "📈 Gestão",
       items: [
-        { target: "inventario", label: "📦 Inventário" },
-        { target: "relatorio", label: "📑 Relatórios" }
+        { target: "inventario", label: "📦 Inventário" }
       ]
     },
     settings: {
@@ -55905,6 +56033,13 @@ window.aceBuildStatisticsReportHtml =
     Object.values(groups)
       .flatMap(group => group.items.map(item => item.target))
       .filter(Boolean)
+  );
+
+  // A página continua preservada para não apagar nenhum dado,
+  // mas o Histórico completo deixa de aparecer na navegação.
+  // No Início permanece apenas o histórico do dia selecionado.
+  groupedTargets.add(
+    "historico"
   );
 
   // Configurações também passa a ser representada pelo botão agrupado.
@@ -57622,9 +57757,21 @@ const ACE_DASHBOARD_KPI_CONFIG = [
   },
   {
     id: "kpiCestas",
-    key: "cestas",
+    key: "cestas-montadas",
     accent: "#e58a17",
     rgb: "229,138,23"
+  },
+  {
+    id: "kpiCestasSaidas",
+    key: "cestas-saidas",
+    accent: "#0c91a6",
+    rgb: "12,145,166"
+  },
+  {
+    id: "kpiCestasEstornadas",
+    key: "cestas-estornadas",
+    accent: "#c75284",
+    rgb: "199,82,132"
   }
 ];
 
@@ -57647,6 +57794,38 @@ function installAceDashboardRewardStyle() {
     "aceDashboardRewardStyleV1";
 
   style.textContent = `
+
+    #dashboard .cards{
+      width:min(100%,1440px) !important;
+      display:grid !important;
+      grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+      align-items:stretch !important;
+      justify-content:center !important;
+      gap:14px !important;
+      margin-left:auto !important;
+      margin-right:auto !important;
+    }
+
+    #dashboard .cards > .card{
+      width:auto !important;
+      min-width:0 !important;
+      height:100% !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    @media (max-width:980px){
+      #dashboard .cards{
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+        gap:12px !important;
+      }
+    }
+
+    @media (max-width:350px){
+      #dashboard .cards{
+        grid-template-columns:1fr !important;
+      }
+    }
 
     #dashboard .cards .ace-kpi-reward-card{
       --ace-kpi-accent:#1689d0;
@@ -57776,6 +57955,29 @@ function installAceDashboardRewardStyle() {
 
     #dashboard .cards .ace-kpi-reward-card.is-updating{
       animation:aceKpiRewardPulse .58s ease both;
+    }
+
+    #dashboard #recentMovements{
+      max-height:620px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding-right:5px;
+      scrollbar-width:thin;
+      scrollbar-color:#86bddf #edf6fb;
+    }
+
+    #dashboard #recentMovements::-webkit-scrollbar{
+      width:8px;
+    }
+
+    #dashboard #recentMovements::-webkit-scrollbar-track{
+      border-radius:999px;
+      background:#edf6fb;
+    }
+
+    #dashboard #recentMovements::-webkit-scrollbar-thumb{
+      border-radius:999px;
+      background:#86bddf;
     }
 
     @keyframes aceKpiReveal{
