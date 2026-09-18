@@ -22,7 +22,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-auditoria-v53",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-historico-auditoria-v54",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -410,7 +410,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.18-auditoria-edicoes-v53";
+  "2026.09.18-historico-auditoria-v54";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -16621,6 +16621,721 @@ function findRealEntryForHistory(historyItem) {
 }
 
 
+// ============================================================
+// IDENTIFICAÇÃO VISUAL E JANELA DE AUDITORIA NO HISTÓRICO
+// ============================================================
+
+let aceHistoryAuditCloseTimer = null;
+
+
+function getAceHistoryAudits(
+  historyId
+) {
+
+  return (db?.movementAudits || [])
+    .filter(
+      audit =>
+        Number(audit.historyId) ===
+        Number(historyId)
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        String(b.editedAt || "")
+          .localeCompare(
+            String(a.editedAt || "")
+          )
+    );
+
+}
+
+
+function ensureAceHistoryAuditUi() {
+
+  if (
+    !document.getElementById(
+      "aceHistoryAuditStyle"
+    )
+  ) {
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      "aceHistoryAuditStyle";
+
+    style.textContent = `
+
+      .ace-history-status-cell{
+        min-width:118px;
+      }
+
+      .ace-history-audit-badge{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:6px;
+        min-height:30px;
+        padding:5px 10px;
+        border:1px solid #8b5cf6;
+        border-radius:999px;
+        background:#f5f3ff;
+        color:#5b21b6;
+        font:inherit;
+        font-size:12px;
+        font-weight:950;
+        cursor:pointer;
+        white-space:nowrap;
+        box-shadow:0 4px 12px rgba(91,33,182,.10);
+        transition:transform .16s ease,box-shadow .16s ease,background .16s ease;
+      }
+
+      .ace-history-audit-badge:hover,
+      .ace-history-audit-badge:focus-visible{
+        transform:translateY(-1px);
+        background:#ede9fe;
+        box-shadow:0 7px 18px rgba(91,33,182,.18);
+        outline:none;
+      }
+
+      .ace-history-original-badge{
+        display:inline-flex;
+        align-items:center;
+        min-height:28px;
+        padding:4px 9px;
+        border:1px solid #d7e2ea;
+        border-radius:999px;
+        background:#f8fafc;
+        color:#667085;
+        font-size:11px;
+        font-weight:850;
+        white-space:nowrap;
+      }
+
+      #aceHistoryAuditPopover{
+        position:fixed;
+        z-index:2147483500;
+        width:min(560px,calc(100vw - 24px));
+        max-height:min(72vh,680px);
+        overflow:auto;
+        box-sizing:border-box;
+        padding:0;
+        border:1px solid #c9bdf6;
+        border-radius:17px;
+        background:#fff;
+        color:#172b3a;
+        box-shadow:0 22px 60px rgba(28,20,64,.30);
+      }
+
+      .ace-audit-popover-head{
+        position:sticky;
+        top:0;
+        z-index:2;
+        display:flex;
+        align-items:flex-start;
+        justify-content:space-between;
+        gap:12px;
+        padding:16px 18px;
+        border-bottom:1px solid #ddd6fe;
+        background:linear-gradient(135deg,#f5f3ff,#eef6ff);
+      }
+
+      .ace-audit-popover-head strong{
+        display:block;
+        color:#402176;
+        font-size:18px;
+        font-weight:950;
+      }
+
+      .ace-audit-popover-head small{
+        display:block;
+        margin-top:3px;
+        color:#667085;
+        font-size:12px;
+        line-height:1.4;
+      }
+
+      .ace-audit-popover-close{
+        width:36px;
+        height:36px;
+        flex:0 0 36px;
+        border:1px solid #d6ccfa;
+        border-radius:10px;
+        background:#fff;
+        color:#402176;
+        font-size:20px;
+        font-weight:900;
+        cursor:pointer;
+      }
+
+      .ace-audit-popover-body{
+        display:grid;
+        gap:12px;
+        padding:15px;
+      }
+
+      .ace-audit-card{
+        padding:14px;
+        border:1px solid #e3def8;
+        border-radius:13px;
+        background:#fcfbff;
+      }
+
+      .ace-audit-card-title{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        margin-bottom:10px;
+        color:#402176;
+        font-size:14px;
+        font-weight:950;
+      }
+
+      .ace-audit-meta{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:8px;
+        margin-bottom:10px;
+      }
+
+      .ace-audit-meta-item,
+      .ace-audit-reason,
+      .ace-audit-snapshot{
+        padding:9px 10px;
+        border:1px solid #e5e7eb;
+        border-radius:9px;
+        background:#fff;
+        font-size:12px;
+        line-height:1.45;
+      }
+
+      .ace-audit-meta-item span,
+      .ace-audit-reason span,
+      .ace-audit-snapshot span{
+        display:block;
+        margin-bottom:3px;
+        color:#667085;
+        font-size:10px;
+        font-weight:900;
+        text-transform:uppercase;
+        letter-spacing:.03em;
+      }
+
+      .ace-audit-reason{
+        margin-bottom:10px;
+        border-color:#f4d7a1;
+        background:#fffbeb;
+      }
+
+      .ace-audit-comparison{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:8px;
+      }
+
+      .ace-audit-before{
+        border-color:#fecaca;
+        background:#fff7f7;
+      }
+
+      .ace-audit-after{
+        border-color:#bbf7d0;
+        background:#f4fff7;
+      }
+
+      @media(max-width:720px){
+
+        #aceHistoryAuditPopover{
+          left:12px !important;
+          right:12px !important;
+          top:auto !important;
+          bottom:12px !important;
+          width:auto;
+          max-height:78dvh;
+        }
+
+        .ace-audit-meta,
+        .ace-audit-comparison{
+          grid-template-columns:1fr;
+        }
+
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+
+  }
+
+
+  if (!window.aceHistoryAuditOutsideBound) {
+
+    window.aceHistoryAuditOutsideBound =
+      true;
+
+    document.addEventListener(
+      "pointerdown",
+      event => {
+
+        if (
+          event.target.closest(
+            "#aceHistoryAuditPopover,.ace-history-audit-badge"
+          )
+        ) {
+          return;
+        }
+
+        closeAceHistoryAuditPopover();
+
+      }
+    );
+
+  }
+
+}
+
+
+function closeAceHistoryAuditPopover() {
+
+  window.clearTimeout(
+    aceHistoryAuditCloseTimer
+  );
+
+  aceHistoryAuditCloseTimer =
+    null;
+
+  document.getElementById(
+    "aceHistoryAuditPopover"
+  )?.remove();
+
+}
+
+
+function scheduleAceHistoryAuditClose() {
+
+  window.clearTimeout(
+    aceHistoryAuditCloseTimer
+  );
+
+  aceHistoryAuditCloseTimer =
+    window.setTimeout(
+      closeAceHistoryAuditPopover,
+      220
+    );
+
+}
+
+
+function cancelAceHistoryAuditClose() {
+
+  window.clearTimeout(
+    aceHistoryAuditCloseTimer
+  );
+
+  aceHistoryAuditCloseTimer =
+    null;
+
+}
+
+
+function formatAceAuditDateTime(
+  value
+) {
+
+  if (!value) {
+    return "—";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return String(value);
+  }
+
+  return date.toLocaleString(
+    "pt-BR",
+    {
+      timeZone:
+        "America/Recife",
+      dateStyle:
+        "short",
+      timeStyle:
+        "short"
+    }
+  );
+
+}
+
+
+function renderAceAuditSnapshot(
+  snapshot,
+  label,
+  className
+) {
+
+  const data =
+    snapshot || {};
+
+  const typeLabel =
+    data.tipo === "entrada"
+      ? "Entrada"
+      : data.tipo === "perda"
+        ? "Perda"
+        : "Saída";
+
+  return `
+    <div class="ace-audit-snapshot ${className}">
+      <span>${esc(label)}</span>
+      <strong>${esc(typeLabel)}</strong><br>
+      ${esc(data.alimento_nome || "—")}<br>
+      Quantidade: <strong>${esc(fmt(data.quantidade || 0))}</strong><br>
+      Origem: ${esc(data.origem_nome || "—")}<br>
+      Data: ${esc(data.data ? fmtDate(data.data) : "—")}
+      ${
+        data.motivo &&
+        data.motivo !== "—" &&
+        data.motivo !== "Entrada"
+          ? `<br>Motivo: ${esc(data.motivo)}`
+          : ""
+      }
+      ${
+        data.observacao
+          ? `<br>Obs.: ${esc(data.observacao)}`
+          : ""
+      }
+    </div>
+  `;
+
+}
+
+
+function openAceHistoryAuditPopover(
+  historyId,
+  anchor
+) {
+
+  ensureAceHistoryAuditUi();
+  cancelAceHistoryAuditClose();
+
+  const audits =
+    getAceHistoryAudits(
+      historyId
+    );
+
+  if (!audits.length) {
+    return;
+  }
+
+  const current =
+    document.getElementById(
+      "aceHistoryAuditPopover"
+    );
+
+  if (
+    current?.dataset.historyId ===
+    String(historyId)
+  ) {
+    return;
+  }
+
+  current?.remove();
+
+  const popover =
+    document.createElement(
+      "section"
+    );
+
+  popover.id =
+    "aceHistoryAuditPopover";
+
+  popover.dataset.historyId =
+    String(historyId);
+
+  popover.setAttribute(
+    "role",
+    "dialog"
+  );
+
+  popover.setAttribute(
+    "aria-label",
+    "Detalhes das correções"
+  );
+
+  popover.innerHTML = `
+
+    <div class="ace-audit-popover-head">
+      <div>
+        <strong>✏️ Histórico de correções</strong>
+        <small>
+          ${audits.length} ${
+            audits.length === 1
+              ? "edição registrada"
+              : "edições registradas"
+          }. O autor original foi preservado.
+        </small>
+      </div>
+
+      <button
+        type="button"
+        class="ace-audit-popover-close"
+        aria-label="Fechar"
+        title="Fechar"
+      >×</button>
+    </div>
+
+    <div class="ace-audit-popover-body">
+      ${audits.map((audit, index) => `
+
+        <article class="ace-audit-card">
+
+          <div class="ace-audit-card-title">
+            <span>Correção ${audits.length - index}</span>
+            <span>${esc(formatAceAuditDateTime(audit.editedAt))}</span>
+          </div>
+
+          <div class="ace-audit-meta">
+            <div class="ace-audit-meta-item">
+              <span>Lançamento original</span>
+              <strong>${esc(audit.originalUserName || "Usuário não identificado")}</strong>
+            </div>
+
+            <div class="ace-audit-meta-item">
+              <span>Corrigido por</span>
+              <strong>${esc(audit.editorUserName || "Usuário não identificado")}</strong>
+            </div>
+          </div>
+
+          <div class="ace-audit-reason">
+            <span>Justificativa informada</span>
+            <strong>${esc(audit.editReason || "—")}</strong>
+          </div>
+
+          <div class="ace-audit-comparison">
+            ${renderAceAuditSnapshot(
+              audit.before,
+              "Antes",
+              "ace-audit-before"
+            )}
+            ${renderAceAuditSnapshot(
+              audit.after,
+              "Depois",
+              "ace-audit-after"
+            )}
+          </div>
+
+        </article>
+
+      `).join("")}
+    </div>
+
+  `;
+
+  document.body.appendChild(
+    popover
+  );
+
+  popover
+    .querySelector(
+      ".ace-audit-popover-close"
+    )
+    ?.addEventListener(
+      "click",
+      closeAceHistoryAuditPopover
+    );
+
+  popover.addEventListener(
+    "mouseenter",
+    cancelAceHistoryAuditClose
+  );
+
+  popover.addEventListener(
+    "mouseleave",
+    scheduleAceHistoryAuditClose
+  );
+
+  if (
+    window.innerWidth > 720 &&
+    anchor
+  ) {
+
+    const rect =
+      anchor.getBoundingClientRect();
+
+    const width =
+      Math.min(
+        560,
+        window.innerWidth - 24
+      );
+
+    const left =
+      Math.max(
+        12,
+        Math.min(
+          rect.left,
+          window.innerWidth - width - 12
+        )
+      );
+
+    popover.style.left =
+      `${Math.round(left)}px`;
+
+    popover.style.top =
+      `${Math.round(rect.bottom + 8)}px`;
+
+    const popoverRect =
+      popover.getBoundingClientRect();
+
+    if (
+      popoverRect.bottom >
+      window.innerHeight - 12
+    ) {
+      popover.style.top =
+        `${Math.max(
+          12,
+          Math.round(
+            rect.top -
+            popoverRect.height -
+            8
+          )
+        )}px`;
+    }
+
+  }
+
+}
+
+
+function renderAceHistoryAuditStatus(
+  historyItem
+) {
+
+  const audits =
+    getAceHistoryAudits(
+      historyItem?.id
+    );
+
+  if (!audits.length) {
+    return `
+      <div class="ace-history-status-cell">
+        <span class="ace-history-original-badge">
+          Original
+        </span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="ace-history-status-cell">
+      <button
+        type="button"
+        class="ace-history-audit-badge"
+        data-ace-audit-history-id="${esc(String(historyItem.id))}"
+        aria-label="Ver detalhes das correções"
+        title="Passe o mouse ou toque para ver quem corrigiu"
+      >
+        ✏️ Editado${
+          audits.length > 1
+            ? ` ${audits.length}x`
+            : ""
+        }
+      </button>
+    </div>
+  `;
+
+}
+
+
+function bindAceHistoryAuditBadges() {
+
+  ensureAceHistoryAuditUi();
+
+  document
+    .querySelectorAll(
+      ".ace-history-audit-badge"
+    )
+    .forEach(button => {
+
+      if (
+        button.dataset.aceAuditBound ===
+        "1"
+      ) {
+        return;
+      }
+
+      button.dataset.aceAuditBound =
+        "1";
+
+      const historyId =
+        Number(
+          button.dataset
+            .aceAuditHistoryId
+        );
+
+      button.addEventListener(
+        "mouseenter",
+        () =>
+          openAceHistoryAuditPopover(
+            historyId,
+            button
+          )
+      );
+
+      button.addEventListener(
+        "mouseleave",
+        scheduleAceHistoryAuditClose
+      );
+
+      button.addEventListener(
+        "focus",
+        () =>
+          openAceHistoryAuditPopover(
+            historyId,
+            button
+          )
+      );
+
+      button.addEventListener(
+        "click",
+        event => {
+
+          event.stopPropagation();
+
+          const openPopover =
+            document.getElementById(
+              "aceHistoryAuditPopover"
+            );
+
+          if (
+            openPopover?.dataset.historyId ===
+            String(historyId)
+          ) {
+            cancelAceHistoryAuditClose();
+            return;
+          }
+
+          openAceHistoryAuditPopover(
+            historyId,
+            button
+          );
+
+        }
+      );
+
+    });
+
+}
+
+
 function renderEntryActionsCell(entry) {
 
   const realEntry =
@@ -16844,6 +17559,8 @@ function renderEntries() {
 
   ensureEntryActionsStyles();
 
+  ensureAceHistoryAuditUi();
+
   ensureEntryHistoryControls();
 
 
@@ -16968,6 +17685,13 @@ function renderEntries() {
               )
           ],
           [
+            "Situação",
+            x =>
+              renderAceHistoryAuditStatus(
+                x
+              )
+          ],
+          [
             "Obs.",
             x =>
               esc(
@@ -16990,6 +17714,8 @@ function renderEntries() {
 
 
   bindEntryActionButtons();
+
+  bindAceHistoryAuditBadges();
 }
 
 
@@ -17830,6 +18556,8 @@ function renderMovementDayHistory() {
 
   ensureMovementDayHistory();
 
+  ensureAceHistoryAuditUi();
+
 
   const target =
     document.getElementById(
@@ -17966,6 +18694,14 @@ function renderMovementDayHistory() {
         ],
 
         [
+          "Situação",
+          x =>
+            renderAceHistoryAuditStatus(
+              x
+            )
+        ],
+
+        [
           "Obs.",
           x =>
             esc(
@@ -17987,6 +18723,8 @@ function renderMovementDayHistory() {
 
 
   bindMovementHistoryActions();
+
+  bindAceHistoryAuditBadges();
 
 }
 
@@ -27531,6 +28269,8 @@ function renderHistory() {
     return;
   }
 
+  ensureAceHistoryAuditUi();
+
 
   const filterDate =
     document.getElementById(
@@ -27623,6 +28363,14 @@ function renderHistory() {
         ],
 
         [
+          "Situação",
+          x =>
+            renderAceHistoryAuditStatus(
+              x
+            )
+        ],
+
+        [
           "Obs.",
           x => esc(x.note || "")
         ]
@@ -27639,6 +28387,8 @@ function renderHistory() {
       "535px"
     );
   });
+
+  bindAceHistoryAuditBadges();
 
 }
 
@@ -39731,7 +40481,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-auditoria-v53",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-historico-auditoria-v54",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
