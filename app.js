@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-fotos-30d-v55",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-menu-sacos-v56",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-sacos-fotos-30d-v55";
+  "2026.09.19-relatorio-menu-sacos-v56";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -20916,6 +20916,61 @@ async function renderReport() {
     );
 
 
+  // Movimentações de sacos usam o mesmo período escolhido no
+  // relatório. Como este estoque é independente dos alimentos,
+  // ele não é limitado pelo filtro de origem.
+  const sackReportRows =
+    (db.sackMovements || [])
+      .filter(
+        row =>
+          (!start || row.date >= start) &&
+          (!end || row.date <= end)
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            b.createdAt ||
+            b.date ||
+            ""
+          ).localeCompare(
+            String(
+              a.createdAt ||
+              a.date ||
+              ""
+            )
+          )
+      );
+
+
+  const totalSackEntries =
+    sackReportRows
+      .filter(
+        row =>
+          row.type === "entrada"
+      )
+      .reduce(
+        (total, row) =>
+          total +
+          Number(row.qty || 0),
+        0
+      );
+
+
+  const totalSackOutputs =
+    sackReportRows
+      .filter(
+        row =>
+          row.type === "saida"
+      )
+      .reduce(
+        (total, row) =>
+          total +
+          Number(row.qty || 0),
+        0
+      );
+
+
   // As edições entram no relatório pela DATA EM QUE FORAM FEITAS,
   // independentemente da data original da entrada/saída/perda.
   const movementAuditReportRows =
@@ -21954,6 +22009,123 @@ async function renderReport() {
           </div>
         `
     }
+
+    <section
+      class="ace-report-sacks"
+      style="
+        margin:22px 0;
+        padding:16px;
+        border:1px solid #cfe0ec;
+        border-radius:14px;
+        background:#f8fbfd;
+      "
+    >
+
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+          flex-wrap:wrap;
+          margin-bottom:13px;
+        "
+      >
+
+        <div>
+          <div style="color:#0b426d;font-size:19px;font-weight:950;">
+            🎒 Movimentações de Sacos
+          </div>
+          <div style="margin-top:4px;color:#667d8e;font-size:11px;">
+            Entradas e saídas registradas no período selecionado.
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span style="padding:7px 11px;border-radius:999px;background:#e8f7ef;color:#087443;font-size:11px;font-weight:900;">
+            ⬇️ Entradas: ${fmt(totalSackEntries)}
+          </span>
+          <span style="padding:7px 11px;border-radius:999px;background:#fff2e8;color:#a34300;font-size:11px;font-weight:900;">
+            ⬆️ Saídas: ${fmt(totalSackOutputs)}
+          </span>
+        </div>
+
+      </div>
+
+      ${
+        sackReportRows.length
+          ? table(
+              sackReportRows,
+              [
+                [
+                  "Data",
+                  row =>
+                    fmtDate(row.date)
+                ],
+                [
+                  "Tipo",
+                  row =>
+                    row.type === "entrada"
+                      ? '<span class="pill" style="background:#ecfdf3;color:#027a48;">Entrada</span>'
+                      : '<span class="pill" style="background:#fff4ed;color:#b54708;">Saída</span>'
+                ],
+                [
+                  "Tamanho",
+                  row =>
+                    esc(
+                      getAceSackTypeName(
+                        row.sackTypeId
+                      )
+                    )
+                ],
+                [
+                  "Quantidade",
+                  row =>
+                    fmt(row.qty)
+                ],
+                [
+                  "Origem / destino",
+                  row =>
+                    esc(
+                      row.originDestination ||
+                      "—"
+                    )
+                ],
+                [
+                  "Finalidade",
+                  row =>
+                    esc(
+                      row.purpose ||
+                      "—"
+                    )
+                ],
+                [
+                  "Usuário",
+                  row =>
+                    esc(
+                      getMovementUserName(row) ||
+                      "Usuário não identificado"
+                    )
+                ],
+                [
+                  "Observação",
+                  row =>
+                    esc(
+                      row.note ||
+                      "—"
+                    )
+                ]
+              ],
+              null
+            )
+          : `
+              <div class="empty">
+                Sem movimentações de sacos no período.
+              </div>
+            `
+      }
+
+    </section>
 
     <section
       style="
@@ -25353,6 +25525,36 @@ async function generateSignedReportPDF() {
             "15%",
             "21%",
             "10%"
+          ]);
+
+        }
+
+
+        // Movimentações de sacos:
+        // Data | Tipo | Tamanho | Quantidade | Origem/Destino
+        // | Finalidade | Usuário | Observação
+        if (
+          headers.length === 8 &&
+          headers.includes(
+            "tamanho"
+          ) &&
+          headers.includes(
+            "origem / destino"
+          ) &&
+          headers.includes(
+            "finalidade"
+          )
+        ) {
+
+          applyWidths([
+            "9%",
+            "8%",
+            "17%",
+            "8%",
+            "15%",
+            "12%",
+            "15%",
+            "16%"
           ]);
 
         }
@@ -40716,7 +40918,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-fotos-30d-v55",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-menu-sacos-v56",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -58257,8 +58459,13 @@ window.aceBuildStatisticsReportHtml =
         { target: "entrada", label: "➕ Entrada" },
         { target: "saida", label: "📤 Saída/Perda" },
         { target: "cestas", label: "🧺 Cestas" },
-        { target: "sacosEntrada", label: "📥 Entrada de Sacos" },
-        { target: "sacosSaida", label: "📤 Saída de Sacos" }
+        {
+          label: "🎒 Sacos",
+          children: [
+            { target: "sacosEntrada", label: "⬇️ Entrada" },
+            { target: "sacosSaida", label: "⬆️ Saída" }
+          ]
+        }
       ]
     },
     queries: {
@@ -58267,7 +58474,7 @@ window.aceBuildStatisticsReportHtml =
         { target: "relatorio", label: "📑 Relatórios" },
         { target: "estatisticas", label: "📊 Estatísticas" },
         { target: "estoque", label: "🏬 Estoque" },
-        { target: "sacosEstoque", label: "🛍️ Estoque de Sacos" }
+        { target: "sacosEstoque", label: "🧮 Estoque de Sacos" }
       ]
     },
     management: {
@@ -58282,6 +58489,17 @@ window.aceBuildStatisticsReportHtml =
     }
   };
 
+  const flattenGroupItems =
+    items =>
+      (items || []).flatMap(
+        item =>
+          item.children?.length
+            ? flattenGroupItems(
+                item.children
+              )
+            : [item]
+      );
+
   const directDesktop = [
     { target: "mural", order: 10 },
     { target: "inicio", order: 20 },
@@ -58290,7 +58508,13 @@ window.aceBuildStatisticsReportHtml =
 
   const groupedTargets = new Set(
     Object.values(groups)
-      .flatMap(group => group.items.map(item => item.target))
+      .flatMap(
+        group =>
+          flattenGroupItems(
+            group.items
+          )
+      )
+      .map(item => item.target)
       .filter(Boolean)
   );
 
@@ -58539,6 +58763,63 @@ window.aceBuildStatisticsReportHtml =
         color: #0756a0;
       }
 
+      #${DESKTOP_POPUP_ID} .ace-nav-submenu-wrap{
+        position:relative;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-nav-submenu-trigger{
+        justify-content:space-between;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-nav-submenu-arrow{
+        margin-left:auto;
+        font-size:20px;
+        font-weight:900;
+        line-height:1;
+      }
+
+      #${DESKTOP_POPUP_ID} .ace-nav-side-menu{
+        position:absolute;
+        z-index:2147482501;
+        display:none;
+        top:0;
+        left:100%;
+        min-width:210px;
+        padding:8px;
+        border:1px solid #dce6ee;
+        border-radius:16px;
+        background:#fff;
+        box-shadow:0 18px 48px rgba(9,47,78,.20);
+      }
+
+      #${DESKTOP_POPUP_ID}.ace-settings-submenu-left
+      .ace-nav-side-menu{
+        right:100%;
+        left:auto;
+      }
+
+      #${DESKTOP_POPUP_ID}
+      .ace-nav-submenu-wrap:hover
+      .ace-nav-side-menu,
+      #${DESKTOP_POPUP_ID}
+      .ace-nav-submenu-wrap.open
+      .ace-nav-side-menu{
+        display:block;
+      }
+
+      #${DESKTOP_POPUP_ID}
+      .ace-nav-submenu-wrap:hover
+      > .ace-nav-submenu-trigger,
+      #${DESKTOP_POPUP_ID}
+      .ace-nav-submenu-wrap.open
+      > .ace-nav-submenu-trigger,
+      #${DESKTOP_POPUP_ID}
+      .ace-nav-submenu-wrap.active
+      > .ace-nav-submenu-trigger{
+        background:#eef6fc;
+        color:#0756a0;
+      }
+
       #${DESKTOP_POPUP_ID} .ace-settings-options-wrap{
         position:relative;
       }
@@ -58706,6 +58987,60 @@ window.aceBuildStatisticsReportHtml =
         background: #eaf4fd;
         color: #0756a0;
         box-shadow: inset 0 0 0 1px #d5e8f7;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-sacks-mobile-level2{
+        margin:4px 0;
+        overflow:hidden;
+        border:1px solid #dbe7ef;
+        border-radius:13px;
+        background:#fff;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-sacks-mobile-trigger{
+        display:flex;
+        width:100%;
+        min-height:52px;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        padding:11px 13px;
+        border:0;
+        background:#f7fafc;
+        color:#28445e;
+        font:inherit;
+        font-size:16px;
+        font-weight:850;
+        text-align:left;
+        cursor:pointer;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-sacks-mobile-panel{
+        max-height:0;
+        overflow:hidden;
+        padding:0 8px;
+        opacity:0;
+        transition:max-height .20s ease,opacity .16s ease,padding .20s ease;
+      }
+
+      #${MOBILE_SHEET_ID}
+      .ace-sacks-mobile-level2.open
+      .ace-sacks-mobile-panel{
+        max-height:140px;
+        padding:5px 8px 8px;
+        opacity:1;
+      }
+
+      #${MOBILE_SHEET_ID} .ace-sacks-mobile-arrow{
+        font-size:20px;
+        font-weight:900;
+        transition:transform .16s ease;
+      }
+
+      #${MOBILE_SHEET_ID}
+      .ace-sacks-mobile-level2.open
+      .ace-sacks-mobile-arrow{
+        transform:rotate(90deg);
       }
 
       /* ======================================================
@@ -58878,6 +59213,40 @@ window.aceBuildStatisticsReportHtml =
       #aceMobileDrawerList
       .ace-drawer-settings-level2.open
       .ace-drawer-settings-panel{
+        display:block;
+      }
+
+      #aceMobileDrawerList .ace-drawer-sacks-level2{
+        margin:4px 8px 7px;
+        overflow:hidden;
+        border:1px solid #e0e9f0;
+        border-radius:12px;
+        background:#fff;
+      }
+
+      #aceMobileDrawerList .ace-drawer-sacks-toggle{
+        display:flex;
+        width:100%;
+        align-items:center;
+        justify-content:space-between;
+        min-height:48px;
+        padding:10px 12px;
+        border:0;
+        background:#f7fafc;
+        color:#28445e;
+        font:inherit;
+        font-weight:800;
+        text-align:left;
+      }
+
+      #aceMobileDrawerList .ace-drawer-sacks-panel{
+        display:none;
+        padding:4px 7px 7px;
+      }
+
+      #aceMobileDrawerList
+      .ace-drawer-sacks-level2.open
+      .ace-drawer-sacks-panel{
         display:block;
       }
     `;
@@ -59087,14 +59456,42 @@ window.aceBuildStatisticsReportHtml =
       popup.innerHTML =
         group.items
           .map(
-            item => `
-              <button
-                type="button"
-                data-ace-group-target="${item.target}"
-              >
-                ${item.label}
-              </button>
-            `
+            item =>
+              item.children?.length
+                ? `
+                    <div class="ace-nav-submenu-wrap">
+                      <button
+                        type="button"
+                        class="ace-nav-submenu-trigger"
+                        data-ace-nav-submenu-trigger
+                      >
+                        <span>${item.label}</span>
+                        <span class="ace-nav-submenu-arrow">›</span>
+                      </button>
+                      <div class="ace-nav-side-menu">
+                        ${item.children
+                          .map(
+                            child => `
+                              <button
+                                type="button"
+                                data-ace-group-target="${child.target}"
+                              >
+                                ${child.label}
+                              </button>
+                            `
+                          )
+                          .join("")}
+                      </div>
+                    </div>
+                  `
+                : `
+                    <button
+                      type="button"
+                      data-ace-group-target="${item.target}"
+                    >
+                      ${item.label}
+                    </button>
+                  `
           )
           .join("");
 
@@ -59112,6 +59509,32 @@ window.aceBuildStatisticsReportHtml =
                   button.dataset
                     .aceGroupTarget
                 );
+
+          }
+        );
+
+
+      popup
+        .querySelectorAll(
+          "[data-ace-nav-submenu-trigger]"
+        )
+        .forEach(
+          button => {
+
+            button.onclick =
+              event => {
+
+                event.stopPropagation();
+
+                button
+                  .closest(
+                    ".ace-nav-submenu-wrap"
+                  )
+                  ?.classList.toggle(
+                    "open"
+                  );
+
+              };
 
           }
         );
@@ -59159,8 +59582,13 @@ window.aceBuildStatisticsReportHtml =
 
 
     if (
-      groupKey ===
-        "settings"
+      (
+        groupKey ===
+          "settings"
+        ||
+        groupKey ===
+          "movements"
+      )
       &&
       left +
         popupWidth +
@@ -59302,7 +59730,9 @@ window.aceBuildStatisticsReportHtml =
 
     return Boolean(
       group &&
-      group.items.some(
+      flattenGroupItems(
+        group.items
+      ).some(
         item =>
           targetMatchesTab(
             item.target,
@@ -59329,6 +59759,25 @@ window.aceBuildStatisticsReportHtml =
           targetMatchesTab(button.dataset.aceGroupTarget, activeOriginalTab())
         );
       });
+
+      popup
+        .querySelectorAll(
+          ".ace-nav-submenu-wrap"
+        )
+        .forEach(
+          wrap => {
+
+            wrap.classList.toggle(
+              "active",
+              Boolean(
+                wrap.querySelector(
+                  "[data-ace-group-target].active"
+                )
+              )
+            );
+
+          }
+        );
     }
   }
 
@@ -59360,6 +59809,28 @@ window.aceBuildStatisticsReportHtml =
   }
 
   function renderMobileSheetItem(item) {
+
+    if (item.children?.length) {
+      return `
+        <div class="ace-sacks-mobile-level2">
+          <button
+            class="ace-sacks-mobile-trigger"
+            type="button"
+            data-ace-sacks-mobile-toggle
+            aria-expanded="false"
+          >
+            <span>${item.label}</span>
+            <span class="ace-sacks-mobile-arrow" aria-hidden="true">›</span>
+          </button>
+          <div class="ace-sacks-mobile-panel">
+            ${item.children
+              .map(renderMobileSheetItem)
+              .join("")}
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <button class="ace-group-sheet-item" type="button" data-ace-sheet-target="${item.target}">
         ${item.label}
@@ -59514,6 +59985,73 @@ window.aceBuildStatisticsReportHtml =
 
       button.onclick = () => openOriginal(button.dataset.aceSheetTarget);
     });
+
+    content
+      .querySelectorAll(
+        ".ace-sacks-mobile-level2"
+      )
+      .forEach(
+        wrap => {
+
+          if (
+            wrap.querySelector(
+              "[data-ace-sheet-target].active"
+            )
+          ) {
+
+            wrap.classList.add(
+              "open"
+            );
+
+            wrap
+              .querySelector(
+                "[data-ace-sacks-mobile-toggle]"
+              )
+              ?.setAttribute(
+                "aria-expanded",
+                "true"
+              );
+
+          }
+
+        }
+      );
+
+
+    content
+      .querySelectorAll(
+        "[data-ace-sacks-mobile-toggle]"
+      )
+      .forEach(
+        button => {
+
+          button.onclick =
+            () => {
+
+              const wrap =
+                button.closest(
+                  ".ace-sacks-mobile-level2"
+                );
+
+              const opening =
+                !wrap?.classList.contains(
+                  "open"
+                );
+
+              wrap?.classList.toggle(
+                "open",
+                opening
+              );
+
+              button.setAttribute(
+                "aria-expanded",
+                String(opening)
+              );
+
+            };
+
+        }
+      );
 
 
     content
@@ -59703,10 +60241,34 @@ window.aceBuildStatisticsReportHtml =
             items
               .map(
                 item =>
-                  directButton(
-                    item.target,
-                    item.label
-                  )
+                  item.children?.length
+                    ? `
+                        <div class="ace-drawer-sacks-level2">
+                          <button
+                            type="button"
+                            class="ace-drawer-sacks-toggle"
+                            data-ace-drawer-sacks-toggle
+                          >
+                            <span>${item.label}</span>
+                            <span>›</span>
+                          </button>
+                          <div class="ace-drawer-sacks-panel">
+                            ${item.children
+                              .map(
+                                child =>
+                                  directButton(
+                                    child.target,
+                                    child.label
+                                  )
+                              )
+                              .join("")}
+                          </div>
+                        </div>
+                      `
+                    : directButton(
+                        item.target,
+                        item.label
+                      )
               )
               .join("")
           }
@@ -59875,6 +60437,49 @@ window.aceBuildStatisticsReportHtml =
             ?.classList.toggle(
               "open"
             );
+
+    }
+
+
+    const sacksToggle =
+      drawerList.querySelector(
+        "[data-ace-drawer-sacks-toggle]"
+      );
+
+
+    if (sacksToggle) {
+
+      const sacksWrap =
+        sacksToggle.closest(
+          ".ace-drawer-sacks-level2"
+        );
+
+      sacksToggle.onclick =
+        () =>
+          sacksWrap?.classList.toggle(
+            "open"
+          );
+
+      if (
+        sacksWrap?.querySelector(
+          '[data-ace-open-page="sacosEntrada"], [data-ace-open-page="sacosSaida"]'
+        ) &&
+        (
+          targetMatchesTab(
+            "sacosEntrada",
+            activeOriginalTab()
+          )
+          ||
+          targetMatchesTab(
+            "sacosSaida",
+            activeOriginalTab()
+          )
+        )
+      ) {
+        sacksWrap.classList.add(
+          "open"
+        );
+      }
 
     }
 
