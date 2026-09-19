@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-menu-sacos-v56",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cadastro-sacos-config-v58",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-relatorio-menu-sacos-v56";
+  "2026.09.19-cadastro-sacos-config-v58";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -22034,7 +22034,7 @@ async function renderReport() {
 
         <div>
           <div style="color:#0b426d;font-size:19px;font-weight:950;">
-            🎒 Movimentações de Sacos
+            🛍️ Movimentações de Sacos
           </div>
           <div style="margin-top:4px;color:#667d8e;font-size:11px;">
             Entradas e saídas registradas no período selecionado.
@@ -23957,6 +23957,10 @@ function renderCadastros() {
 
   // A aba antiga "Cadastros" passa a ser a área "Configurações".
   ensureAceConfigurationsLayout();
+
+  // O cadastro de tamanhos de sacos pertence à área de cadastros,
+  // não à consulta do estoque.
+  ensureAceSackCadastroPanel();
 
   // Administração fica dentro de Configurações > Opções.
   ensureAceAdminOperationsPanel();
@@ -40918,7 +40922,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-menu-sacos-v56",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cadastro-sacos-config-v58",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -47490,20 +47494,69 @@ function setupAceSackPages() {
           <div class="ace-sack-subtitle">Saldo consolidado. Os históricos permanecem nas telas de Entrada e Saída.</div>
           <div id="aceSackStockCards" class="ace-sack-cards"></div>
         </div>
-        <div class="ace-sack-panel">
-          <h3 style="margin-top:0;color:#0b3a63;">➕ Cadastrar tamanho de saco</h3>
-          <form id="aceSackTypeForm" class="ace-sack-form">
-            <label>Nome<input name="name" type="text" maxlength="80" placeholder="Ex.: Saco médio" required></label>
-            <label>Largura (cm)<input name="width" type="number" min="1" step="1" required></label>
-            <label>Altura (cm)<input name="height" type="number" min="1" step="1" required></label>
-            <label>Estoque mínimo<input name="minimum" type="number" min="0" step="1" value="0" required></label>
-            <button class="ace-sack-submit" type="submit">Cadastrar tamanho</button>
-          </form>
-        </div>
       </div>`;
   }
 
   bindAceSackEvents();
+}
+
+
+function ensureAceSackCadastroPanel() {
+
+  const cadastrosView =
+    document.getElementById(
+      "aceConfigCadastrosView"
+    );
+
+  if (!cadastrosView) {
+    return;
+  }
+
+
+  let panel =
+    document.getElementById(
+      "aceSackTypeCadastroPanel"
+    );
+
+
+  if (!panel) {
+
+    panel =
+      document.createElement(
+        "section"
+      );
+
+    panel.id =
+      "aceSackTypeCadastroPanel";
+
+    panel.className =
+      "ace-sack-panel";
+
+    panel.style.marginTop =
+      "18px";
+
+    panel.innerHTML = [
+      '<h3 style="margin:0 0 5px;color:#0b3a63;">🛍️ Cadastro de Sacos</h3>',
+      '<div class="ace-sack-subtitle">Cadastre os tamanhos que serão usados nas entradas, saídas e no controle do estoque de sacos.</div>',
+      '<form id="aceSackTypeForm" class="ace-sack-form">',
+      '<label>Nome<input name="name" type="text" maxlength="80" placeholder="Ex.: Saco médio" required></label>',
+      '<label>Largura (cm)<input name="width" type="number" min="1" step="1" required></label>',
+      '<label>Altura (cm)<input name="height" type="number" min="1" step="1" required></label>',
+      '<label>Estoque mínimo<input name="minimum" type="number" min="0" step="1" value="0" required></label>',
+      '<button class="ace-sack-submit" type="submit">Cadastrar tamanho</button>',
+      "</form>"
+    ].join("");
+
+
+    cadastrosView.appendChild(
+      panel
+    );
+
+  }
+
+
+  bindAceSackEvents();
+
 }
 
 
@@ -58460,7 +58513,7 @@ window.aceBuildStatisticsReportHtml =
         { target: "saida", label: "📤 Saída/Perda" },
         { target: "cestas", label: "🧺 Cestas" },
         {
-          label: "🎒 Sacos",
+          label: "🛍️ Sacos",
           children: [
             { target: "sacosEntrada", label: "⬇️ Entrada" },
             { target: "sacosSaida", label: "⬆️ Saída" }
