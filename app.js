@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-mobile-menu-sacos-v68",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-historico-estoque-geral-v69",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-mobile-menu-sacos-subitens-v68";
+  "2026.09.19-historico-estoque-geral-v69";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -13684,6 +13684,41 @@ const ACE_GENERAL_STOCK_OPTION_VALUE =
   "__ace_estoque_geral__";
 
 
+function isAceGeneralStockOrigin(
+  origin
+) {
+
+  return (
+    normalizeAceText(
+      origin?.name ||
+      origin?.nome ||
+      ""
+    ) ===
+    "estoque geral"
+  );
+
+}
+
+
+function getAceOperationalOrigins() {
+
+  return (
+    Array.isArray(
+      db?.origins
+    )
+      ? db.origins
+      : []
+  )
+    .filter(
+      origin =>
+        !isAceGeneralStockOrigin(
+          origin
+        )
+    );
+
+}
+
+
 function getAceGeneralStockOrigin() {
 
   const origins =
@@ -13692,26 +13727,11 @@ function getAceGeneralStockOrigin() {
       : [];
 
 
-  const normalized = value =>
-    String(value || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim();
-
-
   return (
     origins.find(
-      item =>
-        normalized(item.name) ===
-        "estoque geral"
-    ) ||
-    origins.find(
-      item =>
-        normalized(item.name) ===
-        "agua fria"
-    ) ||
-    origins[0] ||
+      isAceGeneralStockOrigin
+    )
+    ||
     null
   );
 
@@ -13738,7 +13758,7 @@ function setupAceMovementGeneralStockSelect() {
   select.innerHTML =
     `<option value="">Selecione...</option>` +
     `<option value="${ACE_GENERAL_STOCK_OPTION_VALUE}">Estoque Geral</option>` +
-    (db.origins || [])
+    getAceOperationalOrigins()
       .map(
         item => `
           <option value="${esc(item.id)}">
@@ -13839,7 +13859,7 @@ function refreshSelects() {
 
   populateSelect(
     "entryOrigin",
-    db.origins
+    getAceOperationalOrigins()
   );
 
   setupAceMovementGeneralStockSelect();
@@ -14934,7 +14954,7 @@ function renderDashboard() {
 
 
     originSummary.innerHTML =
-      (db.origins || [])
+      getAceOperationalOrigins()
         .map(
           origin => {
 
@@ -15378,13 +15398,26 @@ function openRecentEditModal(
             ${
               !isEntry
                 ? `
-                    <option value="${ACE_GENERAL_STOCK_OPTION_VALUE}">
+                    <option
+                      value="${ACE_GENERAL_STOCK_OPTION_VALUE}"
+                      ${
+                        Number(
+                          item.originId
+                        ) ===
+                        Number(
+                          getAceGeneralStockOrigin()
+                            ?.id
+                        )
+                          ? "selected"
+                          : ""
+                      }
+                    >
                       Estoque Geral
                     </option>
                   `
                 : ""
             }
-            ${db.origins.map(o => `
+            ${getAceOperationalOrigins().map(o => `
               <option value="${o.id}" ${Number(item.originId) === Number(o.id) ? "selected" : ""}>
                 ${esc(o.name)}
               </option>
@@ -15966,8 +15999,16 @@ async function saveRecentEdit(id, isEntry) {
     !Number.isFinite(qty) ||
     qty <= 0
   ) {
+
     error.textContent =
-      "Preencha data, origem, alimento e quantidade corretamente.";
+      (
+        originSelection ===
+          ACE_GENERAL_STOCK_OPTION_VALUE &&
+        !originId
+      )
+        ? 'A origem técnica "Estoque Geral" ainda não foi criada no Supabase. Execute o SQL V69.'
+        : "Preencha data, origem, alimento e quantidade corretamente.";
+
     error.style.display = "block";
     return;
   }
@@ -23789,7 +23830,7 @@ function renderCadastros() {
       <div class="mini-list">
 
         ${
-          db.origins
+          getAceOperationalOrigins()
             .map(
               p => `
 
@@ -29646,7 +29687,7 @@ function setupBulkEntryForm() {
   // Popula os selects imediatamente.
   populateSelect(
     "entryOrigin",
-    db.origins
+    getAceOperationalOrigins()
   );
 
   populateSelect(
@@ -31957,6 +31998,21 @@ function bindEvents() {
 
 
       if (!originId) {
+
+        if (
+          originSelection ===
+          ACE_GENERAL_STOCK_OPTION_VALUE
+        ) {
+
+          await showAceMessage(
+            'A origem técnica "Estoque Geral" ainda não foi criada no Supabase.\n\nExecute uma única vez o SQL V69 enviado junto com este app.js.',
+            "⚠️ Atualização necessária"
+          );
+
+          return;
+
+        }
+
         await showMissingMovementField(
           "Selecione a Origem do alimento. Escolha Estoque Geral, Água Fria ou Piedade antes de registrar a perda.",
           '[name="origin"]'
@@ -32299,6 +32355,18 @@ function bindEvents() {
 
       if (!name) {
         toast("Informe o nome da origem.");
+        return;
+      }
+
+      if (
+        normalizeAceText(
+          name
+        ) ===
+        "estoque geral"
+      ) {
+        toast(
+          'O nome "Estoque Geral" é reservado pelo sistema.'
+        );
         return;
       }
 
@@ -41098,7 +41166,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-mobile-menu-sacos-v68",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-historico-estoque-geral-v69",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
