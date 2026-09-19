@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-auditoria-cores-v71",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-saida-sacos-mesma-cor-v72",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-relatorio-auditoria-cores-v71";
+  "2026.09.19-saida-sacos-mesma-cor-v72";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -22400,7 +22400,7 @@ async function renderReport() {
           <span style="padding:7px 11px;border-radius:999px;background:#e8f7ef;color:#087443;font-size:11px;font-weight:900;">
             ⬇️ Entradas: ${fmt(totalSackEntries)}
           </span>
-          <span style="padding:7px 11px;border-radius:999px;background:#fff2e8;color:#a34300;font-size:11px;font-weight:900;">
+          <span style="padding:7px 11px;border:1px solid #a5e6f0;border-radius:999px;background:#e8f8fb;color:#0e7490;font-size:11px;font-weight:900;">
             ⬆️ Saídas: ${fmt(totalSackOutputs)}
           </span>
         </div>
@@ -22422,7 +22422,7 @@ async function renderReport() {
                   row =>
                     row.type === "entrada"
                       ? '<span class="pill" style="background:#ecfdf3;color:#027a48;">Entrada</span>'
-                      : '<span class="pill" style="background:#fff4ed;color:#b54708;">Saída</span>'
+                      : '<span class="pill" style="border:1px solid #a5e6f0;background:#e8f8fb;color:#0e7490;">Saída</span>'
                 ],
                 [
                   "Tamanho",
@@ -41502,7 +41502,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-auditoria-cores-v71",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-saida-sacos-mesma-cor-v72",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
