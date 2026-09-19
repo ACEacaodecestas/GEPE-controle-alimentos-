@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-foto-sem-reset-v61",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-icones-alimentos-v63",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-foto-sem-reset-v61";
+  "2026.09.19-icones-alimentos-v63";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -40974,7 +40974,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-foto-sem-reset-v61",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-icones-alimentos-v63",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -58782,8 +58782,13 @@ window.aceBuildStatisticsReportHtml =
     movements: {
       label: "🔄 Movimentações",
       items: [
-        { target: "entrada", label: "➕ Entrada" },
-        { target: "saida", label: "📤 Saída/Perda" },
+        {
+          label: "🥫 Alimentos",
+          children: [
+            { target: "entrada", label: "➕ Entrada" },
+            { target: "saida", label: "➖ Saída/Perda" }
+          ]
+        },
         { target: "cestas", label: "🧺 Cestas" },
         {
           label: "🛍️ Sacos",
