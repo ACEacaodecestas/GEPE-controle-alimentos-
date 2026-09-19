@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-compativel-v65",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-recebido-por-v66",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-cesta-rpc-compativel-v65";
+  "2026.09.19-cesta-rpc-recebido-por-v66";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -39598,69 +39598,132 @@ async function registerBasketOutput({
   let rpcError = null;
 
 
-  try {
+  const isAceBasketRpcSignatureError =
+    error => {
 
-    rpcResponse =
+      const message =
+        normalizeAceText(
+          error?.message ||
+          ""
+        );
+
+
+      return (
+        message.includes(
+          "could not find the function public.ace_montar_cesta"
+        )
+        ||
+        (
+          message.includes(
+            "ace_montar_cesta"
+          )
+          &&
+          message.includes(
+            "schema cache"
+          )
+        )
+      );
+
+    };
+
+
+  const callAceBasketRpc =
+    async argumentsObject =>
       await aceRunAuthenticatedWrite(
         () =>
           supabaseClient.rpc(
             "ace_montar_cesta",
-            rpcArguments
+            argumentsObject
           ),
         "a montagem da cesta"
       );
 
+
+  try {
+
+    // Assinatura atual completa.
+    rpcResponse =
+      await callAceBasketRpc(
+        rpcArguments
+      );
+
+
   } catch (error) {
 
-    const normalizedMessage =
-      normalizeAceText(
-        error?.message || ""
-      );
+    if (
+      !isAceBasketRpcSignatureError(
+        error
+      )
+    ) {
 
-    const oldFunctionInstalled =
-      normalizedMessage.includes(
-        "could not find the function public.ace_montar_cesta"
-      ) &&
-      normalizedMessage.includes(
-        "p_cesta_imagem"
-      );
+      rpcError =
+        error;
 
+    } else {
 
-    if (oldFunctionInstalled) {
-
-      // Compatibilidade automática com a função anterior do Supabase,
-      // que ainda não possui o parâmetro opcional da imagem da cesta.
-      const legacyArguments = {
+      // Compatibilidade 1:
+      // RPC anterior possui p_cesta_imagem,
+      // mas ainda não possui p_recebido_por.
+      const withoutReceivedBy = {
         ...rpcArguments
       };
 
-      delete legacyArguments
-        .p_cesta_imagem;
+
+      delete withoutReceivedBy
+        .p_recebido_por;
 
 
       try {
 
         rpcResponse =
-          await aceRunAuthenticatedWrite(
-            () =>
-              supabaseClient.rpc(
-                "ace_montar_cesta",
-                legacyArguments
-              ),
-            "a montagem da cesta"
+          await callAceBasketRpc(
+            withoutReceivedBy
           );
 
-      } catch (legacyError) {
 
-        rpcError =
-          legacyError;
+      } catch (legacyReceivedByError) {
+
+        if (
+          !isAceBasketRpcSignatureError(
+            legacyReceivedByError
+          )
+        ) {
+
+          rpcError =
+            legacyReceivedByError;
+
+        } else {
+
+          // Compatibilidade 2:
+          // RPC ainda mais antiga não possui p_recebido_por
+          // nem p_cesta_imagem.
+          const oldestArguments = {
+            ...withoutReceivedBy
+          };
+
+
+          delete oldestArguments
+            .p_cesta_imagem;
+
+
+          try {
+
+            rpcResponse =
+              await callAceBasketRpc(
+                oldestArguments
+              );
+
+
+          } catch (oldestRpcError) {
+
+            rpcError =
+              oldestRpcError;
+
+          }
+
+        }
 
       }
-
-    } else {
-
-      rpcError =
-        error;
 
     }
 
@@ -41036,7 +41099,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-compativel-v65",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-recebido-por-v66",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
