@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-icones-alimentos-v63",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-menu-ordem-estoque-v64",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-icones-alimentos-v63";
+  "2026.09.19-menu-ordem-estoque-v64";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -40974,7 +40974,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-icones-alimentos-v63",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-menu-ordem-estoque-v64",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -58789,14 +58789,14 @@ window.aceBuildStatisticsReportHtml =
             { target: "saida", label: "➖ Saída/Perda" }
           ]
         },
-        { target: "cestas", label: "🧺 Cestas" },
         {
           label: "🛍️ Sacos",
           children: [
             { target: "sacosEntrada", label: "⬇️ Entrada" },
             { target: "sacosSaida", label: "⬆️ Saída" }
           ]
-        }
+        },
+        { target: "cestas", label: "🧺 Cestas" }
       ]
     },
     queries: {
@@ -58804,7 +58804,7 @@ window.aceBuildStatisticsReportHtml =
       items: [
         { target: "relatorio", label: "📑 Relatórios" },
         { target: "estatisticas", label: "📊 Estatísticas" },
-        { target: "estoque", label: "🏬 Estoque" },
+        { target: "estoque", label: "🏬 Estoque de Alimentos" },
         { target: "sacosEstoque", label: "🧮 Estoque de Sacos" }
       ]
     },
