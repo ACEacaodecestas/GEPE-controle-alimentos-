@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-motivos-v70",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-auditoria-cores-v71",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-relatorio-motivos-v70";
+  "2026.09.19-relatorio-auditoria-cores-v71";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -21161,16 +21161,57 @@ async function renderReport() {
       );
 
 
-  // As edições entram no relatório pela DATA EM QUE FORAM FEITAS,
-  // independentemente da data original da entrada/saída/perda.
+  // ========================================================
+  // RELATÓRIO - CORREÇÕES AUDITADAS
+  //
+  // A auditoria continua armazenada no banco.
+  // No Relatório Geral mostramos somente correções de lançamentos
+  // que ainda existem no histórico operacional.
+  // ========================================================
+
+  const activeReportHistoryIds =
+    new Set(
+      (db.history || [])
+        .map(
+          item =>
+            Number(
+              item.id
+            )
+        )
+        .filter(
+          Number.isFinite
+        )
+    );
+
+
   const movementAuditReportRows =
     (db.movementAudits || [])
       .filter(row => {
+
+        if (
+          row.historyId != null &&
+          Number.isFinite(
+            Number(
+              row.historyId
+            )
+          ) &&
+          !activeReportHistoryIds.has(
+            Number(
+              row.historyId
+            )
+          )
+        ) {
+
+          return false;
+
+        }
+
 
         const auditOriginId =
           row.after?.origem_id ??
           row.before?.origem_id ??
           null;
+
 
         return (
           (!start || row.editDate >= start) &&
@@ -21745,6 +21786,135 @@ async function renderReport() {
           : "Todo o período";
 
 
+  const renderReportEntryOrigin =
+    row => {
+
+      const originName =
+        getName(
+          db.origins,
+          row.originId
+        );
+
+
+      const normalizedOrigin =
+        normalizeAceText(
+          originName
+        );
+
+
+      if (
+        normalizedOrigin ===
+        "agua fria"
+      ) {
+
+        return `
+          <span
+            style="
+              display:inline-flex;
+              align-items:center;
+              padding:4px 8px;
+              border:1px solid #b2ddff;
+              border-radius:999px;
+              background:#eaf4ff;
+              color:#175cd3;
+              font-size:11px;
+              font-weight:900;
+              white-space:nowrap;
+            "
+          >
+            ${esc(originName)}
+          </span>
+        `;
+
+      }
+
+
+      if (
+        normalizedOrigin ===
+        "piedade"
+      ) {
+
+        return `
+          <span
+            style="
+              display:inline-flex;
+              align-items:center;
+              padding:4px 8px;
+              border:1px solid #d9d6fe;
+              border-radius:999px;
+              background:#f4f0ff;
+              color:#6941c6;
+              font-size:11px;
+              font-weight:900;
+              white-space:nowrap;
+            "
+          >
+            ${esc(originName)}
+          </span>
+        `;
+
+      }
+
+
+      return esc(
+        originName
+      );
+
+    };
+
+
+  const renderReportMovementType =
+    row => {
+
+      if (
+        row.type ===
+        "perda"
+      ) {
+
+        return `
+          <span
+            style="
+              display:inline-flex;
+              align-items:center;
+              padding:4px 8px;
+              border:1px solid #fecdca;
+              border-radius:999px;
+              background:#fff1f0;
+              color:#b42318;
+              font-size:11px;
+              font-weight:900;
+              white-space:nowrap;
+            "
+          >
+            Perda
+          </span>
+        `;
+
+      }
+
+
+      return `
+        <span
+          style="
+            display:inline-flex;
+            align-items:center;
+            padding:4px 8px;
+            border:1px solid #a5e6f0;
+            border-radius:999px;
+            background:#e8f8fb;
+            color:#0e7490;
+            font-size:11px;
+            font-weight:900;
+            white-space:nowrap;
+          "
+        >
+          Saída
+        </span>
+      `;
+
+    };
+
+
   const html = `
 
     <div
@@ -21873,7 +22043,7 @@ async function renderReport() {
     <h3>✏️ Correções auditadas no período</h3>
 
     <div style="margin:-6px 0 12px;color:#667085;font-size:12px;line-height:1.45;">
-      Esta seção considera a data da edição. O autor original permanece identificado e o novo usuário aparece como responsável pela correção.
+      Esta seção considera a data da edição e mostra somente correções de lançamentos que continuam válidos no sistema. Lançamentos posteriormente excluídos permanecem auditados no banco, mas não aparecem no relatório operacional.
     </div>
 
     ${
@@ -22064,11 +22234,8 @@ async function renderReport() {
               [
                 "Origem",
                 x =>
-                  esc(
-                    getName(
-                      db.origins,
-                      x.originId
-                    )
+                  renderReportEntryOrigin(
+                    x
                   )
               ],
               [
@@ -22126,10 +22293,8 @@ async function renderReport() {
               [
                 "Tipo",
                 x =>
-                  esc(
-                    x.type === "perda"
-                      ? "Perda"
-                      : "Saída"
+                  renderReportMovementType(
+                    x
                   )
               ],
               [
@@ -41337,7 +41502,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-motivos-v70",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-auditoria-cores-v71",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
