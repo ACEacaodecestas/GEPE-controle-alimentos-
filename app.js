@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-historico-estoque-geral-v69",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-motivos-v70",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-historico-estoque-geral-v69";
+  "2026.09.19-relatorio-motivos-v70";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -16020,6 +16020,30 @@ async function saveRecentEdit(id, isEntry) {
     return;
   }
 
+
+  if (
+    !isEntry
+    &&
+    type ===
+      "perda"
+    &&
+    isAceOtherMovementReason(
+      reasonId
+    )
+    &&
+    !note
+  ) {
+
+    error.textContent =
+      'Quando o motivo for "Outro", informe obrigatoriamente a observação descrevendo o motivo da perda.';
+
+    error.style.display =
+      "block";
+
+    return;
+
+  }
+
   if (!editReason) {
     error.textContent =
       "Informe o motivo da correção. Ele ficará registrado na auditoria.";
@@ -19128,11 +19152,47 @@ async function deleteMovementDayHistoryOnly() {
 
 function isBasketMovementRecord(item) {
 
+  if (
+    item?.type !==
+    "saida"
+  ) {
+    return false;
+  }
+
+
+  const note =
+    normalizeAceText(
+      item?.note ||
+      ""
+    );
+
+
+  const reason =
+    normalizeAceText(
+      item?.reasonId ||
+      item?.reason ||
+      ""
+    );
+
+
   return (
-    item?.type === "saida" &&
-    String(
-      item?.note || ""
-    ).startsWith("Cesta: ")
+    note.startsWith(
+      "cesta: "
+    )
+    ||
+    note.startsWith(
+      "estoque de cestas #"
+    )
+    ||
+    note.includes(
+      " | cesta: "
+    )
+    ||
+    reason ===
+      "cesta"
+    ||
+    reason ===
+      "montagem de cesta"
   );
 
 }
@@ -19144,37 +19204,106 @@ function getBasketTypeFromMovement(item) {
     return "";
   }
 
+
   const note =
     String(
-      item.note || ""
-    );
-
-  const withoutPrefix =
-    note.replace(
-      /^Cesta:\s*/,
+      item?.note ||
       ""
     );
 
-  const parts =
-    withoutPrefix.split("|");
 
-  return (
-    parts[0]?.trim() ||
-    ""
-  );
+  // Formato antigo:
+  // "Cesta: Vinha de Luz | Destino: ..."
+  const oldMatch =
+    note.match(
+      /^Cesta:\s*([^|]+)/i
+    );
+
+
+  if (
+    oldMatch?.[1]
+  ) {
+    return oldMatch[1].trim();
+  }
+
+
+  // Formato atual:
+  // "Estoque de cestas #123 | Cesta: Vinha de Luz | Destino: ..."
+  const currentMatch =
+    note.match(
+      /(?:^|\|)\s*Cesta:\s*([^|]+)/i
+    );
+
+
+  if (
+    currentMatch?.[1]
+  ) {
+    return currentMatch[1].trim();
+  }
+
+
+  return "";
 
 }
 
 
 function getMovementReasonDisplay(item) {
 
-  if (isBasketMovementRecord(item)) {
+  // Toda saída automática usada para montagem/estoque de cesta
+  // aparece com o motivo padronizado "Cesta".
+  if (
+    isBasketMovementRecord(
+      item
+    )
+  ) {
     return "Cesta";
   }
 
-  return getName(
-    db.reasons,
-    item.reasonId
+
+  const rawReason =
+    String(
+      item?.reasonId ||
+      item?.reason ||
+      ""
+    )
+      .trim();
+
+
+  if (!rawReason) {
+    return "—";
+  }
+
+
+  // Os motivos do ACE usam texto como ID:
+  // Gorgulho, Vencimento, Avaria, Outro...
+  // getName() converte ID para Number e, por isso,
+  // não funciona corretamente para esses motivos textuais.
+  const matchedReason =
+    (db?.reasons || [])
+      .find(
+        reason =>
+          normalizeAceText(
+            reason?.id ||
+            ""
+          ) ===
+            normalizeAceText(
+              rawReason
+            )
+          ||
+          normalizeAceText(
+            reason?.name ||
+            ""
+          ) ===
+            normalizeAceText(
+              rawReason
+            )
+      );
+
+
+  return (
+    matchedReason?.name ||
+    rawReason ||
+    "—"
   );
 
 }
@@ -19183,14 +19312,36 @@ function getMovementReasonDisplay(item) {
 function getMovementObservationDisplay(item) {
 
   // Saída automática de cesta:
-  // OBS deve ficar vazia.
-  if (isBasketMovementRecord(item)) {
+  // a observação técnica ("Estoque de cestas #...")
+  // não precisa aparecer na coluna Obs. do relatório.
+  if (
+    isBasketMovementRecord(
+      item
+    )
+  ) {
     return "";
   }
 
-  // Saída/Perda manual:
-  // mantém a observação digitada pelo usuário.
-  return item.note || "";
+
+  return (
+    item?.note ||
+    ""
+  );
+
+}
+
+
+function isAceOtherMovementReason(
+  reasonId
+) {
+
+  return (
+    normalizeAceText(
+      reasonId ||
+      ""
+    ) ===
+    "outro"
+  );
 
 }
 
@@ -19231,10 +19382,9 @@ function renderMovements() {
   source.forEach(item => {
 
     const isBasketMovement =
-      item.type === "saida" &&
-      String(
-        item.note || ""
-      ).startsWith("Cesta: ");
+      isBasketMovementRecord(
+        item
+      );
 
 
     if (!isBasketMovement) {
@@ -21101,10 +21251,9 @@ async function renderReport() {
   rawMov.forEach(item => {
 
     const isBasketMovement =
-      item.type === "saida" &&
-      String(
-        item.note || ""
-      ).startsWith("Cesta: ");
+      isBasketMovementRecord(
+        item
+      );
 
 
     if (!isBasketMovement) {
@@ -22011,9 +22160,8 @@ async function renderReport() {
                 "Motivo",
                 x =>
                   esc(
-                    getName(
-                      db.reasons,
-                      x.reasonId
+                    getMovementReasonDisplay(
+                      x
                     )
                   )
               ],
@@ -22029,7 +22177,9 @@ async function renderReport() {
                 "Obs.",
                 x =>
                   esc(
-                    x.note || ""
+                    getMovementObservationDisplay(
+                      x
+                    )
                   )
               ],
               [
@@ -32082,6 +32232,27 @@ function bindEvents() {
         return;
       }
 
+
+      if (
+        type ===
+          "perda"
+        &&
+        isAceOtherMovementReason(
+          reasonId
+        )
+        &&
+        !note
+      ) {
+
+        await showMissingMovementField(
+          'Quando o motivo for "Outro", informe obrigatoriamente a observação descrevendo o motivo da perda.',
+          '[name="note"]'
+        );
+
+        return;
+
+      }
+
       const submit = e.target.querySelector('button[type="submit"]');
 
       e.target.dataset
@@ -41166,7 +41337,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-historico-estoque-geral-v69",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-relatorio-motivos-v70",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
