@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-menu-ordem-estoque-v64",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-compativel-v65",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-menu-ordem-estoque-v64";
+  "2026.09.19-cesta-rpc-compativel-v65";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -39565,50 +39565,112 @@ async function registerBasketOutput({
   }
 
 
-  const {
-    data,
-    error
-  } =
-    await aceRunAuthenticatedWrite(
-      () =>
-        supabaseClient.rpc(
-          "ace_montar_cesta",
-          {
-        p_cesta_id:
-          Number(
-            basket.id
-          ),
-        p_cesta_nome:
-          basket.name,
-        p_cesta_imagem:
-          getBasketImagePath(
-            basket
-          ),
-        p_destino:
-          destination,
-        p_recebido_por:
-          destination ===
-            "Comunidade"
-            ? receivedBy || ""
-            : "",
-        p_quantidade:
-          qtyCestas,
-        p_composicao:
-          composition,
-        p_usuario_id:
-          getCurrentUserId(),
-        p_data:
-          isoToday()
-          }
-        ),
-      "a montagem da cesta"
-    );
+  const rpcArguments = {
+    p_cesta_id:
+      Number(
+        basket.id
+      ),
+    p_cesta_nome:
+      basket.name,
+    p_cesta_imagem:
+      getBasketImagePath(
+        basket
+      ),
+    p_destino:
+      destination,
+    p_recebido_por:
+      destination ===
+        "Comunidade"
+        ? receivedBy || ""
+        : "",
+    p_quantidade:
+      qtyCestas,
+    p_composicao:
+      composition,
+    p_usuario_id:
+      getCurrentUserId(),
+    p_data:
+      isoToday()
+  };
 
 
-  if (error) {
+  let rpcResponse = null;
+  let rpcError = null;
+
+
+  try {
+
+    rpcResponse =
+      await aceRunAuthenticatedWrite(
+        () =>
+          supabaseClient.rpc(
+            "ace_montar_cesta",
+            rpcArguments
+          ),
+        "a montagem da cesta"
+      );
+
+  } catch (error) {
+
+    const normalizedMessage =
+      normalizeAceText(
+        error?.message || ""
+      );
+
+    const oldFunctionInstalled =
+      normalizedMessage.includes(
+        "could not find the function public.ace_montar_cesta"
+      ) &&
+      normalizedMessage.includes(
+        "p_cesta_imagem"
+      );
+
+
+    if (oldFunctionInstalled) {
+
+      // Compatibilidade automática com a função anterior do Supabase,
+      // que ainda não possui o parâmetro opcional da imagem da cesta.
+      const legacyArguments = {
+        ...rpcArguments
+      };
+
+      delete legacyArguments
+        .p_cesta_imagem;
+
+
+      try {
+
+        rpcResponse =
+          await aceRunAuthenticatedWrite(
+            () =>
+              supabaseClient.rpc(
+                "ace_montar_cesta",
+                legacyArguments
+              ),
+            "a montagem da cesta"
+          );
+
+      } catch (legacyError) {
+
+        rpcError =
+          legacyError;
+
+      }
+
+    } else {
+
+      rpcError =
+        error;
+
+    }
+
+  }
+
+
+  if (rpcError) {
 
     const message =
-      error?.message ||
+      rpcError?.message ||
       "Erro ao montar a cesta.";
 
 
@@ -39684,12 +39746,12 @@ async function registerBasketOutput({
     }
 
 
-    throw error;
+    throw rpcError;
 
   }
 
 
-  return data;
+  return rpcResponse?.data;
 
 }
 
@@ -40974,7 +41036,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-menu-ordem-estoque-v64",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-compativel-v65",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
