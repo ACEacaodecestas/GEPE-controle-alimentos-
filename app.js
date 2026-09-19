@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cadastro-sacos-config-v58",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-preview-foto-historico-v60",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-cadastro-sacos-config-v58";
+  "2026.09.19-preview-foto-historico-v60";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -31925,15 +31925,64 @@ function bindEvents() {
           ? document.getElementById("aceLossPhotoInput")?.files?.[0] || null
           : null;
 
+      const showMissingMovementField =
+        async (message, selector) => {
+
+          await showAceMessage(
+            message,
+            "⚠️ Informação obrigatória"
+          );
+
+          const field =
+            e.target.querySelector(
+              selector
+            );
+
+          field?.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+          });
+
+          field?.focus();
+
+        };
+
+
+      if (!date) {
+        await showMissingMovementField(
+          "Selecione a data da movimentação.",
+          '[name="date"]'
+        );
+        return;
+      }
+
+
+      if (!originId) {
+        await showMissingMovementField(
+          "Selecione a Origem do alimento. Escolha Estoque Geral, Água Fria ou Piedade antes de registrar a perda.",
+          '[name="origin"]'
+        );
+        return;
+      }
+
+
+      if (!foodId) {
+        await showMissingMovementField(
+          "Selecione o alimento da movimentação.",
+          '[name="foodId"]'
+        );
+        return;
+      }
+
+
       if (
-        !date ||
-        !type ||
-        !originId ||
-        !foodId ||
         !Number.isInteger(qty) ||
         qty <= 0
       ) {
-        toast("Preencha os dados corretamente. A quantidade deve ser um número inteiro maior que zero.");
+        await showMissingMovementField(
+          "Informe uma quantidade inteira maior que zero.",
+          '[name="qty"]'
+        );
         return;
       }
 
@@ -31971,7 +32020,10 @@ function bindEvents() {
       }
 
       if (type === "perda" && !reasonId) {
-        toast("Selecione o motivo da perda.");
+        await showMissingMovementField(
+          "Selecione o motivo da perda.",
+          '[name="reasonId"]'
+        );
         return;
       }
 
@@ -40922,7 +40974,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cadastro-sacos-config-v58",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-preview-foto-historico-v60",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -47003,7 +47055,13 @@ function ensureAceLossPhotoField() {
       #aceLossPhotoPreview{display:none;width:110px;height:82px;margin-top:11px;object-fit:cover;border:1px solid #d8b87c;border-radius:9px;background:#fff;}
       #aceLossPhotoStatus{margin-top:7px;color:#667085;font-size:12px;font-weight:750;}
       .ace-evidence-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:5px 9px;border:1px solid #1570a6;border-radius:8px;background:#eef8ff;color:#075985;font:inherit;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap;}
+      .ace-evidence-button:hover,.ace-evidence-button:focus-visible{background:#dff3ff;border-color:#075985;box-shadow:0 5px 14px rgba(7,89,133,.18);transform:translateY(-1px);}
       .ace-evidence-expired{color:#8a5b14;font-size:11px;font-weight:800;white-space:normal;}
+      #aceLossEvidenceHover{position:fixed;z-index:2147483590;width:min(270px,calc(100vw - 24px));padding:9px;border:1px solid #b9d8e9;border-radius:13px;background:#fff;box-shadow:0 18px 45px rgba(3,40,64,.28);pointer-events:none;animation:aceEvidencePreviewIn .14s ease-out;}
+      #aceLossEvidenceHover img{display:block;width:100%;max-height:230px;object-fit:contain;border-radius:9px;background:#f3f8fb;}
+      #aceLossEvidenceHover .ace-evidence-hover-loading{padding:18px 10px;color:#536b7c;font-size:12px;font-weight:800;text-align:center;}
+      #aceLossEvidenceHover .ace-evidence-hover-caption{padding:7px 2px 1px;color:#536b7c;font-size:11px;font-weight:800;text-align:center;}
+      @keyframes aceEvidencePreviewIn{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
       .ace-report-evidence-thumb{display:block;width:86px;height:64px;object-fit:cover;border:1px solid #cddbe5;border-radius:7px;cursor:pointer;}
       #aceLossEvidenceModal{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,24,41,.78);backdrop-filter:blur(4px);}
       #aceLossEvidenceModal .ace-evidence-box{position:relative;width:min(900px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:16px;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.38);}
@@ -47043,8 +47101,24 @@ function ensureAceLossPhotoField() {
         'button[type="submit"]'
       );
 
-    if (submit?.parentElement === form) {
-      form.insertBefore(field, submit);
+    // Coloca a foto ANTES do bloco que contém o botão de registro.
+    // Assim o usuário escolhe a imagem e encontra o botão logo abaixo.
+    let submitBlock =
+      submit || null;
+
+    while (
+      submitBlock?.parentElement &&
+      submitBlock.parentElement !== form
+    ) {
+      submitBlock =
+        submitBlock.parentElement;
+    }
+
+    if (submitBlock?.parentElement === form) {
+      form.insertBefore(
+        field,
+        submitBlock
+      );
     } else {
       form.appendChild(field);
     }
@@ -47093,7 +47167,7 @@ function ensureAceLossPhotoField() {
         }
         if (remove) remove.style.display = "inline-flex";
         if (status) {
-          status.textContent = `Foto selecionada: ${(file.size / 1024 / 1024).toFixed(1)} MB. Será reduzida antes do envio.`;
+          status.textContent = `Foto pronta: ${(file.size / 1024 / 1024).toFixed(1)} MB. Agora toque em "Registrar movimentação". A imagem será reduzida antes do envio.`;
         }
       }
     );
@@ -47288,6 +47362,7 @@ async function getAceLossEvidenceSignedUrl(evidence) {
 
 
 async function openAceLossEvidence(evidenceId) {
+  hideAceLossEvidencePreview();
   const evidence = (db?.lossEvidence || []).find(item => Number(item.id) === Number(evidenceId));
   if (!evidence || isAceLossEvidenceExpired(evidence)) {
     await showAceConfirm(
@@ -47312,6 +47387,84 @@ async function openAceLossEvidence(evidenceId) {
 }
 
 
+let aceLossEvidencePreviewRequest = 0;
+
+
+function positionAceLossEvidencePreview(preview, anchor) {
+  if (!preview || !anchor) return;
+
+  const gap = 9;
+  const anchorRect = anchor.getBoundingClientRect();
+  const previewRect = preview.getBoundingClientRect();
+  let left = anchorRect.left + (anchorRect.width - previewRect.width) / 2;
+  let top = anchorRect.top - previewRect.height - gap;
+
+  left = Math.max(12, Math.min(left, window.innerWidth - previewRect.width - 12));
+
+  if (top < 12) {
+    top = anchorRect.bottom + gap;
+  }
+
+  if (top + previewRect.height > window.innerHeight - 12) {
+    top = Math.max(12, window.innerHeight - previewRect.height - 12);
+  }
+
+  preview.style.left = `${Math.round(left)}px`;
+  preview.style.top = `${Math.round(top)}px`;
+}
+
+
+async function showAceLossEvidencePreview(event, evidenceId) {
+  // Em telas de toque, o clique abre a imagem ampliada no modal.
+  if (window.matchMedia?.("(hover: none)")?.matches) return;
+
+  const anchor = event?.currentTarget || event?.target;
+  const evidence = (db?.lossEvidence || []).find(
+    item => Number(item.id) === Number(evidenceId)
+  );
+
+  if (!anchor || !evidence || isAceLossEvidenceExpired(evidence)) return;
+
+  const requestId = ++aceLossEvidencePreviewRequest;
+  document.getElementById("aceLossEvidenceHover")?.remove();
+
+  const preview = document.createElement("div");
+  preview.id = "aceLossEvidenceHover";
+  preview.setAttribute("role", "tooltip");
+  preview.innerHTML = '<div class="ace-evidence-hover-loading">Carregando imagem...</div>';
+  document.body.appendChild(preview);
+  positionAceLossEvidencePreview(preview, anchor);
+
+  try {
+    const url = await getAceLossEvidenceSignedUrl(evidence);
+
+    if (
+      requestId !== aceLossEvidencePreviewRequest ||
+      !document.body.contains(anchor) ||
+      !document.body.contains(preview)
+    ) return;
+
+    preview.innerHTML = `<img src="${esc(url)}" alt="Prévia da evidência da perda"><div class="ace-evidence-hover-caption">Clique para ampliar · imagem disponível por 30 dias</div>`;
+
+    const image = preview.querySelector("img");
+    const reposition = () => positionAceLossEvidencePreview(preview, anchor);
+    image?.addEventListener("load", reposition, { once: true });
+    reposition();
+  } catch {
+    if (requestId === aceLossEvidencePreviewRequest) {
+      preview.innerHTML = '<div class="ace-evidence-hover-loading">Não foi possível carregar a prévia.</div>';
+      positionAceLossEvidencePreview(preview, anchor);
+    }
+  }
+}
+
+
+function hideAceLossEvidencePreview() {
+  aceLossEvidencePreviewRequest += 1;
+  document.getElementById("aceLossEvidenceHover")?.remove();
+}
+
+
 function renderAceLossEvidenceCellForMovement(movement) {
   if (!movement || movement.type !== "perda") return "—";
   const evidence = getAceLossEvidence(movement.rawId);
@@ -47319,7 +47472,7 @@ function renderAceLossEvidenceCellForMovement(movement) {
   if (isAceLossEvidenceExpired(evidence)) {
     return `<span class="ace-evidence-expired">Imagem removida após 30 dias</span>`;
   }
-  return `<button type="button" class="ace-evidence-button" onclick="openAceLossEvidence(${Number(evidence.id)})">📷 Ver foto</button>`;
+  return `<button type="button" class="ace-evidence-button" aria-label="Ver fotografia da perda" onmouseenter="showAceLossEvidencePreview(event,${Number(evidence.id)})" onmouseleave="hideAceLossEvidencePreview()" onfocus="showAceLossEvidencePreview(event,${Number(evidence.id)})" onblur="hideAceLossEvidencePreview()" onclick="openAceLossEvidence(${Number(evidence.id)})">📷 Foto</button>`;
 }
 
 
@@ -47550,6 +47703,43 @@ function ensureAceSackCadastroPanel() {
 
     cadastrosView.appendChild(
       panel
+    );
+
+  }
+
+
+  // Mantém o Cadastro de Sacos acima da barra de Backup dos dados.
+  const backupButton =
+    document.getElementById(
+      "backupBtn"
+    );
+
+  let backupPanel =
+    backupButton || null;
+
+  // Localiza o bloco que é filho direto da área de Cadastros,
+  // independentemente do nome da classe usado pelo HTML antigo.
+  while (
+    backupPanel?.parentElement &&
+    backupPanel.parentElement !==
+      cadastrosView
+  ) {
+
+    backupPanel =
+      backupPanel.parentElement;
+
+  }
+
+  if (
+    backupPanel &&
+    backupPanel !== panel &&
+    backupPanel.parentElement ===
+      cadastrosView
+  ) {
+
+    cadastrosView.insertBefore(
+      panel,
+      backupPanel
     );
 
   }
