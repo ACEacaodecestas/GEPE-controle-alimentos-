@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-recebido-por-v66",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-cadastro-minimo-v67",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-cesta-rpc-recebido-por-v66";
+  "2026.09.19-sacos-cadastro-minimo-v67";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4362,7 +4362,6 @@ async function aceLoadFromSupabaseNetwork(
       "sacos_tipos",
       "id,nome,largura_cm,altura_cm,estoque_minimo,ativo,created_at",
       query => query
-        .or("ativo.eq.true,ativo.is.null")
         .order("nome")
     ),
 
@@ -41099,7 +41098,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-cesta-rpc-recebido-por-v66",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-cadastro-minimo-v67",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -47715,10 +47714,40 @@ function ensureAceSackStyles() {
     .ace-sack-edit{border:1px solid #1570a6;color:#075985;}.ace-sack-delete{border:1px solid #ef4444;color:#b42318;}
     .ace-sack-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;}
     .ace-sack-card{padding:17px;border:1px solid #cfe0eb;border-radius:14px;background:linear-gradient(145deg,#fff,#f5faff);box-shadow:0 8px 22px rgba(11,75,122,.08);}
-    .ace-sack-card.low{border-color:#f5b7b1;background:#fff7f6;}.ace-sack-card strong{display:block;margin-top:8px;color:#0b4b7a;font-size:28px;}.ace-sack-card.low strong{color:#d92d20;}
-    #aceSackEditModal{position:fixed;inset:0;z-index:2147483550;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,34,57,.65);backdrop-filter:blur(3px);}
-    #aceSackEditModal .ace-sack-modal-box{width:min(570px,100%);max-height:calc(100dvh - 36px);overflow:auto;box-sizing:border-box;padding:23px;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);}
-    #aceSackEditModal h3{margin:0 0 15px;color:#0b3a63;}.ace-sack-modal-actions{display:flex;gap:9px;margin-top:17px;}.ace-sack-modal-actions button{flex:1;min-height:44px;border-radius:9px;font:inherit;font-weight:900;cursor:pointer;}
+    .ace-sack-card.low{border-color:#f1c27d;background:#fffaf0;}
+    .ace-sack-card.critical{border-color:#f5b7b1;background:#fff3f2;}
+    .ace-sack-card strong{display:block;margin-top:8px;color:#0b4b7a;font-size:28px;}
+    .ace-sack-card.low strong{color:#b54708;}
+    .ace-sack-card.critical strong{color:#d92d20;}
+
+    .ace-sack-stock-summary{display:none;margin:0 0 14px;padding:13px 15px;border:1px solid #f1c27d;border-radius:11px;background:#fff8e8;color:#8a4b08;font-size:13px;font-weight:850;line-height:1.45;}
+    .ace-sack-stock-summary.show{display:block;}
+    .ace-sack-stock-summary.critical{border-color:#f5b7b1;background:#fff1f0;color:#b42318;}
+
+    .ace-sack-registered{margin-top:21px;padding-top:18px;border-top:1px solid #e1eaf0;}
+    .ace-sack-registered-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+    .ace-sack-registered-head h4{margin:0;color:#0b3a63;font-size:18px;font-weight:950;}
+    .ace-sack-registered-head span{color:#667085;font-size:12px;}
+    .ace-sack-status{display:inline-flex;align-items:center;justify-content:center;min-width:68px;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:900;}
+    .ace-sack-status.active{background:#eaf7ef;color:#157347;}
+    .ace-sack-status.inactive{background:#f2f4f7;color:#667085;}
+    .ace-sack-type-actions{display:flex;gap:6px;flex-wrap:wrap;}
+    .ace-sack-type-action{min-height:32px;padding:5px 9px;border-radius:8px;background:#fff;font:inherit;font-size:12px;font-weight:900;cursor:pointer;}
+    .ace-sack-type-edit{border:1px solid #1570a6;color:#075985;}
+    .ace-sack-type-delete{border:1px solid #ef4444;color:#b42318;}
+    .ace-sack-type-reactivate{border:1px solid #12b76a;color:#067647;}
+
+    #aceSackEditModal,
+    #aceSackTypeEditModal{position:fixed;inset:0;z-index:2147483550;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,34,57,.65);backdrop-filter:blur(3px);}
+
+    #aceSackEditModal .ace-sack-modal-box,
+    #aceSackTypeEditModal .ace-sack-modal-box{width:min(570px,100%);max-height:calc(100dvh - 36px);overflow:auto;box-sizing:border-box;padding:23px;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);}
+
+    #aceSackEditModal h3,
+    #aceSackTypeEditModal h3{margin:0 0 15px;color:#0b3a63;}
+
+    .ace-sack-modal-actions{display:flex;gap:9px;margin-top:17px;}
+    .ace-sack-modal-actions button{flex:1;min-height:44px;border-radius:9px;font:inherit;font-weight:900;cursor:pointer;}
     @media(max-width:800px){.ace-sack-form,.ace-sack-cards{grid-template-columns:1fr;}.ace-sack-form .ace-full{grid-column:auto;}}
   `;
   document.head.appendChild(style);
@@ -47792,6 +47821,7 @@ function setupAceSackPages() {
         <div class="ace-sack-panel">
           <h2 class="ace-sack-title">🛍️ Estoque de Sacos</h2>
           <div class="ace-sack-subtitle">Saldo consolidado. Os históricos permanecem nas telas de Entrada e Saída.</div>
+          <div id="aceSackStockSummary" class="ace-sack-stock-summary"></div>
           <div id="aceSackStockCards" class="ace-sack-cards"></div>
         </div>
       </div>`;
@@ -47842,9 +47872,13 @@ function ensureAceSackCadastroPanel() {
       '<label>Nome<input name="name" type="text" maxlength="80" placeholder="Ex.: Saco médio" required></label>',
       '<label>Largura (cm)<input name="width" type="number" min="1" step="1" required></label>',
       '<label>Altura (cm)<input name="height" type="number" min="1" step="1" required></label>',
-      '<label>Estoque mínimo<input name="minimum" type="number" min="0" step="1" value="0" required></label>',
+      '<label>Estoque mínimo<input name="minimum" type="number" min="0" step="1" value="50" required></label>',
       '<button class="ace-sack-submit" type="submit">Cadastrar tamanho</button>',
-      "</form>"
+      "</form>",
+      '<div class="ace-sack-registered">',
+      '<div class="ace-sack-registered-head"><div><h4>📋 Sacos cadastrados</h4><span>Edite o cadastro mantendo o histórico e as movimentações vinculadas.</span></div></div>',
+      '<div id="aceSackTypeList"></div>',
+      "</div>"
     ].join("");
 
 
@@ -47900,10 +47934,635 @@ function ensureAceSackCadastroPanel() {
 function populateAceSackTypeSelects() {
   document.querySelectorAll('.ace-sack-form select[name="sackTypeId"]').forEach(select => {
     const current = select.value;
-    select.innerHTML = '<option value="">Selecione...</option>' +
-      (db?.sackTypes || []).map(type => `<option value="${Number(type.id)}">${esc(getAceSackTypeName(type.id))}</option>`).join("");
-    if ([...select.options].some(option => option.value === current)) select.value = current;
+
+    const activeTypes =
+      (db?.sackTypes || [])
+        .filter(type => type.active !== false);
+
+    select.innerHTML =
+      '<option value="">Selecione...</option>' +
+      activeTypes
+        .map(
+          type =>
+            `<option value="${Number(type.id)}">${esc(getAceSackTypeName(type.id))}</option>`
+        )
+        .join("");
+
+    if (
+      [...select.options].some(
+        option =>
+          option.value === current
+      )
+    ) {
+      select.value = current;
+    }
   });
+}
+
+
+
+function renderAceSackTypeList() {
+
+  const target =
+    document.getElementById(
+      "aceSackTypeList"
+    );
+
+
+  if (!target) {
+    return;
+  }
+
+
+  if (
+    !window.aceSackModuleReady
+  ) {
+
+    target.innerHTML =
+      '<div class="empty">Execute o SQL do módulo de sacos para ativar este cadastro.</div>';
+
+    return;
+
+  }
+
+
+  const rows =
+    (db?.sackTypes || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            a.name || ""
+          ).localeCompare(
+            String(
+              b.name || ""
+            ),
+            "pt-BR"
+          )
+      );
+
+
+  target.innerHTML =
+    table(
+      rows,
+      [
+        [
+          "Nome",
+          x =>
+            `<strong>${esc(x.name || "—")}</strong>`
+        ],
+        [
+          "Largura",
+          x =>
+            `${fmt(Number(x.widthCm || 0))} cm`
+        ],
+        [
+          "Altura",
+          x =>
+            `${fmt(Number(x.heightCm || 0))} cm`
+        ],
+        [
+          "Estoque mínimo",
+          x =>
+            fmt(
+              Number(
+                x.minimumStock ?? 50
+              )
+            )
+        ],
+        [
+          "Situação",
+          x =>
+            x.active !== false
+              ? '<span class="ace-sack-status active">Ativo</span>'
+              : '<span class="ace-sack-status inactive">Inativo</span>'
+        ],
+        [
+          "Ações",
+          x => {
+
+            if (
+              x.active === false
+            ) {
+
+              return `
+                <div class="ace-sack-type-actions">
+                  <button
+                    type="button"
+                    class="ace-sack-type-action ace-sack-type-edit"
+                    data-ace-sack-type-edit="${Number(x.id)}"
+                  >
+                    ✏️ Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    class="ace-sack-type-action ace-sack-type-reactivate"
+                    data-ace-sack-type-reactivate="${Number(x.id)}"
+                  >
+                    ↩️ Reativar
+                  </button>
+                </div>
+              `;
+
+            }
+
+
+            return `
+              <div class="ace-sack-type-actions">
+                <button
+                  type="button"
+                  class="ace-sack-type-action ace-sack-type-edit"
+                  data-ace-sack-type-edit="${Number(x.id)}"
+                >
+                  ✏️ Editar
+                </button>
+
+                <button
+                  type="button"
+                  class="ace-sack-type-action ace-sack-type-delete"
+                  data-ace-sack-type-delete="${Number(x.id)}"
+                >
+                  🗑️ Excluir
+                </button>
+              </div>
+            `;
+
+          }
+        ]
+      ],
+      null
+    );
+
+}
+
+
+function openAceSackTypeEditModal(
+  id
+) {
+
+  const item =
+    (db?.sackTypes || [])
+      .find(
+        row =>
+          Number(row.id) ===
+          Number(id)
+      );
+
+
+  if (!item) {
+    return;
+  }
+
+
+  document
+    .getElementById(
+      "aceSackTypeEditModal"
+    )
+    ?.remove();
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+
+  modal.id =
+    "aceSackTypeEditModal";
+
+
+  modal.innerHTML = `
+
+    <div class="ace-sack-modal-box">
+
+      <h3>
+        ✏️ Editar cadastro de saco
+      </h3>
+
+      <div class="ace-sack-subtitle">
+        A correção mantém o mesmo cadastro e será refletida nas movimentações e históricos vinculados a este tipo de saco.
+      </div>
+
+      <form
+        id="aceSackTypeEditForm"
+        class="ace-sack-form"
+      >
+
+        <label>
+          Nome
+          <input
+            name="name"
+            type="text"
+            maxlength="80"
+            value="${esc(item.name || "")}"
+            required
+          >
+        </label>
+
+        <label>
+          Largura (cm)
+          <input
+            name="width"
+            type="number"
+            min="1"
+            step="1"
+            value="${Number(item.widthCm || 0)}"
+            required
+          >
+        </label>
+
+        <label>
+          Altura (cm)
+          <input
+            name="height"
+            type="number"
+            min="1"
+            step="1"
+            value="${Number(item.heightCm || 0)}"
+            required
+          >
+        </label>
+
+        <label>
+          Estoque mínimo
+          <input
+            name="minimum"
+            type="number"
+            min="0"
+            step="1"
+            value="${Number(item.minimumStock ?? 50)}"
+            required
+          >
+        </label>
+
+        <div class="ace-sack-modal-actions ace-full">
+
+          <button
+            type="submit"
+            style="border:0;background:#0b4b7a;color:#fff;"
+          >
+            💾 Salvar correção
+          </button>
+
+          <button
+            type="button"
+            data-ace-sack-type-cancel
+            style="border:1px solid #b8c9d6;background:#fff;color:#344054;"
+          >
+            Cancelar
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+  `;
+
+
+  modal.addEventListener(
+    "click",
+    event => {
+
+      if (
+        event.target === modal
+        ||
+        event.target.closest(
+          "[data-ace-sack-type-cancel]"
+        )
+      ) {
+
+        modal.remove();
+
+      }
+
+    }
+  );
+
+
+  modal
+    .querySelector(
+      "form"
+    )
+    ?.addEventListener(
+      "submit",
+      async event => {
+
+        event.preventDefault();
+
+
+        const form =
+          event.currentTarget;
+
+        const data =
+          new FormData(
+            form
+          );
+
+
+        const name =
+          String(
+            data.get("name") ||
+            ""
+          )
+            .trim();
+
+        const width =
+          Number(
+            data.get("width")
+          );
+
+        const height =
+          Number(
+            data.get("height")
+          );
+
+        const minimum =
+          Number(
+            data.get("minimum")
+          );
+
+
+        try {
+
+          if (!name) {
+            throw new Error(
+              "Informe o nome do saco."
+            );
+          }
+
+
+          if (
+            !Number.isInteger(width)
+            ||
+            width <= 0
+            ||
+            !Number.isInteger(height)
+            ||
+            height <= 0
+          ) {
+
+            throw new Error(
+              "Informe largura e altura válidas."
+            );
+
+          }
+
+
+          if (
+            !Number.isInteger(minimum)
+            ||
+            minimum < 0
+          ) {
+
+            throw new Error(
+              "Informe um estoque mínimo válido."
+            );
+
+          }
+
+
+          await aceRunAuthenticatedWrite(
+            () =>
+              supabaseClient
+                .from(
+                  "sacos_tipos"
+                )
+                .update({
+                  nome:
+                    name,
+                  largura_cm:
+                    width,
+                  altura_cm:
+                    height,
+                  estoque_minimo:
+                    minimum
+                })
+                .eq(
+                  "id",
+                  Number(item.id)
+                ),
+            "a edição do cadastro de saco"
+          );
+
+
+          modal.remove();
+
+
+          await reloadFromSupabase();
+
+
+          showAceSuccess(
+            "Cadastro de saco corrigido. A alteração foi aplicada às movimentações e históricos vinculados!"
+          );
+
+
+        } catch (error) {
+
+          await showAceConfirm(
+            error?.message ||
+            "Não foi possível editar o cadastro.",
+            "❌ Erro"
+          );
+
+        }
+
+      }
+    );
+
+
+  document.body.appendChild(
+    modal
+  );
+
+}
+
+
+async function deleteAceSackType(
+  id
+) {
+
+  const item =
+    (db?.sackTypes || [])
+      .find(
+        row =>
+          Number(row.id) ===
+          Number(id)
+      );
+
+
+  if (!item) {
+    return;
+  }
+
+
+  const linkedMovements =
+    (db?.sackMovements || [])
+      .filter(
+        movement =>
+          Number(
+            movement.sackTypeId
+          ) ===
+          Number(
+            item.id
+          )
+      );
+
+
+  const hasHistory =
+    linkedMovements.length > 0;
+
+
+  const message =
+    hasHistory
+      ? `O tipo "${item.name}" possui ${linkedMovements.length} movimentação(ões) registrada(s).\n\nPara preservar o histórico, ele será DESATIVADO e deixará de aparecer em novos lançamentos.\n\nDeseja continuar?`
+      : `Excluir definitivamente o tipo de saco "${item.name}"?\n\nComo ele nunca foi usado em movimentações, o cadastro pode ser removido sem afetar o histórico.`;
+
+
+  const confirmed =
+    await showAceConfirm(
+      message,
+      hasHistory
+        ? "⚠️ Desativar tipo de saco"
+        : "🗑️ Excluir tipo de saco"
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  try {
+
+    if (
+      hasHistory
+    ) {
+
+      await aceRunAuthenticatedWrite(
+        () =>
+          supabaseClient
+            .from(
+              "sacos_tipos"
+            )
+            .update({
+              ativo:
+                false
+            })
+            .eq(
+              "id",
+              Number(item.id)
+            ),
+        "a desativação do tipo de saco"
+      );
+
+
+      await reloadFromSupabase();
+
+
+      showAceSuccess(
+        "Tipo de saco desativado. O histórico foi preservado."
+      );
+
+
+      return;
+
+    }
+
+
+    await aceRunAuthenticatedWrite(
+      () =>
+        supabaseClient
+          .from(
+            "sacos_tipos"
+          )
+          .delete()
+          .eq(
+            "id",
+            Number(item.id)
+          ),
+      "a exclusão do tipo de saco"
+    );
+
+
+    await reloadFromSupabase();
+
+
+    showAceSuccess(
+      "Tipo de saco excluído com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    await showAceConfirm(
+      error?.message ||
+      "Não foi possível excluir o tipo de saco.",
+      "❌ Erro"
+    );
+
+  }
+
+}
+
+
+async function reactivateAceSackType(
+  id
+) {
+
+  const item =
+    (db?.sackTypes || [])
+      .find(
+        row =>
+          Number(row.id) ===
+          Number(id)
+      );
+
+
+  if (!item) {
+    return;
+  }
+
+
+  try {
+
+    await aceRunAuthenticatedWrite(
+      () =>
+        supabaseClient
+          .from(
+            "sacos_tipos"
+          )
+          .update({
+            ativo:
+              true
+          })
+          .eq(
+            "id",
+            Number(item.id)
+          ),
+      "a reativação do tipo de saco"
+    );
+
+
+    await reloadFromSupabase();
+
+
+    showAceSuccess(
+      "Tipo de saco reativado com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    await showAceConfirm(
+      error?.message ||
+      "Não foi possível reativar o tipo de saco.",
+      "❌ Erro"
+    );
+
+  }
+
 }
 
 
@@ -47963,18 +48622,179 @@ function renderAceSackHistory(type) {
 
 
 function renderAceSackStock() {
-  const target = document.getElementById("aceSackStockCards");
-  if (!target) return;
-  if (!window.aceSackModuleReady) {
-    target.innerHTML = '<div class="empty">Execute o SQL desta atualização para ativar o estoque de sacos.</div>';
+
+  const target =
+    document.getElementById(
+      "aceSackStockCards"
+    );
+
+  const summary =
+    document.getElementById(
+      "aceSackStockSummary"
+    );
+
+
+  if (!target) {
     return;
   }
-  const stock = calcAceSackStock();
-  target.innerHTML = (db?.sackTypes || []).map(type => {
-    const qty = Number(stock[type.id] || 0);
-    const low = type.minimumStock > 0 && qty <= type.minimumStock;
-    return `<div class="ace-sack-card ${low ? "low" : ""}"><div style="font-weight:900;color:#173750;">${esc(getAceSackTypeName(type.id))}</div><strong>${fmt(qty)}</strong><div style="margin-top:5px;color:#667085;font-size:12px;">${low ? `⚠️ Estoque baixo · mínimo ${fmt(type.minimumStock)}` : `Disponível · mínimo ${fmt(type.minimumStock)}`}</div></div>`;
-  }).join("") || '<div class="empty">Nenhum tamanho de saco cadastrado.</div>';
+
+
+  if (
+    !window.aceSackModuleReady
+  ) {
+
+    if (summary) {
+      summary.className =
+        "ace-sack-stock-summary";
+
+      summary.textContent =
+        "";
+    }
+
+    target.innerHTML =
+      '<div class="empty">Execute o SQL desta atualização para ativar o estoque de sacos.</div>';
+
+    return;
+
+  }
+
+
+  const stock =
+    calcAceSackStock();
+
+
+  const activeTypes =
+    (db?.sackTypes || [])
+      .filter(
+        type =>
+          type.active !== false
+      );
+
+
+  const statusRows =
+    activeTypes.map(
+      type => {
+
+        const qty =
+          Number(
+            stock[type.id] ||
+            0
+          );
+
+        const minimum =
+          Number(
+            type.minimumStock ??
+            50
+          );
+
+        return {
+          type,
+          qty,
+          minimum,
+          low:
+            qty < minimum,
+          critical:
+            qty <= 0
+        };
+
+      }
+    );
+
+
+  const lowRows =
+    statusRows.filter(
+      row =>
+        row.low
+    );
+
+
+  const criticalRows =
+    lowRows.filter(
+      row =>
+        row.critical
+    );
+
+
+  if (summary) {
+
+    if (
+      lowRows.length
+    ) {
+
+      summary.className =
+        "ace-sack-stock-summary show" +
+        (
+          criticalRows.length
+            ? " critical"
+            : ""
+        );
+
+
+      summary.innerHTML =
+        criticalRows.length
+          ? `🔴 Atenção: ${lowRows.length} tipo(s) de saco estão abaixo do estoque mínimo. ${criticalRows.length} tipo(s) estão ESGOTADOS.`
+          : `⚠️ Atenção: ${lowRows.length} tipo(s) de saco estão abaixo do estoque mínimo configurado.`;
+
+    } else {
+
+      summary.className =
+        "ace-sack-stock-summary";
+
+      summary.textContent =
+        "";
+
+    }
+
+  }
+
+
+  target.innerHTML =
+    statusRows
+      .map(
+        row => {
+
+          const stateClass =
+            row.critical
+              ? "critical"
+              : row.low
+                ? "low"
+                : "";
+
+
+          const statusText =
+            row.critical
+              ? `🔴 Estoque esgotado · mínimo ${fmt(row.minimum)}`
+              : row.low
+                ? `⚠️ Estoque baixo · atual ${fmt(row.qty)} · mínimo ${fmt(row.minimum)}`
+                : `Disponível · mínimo ${fmt(row.minimum)}`;
+
+
+          return `
+            <div class="ace-sack-card ${stateClass}">
+              <div style="font-weight:900;color:#173750;">
+                ${esc(
+                  getAceSackTypeName(
+                    row.type.id
+                  )
+                )}
+              </div>
+
+              <strong>
+                ${fmt(row.qty)}
+              </strong>
+
+              <div style="margin-top:5px;color:#667085;font-size:12px;">
+                ${statusText}
+              </div>
+            </div>
+          `;
+
+        }
+      )
+      .join("")
+      ||
+      '<div class="empty">Nenhum tamanho de saco ativo cadastrado.</div>';
+
 }
 
 
@@ -47983,6 +48803,7 @@ function renderAceSackModule() {
   renderAceSackHistory("entrada");
   renderAceSackHistory("saida");
   renderAceSackStock();
+  renderAceSackTypeList();
 }
 
 
@@ -48035,7 +48856,7 @@ function openAceSackEditModal(id) {
   document.getElementById("aceSackEditModal")?.remove();
   const modal = document.createElement("div");
   modal.id = "aceSackEditModal";
-  modal.innerHTML = `<div class="ace-sack-modal-box"><h3>✏️ Editar ${item.type === "entrada" ? "entrada" : "saída"} de sacos</h3><form id="aceSackEditForm" class="ace-sack-form"><label>Data<input name="date" type="date" value="${esc(item.date)}" required></label><label>Tipo de saco<select name="sackTypeId">${(db.sackTypes || []).map(type => `<option value="${Number(type.id)}" ${Number(type.id) === Number(item.sackTypeId) ? "selected" : ""}>${esc(getAceSackTypeName(type.id))}</option>`).join("")}</select></label><label>Quantidade<input name="qty" type="number" min="1" step="1" value="${Number(item.qty)}" required></label><label>${item.type === "entrada" ? "Origem" : "Destino"}<input name="originDestination" value="${esc(item.originDestination || "")}"></label>${item.type === "saida" ? `<label class="ace-full">Finalidade<input name="purpose" value="${esc(item.purpose || "")}"></label>` : ""}<label class="ace-full">Observação<textarea name="note" rows="2">${esc(item.note || "")}</textarea></label><div class="ace-sack-modal-actions ace-full"><button type="submit" style="border:0;background:#0b4b7a;color:#fff;">Salvar correção</button><button type="button" data-ace-sack-cancel style="border:1px solid #b8c9d6;background:#fff;color:#344054;">Cancelar</button></div></form></div>`;
+  modal.innerHTML = `<div class="ace-sack-modal-box"><h3>✏️ Editar ${item.type === "entrada" ? "entrada" : "saída"} de sacos</h3><form id="aceSackEditForm" class="ace-sack-form"><label>Data<input name="date" type="date" value="${esc(item.date)}" required></label><label>Tipo de saco<select name="sackTypeId">${(db.sackTypes || []).filter(type => type.active !== false || Number(type.id) === Number(item.sackTypeId)).map(type => `<option value="${Number(type.id)}" ${Number(type.id) === Number(item.sackTypeId) ? "selected" : ""}>${esc(getAceSackTypeName(type.id))}${type.active === false ? " — inativo" : ""}</option>`).join("")}</select></label><label>Quantidade<input name="qty" type="number" min="1" step="1" value="${Number(item.qty)}" required></label><label>${item.type === "entrada" ? "Origem" : "Destino"}<input name="originDestination" value="${esc(item.originDestination || "")}"></label>${item.type === "saida" ? `<label class="ace-full">Finalidade<input name="purpose" value="${esc(item.purpose || "")}"></label>` : ""}<label class="ace-full">Observação<textarea name="note" rows="2">${esc(item.note || "")}</textarea></label><div class="ace-sack-modal-actions ace-full"><button type="submit" style="border:0;background:#0b4b7a;color:#fff;">Salvar correção</button><button type="button" data-ace-sack-cancel style="border:1px solid #b8c9d6;background:#fff;color:#344054;">Cancelar</button></div></form></div>`;
   modal.addEventListener("click", event => { if (event.target === modal || event.target.closest("[data-ace-sack-cancel]")) modal.remove(); });
   modal.querySelector("form")?.addEventListener("submit", async event => {
     event.preventDefault();
@@ -48108,7 +48929,7 @@ function bindAceSackEvents() {
       try {
         if (!window.aceSackModuleReady) throw new Error("Execute o SQL desta atualização primeiro.");
         await aceRunAuthenticatedWrite(
-          () => supabaseClient.from("sacos_tipos").insert({ nome: String(data.get("name") || "").trim(), largura_cm: Number(data.get("width")), altura_cm: Number(data.get("height")), estoque_minimo: Number(data.get("minimum") || 0), ativo: true }),
+          () => supabaseClient.from("sacos_tipos").insert({ nome: String(data.get("name") || "").trim(), largura_cm: Number(data.get("width")), altura_cm: Number(data.get("height")), estoque_minimo: Number(data.get("minimum") || 50), ativo: true }),
           "o cadastro do tamanho de saco"
         );
         typeForm.reset();
@@ -48123,8 +48944,18 @@ function bindAceSackEvents() {
     document.addEventListener("click", event => {
       const edit = event.target.closest("[data-ace-sack-edit]");
       if (edit) openAceSackEditModal(edit.dataset.aceSackEdit);
+
       const remove = event.target.closest("[data-ace-sack-delete]");
       if (remove) deleteAceSackMovement(remove.dataset.aceSackDelete);
+
+      const typeEdit = event.target.closest("[data-ace-sack-type-edit]");
+      if (typeEdit) openAceSackTypeEditModal(typeEdit.dataset.aceSackTypeEdit);
+
+      const typeDelete = event.target.closest("[data-ace-sack-type-delete]");
+      if (typeDelete) deleteAceSackType(typeDelete.dataset.aceSackTypeDelete);
+
+      const typeReactivate = event.target.closest("[data-ace-sack-type-reactivate]");
+      if (typeReactivate) reactivateAceSackType(typeReactivate.dataset.aceSackTypeReactivate);
     });
   }
 }
