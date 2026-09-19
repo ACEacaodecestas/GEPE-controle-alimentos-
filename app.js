@@ -16,13 +16,17 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 (function updateAceServiceWorkerBeforeStartup() {
 
   if (!("serviceWorker" in navigator)) {
-    return;
+    return {
+      movementId,
+      historyId,
+      online: false
+    };
   }
 
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-historico-auditoria-v54",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-fotos-30d-v55",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -410,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.18-historico-auditoria-v54";
+  "2026.09.19-sacos-fotos-30d-v55";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4211,7 +4215,10 @@ async function aceLoadFromSupabaseNetwork(
     basketWithdrawalsResult,
     basketAdjustmentsResult,
     stockAdjustmentsResult,
-    movementAuditResult
+    movementAuditResult,
+    sackTypesResult,
+    sackMovementsResult,
+    lossEvidenceResult
   ] = await Promise.all([
 
     aceEconomicSelect(
@@ -4347,6 +4354,32 @@ async function aceLoadFromSupabaseNetwork(
       "id,movimentacao_chave,historico_id,tipo_original,tipo_novo,data_movimentacao_original,data_movimentacao_nova,data_edicao,usuario_original_id,usuario_original_nome,usuario_editor_id,usuario_editor_nome,motivo_edicao,dados_anteriores,dados_novos,editado_em",
       query => query.order(
         "editado_em",
+        { ascending: false }
+      )
+    ),
+
+    aceEconomicSelect(
+      "sacos_tipos",
+      "id,nome,largura_cm,altura_cm,estoque_minimo,ativo,created_at",
+      query => query
+        .or("ativo.eq.true,ativo.is.null")
+        .order("nome")
+    ),
+
+    aceEconomicSelect(
+      "sacos_movimentacoes",
+      "id,data,tipo,saco_tipo_id,quantidade,origem_destino,finalidade,observacao,usuario_id,created_at,updated_at",
+      query => query.order(
+        "created_at",
+        { ascending: false }
+      )
+    ),
+
+    aceEconomicSelect(
+      "perdas_evidencias",
+      "id,perda_id,storage_path,mime_type,tamanho_bytes,expires_at,apagada_em,usuario_id,created_at",
+      query => query.order(
+        "created_at",
         { ascending: false }
       )
     )
@@ -4568,6 +4601,43 @@ async function aceLoadFromSupabaseNetwork(
     console.warn(
       "ACE: tabela auditoria_movimentacoes indisponível. Execute o SQL de auditoria antes de editar lançamentos.",
       movementAuditResult.error
+    );
+  }
+
+  const sackTypeRows =
+    sackTypesResult?.error
+      ? []
+      : (sackTypesResult?.data || []);
+
+  const sackMovementRows =
+    sackMovementsResult?.error
+      ? []
+      : (sackMovementsResult?.data || []);
+
+  const lossEvidenceRows =
+    lossEvidenceResult?.error
+      ? []
+      : (lossEvidenceResult?.data || []);
+
+  window.aceSackModuleReady =
+    !sackTypesResult?.error &&
+    !sackMovementsResult?.error;
+
+  window.aceLossEvidenceReady =
+    !lossEvidenceResult?.error;
+
+  if (!window.aceSackModuleReady) {
+    console.warn(
+      "ACE: módulo de sacos ainda não instalado. Execute o SQL desta atualização.",
+      sackTypesResult?.error ||
+      sackMovementsResult?.error
+    );
+  }
+
+  if (!window.aceLossEvidenceReady) {
+    console.warn(
+      "ACE: evidências fotográficas ainda não instaladas. Execute o SQL desta atualização.",
+      lossEvidenceResult?.error
     );
   }
 
@@ -4985,6 +5055,52 @@ async function aceLoadFromSupabaseNetwork(
           row.dados_novos || {},
         editedAt:
           row.editado_em || ""
+      })),
+
+    sackTypes:
+      sackTypeRows.map(row => ({
+        id: Number(row.id),
+        name: row.nome || "",
+        widthCm: Number(row.largura_cm || 0),
+        heightCm: Number(row.altura_cm || 0),
+        minimumStock: Number(row.estoque_minimo || 0),
+        active: row.ativo !== false,
+        createdAt: row.created_at || ""
+      })),
+
+    sackMovements:
+      sackMovementRows.map(row => ({
+        id: Number(row.id),
+        date: row.data,
+        type: row.tipo,
+        sackTypeId: Number(row.saco_tipo_id),
+        qty: Number(row.quantidade || 0),
+        originDestination: row.origem_destino || "",
+        purpose: row.finalidade || "",
+        note: row.observacao || "",
+        usuarioId: row.usuario_id || null,
+        usuarioNome:
+          getAceUserNameFromDirectory(
+            row.usuario_id
+          ) || null,
+        createdAt:
+          row.created_at ||
+          `${row.data || isoToday()}T00:00:00Z`,
+        updatedAt: row.updated_at || null
+      })),
+
+    lossEvidence:
+      lossEvidenceRows.map(row => ({
+        id: Number(row.id),
+        lossId: Number(row.perda_id),
+        storagePath: row.storage_path || "",
+        mimeType: row.mime_type || "image/webp",
+        bytes: Number(row.tamanho_bytes || 0),
+        expiresAt: row.expires_at || "",
+        deletedAt: row.apagada_em || null,
+        usuarioId: row.usuario_id || null,
+        createdAt: row.created_at || "",
+        signedUrl: ""
       })),
 
     reasons
@@ -7179,7 +7295,6 @@ async function insertMovement({
       note
     });
 
-
     enqueueOfflineOperation(
       "movement",
       {
@@ -7190,7 +7305,11 @@ async function insertMovement({
     );
 
 
-    return;
+    return {
+      movementId,
+      historyId,
+      online: false
+    };
 
   }
 
@@ -7272,6 +7391,12 @@ async function insertMovement({
       note
     });
 
+    return {
+      movementId,
+      historyId,
+      online: true
+    };
+
 
   } catch (error) {
 
@@ -7315,6 +7440,12 @@ async function insertMovement({
         historyRow
       }
     );
+
+    return {
+      movementId,
+      historyId,
+      online: false
+    };
 
   }
 
@@ -8174,6 +8305,24 @@ async function deleteEntry(id) {
 async function deleteMovement(id) {
   const movement = db.movements.find(x => x.id === id);
   if (!movement?.rawId || !movement.sourceTable) throw new Error("Não foi possível identificar a movimentação no Supabase.");
+
+  // Evita arquivo órfão no Storage quando uma perda com foto é excluída.
+  if (movement.sourceTable === "perdas") {
+    const evidence = getAceLossEvidence(movement.rawId);
+    if (evidence?.storagePath && !evidence.deletedAt && aceIsOnline()) {
+      const removal = await supabaseClient.storage
+        .from(ACE_LOSS_EVIDENCE_BUCKET)
+        .remove([evidence.storagePath]);
+
+      if (removal.error) {
+        throw new Error(
+          "Não foi possível remover a fotografia vinculada antes de excluir a perda: " +
+          removal.error.message
+        );
+      }
+    }
+  }
+
   await aceRunAuthenticatedWrite(
     () =>
       supabaseClient
@@ -18702,6 +18851,14 @@ function renderMovementDayHistory() {
         ],
 
         [
+          "Foto",
+          x =>
+            renderAceLossEvidenceCellForHistory(
+              x
+            )
+        ],
+
+        [
           "Obs.",
           x =>
             esc(
@@ -20700,7 +20857,12 @@ function clearGeneratedReport() {
 }
 
 
-function renderReport() {
+async function renderReport() {
+
+  // Gera links temporários apenas para as imagens ainda dentro
+  // do prazo de retenção. Assim elas aparecem na tela e também
+  // ficam incorporadas no PDF gerado durante esse período.
+  await hydrateAceLossEvidenceUrls();
 
   const start =
     document.getElementById(
@@ -21773,6 +21935,13 @@ function renderReport() {
                 x =>
                   esc(
                     x.note || ""
+                  )
+              ],
+              [
+                "Evidência",
+                x =>
+                  renderAceLossEvidenceReportCell(
+                    x
                   )
               ]
             ],
@@ -25157,9 +25326,9 @@ async function generateSignedReportPDF() {
 
 
         // Saídas e perdas:
-        // Data | Tipo | Origem | Alimento | Qtd | Motivo | Usuário | Obs.
+        // Data | Tipo | Origem | Alimento | Qtd | Motivo | Usuário | Obs. | Evidência
         if (
-          headers.length === 8 &&
+          headers.length === 9 &&
           headers.includes(
             "tipo"
           ) &&
@@ -25177,12 +25346,13 @@ async function generateSignedReportPDF() {
           applyWidths([
             "9%",
             "8%",
-            "11%",
-            "14%",
-            "6%",
             "10%",
-            "17%",
-            "25%"
+            "12%",
+            "6%",
+            "9%",
+            "15%",
+            "21%",
+            "10%"
           ]);
 
         }
@@ -25389,6 +25559,24 @@ async function generateSignedReportPDF() {
 
     document.body.appendChild(
       printHost
+    );
+
+    // Aguarda as evidências fotográficas carregarem antes da captura.
+    await Promise.all(
+      Array.from(
+        element.querySelectorAll(
+          "img.ace-report-evidence-thumb"
+        )
+      ).map(
+        image =>
+          image.complete
+            ? Promise.resolve()
+            : new Promise(resolve => {
+                image.addEventListener("load", resolve, { once: true });
+                image.addEventListener("error", resolve, { once: true });
+                setTimeout(resolve, 5000);
+              })
+      )
     );
 
 
@@ -28366,6 +28554,14 @@ function renderHistory() {
           "Situação",
           x =>
             renderAceHistoryAuditStatus(
+              x
+            )
+        ],
+
+        [
+          "Foto",
+          x =>
+            renderAceLossEvidenceCellForHistory(
               x
             )
         ],
@@ -31517,6 +31713,11 @@ function bindEvents() {
       const qty = Number(f.get("qty"));
       const reasonId = f.get("reasonId");
       const note = String(f.get("note") || "").trim();
+      const lossPhotoFile =
+        type === "perda" &&
+        isAceExpirationReason(reasonId)
+          ? document.getElementById("aceLossPhotoInput")?.files?.[0] || null
+          : null;
 
       if (
         !date ||
@@ -31580,7 +31781,7 @@ function bindEvents() {
 
       try {
 
-        await insertMovement({
+        const movementResult = await insertMovement({
           date,
           type,
           originId,
@@ -31590,6 +31791,30 @@ function bindEvents() {
           note
         });
 
+        let photoWarning = "";
+
+        if (lossPhotoFile) {
+          if (!movementResult.online) {
+            photoWarning =
+              "A perda foi salva, mas a fotografia não pôde ser enviada porque o aparelho está offline.";
+          } else {
+            try {
+              await saveAceLossEvidence(
+                movementResult.movementId,
+                lossPhotoFile
+              );
+            } catch (photoError) {
+              console.error(
+                "ACE - ERRO AO ENVIAR FOTO DA PERDA:",
+                photoError
+              );
+              photoWarning =
+                "A perda foi registrada, porém a fotografia não foi enviada. " +
+                (photoError?.message || "Verifique o Supabase.");
+            }
+          }
+        }
+
         // insertMovement() já atualiza os dados locais após a
         // confirmação do Supabase. Não fazemos reload completo
         // aqui, evitando travamento após várias movimentações seguidas.
@@ -31597,13 +31822,23 @@ function bindEvents() {
           false
         );
 
+        resetAceLossPhotoField();
+
         renderAll();
 
-        showAceSuccess(
-          type === "perda"
-            ? "Perda registrada com sucesso!"
-            : "Saída registrada com sucesso!"
-        );
+        if (photoWarning) {
+          await showAceConfirm(
+            photoWarning +
+              "\n\nA movimentação e o estoque foram mantidos corretamente.",
+            "⚠️ Movimentação salva sem foto"
+          );
+        } else {
+          showAceSuccess(
+            type === "perda"
+              ? "Perda registrada com sucesso!"
+              : "Saída registrada com sucesso!"
+          );
+        }
 
       } catch (error) {
 
@@ -40481,7 +40716,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260918-historico-auditoria-v54",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-fotos-30d-v55",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -46492,6 +46727,774 @@ function setupProfessionalMobileLayout() {
 
 
 
+// ============================================================
+// 21A. ESTOQUE DE SACOS + EVIDÊNCIA FOTOGRÁFICA DE VENCIMENTO
+// ============================================================
+
+const ACE_LOSS_EVIDENCE_BUCKET =
+  "evidencias-perdas";
+
+const ACE_LOSS_EVIDENCE_DAYS =
+  30;
+
+let aceLossPhotoPreviewUrl = null;
+let aceLossEvidenceCleanupRunning = false;
+
+
+function isAceExpirationReason(reasonId) {
+
+  const reasonName =
+    db?.reasons?.find(
+      item =>
+        String(item.id) ===
+        String(reasonId || "")
+    )?.name ||
+    reasonId ||
+    "";
+
+  return normalizeAceText(
+    reasonName
+  ).includes("vencimento");
+
+}
+
+
+function ensureAceLossPhotoField() {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+  if (!form) return;
+
+  if (
+    !document.getElementById(
+      "aceLossPhotoStyle"
+    )
+  ) {
+    const style =
+      document.createElement("style");
+
+    style.id =
+      "aceLossPhotoStyle";
+
+    style.textContent = `
+      #aceLossPhotoField{
+        display:none;
+        grid-column:1/-1;
+        padding:15px;
+        border:1px solid #f0c98e;
+        border-radius:12px;
+        background:#fffaf0;
+      }
+      #aceLossPhotoField.ace-visible{display:block;}
+      .ace-loss-photo-title{color:#6b4100;font-weight:950;margin-bottom:5px;}
+      .ace-loss-photo-notice{margin-bottom:11px;color:#7a5a24;font-size:12px;line-height:1.5;}
+      .ace-loss-photo-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+      #aceLossPhotoInput{max-width:100%;padding:8px;border:1px solid #d8b87c;border-radius:9px;background:#fff;}
+      #aceLossPhotoRemove{display:none;min-height:38px;padding:7px 12px;border:1px solid #d92d20;border-radius:9px;background:#fff;color:#b42318;font-weight:900;cursor:pointer;}
+      #aceLossPhotoPreview{display:none;width:110px;height:82px;margin-top:11px;object-fit:cover;border:1px solid #d8b87c;border-radius:9px;background:#fff;}
+      #aceLossPhotoStatus{margin-top:7px;color:#667085;font-size:12px;font-weight:750;}
+      .ace-evidence-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:5px 9px;border:1px solid #1570a6;border-radius:8px;background:#eef8ff;color:#075985;font:inherit;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap;}
+      .ace-evidence-expired{color:#8a5b14;font-size:11px;font-weight:800;white-space:normal;}
+      .ace-report-evidence-thumb{display:block;width:86px;height:64px;object-fit:cover;border:1px solid #cddbe5;border-radius:7px;cursor:pointer;}
+      #aceLossEvidenceModal{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,24,41,.78);backdrop-filter:blur(4px);}
+      #aceLossEvidenceModal .ace-evidence-box{position:relative;width:min(900px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:16px;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.38);}
+      #aceLossEvidenceModal img{display:block;max-width:100%;max-height:75vh;margin:auto;border-radius:11px;object-fit:contain;}
+      #aceLossEvidenceModal button{position:absolute;top:8px;right:8px;width:40px;height:40px;border:0;border-radius:50%;background:#0b3a63;color:#fff;font-size:22px;font-weight:900;cursor:pointer;}
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  let field =
+    document.getElementById(
+      "aceLossPhotoField"
+    );
+
+  if (!field) {
+    field =
+      document.createElement("div");
+    field.id =
+      "aceLossPhotoField";
+    field.innerHTML = `
+      <div class="ace-loss-photo-title">📷 Evidência do produto vencido — opcional</div>
+      <div class="ace-loss-photo-notice">
+        A imagem será comprimida antes do envio e ficará armazenada por apenas <strong>30 dias</strong>.
+        Depois desse prazo será excluída automaticamente. Os dados da perda permanecerão no histórico.
+      </div>
+      <div class="ace-loss-photo-actions">
+        <input id="aceLossPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
+        <button id="aceLossPhotoRemove" type="button">Remover foto</button>
+      </div>
+      <img id="aceLossPhotoPreview" alt="Prévia da evidência">
+      <div id="aceLossPhotoStatus">Nenhuma foto selecionada.</div>
+    `;
+
+    const submit =
+      form.querySelector(
+        'button[type="submit"]'
+      );
+
+    if (submit?.parentElement === form) {
+      form.insertBefore(field, submit);
+    } else {
+      form.appendChild(field);
+    }
+
+    const input =
+      field.querySelector(
+        "#aceLossPhotoInput"
+      );
+
+    input?.addEventListener(
+      "change",
+      () => {
+        const file = input.files?.[0];
+        const preview = document.getElementById("aceLossPhotoPreview");
+        const status = document.getElementById("aceLossPhotoStatus");
+        const remove = document.getElementById("aceLossPhotoRemove");
+
+        if (aceLossPhotoPreviewUrl) {
+          URL.revokeObjectURL(aceLossPhotoPreviewUrl);
+          aceLossPhotoPreviewUrl = null;
+        }
+
+        if (!file) {
+          if (preview) preview.style.display = "none";
+          if (remove) remove.style.display = "none";
+          if (status) status.textContent = "Nenhuma foto selecionada.";
+          return;
+        }
+
+        if (!file.type.startsWith("image/")) {
+          input.value = "";
+          toast("Selecione um arquivo de imagem válido.");
+          return;
+        }
+
+        if (file.size > 20 * 1024 * 1024) {
+          input.value = "";
+          toast("A imagem original deve ter no máximo 20 MB.");
+          return;
+        }
+
+        aceLossPhotoPreviewUrl = URL.createObjectURL(file);
+        if (preview) {
+          preview.src = aceLossPhotoPreviewUrl;
+          preview.style.display = "block";
+        }
+        if (remove) remove.style.display = "inline-flex";
+        if (status) {
+          status.textContent = `Foto selecionada: ${(file.size / 1024 / 1024).toFixed(1)} MB. Será reduzida antes do envio.`;
+        }
+      }
+    );
+
+    field.querySelector(
+      "#aceLossPhotoRemove"
+    )?.addEventListener(
+      "click",
+      resetAceLossPhotoField
+    );
+  }
+
+  const updateVisibility = () => {
+    const type = form.querySelector('[name="type"]')?.value || "";
+    const reasonId = form.querySelector('[name="reasonId"]')?.value || "";
+    const visible = type === "perda" && isAceExpirationReason(reasonId);
+    field.classList.toggle("ace-visible", visible);
+    if (!visible) resetAceLossPhotoField();
+  };
+
+  [
+    form.querySelector('[name="type"]'),
+    form.querySelector('[name="reasonId"]')
+  ].forEach(select => {
+    if (!select || select.dataset.aceLossPhotoBound === "1") return;
+    select.dataset.aceLossPhotoBound = "1";
+    select.addEventListener("change", updateVisibility);
+  });
+
+  updateVisibility();
+}
+
+
+function resetAceLossPhotoField() {
+  const input = document.getElementById("aceLossPhotoInput");
+  const preview = document.getElementById("aceLossPhotoPreview");
+  const status = document.getElementById("aceLossPhotoStatus");
+  const remove = document.getElementById("aceLossPhotoRemove");
+  if (input) input.value = "";
+  if (aceLossPhotoPreviewUrl) URL.revokeObjectURL(aceLossPhotoPreviewUrl);
+  aceLossPhotoPreviewUrl = null;
+  if (preview) {
+    preview.removeAttribute("src");
+    preview.style.display = "none";
+  }
+  if (remove) remove.style.display = "none";
+  if (status) status.textContent = "Nenhuma foto selecionada.";
+}
+
+
+async function compressAceLossPhoto(file) {
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    bitmap = await new Promise((resolve, reject) => {
+      const image = new Image();
+      const url = URL.createObjectURL(file);
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Não foi possível abrir a fotografia."));
+      };
+      image.src = url;
+    });
+  }
+
+  const sourceWidth = bitmap.width || bitmap.naturalWidth;
+  const sourceHeight = bitmap.height || bitmap.naturalHeight;
+  const maxSide = 1280;
+  const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+  const context = canvas.getContext("2d", { alpha: false });
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+
+  const makeBlob = quality =>
+    new Promise((resolve, reject) =>
+      canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error("Falha ao comprimir a fotografia.")),
+        "image/webp",
+        quality
+      )
+    );
+
+  let blob = await makeBlob(0.68);
+  if (blob.size > 250 * 1024) blob = await makeBlob(0.55);
+  if (blob.size > 350 * 1024) blob = await makeBlob(0.42);
+  if (blob.size > 500 * 1024) {
+    throw new Error(
+      "Não foi possível reduzir a fotografia para o limite de 500 KB. Tente tirar outra foto mais próxima do produto."
+    );
+  }
+  return blob;
+}
+
+
+async function saveAceLossEvidence(lossId, file) {
+  if (!window.aceLossEvidenceReady) {
+    throw new Error("Execute o SQL desta atualização antes de enviar fotografias.");
+  }
+  if (!aceIsOnline()) {
+    throw new Error("A perda foi salva offline, mas a foto precisa de conexão para ser enviada.");
+  }
+
+  const status = document.getElementById("aceLossPhotoStatus");
+  if (status) status.textContent = "Comprimindo fotografia...";
+  const blob = await compressAceLossPhoto(file);
+  if (status) status.textContent = `Enviando fotografia comprimida (${Math.round(blob.size / 1024)} KB)...`;
+
+  const userId = getCurrentUserId();
+  const path = `${userId}/${Number(lossId)}-${Date.now()}.webp`;
+  const upload = await supabaseClient.storage
+    .from(ACE_LOSS_EVIDENCE_BUCKET)
+    .upload(path, blob, {
+      contentType: "image/webp",
+      cacheControl: "3600",
+      upsert: false
+    });
+
+  if (upload.error) throw upload.error;
+
+  const expiresAt = new Date(
+    Date.now() + ACE_LOSS_EVIDENCE_DAYS * 86400000
+  ).toISOString();
+  const evidenceId = newNumericId();
+  const row = {
+    id: evidenceId,
+    perda_id: Number(lossId),
+    storage_path: path,
+    mime_type: "image/webp",
+    tamanho_bytes: blob.size,
+    expires_at: expiresAt,
+    usuario_id: userId
+  };
+
+  const { error } = await supabaseClient
+    .from("perdas_evidencias")
+    .insert(row);
+
+  if (error) {
+    await supabaseClient.storage.from(ACE_LOSS_EVIDENCE_BUCKET).remove([path]);
+    throw error;
+  }
+
+  db.lossEvidence = db.lossEvidence || [];
+  db.lossEvidence.unshift({
+    id: evidenceId,
+    lossId: Number(lossId),
+    storagePath: path,
+    mimeType: "image/webp",
+    bytes: blob.size,
+    expiresAt,
+    deletedAt: null,
+    usuarioId: userId,
+    createdAt: new Date().toISOString(),
+    signedUrl: ""
+  });
+}
+
+
+function getAceLossEvidence(lossId) {
+  return (db?.lossEvidence || [])
+    .filter(item => Number(item.lossId) === Number(lossId))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
+}
+
+
+function isAceLossEvidenceExpired(evidence) {
+  return !evidence || Boolean(evidence.deletedAt) ||
+    (evidence.expiresAt && new Date(evidence.expiresAt).getTime() <= Date.now());
+}
+
+
+async function getAceLossEvidenceSignedUrl(evidence) {
+  if (!evidence || isAceLossEvidenceExpired(evidence)) return "";
+  if (evidence.signedUrl) return evidence.signedUrl;
+  const { data, error } = await supabaseClient.storage
+    .from(ACE_LOSS_EVIDENCE_BUCKET)
+    .createSignedUrl(evidence.storagePath, 3600);
+  if (error) throw error;
+  evidence.signedUrl = data?.signedUrl || "";
+  return evidence.signedUrl;
+}
+
+
+async function openAceLossEvidence(evidenceId) {
+  const evidence = (db?.lossEvidence || []).find(item => Number(item.id) === Number(evidenceId));
+  if (!evidence || isAceLossEvidenceExpired(evidence)) {
+    await showAceConfirm(
+      "A evidência fotográfica foi removida após o prazo de armazenamento de 30 dias.",
+      "📷 Evidência expirada"
+    );
+    return;
+  }
+  try {
+    const url = await getAceLossEvidenceSignedUrl(evidence);
+    document.getElementById("aceLossEvidenceModal")?.remove();
+    const modal = document.createElement("div");
+    modal.id = "aceLossEvidenceModal";
+    modal.innerHTML = `<div class="ace-evidence-box"><button type="button" aria-label="Fechar">×</button><img src="${esc(url)}" alt="Evidência da perda por vencimento"><div style="margin-top:10px;color:#667085;font-size:12px;text-align:center;">Imagem armazenada por 30 dias a partir do envio.</div></div>`;
+    modal.addEventListener("click", event => {
+      if (event.target === modal || event.target.closest("button")) modal.remove();
+    });
+    document.body.appendChild(modal);
+  } catch (error) {
+    toast("Não foi possível abrir a fotografia: " + (error?.message || "erro desconhecido"));
+  }
+}
+
+
+function renderAceLossEvidenceCellForMovement(movement) {
+  if (!movement || movement.type !== "perda") return "—";
+  const evidence = getAceLossEvidence(movement.rawId);
+  if (!evidence) return "Sem foto";
+  if (isAceLossEvidenceExpired(evidence)) {
+    return `<span class="ace-evidence-expired">Imagem removida após 30 dias</span>`;
+  }
+  return `<button type="button" class="ace-evidence-button" onclick="openAceLossEvidence(${Number(evidence.id)})">📷 Ver foto</button>`;
+}
+
+
+function renderAceLossEvidenceCellForHistory(historyItem) {
+  const movement = findRealMovementForHistory(historyItem);
+  return renderAceLossEvidenceCellForMovement(movement);
+}
+
+
+async function hydrateAceLossEvidenceUrls() {
+  const active = (db?.lossEvidence || []).filter(item => !isAceLossEvidenceExpired(item));
+  await Promise.all(active.map(item => getAceLossEvidenceSignedUrl(item).catch(() => "")));
+}
+
+
+function renderAceLossEvidenceReportCell(movement) {
+  if (!movement || movement.type !== "perda") return "—";
+  const evidence = getAceLossEvidence(movement.rawId);
+  if (!evidence) return "Sem foto";
+  if (isAceLossEvidenceExpired(evidence)) return "Evidência expirada — retenção de 30 dias";
+  if (!evidence.signedUrl) return "Foto disponível";
+  return `<img class="ace-report-evidence-thumb" src="${esc(evidence.signedUrl)}" alt="Evidência da perda" onclick="openAceLossEvidence(${Number(evidence.id)})">`;
+}
+
+
+async function cleanupAceExpiredLossEvidence() {
+  if (aceLossEvidenceCleanupRunning || !aceIsOnline() || !window.aceLossEvidenceReady) return;
+  const expired = (db?.lossEvidence || []).filter(item => !item.deletedAt && isAceLossEvidenceExpired(item));
+  if (!expired.length) return;
+  aceLossEvidenceCleanupRunning = true;
+  try {
+    const paths = expired.map(item => item.storagePath).filter(Boolean);
+    if (paths.length) {
+      const result = await supabaseClient.storage.from(ACE_LOSS_EVIDENCE_BUCKET).remove(paths);
+      if (result.error) throw result.error;
+    }
+    const ids = expired.map(item => Number(item.id));
+    const deletedAt = new Date().toISOString();
+    const { error } = await supabaseClient
+      .from("perdas_evidencias")
+      .update({ apagada_em: deletedAt })
+      .in("id", ids);
+    if (error) throw error;
+    expired.forEach(item => { item.deletedAt = deletedAt; item.signedUrl = ""; });
+  } catch (error) {
+    console.warn("ACE: limpeza automática das fotos pendente:", error);
+  } finally {
+    aceLossEvidenceCleanupRunning = false;
+  }
+}
+
+
+function calcAceSackStock() {
+  const stock = {};
+  (db?.sackTypes || []).forEach(type => { stock[Number(type.id)] = 0; });
+  (db?.sackMovements || []).forEach(item => {
+    const id = Number(item.sackTypeId);
+    if (!Object.prototype.hasOwnProperty.call(stock, id)) stock[id] = 0;
+    stock[id] += item.type === "entrada" ? Number(item.qty || 0) : -Number(item.qty || 0);
+  });
+  return stock;
+}
+
+
+function getAceSackTypeName(id) {
+  const type = (db?.sackTypes || []).find(item => Number(item.id) === Number(id));
+  if (!type) return "Tipo não identificado";
+  const dimension = type.widthCm && type.heightCm ? ` — ${type.widthCm}×${type.heightCm} cm` : "";
+  return `${type.name}${dimension}`;
+}
+
+
+function ensureAceSackStyles() {
+  if (document.getElementById("aceSackStyles")) return;
+  const style = document.createElement("style");
+  style.id = "aceSackStyles";
+  style.textContent = `
+    .ace-sack-shell{display:grid;gap:18px;}
+    .ace-sack-panel{padding:20px;border:1px solid #d4e2ec;border-radius:16px;background:#fff;box-shadow:0 10px 30px rgba(13,71,110,.07);}
+    .ace-sack-title{margin:0;color:#0b3a63;font-size:27px;font-weight:950;}
+    .ace-sack-subtitle{margin:5px 0 16px;color:#667085;font-size:14px;}
+    .ace-sack-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}
+    .ace-sack-form label{display:grid;gap:6px;color:#173750;font-size:13px;font-weight:900;}
+    .ace-sack-form input,.ace-sack-form select,.ace-sack-form textarea{width:100%;min-height:47px;box-sizing:border-box;padding:10px 12px;border:1px solid #c7d8e5;border-radius:10px;background:#fff;color:#172b3a;font:inherit;}
+    .ace-sack-form .ace-full{grid-column:1/-1;}
+    .ace-sack-submit{justify-self:start;min-height:47px;padding:10px 18px;border:0;border-radius:10px;background:#0b4b7a;color:#fff;font:inherit;font-weight:950;cursor:pointer;}
+    .ace-sack-history-head{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:13px;}
+    .ace-sack-history-head h3{margin:0;color:#0b3a63;font-size:21px;}
+    .ace-sack-history-filter{display:grid;gap:5px;font-size:12px;font-weight:850;color:#173750;}
+    .ace-sack-history-filter input{min-height:40px;padding:7px 10px;border:1px solid #c7d8e5;border-radius:8px;font:inherit;}
+    .ace-sack-actions{display:flex;gap:6px;white-space:nowrap;}
+    .ace-sack-action{min-height:32px;padding:5px 9px;border-radius:8px;background:#fff;font:inherit;font-size:12px;font-weight:900;cursor:pointer;}
+    .ace-sack-edit{border:1px solid #1570a6;color:#075985;}.ace-sack-delete{border:1px solid #ef4444;color:#b42318;}
+    .ace-sack-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;}
+    .ace-sack-card{padding:17px;border:1px solid #cfe0eb;border-radius:14px;background:linear-gradient(145deg,#fff,#f5faff);box-shadow:0 8px 22px rgba(11,75,122,.08);}
+    .ace-sack-card.low{border-color:#f5b7b1;background:#fff7f6;}.ace-sack-card strong{display:block;margin-top:8px;color:#0b4b7a;font-size:28px;}.ace-sack-card.low strong{color:#d92d20;}
+    #aceSackEditModal{position:fixed;inset:0;z-index:2147483550;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,34,57,.65);backdrop-filter:blur(3px);}
+    #aceSackEditModal .ace-sack-modal-box{width:min(570px,100%);max-height:calc(100dvh - 36px);overflow:auto;box-sizing:border-box;padding:23px;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);}
+    #aceSackEditModal h3{margin:0 0 15px;color:#0b3a63;}.ace-sack-modal-actions{display:flex;gap:9px;margin-top:17px;}.ace-sack-modal-actions button{flex:1;min-height:44px;border-radius:9px;font:inherit;font-weight:900;cursor:pointer;}
+    @media(max-width:800px){.ace-sack-form,.ace-sack-cards{grid-template-columns:1fr;}.ace-sack-form .ace-full{grid-column:auto;}}
+  `;
+  document.head.appendChild(style);
+}
+
+
+function setupAceSackPages() {
+  ensureAceSackStyles();
+  const tabs = document.querySelector(".tabs");
+  const pageParent = document.querySelector(".page")?.parentElement;
+  if (!tabs || !pageParent) return;
+
+  const definitions = [
+    ["sacosEntrada", "📥 Entrada de Sacos"],
+    ["sacosSaida", "📤 Saída de Sacos"],
+    ["sacosEstoque", "🛍️ Estoque de Sacos"]
+  ];
+
+  definitions.forEach(([id, label]) => {
+    if (!tabs.querySelector(`[data-page="${id}"]`)) {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "tab";
+      tab.dataset.page = id;
+      tab.innerHTML = label;
+      tabs.appendChild(tab);
+    }
+    if (!document.getElementById(id)) {
+      const page = document.createElement("section");
+      page.id = id;
+      page.className = "page";
+      pageParent.appendChild(page);
+    }
+  });
+
+  const buildMovementPage = type => {
+    const isEntry = type === "entrada";
+    const page = document.getElementById(isEntry ? "sacosEntrada" : "sacosSaida");
+    if (!page || page.dataset.aceSackReady === "1") return;
+    page.dataset.aceSackReady = "1";
+    page.innerHTML = `
+      <div class="ace-sack-shell">
+        <div class="ace-sack-panel">
+          <h2 class="ace-sack-title">${isEntry ? "📥 Entrada de Sacos" : "📤 Saída de Sacos"}</h2>
+          <div class="ace-sack-subtitle">Controle independente do estoque de embalagens.</div>
+          <form id="${isEntry ? "aceSackEntryForm" : "aceSackOutputForm"}" class="ace-sack-form" data-sack-type="${type}">
+            <label>Data<input name="date" type="date" value="${isoToday()}" required></label>
+            <label>Tipo e tamanho do saco<select name="sackTypeId" required></select></label>
+            <label>Quantidade<input name="qty" type="number" min="1" step="1" inputmode="numeric" required></label>
+            <label>${isEntry ? "Origem / fornecedor" : "Destino"}<input name="originDestination" type="text" maxlength="120" placeholder="${isEntry ? "Ex.: Compra ou doação" : "Ex.: Montagem de cestas"}"></label>
+            ${isEntry ? "" : `<label class="ace-full">Finalidade<select name="purpose"><option value="Montagem de cestas">Montagem de cestas</option><option value="Distribuição">Distribuição</option><option value="Avaria">Avaria</option><option value="Uso interno">Uso interno</option><option value="Outro">Outro</option></select></label>`}
+            <label class="ace-full">Observação<textarea name="note" rows="2" maxlength="300"></textarea></label>
+            <button class="ace-sack-submit" type="submit">💾 Registrar ${isEntry ? "entrada" : "saída"}</button>
+          </form>
+        </div>
+        <div class="ace-sack-panel">
+          <div class="ace-sack-history-head"><h3>Histórico de ${isEntry ? "entradas" : "saídas"}</h3><label class="ace-sack-history-filter">Filtrar por data<input id="${isEntry ? "aceSackEntryDate" : "aceSackOutputDate"}" type="date" value="${isoToday()}"></label></div>
+          <div id="${isEntry ? "aceSackEntryHistory" : "aceSackOutputHistory"}"></div>
+        </div>
+      </div>`;
+  };
+
+  buildMovementPage("entrada");
+  buildMovementPage("saida");
+
+  const stockPage = document.getElementById("sacosEstoque");
+  if (stockPage && stockPage.dataset.aceSackReady !== "1") {
+    stockPage.dataset.aceSackReady = "1";
+    stockPage.innerHTML = `
+      <div class="ace-sack-shell">
+        <div class="ace-sack-panel">
+          <h2 class="ace-sack-title">🛍️ Estoque de Sacos</h2>
+          <div class="ace-sack-subtitle">Saldo consolidado. Os históricos permanecem nas telas de Entrada e Saída.</div>
+          <div id="aceSackStockCards" class="ace-sack-cards"></div>
+        </div>
+        <div class="ace-sack-panel">
+          <h3 style="margin-top:0;color:#0b3a63;">➕ Cadastrar tamanho de saco</h3>
+          <form id="aceSackTypeForm" class="ace-sack-form">
+            <label>Nome<input name="name" type="text" maxlength="80" placeholder="Ex.: Saco médio" required></label>
+            <label>Largura (cm)<input name="width" type="number" min="1" step="1" required></label>
+            <label>Altura (cm)<input name="height" type="number" min="1" step="1" required></label>
+            <label>Estoque mínimo<input name="minimum" type="number" min="0" step="1" value="0" required></label>
+            <button class="ace-sack-submit" type="submit">Cadastrar tamanho</button>
+          </form>
+        </div>
+      </div>`;
+  }
+
+  bindAceSackEvents();
+}
+
+
+function populateAceSackTypeSelects() {
+  document.querySelectorAll('.ace-sack-form select[name="sackTypeId"]').forEach(select => {
+    const current = select.value;
+    select.innerHTML = '<option value="">Selecione...</option>' +
+      (db?.sackTypes || []).map(type => `<option value="${Number(type.id)}">${esc(getAceSackTypeName(type.id))}</option>`).join("");
+    if ([...select.options].some(option => option.value === current)) select.value = current;
+  });
+}
+
+
+async function saveAceSackMovement(form) {
+  if (!window.aceSackModuleReady) throw new Error("Execute o SQL do módulo de sacos antes de registrar movimentações.");
+  if (!aceIsOnline()) throw new Error("A movimentação de sacos precisa de conexão com o Supabase.");
+  const data = new FormData(form);
+  const type = form.dataset.sackType;
+  const date = data.get("date");
+  const sackTypeId = Number(data.get("sackTypeId"));
+  const qty = Number(data.get("qty"));
+  if (!date || !sackTypeId || !Number.isInteger(qty) || qty <= 0) throw new Error("Preencha data, tamanho e uma quantidade inteira maior que zero.");
+  if (type === "saida") {
+    const available = Number(calcAceSackStock()[sackTypeId] || 0);
+    if (qty > available) throw new Error(`Estoque insuficiente. Disponível: ${fmt(available)} saco(s).`);
+  }
+  const id = newNumericId();
+  const row = {
+    id,
+    data: date,
+    tipo: type,
+    saco_tipo_id: sackTypeId,
+    quantidade: qty,
+    origem_destino: String(data.get("originDestination") || "").trim(),
+    finalidade: String(data.get("purpose") || "").trim(),
+    observacao: String(data.get("note") || "").trim(),
+    usuario_id: getCurrentUserId()
+  };
+  await aceRunAuthenticatedWrite(
+    () => supabaseClient.from("sacos_movimentacoes").insert(row),
+    `o registro da ${type} de sacos`
+  );
+  await reloadFromSupabase();
+  form.reset();
+  form.querySelector('[name="date"]').value = isoToday();
+  showAceSuccess(`${type === "entrada" ? "Entrada" : "Saída"} de sacos registrada com sucesso!`);
+}
+
+
+function renderAceSackHistory(type) {
+  const isEntry = type === "entrada";
+  const target = document.getElementById(isEntry ? "aceSackEntryHistory" : "aceSackOutputHistory");
+  if (!target) return;
+  const filter = document.getElementById(isEntry ? "aceSackEntryDate" : "aceSackOutputDate")?.value || "";
+  const rows = (db?.sackMovements || []).filter(item => item.type === type && (!filter || item.date === filter));
+  target.innerHTML = table(rows, [
+    ["Data", x => fmtDate(x.date)],
+    ["Tamanho", x => esc(getAceSackTypeName(x.sackTypeId))],
+    ["Qtd", x => fmt(x.qty)],
+    [isEntry ? "Origem" : "Destino", x => esc(x.originDestination || "—")],
+    ["Finalidade", x => esc(x.purpose || "—")],
+    ["Usuário", x => esc(getMovementUserName(x) || "Usuário não identificado")],
+    ["Obs.", x => esc(x.note || "")],
+    ["Ações", x => `<div class="ace-sack-actions"><button type="button" class="ace-sack-action ace-sack-edit" data-ace-sack-edit="${Number(x.id)}">✏️ Editar</button><button type="button" class="ace-sack-action ace-sack-delete" data-ace-sack-delete="${Number(x.id)}">🗑️ Excluir</button></div>`]
+  ], null);
+}
+
+
+function renderAceSackStock() {
+  const target = document.getElementById("aceSackStockCards");
+  if (!target) return;
+  if (!window.aceSackModuleReady) {
+    target.innerHTML = '<div class="empty">Execute o SQL desta atualização para ativar o estoque de sacos.</div>';
+    return;
+  }
+  const stock = calcAceSackStock();
+  target.innerHTML = (db?.sackTypes || []).map(type => {
+    const qty = Number(stock[type.id] || 0);
+    const low = type.minimumStock > 0 && qty <= type.minimumStock;
+    return `<div class="ace-sack-card ${low ? "low" : ""}"><div style="font-weight:900;color:#173750;">${esc(getAceSackTypeName(type.id))}</div><strong>${fmt(qty)}</strong><div style="margin-top:5px;color:#667085;font-size:12px;">${low ? `⚠️ Estoque baixo · mínimo ${fmt(type.minimumStock)}` : `Disponível · mínimo ${fmt(type.minimumStock)}`}</div></div>`;
+  }).join("") || '<div class="empty">Nenhum tamanho de saco cadastrado.</div>';
+}
+
+
+function renderAceSackModule() {
+  populateAceSackTypeSelects();
+  renderAceSackHistory("entrada");
+  renderAceSackHistory("saida");
+  renderAceSackStock();
+}
+
+
+function openAceSackEditModal(id) {
+  const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
+  if (!item) return;
+  document.getElementById("aceSackEditModal")?.remove();
+  const modal = document.createElement("div");
+  modal.id = "aceSackEditModal";
+  modal.innerHTML = `<div class="ace-sack-modal-box"><h3>✏️ Editar ${item.type === "entrada" ? "entrada" : "saída"} de sacos</h3><form id="aceSackEditForm" class="ace-sack-form"><label>Data<input name="date" type="date" value="${esc(item.date)}" required></label><label>Tipo de saco<select name="sackTypeId">${(db.sackTypes || []).map(type => `<option value="${Number(type.id)}" ${Number(type.id) === Number(item.sackTypeId) ? "selected" : ""}>${esc(getAceSackTypeName(type.id))}</option>`).join("")}</select></label><label>Quantidade<input name="qty" type="number" min="1" step="1" value="${Number(item.qty)}" required></label><label>${item.type === "entrada" ? "Origem" : "Destino"}<input name="originDestination" value="${esc(item.originDestination || "")}"></label>${item.type === "saida" ? `<label class="ace-full">Finalidade<input name="purpose" value="${esc(item.purpose || "")}"></label>` : ""}<label class="ace-full">Observação<textarea name="note" rows="2">${esc(item.note || "")}</textarea></label><div class="ace-sack-modal-actions ace-full"><button type="submit" style="border:0;background:#0b4b7a;color:#fff;">Salvar correção</button><button type="button" data-ace-sack-cancel style="border:1px solid #b8c9d6;background:#fff;color:#344054;">Cancelar</button></div></form></div>`;
+  modal.addEventListener("click", event => { if (event.target === modal || event.target.closest("[data-ace-sack-cancel]")) modal.remove(); });
+  modal.querySelector("form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(event.target);
+    const nextTypeId = Number(data.get("sackTypeId"));
+    const nextQty = Number(data.get("qty"));
+    try {
+      if (!nextTypeId || !Number.isInteger(nextQty) || nextQty <= 0) throw new Error("Informe tamanho e quantidade corretamente.");
+      if (item.type === "saida") {
+        const stock = calcAceSackStock();
+        const available = Number(stock[nextTypeId] || 0) + (Number(item.sackTypeId) === nextTypeId ? Number(item.qty) : 0);
+        if (nextQty > available) throw new Error(`Estoque insuficiente. Disponível para correção: ${fmt(available)}.`);
+      }
+      await aceRunAuthenticatedWrite(
+        () => supabaseClient.from("sacos_movimentacoes").update({ data: data.get("date"), saco_tipo_id: nextTypeId, quantidade: nextQty, origem_destino: String(data.get("originDestination") || "").trim(), finalidade: String(data.get("purpose") || "").trim(), observacao: String(data.get("note") || "").trim(), updated_at: new Date().toISOString() }).eq("id", Number(item.id)),
+        "a edição da movimentação de sacos"
+      );
+      modal.remove();
+      await reloadFromSupabase();
+      showAceSuccess("Movimentação de sacos corrigida com sucesso!");
+    } catch (error) { toast(error?.message || "Não foi possível editar."); }
+  });
+  document.body.appendChild(modal);
+}
+
+
+async function deleteAceSackMovement(id) {
+  const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
+  if (!item) return;
+  const ok = await showAceConfirm(`Excluir esta ${item.type === "entrada" ? "entrada" : "saída"} de ${fmt(item.qty)} saco(s)?\n\nO saldo será recalculado automaticamente.`, "🗑️ Excluir movimentação de sacos");
+  if (!ok) return;
+  try {
+    await aceRunAuthenticatedWrite(
+      () => supabaseClient.from("sacos_movimentacoes").delete().eq("id", Number(id)),
+      "a exclusão da movimentação de sacos"
+    );
+    await reloadFromSupabase();
+    showAceSuccess("Movimentação de sacos excluída. Saldo atualizado!");
+  } catch (error) { toast(error?.message || "Não foi possível excluir."); }
+}
+
+
+function bindAceSackEvents() {
+  [document.getElementById("aceSackEntryForm"), document.getElementById("aceSackOutputForm")].forEach(form => {
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      if (button) button.disabled = true;
+      try { await saveAceSackMovement(form); }
+      catch (error) { await showAceConfirm(error?.message || "Não foi possível registrar.", "❌ Erro"); }
+      finally { if (button) button.disabled = false; }
+    });
+  });
+
+  ["aceSackEntryDate", "aceSackOutputDate"].forEach(id => {
+    const input = document.getElementById(id);
+    if (!input || input.dataset.bound === "1") return;
+    input.dataset.bound = "1";
+    input.addEventListener("change", () => renderAceSackHistory(id.includes("Entry") ? "entrada" : "saida"));
+  });
+
+  const typeForm = document.getElementById("aceSackTypeForm");
+  if (typeForm && typeForm.dataset.bound !== "1") {
+    typeForm.dataset.bound = "1";
+    typeForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const data = new FormData(typeForm);
+      try {
+        if (!window.aceSackModuleReady) throw new Error("Execute o SQL desta atualização primeiro.");
+        await aceRunAuthenticatedWrite(
+          () => supabaseClient.from("sacos_tipos").insert({ nome: String(data.get("name") || "").trim(), largura_cm: Number(data.get("width")), altura_cm: Number(data.get("height")), estoque_minimo: Number(data.get("minimum") || 0), ativo: true }),
+          "o cadastro do tamanho de saco"
+        );
+        typeForm.reset();
+        await reloadFromSupabase();
+        showAceSuccess("Tamanho de saco cadastrado com sucesso!");
+      } catch (error) { toast(error?.message || "Não foi possível cadastrar."); }
+    });
+  }
+
+  if (!window.aceSackActionDelegationBound) {
+    window.aceSackActionDelegationBound = true;
+    document.addEventListener("click", event => {
+      const edit = event.target.closest("[data-ace-sack-edit]");
+      if (edit) openAceSackEditModal(edit.dataset.aceSackEdit);
+      const remove = event.target.closest("[data-ace-sack-delete]");
+      if (remove) deleteAceSackMovement(remove.dataset.aceSackDelete);
+    });
+  }
+}
+
+
 function renderAll() {
 
   refreshSelects();
@@ -46522,6 +47525,12 @@ function renderAll() {
 
   // Histórico específico da aba Saída/Perda.
   renderMovementDayHistory();
+
+  // Atualiza o estoque separado de sacos e seus dois históricos.
+  renderAceSackModule();
+
+  // Mantém o campo de foto visível somente em Perda por Vencimento.
+  ensureAceLossPhotoField();
 
   // Mantém o resumo da entrada em lote sincronizado.
   renderBulkEntryDraft();
@@ -48425,10 +49434,16 @@ async function initApp() {
     // Estatísticas gerenciais (somente nova aba/visualização).
     setupAceStatisticsPage();
 
+    // Estoque independente de sacos: entrada, saída e consulta do saldo.
+    setupAceSackPages();
+
     await refreshAceInventoryState(false);
 
     // Cria o histórico de Saída/Perda abaixo do formulário.
     ensureMovementDayHistory();
+
+    // Foto opcional apenas para perdas causadas por vencimento.
+    ensureAceLossPhotoField();
 
     // Substitui o formulário antigo pela nova Entrada em lote.
     setupBulkEntryForm();
@@ -48460,6 +49475,24 @@ async function initApp() {
     await setupAceTeamCommunication();
 
     renderAll();
+
+    // Remove evidências vencidas quando o sistema estiver online.
+    cleanupAceExpiredLossEvidence();
+
+    if (!window.aceLossEvidenceCleanupTimer) {
+      window.aceLossEvidenceCleanupTimer = setInterval(
+        cleanupAceExpiredLossEvidence,
+        24 * 60 * 60 * 1000
+      );
+    }
+
+    if (!window.aceLossEvidenceOnlineCleanupBound) {
+      window.aceLossEvidenceOnlineCleanupBound = true;
+      window.addEventListener(
+        "online",
+        cleanupAceExpiredLossEvidence
+      );
+    }
 
     // O layout novo já foi montado e renderizado.
     // Agora a interface pode ser exibida sem mostrar a antiga.
@@ -57223,7 +58256,9 @@ window.aceBuildStatisticsReportHtml =
       items: [
         { target: "entrada", label: "➕ Entrada" },
         { target: "saida", label: "📤 Saída/Perda" },
-        { target: "cestas", label: "🧺 Cestas" }
+        { target: "cestas", label: "🧺 Cestas" },
+        { target: "sacosEntrada", label: "📥 Entrada de Sacos" },
+        { target: "sacosSaida", label: "📤 Saída de Sacos" }
       ]
     },
     queries: {
@@ -57231,7 +58266,8 @@ window.aceBuildStatisticsReportHtml =
       items: [
         { target: "relatorio", label: "📑 Relatórios" },
         { target: "estatisticas", label: "📊 Estatísticas" },
-        { target: "estoque", label: "🏬 Estoque" }
+        { target: "estoque", label: "🏬 Estoque" },
+        { target: "sacosEstoque", label: "🛍️ Estoque de Sacos" }
       ]
     },
     management: {
@@ -57307,6 +58343,9 @@ window.aceBuildStatisticsReportHtml =
       "entrada",
       "saida",
       "cestas",
+      "sacosEntrada",
+      "sacosSaida",
+      "sacosEstoque",
       "presenca",
       "historico",
       "estatisticas",
