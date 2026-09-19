@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-preview-foto-historico-v60",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-foto-sem-reset-v61",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-preview-foto-historico-v60";
+  "2026.09.19-foto-sem-reset-v61";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -40974,7 +40974,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-preview-foto-historico-v60",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-foto-sem-reset-v61",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -47129,6 +47129,28 @@ function ensureAceLossPhotoField() {
       );
 
     input?.addEventListener(
+      "click",
+      () => {
+        // Abrir a câmera/galeria tira o foco do aplicativo. Enquanto o
+        // seletor estiver aberto, bloqueamos o refresh automático que
+        // reconstruía Alimento e Motivo e fazia a fotografia desaparecer.
+        window.aceLossPhotoPickerActive = true;
+
+        clearTimeout(
+          window.aceLossPhotoPickerSafetyTimer
+        );
+
+        window.aceLossPhotoPickerSafetyTimer =
+          setTimeout(
+            () => {
+              window.aceLossPhotoPickerActive = false;
+            },
+            300000
+          );
+      }
+    );
+
+    input?.addEventListener(
       "change",
       () => {
         const file = input.files?.[0];
@@ -47839,6 +47861,49 @@ function renderAceSackModule() {
 }
 
 
+function captureAceMovementFormDraft() {
+  const form = document.getElementById("movementForm");
+  if (!form) return null;
+
+  const names = [
+    "date",
+    "type",
+    "origin",
+    "foodId",
+    "qty",
+    "reasonId",
+    "note"
+  ];
+
+  return names.reduce((draft, name) => {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (field) draft[name] = field.value;
+    return draft;
+  }, {});
+}
+
+
+function restoreAceMovementFormDraft(draft) {
+  const form = document.getElementById("movementForm");
+  if (!form || !draft) return;
+
+  Object.entries(draft).forEach(([name, value]) => {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (!field) return;
+
+    if (field.tagName === "SELECT") {
+      const available = Array.from(field.options).some(
+        option => String(option.value) === String(value)
+      );
+      if (available) field.value = value;
+      return;
+    }
+
+    field.value = value;
+  });
+}
+
+
 function openAceSackEditModal(id) {
   const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
   if (!item) return;
@@ -47942,7 +48007,16 @@ function bindAceSackEvents() {
 
 function renderAll() {
 
+  // Atualizações automáticas não podem apagar uma movimentação que o
+  // usuário ainda está preenchendo, especialmente ao voltar da galeria.
+  const movementDraft =
+    captureAceMovementFormDraft();
+
   refreshSelects();
+
+  restoreAceMovementFormDraft(
+    movementDraft
+  );
 
   // O Mural possui mídias e não precisa ser reconstruído
   // a cada movimentação do sistema. Ele é atualizado somente
@@ -54739,6 +54813,15 @@ function bindAceInventoryGlobalGuard() {
 function scheduleAceInventoryRefresh() {
   clearTimeout(aceInventoryRefreshTimer);
   aceInventoryRefreshTimer = setTimeout(async () => {
+    // A câmera/galeria dispara focus e visibilitychange ao voltar.
+    // Esse retorno não é uma mudança de inventário e não deve redesenhar
+    // o formulário nem remover a fotografia recém-escolhida.
+    if (window.aceLossPhotoPickerActive) {
+      window.aceLossPhotoPickerActive = false;
+      clearTimeout(window.aceLossPhotoPickerSafetyTimer);
+      return;
+    }
+
     const focusedControl = document.activeElement;
 
     if (
