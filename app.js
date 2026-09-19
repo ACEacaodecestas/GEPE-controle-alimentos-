@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-cadastro-minimo-v67",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-mobile-menu-sacos-v68",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-sacos-cadastro-minimo-v67";
+  "2026.09.19-mobile-menu-sacos-subitens-v68";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41098,7 +41098,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-sacos-cadastro-minimo-v67",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-mobile-menu-sacos-v68",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -61728,47 +61728,71 @@ window.aceBuildStatisticsReportHtml =
     }
 
 
-    const sacksToggle =
-      drawerList.querySelector(
+    // Cada item com submenu no drawer precisa receber seu próprio evento.
+    // Antes era usado querySelector(), então apenas o PRIMEIRO submenu
+    // (Alimentos) recebia clique. Sacos ficava sem evento e não abria.
+    drawerList
+      .querySelectorAll(
         "[data-ace-drawer-sacks-toggle]"
+      )
+      .forEach(
+        submenuToggle => {
+
+          const submenuWrap =
+            submenuToggle.closest(
+              ".ace-drawer-sacks-level2"
+            );
+
+
+          submenuToggle.onclick =
+            event => {
+
+              event.stopPropagation();
+
+              const opening =
+                !submenuWrap?.classList.contains(
+                  "open"
+                );
+
+
+              submenuWrap?.classList.toggle(
+                "open",
+                opening
+              );
+
+            };
+
+
+          // Se uma página filha já estiver ativa, mantém somente
+          // o respectivo grupo aberto ao reconstruir o menu.
+          const activeChild =
+            submenuWrap?.querySelector(
+              "[data-ace-open-page]"
+            );
+
+          if (
+            activeChild &&
+            Array.from(
+              submenuWrap.querySelectorAll(
+                "[data-ace-open-page]"
+              )
+            ).some(
+              child =>
+                targetMatchesTab(
+                  child.dataset.aceOpenPage,
+                  activeOriginalTab()
+                )
+            )
+          ) {
+
+            submenuWrap.classList.add(
+              "open"
+            );
+
+          }
+
+        }
       );
-
-
-    if (sacksToggle) {
-
-      const sacksWrap =
-        sacksToggle.closest(
-          ".ace-drawer-sacks-level2"
-        );
-
-      sacksToggle.onclick =
-        () =>
-          sacksWrap?.classList.toggle(
-            "open"
-          );
-
-      if (
-        sacksWrap?.querySelector(
-          '[data-ace-open-page="sacosEntrada"], [data-ace-open-page="sacosSaida"]'
-        ) &&
-        (
-          targetMatchesTab(
-            "sacosEntrada",
-            activeOriginalTab()
-          )
-          ||
-          targetMatchesTab(
-            "sacosSaida",
-            activeOriginalTab()
-          )
-        )
-      ) {
-        sacksWrap.classList.add(
-          "open"
-        );
-      }
-
-    }
 
   }
 
