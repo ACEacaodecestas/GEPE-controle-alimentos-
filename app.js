@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-saida-sacos-mesma-cor-v72",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cesta-funcionarios-tipo1-v73",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.19-saida-sacos-mesma-cor-v72";
+  "2026.09.26-cesta-funcionarios-tipo1-v73";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -33023,6 +33023,13 @@ function getBasketImagePath(basket) {
     return "cesta-sopao.png";
   }
 
+  if (
+    name === "funcionarios tipo-1" ||
+    name === "funcionarios tipo 1"
+  ) {
+    return "cesta-funcionarios-tipo-1.png";
+  }
+
   if (name === "cesta dos funcionarios") {
     return "cesta-funcionarios.png";
   }
@@ -41502,7 +41509,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260919-saida-sacos-mesma-cor-v72",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cesta-funcionarios-tipo1-v73",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
