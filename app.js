@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cesta-funcionarios-tipo1-v73",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cestas-2x2-chat-flutuante-v75",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.26-cesta-funcionarios-tipo1-v73";
+  "2026.09.26-cestas-2x2-chat-flutuante-v75";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -33337,14 +33337,19 @@ function ensureBasketStyles() {
     .ace-basket-grid{
       display:grid;
       grid-template-columns:
-        repeat(3,minmax(0,1fr));
-      gap:18px;
+        repeat(2,minmax(0,1fr));
+      align-items:stretch;
+      gap:22px;
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
     }
 
     .ace-basket-card{
       display:flex;
       flex-direction:column;
       min-width:0;
+      height:100%;
       overflow:hidden;
       border:1px solid #d8e2ea;
       border-radius:16px;
@@ -33967,6 +33972,7 @@ function ensureBasketStyles() {
     @media(max-width:1050px){
       .ace-basket-grid{
         grid-template-columns:1fr 1fr;
+        gap:16px;
       }
     }
 
@@ -41509,7 +41515,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cesta-funcionarios-tipo1-v73",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cestas-2x2-chat-flutuante-v75",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -49457,6 +49463,31 @@ let aceTeamPanelOpen = false;
 let aceTeamActiveTab = "online";
 let aceTeamConnecting = false;
 
+const ACE_TEAM_SOUND_PREF_KEY =
+  "ace_team_chat_sound_enabled_v1";
+
+let aceTeamSoundEnabled =
+  (() => {
+
+    try {
+
+      return (
+        localStorage.getItem(
+          ACE_TEAM_SOUND_PREF_KEY
+        ) !==
+        "0"
+      );
+
+    } catch {
+
+      return true;
+
+    }
+
+  })();
+
+let aceTeamAudioContext = null;
+
 
 function getAceTeamAvatarUrl() {
   const value = String(
@@ -49585,6 +49616,329 @@ function getAceOnlineUserById(userId) {
 }
 
 
+function saveAceTeamSoundPreference() {
+
+  try {
+
+    localStorage.setItem(
+      ACE_TEAM_SOUND_PREF_KEY,
+      aceTeamSoundEnabled
+        ? "1"
+        : "0"
+    );
+
+  } catch {}
+
+}
+
+
+async function primeAceTeamAudio() {
+
+  if (!aceTeamSoundEnabled) {
+    return null;
+  }
+
+
+  try {
+
+    const AudioContextClass =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+
+    if (!AudioContextClass) {
+      return null;
+    }
+
+
+    if (!aceTeamAudioContext) {
+
+      aceTeamAudioContext =
+        new AudioContextClass();
+
+    }
+
+
+    if (
+      aceTeamAudioContext.state ===
+      "suspended"
+    ) {
+
+      await aceTeamAudioContext.resume();
+
+    }
+
+
+    return aceTeamAudioContext;
+
+
+  } catch (error) {
+
+    console.warn(
+      "ACE Chat: áudio de notificação indisponível:",
+      error
+    );
+
+    return null;
+
+  }
+
+}
+
+
+async function playAceTeamChatAlert() {
+
+  if (!aceTeamSoundEnabled) {
+    return;
+  }
+
+
+  const context =
+    await primeAceTeamAudio();
+
+
+  if (!context) {
+    return;
+  }
+
+
+  try {
+
+    const start =
+      context.currentTime +
+      0.01;
+
+
+    const notes = [
+      {
+        frequency:
+          760,
+        offset:
+          0
+      },
+      {
+        frequency:
+          980,
+        offset:
+          0.12
+      }
+    ];
+
+
+    notes.forEach(
+      note => {
+
+        const oscillator =
+          context.createOscillator();
+
+        const gain =
+          context.createGain();
+
+
+        oscillator.type =
+          "sine";
+
+        oscillator.frequency.setValueAtTime(
+          note.frequency,
+          start +
+          note.offset
+        );
+
+
+        gain.gain.setValueAtTime(
+          0.0001,
+          start +
+          note.offset
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+          0.055,
+          start +
+          note.offset +
+          0.012
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          start +
+          note.offset +
+          0.105
+        );
+
+
+        oscillator.connect(
+          gain
+        );
+
+        gain.connect(
+          context.destination
+        );
+
+
+        oscillator.start(
+          start +
+          note.offset
+        );
+
+        oscillator.stop(
+          start +
+          note.offset +
+          0.12
+        );
+
+      }
+    );
+
+
+  } catch (error) {
+
+    console.warn(
+      "ACE Chat: não foi possível tocar o alerta:",
+      error
+    );
+
+  }
+
+}
+
+
+function updateAceTeamSoundToggle() {
+
+  const button =
+    document.getElementById(
+      "aceTeamSoundToggle"
+    );
+
+
+  if (!button) {
+    return;
+  }
+
+
+  button.textContent =
+    aceTeamSoundEnabled
+      ? "🔊"
+      : "🔇";
+
+
+  button.classList.toggle(
+    "is-muted",
+    !aceTeamSoundEnabled
+  );
+
+
+  button.title =
+    aceTeamSoundEnabled
+      ? "Som do chat ativado — toque para desativar"
+      : "Som do chat desativado — toque para ativar";
+
+
+  button.setAttribute(
+    "aria-label",
+    button.title
+  );
+
+}
+
+
+async function toggleAceTeamSound() {
+
+  aceTeamSoundEnabled =
+    !aceTeamSoundEnabled;
+
+
+  saveAceTeamSoundPreference();
+
+  updateAceTeamSoundToggle();
+
+
+  if (aceTeamSoundEnabled) {
+
+    await primeAceTeamAudio();
+
+  }
+
+}
+
+
+function pulseAceTeamStatusButton() {
+
+  const button =
+    document.getElementById(
+      "aceTeamStatusButton"
+    );
+
+
+  if (!button) {
+    return;
+  }
+
+
+  button.classList.remove(
+    "ace-team-new-message"
+  );
+
+
+  void button.offsetWidth;
+
+
+  button.classList.add(
+    "ace-team-new-message"
+  );
+
+
+  window.setTimeout(
+    () =>
+      button.classList.remove(
+        "ace-team-new-message"
+      ),
+    900
+  );
+
+}
+
+
+function updateAceTeamFloatingStatus() {
+
+  const button =
+    document.getElementById(
+      "aceTeamStatusButton"
+    );
+
+  const header =
+    document.querySelector(
+      ".ace-header-v6"
+    );
+
+
+  if (
+    !button ||
+    !header
+  ) {
+    return;
+  }
+
+
+  const headerRect =
+    header.getBoundingClientRect();
+
+
+  const shouldFloat =
+    window.scrollY >
+      24
+    &&
+    headerRect.bottom <=
+      12;
+
+
+  button.classList.toggle(
+    "ace-team-floating",
+    shouldFloat
+  );
+
+}
+
+
 function ensureAceTeamStyles() {
   if (document.getElementById("aceTeamRealtimeStyles")) return;
 
@@ -49628,6 +49982,42 @@ function ensureAceTeamStyles() {
     #aceTeamStatusButton:hover{
       transform:translateY(-1px);
       box-shadow:0 9px 25px rgba(0,26,54,.23);
+    }
+
+    #aceTeamStatusButton.ace-team-floating{
+      position:fixed !important;
+      top:auto !important;
+      right:22px !important;
+      bottom:22px !important;
+      left:auto !important;
+      z-index:1000900 !important;
+      min-height:42px;
+      padding:7px 13px;
+      border-color:#cfe2ef;
+      background:rgba(255,255,255,.98);
+      box-shadow:0 12px 32px rgba(0,35,70,.22);
+      backdrop-filter:blur(10px);
+    }
+
+    @keyframes aceTeamNewMessagePulse{
+      0%{
+        transform:scale(1);
+        box-shadow:0 7px 22px rgba(0,26,54,.18);
+      }
+      45%{
+        transform:scale(1.045);
+        box-shadow:
+          0 11px 30px rgba(0,26,54,.25),
+          0 0 0 6px rgba(22,137,208,.13);
+      }
+      100%{
+        transform:scale(1);
+        box-shadow:0 7px 22px rgba(0,26,54,.18);
+      }
+    }
+
+    #aceTeamStatusButton.ace-team-new-message{
+      animation:aceTeamNewMessagePulse .72s ease;
     }
 
     .ace-team-status-dot{
@@ -49736,13 +50126,43 @@ function ensureAceTeamStyles() {
       font-size:12px;
     }
 
+    #aceTeamSoundToggle{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:38px;
+      height:38px;
+      flex:0 0 38px;
+      margin-left:auto;
+      border:1px solid rgba(255,255,255,.28);
+      border-radius:50%;
+      background:rgba(255,255,255,.13);
+      color:#fff;
+      font:inherit;
+      font-size:17px;
+      cursor:pointer;
+      transition:
+        background .16s ease,
+        transform .16s ease;
+    }
+
+    #aceTeamSoundToggle:hover{
+      background:rgba(255,255,255,.21);
+      transform:translateY(-1px);
+    }
+
+    #aceTeamSoundToggle.is-muted{
+      background:rgba(255,255,255,.09);
+      opacity:.82;
+    }
+
     #aceTeamClose{
       display:flex;
       align-items:center;
       justify-content:center;
       width:38px;
       height:38px;
-      margin-left:auto;
+      margin-left:0;
       border:0;
       border-radius:50%;
       background:rgba(255,255,255,.15);
@@ -50024,6 +50444,17 @@ function ensureAceTeamStyles() {
         font-size:11px;
       }
 
+      .ace-header-v6 > #aceTeamStatusButton.ace-team-floating{
+        position:fixed !important;
+        top:auto !important;
+        right:12px !important;
+        bottom:calc(82px + env(safe-area-inset-bottom)) !important;
+        left:auto !important;
+        min-height:38px;
+        padding:6px 10px;
+        box-shadow:0 10px 28px rgba(0,35,70,.24);
+      }
+
       .ace-team-status-dot{
         width:8px;
         height:8px;
@@ -50062,8 +50493,21 @@ function ensureAceTeamInterface() {
       <span class="ace-team-chat-symbol">💬</span>
       <span id="aceTeamUnreadBadge"></span>
     `;
-    button.onclick = () => openAceTeamPanel("online");
+    button.onclick = () => {
+
+      primeAceTeamAudio();
+
+      openAceTeamPanel(
+        aceTeamUnread > 0
+          ? "chat"
+          : "online"
+      );
+
+    };
+
     header.appendChild(button);
+
+    updateAceTeamFloatingStatus();
   }
 
   if (!document.getElementById("aceTeamBackdrop")) {
@@ -50085,6 +50529,16 @@ function ensureAceTeamInterface() {
           <strong>Equipe ACE</strong>
           <small id="aceTeamPanelSubtitle">Conectando...</small>
         </div>
+
+        <button
+          id="aceTeamSoundToggle"
+          type="button"
+          aria-label="Som do chat"
+          title="Som do chat"
+        >
+          🔊
+        </button>
+
         <button id="aceTeamClose" type="button" aria-label="Fechar">×</button>
       </div>
 
@@ -50118,7 +50572,21 @@ function ensureAceTeamInterface() {
     `;
 
     document.body.appendChild(panel);
-    panel.querySelector("#aceTeamClose").onclick = closeAceTeamPanel;
+
+    panel.querySelector(
+      "#aceTeamClose"
+    ).onclick =
+      closeAceTeamPanel;
+
+
+    panel.querySelector(
+      "#aceTeamSoundToggle"
+    ).onclick =
+      toggleAceTeamSound;
+
+
+    updateAceTeamSoundToggle();
+
 
     panel.querySelectorAll("[data-ace-team-tab]").forEach(button => {
       button.onclick = () => setAceTeamTab(button.dataset.aceTeamTab);
@@ -50207,6 +50675,9 @@ function renderAceTeamStatus() {
 
   const send = document.getElementById("aceChatSend");
   if (send) send.disabled = !connected;
+
+  updateAceTeamSoundToggle();
+  updateAceTeamFloatingStatus();
 }
 
 
@@ -50380,10 +50851,25 @@ function receiveAceTeamChatMessage(row, countUnread = true) {
 
   if (
     countUnread &&
-    !mine &&
-    (!aceTeamPanelOpen || aceTeamActiveTab !== "chat")
+    !mine
   ) {
-    aceTeamUnread += 1;
+
+    if (
+      !aceTeamPanelOpen ||
+      aceTeamActiveTab !==
+        "chat"
+    ) {
+
+      aceTeamUnread +=
+        1;
+
+    }
+
+
+    pulseAceTeamStatusButton();
+
+    playAceTeamChatAlert();
+
   }
 
   saveAceTeamChatCache();
@@ -51198,6 +51684,57 @@ function setupAceTeamEvents() {
   if (window.aceTeamEventsReady) return;
   window.aceTeamEventsReady = true;
 
+
+  window.addEventListener(
+    "scroll",
+    updateAceTeamFloatingStatus,
+    {
+      passive:
+        true
+    }
+  );
+
+
+  window.addEventListener(
+    "resize",
+    updateAceTeamFloatingStatus,
+    {
+      passive:
+        true
+    }
+  );
+
+
+  // Navegadores móveis só liberam áudio depois de uma interação.
+  // O primeiro toque/tecla prepara discretamente o contexto sonoro.
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      primeAceTeamAudio();
+    },
+    {
+      once:
+        true,
+      capture:
+        true
+    }
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    () => {
+      primeAceTeamAudio();
+    },
+    {
+      once:
+        true,
+      capture:
+        true
+    }
+  );
+
+
   window.addEventListener("online", () => {
     setTimeout(setupAceTeamRealtime, 500);
   });
@@ -51227,6 +51764,8 @@ async function setupAceTeamCommunication() {
   setupAceTeamEvents();
   aceTeamChatMessages = loadAceTeamChatCache();
   renderAceTeamChat();
+  updateAceTeamSoundToggle();
+  updateAceTeamFloatingStatus();
   await setupAceTeamRealtime();
 }
 
