@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cestas-2x2-chat-flutuante-v75",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-relatorio-sem-corte-linhas-v76",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.26-cestas-2x2-chat-flutuante-v75";
+  "2026.09.26-relatorio-sem-corte-linhas-v76";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -25463,6 +25463,355 @@ function protectReportRowsFromPageCuts(
 }
 
 
+
+function prepareReportTablesForPdfPagination(
+  element
+) {
+
+  if (!element) {
+    return;
+  }
+
+
+  const rootWidth =
+    element
+      .getBoundingClientRect()
+      .width ||
+    1070;
+
+
+  // A4 paisagem com margens de 6 mm:
+  // área útil aproximada = 285 x 198 mm.
+  const pxPerMm =
+    rootWidth /
+    285;
+
+
+  const pageContentHeightPx =
+    198 *
+    pxPerMm;
+
+
+  // Reserva para cabeçalho da tabela e tolerância do html2canvas/jsPDF.
+  const safetyReservePx =
+    Math.max(
+      100,
+      28 *
+        pxPerMm
+    );
+
+
+  const wrappers =
+    Array.from(
+      element.querySelectorAll(
+        ".table-wrap"
+      )
+    );
+
+
+  wrappers.forEach(
+    originalWrapper => {
+
+      const tableNode =
+        originalWrapper.querySelector(
+          ":scope > table"
+        ) ||
+        originalWrapper.querySelector(
+          "table"
+        );
+
+
+      if (!tableNode) {
+        return;
+      }
+
+
+      const tbody =
+        tableNode.querySelector(
+          "tbody"
+        );
+
+
+      if (!tbody) {
+        return;
+      }
+
+
+      const rows =
+        Array.from(
+          tbody.children
+        ).filter(
+          row =>
+            row.tagName ===
+            "TR"
+        );
+
+
+      // Todas as tabelas passam a ser tratadas como blocos indivisíveis.
+      originalWrapper.classList.add(
+        "ace-pdf-table-chunk"
+      );
+
+      originalWrapper.style.pageBreakInside =
+        "avoid";
+
+      originalWrapper.style.breakInside =
+        "avoid";
+
+
+      const section =
+        originalWrapper.closest(
+          "section"
+        );
+
+
+      // A seção pode atravessar páginas; cada bloco da tabela não.
+      if (section) {
+
+        section.style.pageBreakInside =
+          "auto";
+
+        section.style.breakInside =
+          "auto";
+
+      }
+
+
+      if (
+        rows.length <=
+        1
+      ) {
+        return;
+      }
+
+
+      const thead =
+        tableNode.querySelector(
+          "thead"
+        );
+
+
+      const headerHeight =
+        Math.max(
+          28,
+          thead
+            ?.getBoundingClientRect()
+            ?.height ||
+          0
+        );
+
+
+      const maxRowsHeight =
+        Math.max(
+          180,
+          pageContentHeightPx -
+            headerHeight -
+            safetyReservePx
+        );
+
+
+      const chunks = [];
+
+      let currentChunk = [];
+      let currentHeight = 0;
+
+
+      rows.forEach(
+        row => {
+
+          const rowHeight =
+            Math.max(
+              24,
+              row
+                .getBoundingClientRect()
+                .height ||
+              0
+            );
+
+
+          if (
+            currentChunk.length >
+              0 &&
+            currentHeight +
+              rowHeight >
+              maxRowsHeight
+          ) {
+
+            chunks.push(
+              currentChunk
+            );
+
+            currentChunk = [];
+            currentHeight = 0;
+
+          }
+
+
+          currentChunk.push(
+            row.cloneNode(
+              true
+            )
+          );
+
+          currentHeight +=
+            rowHeight;
+
+        }
+      );
+
+
+      if (
+        currentChunk.length
+      ) {
+
+        chunks.push(
+          currentChunk
+        );
+
+      }
+
+
+      if (
+        chunks.length <=
+        1
+      ) {
+        return;
+      }
+
+
+      // Template já contém os ajustes de largura/fonte do PDF.
+      const tableTemplate =
+        tableNode.cloneNode(
+          true
+        );
+
+
+      const templateBody =
+        tableTemplate.querySelector(
+          "tbody"
+        );
+
+
+      if (templateBody) {
+        templateBody.innerHTML =
+          "";
+      }
+
+
+      // Primeiro bloco permanece no lugar original.
+      tbody.innerHTML =
+        "";
+
+      chunks[0].forEach(
+        row =>
+          tbody.appendChild(
+            row
+          )
+      );
+
+
+      let previousWrapper =
+        originalWrapper;
+
+
+      // Blocos seguintes repetem o cabeçalho e ficam protegidos
+      // contra divisão entre páginas.
+      for (
+        let index = 1;
+        index < chunks.length;
+        index += 1
+      ) {
+
+        const nextWrapper =
+          originalWrapper.cloneNode(
+            false
+          );
+
+
+        nextWrapper.removeAttribute(
+          "id"
+        );
+
+        nextWrapper.classList.add(
+          "ace-pdf-table-chunk"
+        );
+
+        nextWrapper.setAttribute(
+          "data-ace-pdf-table-chunk",
+          String(
+            index + 1
+          )
+        );
+
+        nextWrapper.style.pageBreakInside =
+          "avoid";
+
+        nextWrapper.style.breakInside =
+          "avoid";
+
+        nextWrapper.style.marginTop =
+          "8px";
+
+
+        const nextTable =
+          tableTemplate.cloneNode(
+            true
+          );
+
+
+        nextTable.removeAttribute(
+          "id"
+        );
+
+
+        const nextBody =
+          nextTable.querySelector(
+            "tbody"
+          );
+
+
+        if (!nextBody) {
+          continue;
+        }
+
+
+        nextBody.innerHTML =
+          "";
+
+
+        chunks[index]
+          .forEach(
+            row =>
+              nextBody.appendChild(
+                row.cloneNode(
+                  true
+                )
+              )
+          );
+
+
+        nextWrapper.appendChild(
+          nextTable
+        );
+
+
+        previousWrapper.parentNode.insertBefore(
+          nextWrapper,
+          previousWrapper.nextSibling
+        );
+
+
+        previousWrapper =
+          nextWrapper;
+
+      }
+
+    }
+  );
+
+}
+
+
 async function generateSignedReportPDF() {
 
   if (!reportSignatureHasInk) {
@@ -26162,14 +26511,26 @@ async function generateSignedReportPDF() {
     );
 
 
-    // Não insere mais espaçadores artificiais entre linhas.
-    // Em relatórios longos eles criavam grandes áreas em branco
-    // e podiam deslocar tabelas para pontos ruins da página.
-    // A proteção das linhas permanece pelo CSS/pagebreak do html2pdf.
+    // ========================================================
+    // V76 - PROTEÇÃO CONTRA CORTE DE LINHAS
+    //
+    // Divide SOMENTE a cópia do PDF em blocos menores.
+    // Cada bloco repete o cabeçalho e cabe inteiro na página.
+    // ========================================================
+
+    prepareReportTablesForPdfPagination(
+      element
+    );
+
+
+    // Aguarda o navegador recalcular o layout depois da divisão.
     await new Promise(
       resolve =>
         requestAnimationFrame(
-          resolve
+          () =>
+            requestAnimationFrame(
+              resolve
+            )
         )
     );
 
@@ -26232,7 +26593,7 @@ async function generateSignedReportPDF() {
           ".ace-report-pdf-only-signature"
         ],
         avoid: [
-          "tbody tr",
+          ".ace-pdf-table-chunk",
           "thead",
           "h3",
           ".ace-report-pdf-only-signature",
@@ -41515,7 +41876,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-cestas-2x2-chat-flutuante-v75",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-relatorio-sem-corte-linhas-v76",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
