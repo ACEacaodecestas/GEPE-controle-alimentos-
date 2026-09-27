@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-lilas-v77",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.27-cabecalho-aurora-lilas-v77";
+  "2026.09.27-cabecalho-aurora-visivel-v78";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41876,7 +41876,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-lilas-v77",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -64013,7 +64013,7 @@ function bindAceDashboardTouchFeedback() {
 (function installAceHeaderAuroraV77() {
 
   const STYLE_ID =
-    "aceHeaderAuroraV77";
+    "aceHeaderAuroraV78";
 
   if (
     document.getElementById(
@@ -64043,13 +64043,14 @@ function bindAceDashboardTouchFeedback() {
         linear-gradient(
           108deg,
           transparent 0%,
-          transparent 23%,
-          rgba(183,148,246,.045) 31%,
-          rgba(154,108,245,.11) 39%,
-          rgba(124,58,237,.18) 47%,
-          rgba(173,124,255,.14) 55%,
-          rgba(210,186,255,.065) 63%,
-          transparent 72%,
+          transparent 24%,
+          rgba(196,181,253,.10) 32%,
+          rgba(167,139,250,.24) 39%,
+          rgba(139,92,246,.42) 47%,
+          rgba(192,132,252,.38) 53%,
+          rgba(216,180,254,.24) 60%,
+          rgba(167,139,250,.10) 67%,
+          transparent 75%,
           transparent 100%
         ),
         linear-gradient(
@@ -64061,22 +64062,26 @@ function bindAceDashboardTouchFeedback() {
 
       background-size:
         100% 100%,
-        260% 100%,
+        225% 100%,
         100% 100% !important;
 
       background-position:
         center,
-        -145% center,
+        -125% center,
         center !important;
 
       animation:
-        aceHeaderAuroraSweepV77
-        17s
-        cubic-bezier(.45,.05,.55,.95)
+        aceHeaderAuroraSweepV78
+        11s
+        linear
         infinite !important;
 
       will-change:
         background-position;
+
+      box-shadow:
+        inset 0 0 70px rgba(139,92,246,.055),
+        0 8px 30px rgba(3,47,82,.18) !important;
     }
 
     @media(max-width:850px){
@@ -64093,35 +64098,42 @@ function bindAceDashboardTouchFeedback() {
       html body .ace-header-v6{
         background-size:
           100% 100%,
-          300% 100%,
+          245% 100%,
           100% 100% !important;
 
         animation-duration:
-          20s !important;
+          14s !important;
       }
 
     }
 
-    @keyframes aceHeaderAuroraSweepV77{
+    @keyframes aceHeaderAuroraSweepV78{
 
       0%{
         background-position:
           center,
-          -145% center,
+          -125% center,
           center;
       }
 
-      50%{
+      35%{
         background-position:
           center,
-          55% center,
+          5% center,
+          center;
+      }
+
+      65%{
+        background-position:
+          center,
+          85% center,
           center;
       }
 
       100%{
         background-position:
           center,
-          210% center,
+          205% center,
           center;
       }
 
