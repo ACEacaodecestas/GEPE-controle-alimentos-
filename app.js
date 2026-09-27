@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-relatorio-sem-corte-linhas-v76",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-lilas-v77",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.26-relatorio-sem-corte-linhas-v76";
+  "2026.09.27-cabecalho-aurora-lilas-v77";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41876,7 +41876,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260926-relatorio-sem-corte-linhas-v76",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-lilas-v77",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -64003,3 +64003,152 @@ function bindAceDashboardTouchFeedback() {
   document.head.appendChild(style);
 
 })();
+
+
+// ============================================================
+// ACE V77 - CABEÇALHO AURORA LILÁS / VIOLETA
+// Efeito premium, lento e discreto.
+// ============================================================
+
+(function installAceHeaderAuroraV77() {
+
+  const STYLE_ID =
+    "aceHeaderAuroraV77";
+
+  if (
+    document.getElementById(
+      STYLE_ID
+    )
+  ) {
+    return;
+  }
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+  style.id =
+    STYLE_ID;
+
+  style.textContent = `
+
+    html body .ace-header-v6{
+      background:
+        radial-gradient(
+          circle at 18% 20%,
+          rgba(255,255,255,.12),
+          transparent 18rem
+        ),
+        linear-gradient(
+          108deg,
+          transparent 0%,
+          transparent 23%,
+          rgba(183,148,246,.045) 31%,
+          rgba(154,108,245,.11) 39%,
+          rgba(124,58,237,.18) 47%,
+          rgba(173,124,255,.14) 55%,
+          rgba(210,186,255,.065) 63%,
+          transparent 72%,
+          transparent 100%
+        ),
+        linear-gradient(
+          125deg,
+          var(--ace-blue-950) 0%,
+          var(--ace-blue-800) 48%,
+          var(--ace-blue-600) 100%
+        ) !important;
+
+      background-size:
+        100% 100%,
+        260% 100%,
+        100% 100% !important;
+
+      background-position:
+        center,
+        -145% center,
+        center !important;
+
+      animation:
+        aceHeaderAuroraSweepV77
+        17s
+        cubic-bezier(.45,.05,.55,.95)
+        infinite !important;
+
+      will-change:
+        background-position;
+    }
+
+    @media(max-width:850px){
+
+      html body #aceMobileHeader{
+        background:
+          linear-gradient(
+            180deg,
+            rgba(5,67,116,.13),
+            rgba(3,48,88,.045)
+          ) !important;
+      }
+
+      html body .ace-header-v6{
+        background-size:
+          100% 100%,
+          300% 100%,
+          100% 100% !important;
+
+        animation-duration:
+          20s !important;
+      }
+
+    }
+
+    @keyframes aceHeaderAuroraSweepV77{
+
+      0%{
+        background-position:
+          center,
+          -145% center,
+          center;
+      }
+
+      50%{
+        background-position:
+          center,
+          55% center,
+          center;
+      }
+
+      100%{
+        background-position:
+          center,
+          210% center,
+          center;
+      }
+
+    }
+
+    @media(prefers-reduced-motion:reduce){
+
+      html body .ace-header-v6{
+        animation:none !important;
+
+        background-position:
+          center,
+          50% center,
+          center !important;
+      }
+
+    }
+
+  `;
+
+  (
+    document.head ||
+    document.documentElement
+  ).appendChild(
+    style
+  );
+
+})();
+
+
