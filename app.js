@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-ativo-v82",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.28-carrossel-ativo-v82";
+  "2026.09.27-cabecalho-aurora-visivel-v78";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -666,12 +666,6 @@ const MURAL_ACE_ADMIN_EMAIL =
   ACE_ADMIN_EMAILS[0];
 
 let muralAcePosts = [];
-
-// A tela completa de publicações só é renderizada quando um
-// administrador realmente abre Configurações > Publicações.
-// Isso evita baixar imagens grandes escondidas para usuários comuns.
-let acePublicationManagementRequested =
-  false;
 
 const ACE_OFFLINE_DB_KEY =
   "ace_offline_snapshot_v1";
@@ -29617,44 +29611,45 @@ async function deleteHistoryMovements() {
 
 // ============================================================
 
-function openDefaultAceHomePage() {
+function openDefaultMuralAcePage() {
 
-  const homeTab =
-    typeof findAceOriginalTab ===
-      "function"
-      ? findAceOriginalTab(
-          "inicio"
-        )
-      : null;
-
-
-  if (
-    homeTab
-  ) {
-
-    homeTab.click();
-
-    return;
-
-  }
-
-
-  // Fallback de segurança: abre a primeira aba que não seja o
-  // antigo Mural interno.
-  const fallback =
-    Array.from(
-      document.querySelectorAll(
-        ".tabs .tab"
-      )
+  document
+    .querySelectorAll(
+      ".tab"
     )
-      .find(
-        tab =>
-          tab.dataset?.page !==
-          "muralAce"
-      );
+    .forEach(
+      x =>
+        x.classList.toggle(
+          "active",
+          x.dataset.page ===
+            "muralAce"
+        )
+    );
 
 
-  fallback?.click();
+  document
+    .querySelectorAll(
+      ".page"
+    )
+    .forEach(
+      x =>
+        x.classList.remove(
+          "active"
+        )
+    );
+
+
+  const muralPage =
+    document.getElementById(
+      "muralAce"
+    );
+
+
+  if (muralPage) {
+    muralPage.classList.add(
+      "active"
+    );
+  }
 
 }
 
@@ -41881,7 +41876,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-ativo-v82",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -42399,1120 +42394,6 @@ function ensureMuralAceStyles() {
 }
 
 
-
-function ensureAceMuralHighlightsStyles() {
-
-  const STYLE_ID =
-    "aceMuralHighlightsStyleV82";
-
-
-  if (
-    document.getElementById(
-      STYLE_ID
-    )
-  ) {
-    return;
-  }
-
-
-  const style =
-    document.createElement(
-      "style"
-    );
-
-
-  style.id =
-    STYLE_ID;
-
-
-  style.textContent = `
-
-    /* ------------------------------------------------------
-       MURAL NÃO É MAIS ITEM DE NAVEGAÇÃO
-       A página continua existindo internamente para o painel
-       administrativo de Publicações.
-       ------------------------------------------------------ */
-
-    .tabs .tab[data-page="muralAce"],
-    #aceMobileBottomNav [data-ace-target="mural"],
-    #aceMobileDrawerList [data-ace-open-page="mural"]{
-      display:none !important;
-    }
-
-
-    /* Um informativo por vez, em uma janela fixa no centro. */
-    #aceMuralHighlightsBar{
-      position:relative;
-      z-index:99970;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      width:100%;
-      min-height:270px;
-      box-sizing:border-box;
-      padding:12px 16px;
-      overflow:hidden;
-      border-top:1px solid rgba(255,255,255,.88);
-      border-bottom:1px solid #d7e6f0;
-      background:linear-gradient(180deg,#f9fcff,#edf5fa);
-      box-shadow:0 5px 18px rgba(4,59,99,.06);
-    }
-
-    .ace-mural-carousel{
-      display:grid;
-      grid-template-columns:42px minmax(0,430px) 42px;
-      align-items:center;
-      gap:12px;
-      width:min(100%,550px);
-      margin:auto;
-    }
-
-    .ace-mural-carousel-center{min-width:0;}
-
-    .ace-mural-highlights-viewport{
-      width:100%;
-      overflow:hidden;
-      border-radius:17px;
-    }
-
-    .ace-mural-highlights-track{
-      display:flex;
-      width:100%;
-      transition:transform .46s cubic-bezier(.22,.8,.24,1);
-      will-change:transform;
-    }
-
-    .ace-mural-highlight-slide{
-      flex:0 0 100%;
-      min-width:0;
-      box-sizing:border-box;
-      padding:5px;
-    }
-
-    .ace-mural-highlight-card{
-      position:relative;
-      display:block;
-      width:100%;
-      height:220px;
-      padding:0;
-      overflow:hidden;
-      border:1px solid #cbdce9;
-      border-radius:16px;
-      background:#e7f0f6;
-      box-shadow:0 6px 17px rgba(15,53,82,.13);
-      cursor:pointer;
-      transition:border-color .18s ease,box-shadow .18s ease;
-    }
-
-    .ace-mural-highlight-card:hover{
-      border-color:#82b8df;
-      box-shadow:0 10px 23px rgba(15,53,82,.2);
-    }
-
-    .ace-mural-highlight-card:focus-visible,
-    .ace-mural-highlights-nav:focus-visible,
-    .ace-mural-dot:focus-visible{
-      outline:3px solid #1689d0;
-      outline-offset:2px;
-    }
-
-    .ace-mural-highlight-card img{
-      display:block;
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      background:#e7f0f6;
-    }
-
-    .ace-mural-highlight-video-placeholder{
-      display:flex;
-      width:100%;
-      height:100%;
-      align-items:center;
-      justify-content:center;
-      background:linear-gradient(145deg,#0b4b7a,#1689d0);
-      color:#fff;
-      font-size:40px;
-    }
-
-    .ace-mural-highlight-caption{
-      position:absolute;
-      right:0;
-      bottom:0;
-      left:0;
-      overflow:hidden;
-      padding:24px 12px 9px;
-      background:linear-gradient(180deg,transparent,rgba(3,37,66,.84));
-      color:#fff;
-      font-size:13px;
-      font-weight:800;
-      line-height:1.25;
-      text-align:left;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-      pointer-events:none;
-    }
-
-    .ace-mural-highlight-play{
-      position:absolute;
-      top:10px;
-      right:10px;
-      display:flex;
-      width:34px;
-      height:34px;
-      align-items:center;
-      justify-content:center;
-      border:1px solid rgba(255,255,255,.7);
-      border-radius:50%;
-      background:rgba(3,37,66,.72);
-      color:#fff;
-      font-size:14px;
-      pointer-events:none;
-    }
-
-    .ace-mural-highlights-nav{
-      display:grid;
-      place-items:center;
-      width:42px;
-      height:42px;
-      border:1px solid #c5ddec;
-      border-radius:50%;
-      background:#fff;
-      color:#12527d;
-      box-shadow:0 4px 12px rgba(15,53,82,.12);
-      font-size:27px;
-      line-height:1;
-      cursor:pointer;
-    }
-
-    .ace-mural-highlights-nav:hover{background:#e7f5ff;border-color:#83bee3;}
-    .ace-mural-highlights-nav[hidden]{visibility:hidden;display:block;}
-
-    .ace-mural-dots[hidden]{display:none;}
-
-    .ace-mural-dots{
-      display:flex;
-      justify-content:center;
-      gap:8px;
-      min-height:12px;
-      margin-top:4px;
-    }
-
-    .ace-mural-dot{
-      width:8px;
-      height:8px;
-      padding:0;
-      border:0;
-      border-radius:50%;
-      background:#b7ccdc;
-      cursor:pointer;
-      transition:width .25s ease,background-color .25s ease;
-    }
-
-    .ace-mural-dot[aria-current="true"]{
-      width:22px;
-      border-radius:9px;
-      background:#1689d0;
-    }
-
-    /* ------------------------------------------------------
-       VISUALIZAÇÃO DA PUBLICAÇÃO
-       A imagem grande só é carregada depois do clique.
-       ------------------------------------------------------ */
-
-    #aceMuralHighlightViewer{
-      position:fixed;
-      inset:0;
-      z-index:2147483300;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      box-sizing:border-box;
-      padding:20px;
-      background:rgba(0,24,48,.78);
-      backdrop-filter:blur(5px);
-    }
-
-
-    .ace-mural-highlight-viewer-box{
-      position:relative;
-      width:min(1080px,calc(100vw - 30px));
-      max-height:calc(100vh - 34px);
-      overflow:auto;
-      box-sizing:border-box;
-      border:1px solid rgba(255,255,255,.7);
-      border-radius:20px;
-      background:#fff;
-      box-shadow:0 28px 90px rgba(0,0,0,.38);
-    }
-
-
-    .ace-mural-highlight-viewer-close{
-      position:sticky;
-      z-index:3;
-      top:12px;
-      float:right;
-      display:flex;
-      width:42px;
-      height:42px;
-      margin:12px 12px -54px 0;
-      align-items:center;
-      justify-content:center;
-      border:1px solid rgba(255,255,255,.75);
-      border-radius:50%;
-      background:rgba(4,47,82,.86);
-      color:#fff;
-      font-size:25px;
-      cursor:pointer;
-      box-shadow:0 5px 15px rgba(0,0,0,.22);
-    }
-
-
-    .ace-mural-highlight-viewer-media{
-      display:flex;
-      min-height:220px;
-      align-items:center;
-      justify-content:center;
-      overflow:hidden;
-      border-radius:20px 20px 0 0;
-      background:#edf3f7;
-    }
-
-
-    .ace-mural-highlight-viewer-media img{
-      display:block;
-      width:auto;
-      max-width:100%;
-      height:auto;
-      max-height:76vh;
-      object-fit:contain;
-      background:#edf3f7;
-    }
-
-
-    .ace-mural-highlight-viewer-media iframe,
-    .ace-mural-highlight-viewer-media video{
-      display:block;
-      width:100%;
-      aspect-ratio:16/9;
-      max-height:76vh;
-      border:0;
-      background:#000;
-    }
-
-
-    .ace-mural-highlight-viewer-info{
-      padding:17px 20px 20px;
-    }
-
-
-    .ace-mural-highlight-viewer-date{
-      color:#667085;
-      font-size:12px;
-      font-weight:700;
-    }
-
-
-    .ace-mural-highlight-viewer-title{
-      margin:5px 0 0;
-      color:#073b68;
-      font-size:23px;
-      line-height:1.22;
-      font-weight:950;
-    }
-
-
-    .ace-mural-highlight-viewer-description{
-      margin-top:9px;
-      color:#475467;
-      font-size:14px;
-      line-height:1.55;
-      white-space:pre-wrap;
-    }
-
-
-    @media(max-width:850px){
-
-      #aceMuralHighlightsBar{min-height:245px;padding:8px 6px;}
-
-      .ace-mural-carousel{
-        grid-template-columns:32px minmax(0,1fr) 32px;
-        gap:4px;
-        width:min(100%,440px);
-      }
-
-      .ace-mural-highlight-card{height:195px;border-radius:13px;}
-
-      .ace-mural-highlight-caption{padding:19px 9px 7px;font-size:11px;}
-
-      .ace-mural-highlights-nav{
-        width:32px;
-        height:36px;
-        font-size:22px;
-      }
-
-      #aceMuralHighlightViewer{
-        padding:10px;
-      }
-
-
-      .ace-mural-highlight-viewer-box{
-        width:calc(100vw - 20px);
-        max-height:calc(100vh - 20px);
-        border-radius:16px;
-      }
-
-
-      .ace-mural-highlight-viewer-media{
-        border-radius:16px 16px 0 0;
-      }
-
-
-      .ace-mural-highlight-viewer-title{
-        font-size:20px;
-      }
-
-    }
-
-
-    @media(prefers-reduced-motion:reduce){
-      .ace-mural-highlights-track,
-      .ace-mural-highlight-card,
-      .ace-mural-dot{transition:none;}
-    }
-
-  `;
-
-
-  document.head.appendChild(
-    style
-  );
-
-}
-
-
-function getAceMuralThumbnailPath(
-  postOrPath
-) {
-
-  const originalPath =
-    typeof postOrPath ===
-      "string"
-      ? postOrPath
-      : postOrPath
-          ?.arquivo_path;
-
-
-  const path =
-    String(
-      originalPath ||
-      ""
-    ).trim();
-
-
-  if (
-    !path ||
-    path.includes(
-      "/thumbs/"
-    )
-  ) {
-    return "";
-  }
-
-
-  const slash =
-    path.lastIndexOf(
-      "/"
-    );
-
-
-  const directory =
-    slash >= 0
-      ? path.slice(
-          0,
-          slash
-        )
-      : "";
-
-
-  const fileName =
-    slash >= 0
-      ? path.slice(
-          slash + 1
-        )
-      : path;
-
-
-  if (!fileName) {
-    return "";
-  }
-
-
-  return (
-    directory
-      ? `${directory}/thumbs/${fileName}`
-      : `thumbs/${fileName}`
-  );
-
-}
-
-
-function getAceMuralThumbnailUrl(
-  post
-) {
-
-  const thumbPath =
-    getAceMuralThumbnailPath(
-      post
-    );
-
-
-  if (!thumbPath) {
-    return "";
-  }
-
-
-  try {
-
-    const { data } =
-      supabaseClient
-        .storage
-        .from(
-          "mural-ace"
-        )
-        .getPublicUrl(
-          thumbPath
-        );
-
-
-    return (
-      data?.publicUrl ||
-      ""
-    );
-
-  } catch {
-
-    return "";
-
-  }
-
-}
-
-
-function getAceMuralYouTubeThumbnail(
-  post
-) {
-
-  const embed =
-    getMuralAceYouTubeEmbedUrl(
-      post?.arquivo_url
-    );
-
-
-  if (!embed) {
-    return "";
-  }
-
-
-  const match =
-    String(
-      embed
-    ).match(
-      /\/embed\/([^/?#]+)/
-    );
-
-
-  const videoId =
-    match?.[1] ||
-    "";
-
-
-  return videoId
-    ? `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`
-    : "";
-
-}
-
-
-function closeAceMuralHighlightViewer() {
-
-  const viewer =
-    document.getElementById(
-      "aceMuralHighlightViewer"
-    );
-
-
-  if (!viewer) {
-    return;
-  }
-
-
-  if (
-    viewer._aceKeyHandler
-  ) {
-
-    document.removeEventListener(
-      "keydown",
-      viewer._aceKeyHandler
-    );
-
-  }
-
-
-  viewer.remove();
-
-}
-
-
-function openAceMuralHighlightViewer(
-  postId
-) {
-
-  const post =
-    muralAcePosts.find(
-      item =>
-        String(item.id) ===
-        String(postId)
-    );
-
-
-  if (
-    !post ||
-    (
-      post.ativo ===
-        false &&
-      !isMuralAceAdmin()
-    )
-  ) {
-    return;
-  }
-
-
-  closeAceMuralHighlightViewer();
-
-
-  const type =
-    String(
-      post.tipo ||
-      ""
-    ).toLowerCase();
-
-
-  const youtubeEmbed =
-    getMuralAceYouTubeEmbedUrl(
-      post.arquivo_url
-    );
-
-
-  const media =
-    youtubeEmbed
-      ? `
-          <iframe
-            src="${esc(youtubeEmbed)}"
-            title="${esc(post.titulo || "Publicação em vídeo")}"
-            loading="eager"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen
-          ></iframe>
-        `
-      : (
-          type ===
-            "video"
-            ? `
-                <video
-                  controls
-                  autoplay
-                  preload="metadata"
-                  src="${esc(post.arquivo_url || "")}"
-                ></video>
-              `
-            : `
-                <img
-                  src="${esc(post.arquivo_url || "")}"
-                  alt="${esc(post.titulo || "Publicação")}"
-                  decoding="async"
-                >
-              `
-        );
-
-
-  const viewer =
-    document.createElement(
-      "div"
-    );
-
-
-  viewer.id =
-    "aceMuralHighlightViewer";
-
-
-  viewer.innerHTML = `
-
-    <div
-      class="ace-mural-highlight-viewer-box"
-      role="dialog"
-      aria-modal="true"
-      aria-label="${esc(post.titulo || "Publicação")}"
-    >
-
-      <button
-        class="ace-mural-highlight-viewer-close"
-        type="button"
-        aria-label="Fechar publicação"
-      >
-        ×
-      </button>
-
-
-      <div class="ace-mural-highlight-viewer-media">
-        ${media}
-      </div>
-
-
-      <div class="ace-mural-highlight-viewer-info">
-
-        <div class="ace-mural-highlight-viewer-date">
-          ${esc(formatMuralAceDate(post.data_publicacao))}
-        </div>
-
-        <h3 class="ace-mural-highlight-viewer-title">
-          ${esc(post.titulo || "")}
-        </h3>
-
-        ${
-          post.descricao
-            ? `
-                <div class="ace-mural-highlight-viewer-description">
-                  ${esc(post.descricao)}
-                </div>
-              `
-            : ""
-        }
-
-      </div>
-
-    </div>
-
-  `;
-
-
-  viewer.onclick =
-    event => {
-
-      if (
-        event.target ===
-        viewer
-      ) {
-        closeAceMuralHighlightViewer();
-      }
-
-    };
-
-
-  viewer
-    .querySelector(
-      ".ace-mural-highlight-viewer-close"
-    )
-    .onclick =
-      closeAceMuralHighlightViewer;
-
-
-  viewer._aceKeyHandler =
-    event => {
-
-      if (
-        event.key ===
-        "Escape"
-      ) {
-        closeAceMuralHighlightViewer();
-      }
-
-    };
-
-
-  document.addEventListener(
-    "keydown",
-    viewer._aceKeyHandler
-  );
-
-
-  document.body.appendChild(
-    viewer
-  );
-
-}
-
-
-function renderAceMuralHighlights() {
-
-  ensureAceMuralHighlightsStyles();
-
-
-  const tabs =
-    document.querySelector(
-      ".tabs"
-    );
-
-
-  if (!tabs) {
-    return;
-  }
-
-
-  const activePosts =
-    (muralAcePosts || [])
-      .filter(
-        post =>
-          post.ativo !==
-          false
-      )
-      .slice(
-        0,
-        8
-      );
-
-
-  let bar =
-    document.getElementById(
-      "aceMuralHighlightsBar"
-    );
-
-
-  if (!activePosts.length) {
-
-    if (bar?._aceCarouselTimer) clearInterval(bar._aceCarouselTimer);
-    bar?.remove();
-
-    return;
-
-  }
-
-
-  if (!bar) {
-
-    bar =
-      document.createElement(
-        "section"
-      );
-
-    bar.id =
-      "aceMuralHighlightsBar";
-
-
-    tabs.parentElement?.insertBefore(
-      bar,
-      tabs
-    );
-
-  }
-
-
-  const renderItem =
-    post => {
-
-      const youtubeThumb =
-        getAceMuralYouTubeThumbnail(
-          post
-        );
-
-
-      const thumbUrl =
-        youtubeThumb ||
-        getAceMuralThumbnailUrl(
-          post
-        );
-
-
-      const type =
-        String(
-          post.tipo ||
-          ""
-        ).toLowerCase();
-
-
-      const image =
-        thumbUrl
-          ? `
-              <img
-                src="${esc(thumbUrl)}"
-                alt=""
-                loading="lazy"
-                decoding="async"
-                fetchpriority="low"
-                ${
-                  youtubeThumb
-                    ? ""
-                    : `data-ace-highlight-fallback="${esc(post.arquivo_url || "")}"`
-                }
-              >
-            `
-          : (
-              type ===
-                "video"
-                ? `
-                    <span class="ace-mural-highlight-video-placeholder">
-                      ▶
-                    </span>
-                  `
-                : `
-                    <img
-                      src="${esc(post.arquivo_url || "")}"
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      fetchpriority="low"
-                    >
-                  `
-            );
-
-
-      return `
-
-        <div class="ace-mural-highlight-slide">
-        <button
-          class="ace-mural-highlight-card"
-          type="button"
-          data-ace-highlight-post="${esc(post.id)}"
-          title="${esc(post.titulo || "Abrir publicação")}"
-          aria-label="Abrir publicação: ${esc(post.titulo || "")}"
-        >
-
-          ${image}
-
-          ${
-            youtubeThumb ||
-            type ===
-              "video"
-              ? `
-                  <span class="ace-mural-highlight-play">
-                    ▶
-                  </span>
-                `
-              : ""
-          }
-
-          <span class="ace-mural-highlight-caption">
-            ${esc(post.titulo || "Publicação")}
-          </span>
-
-        </button>
-        </div>
-
-      `;
-
-    };
-
-
-  const sequence =
-    activePosts
-      .map(
-        renderItem
-      )
-      .join(
-        ""
-      );
-
-
-  if (bar._aceCarouselTimer) clearInterval(bar._aceCarouselTimer);
-
-  bar.innerHTML = `
-    <div class="ace-mural-carousel" role="region"
-      aria-roledescription="carrossel" aria-label="Informativos do Mural ACE">
-      <button class="ace-mural-highlights-nav" type="button"
-        data-ace-mural-direction="previous" aria-label="Informativo anterior">‹</button>
-      <div class="ace-mural-carousel-center">
-        <div class="ace-mural-highlights-viewport" tabindex="0"
-          aria-label="Informativo atual; use as setas para navegar">
-          <div class="ace-mural-highlights-track">${sequence}</div>
-        </div>
-        <div class="ace-mural-dots" aria-label="Escolher informativo">
-          ${activePosts.map((_, i) => `<button type="button" class="ace-mural-dot"
-            data-ace-slide="${i}" aria-label="Informativo ${i + 1} de ${activePosts.length}"></button>`).join("")}
-        </div>
-      </div>
-      <button class="ace-mural-highlights-nav" type="button"
-        data-ace-mural-direction="next" aria-label="Próximo informativo">›</button>
-    </div>
-  `;
-
-  const viewport = bar.querySelector(".ace-mural-highlights-viewport");
-  const track = bar.querySelector(".ace-mural-highlights-track");
-  const slides = [...bar.querySelectorAll(".ace-mural-highlight-slide")];
-  const dots = [...bar.querySelectorAll(".ace-mural-dot")];
-  const previous = bar.querySelector('[data-ace-mural-direction="previous"]');
-  const next = bar.querySelector('[data-ace-mural-direction="next"]');
-  let current = 0;
-  let lastInteraction = 0;
-  let suppressClickUntil = 0;
-
-  const showSlide = index => {
-    current = (index + slides.length) % slides.length;
-    track.style.transform = `translate3d(-${current * 100}%,0,0)`;
-    slides.forEach((slide, i) => {
-      slide.setAttribute("aria-hidden", String(i !== current));
-      slide.querySelector(".ace-mural-highlight-card").tabIndex = i === current ? 0 : -1;
-      dots[i].setAttribute("aria-current", String(i === current));
-    });
-  };
-
-  const multiple = slides.length > 1;
-  previous.hidden = !multiple;
-  next.hidden = !multiple;
-  bar.querySelector(".ace-mural-dots").hidden = !multiple;
-  const selectSlide = index => {
-    lastInteraction = Date.now();
-    showSlide(index);
-  };
-  previous.onclick = () => selectSlide(current - 1);
-  next.onclick = () => selectSlide(current + 1);
-  dots.forEach((dot, i) => dot.onclick = () => selectSlide(i));
-  viewport.onkeydown = event => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      event.preventDefault();
-      selectSlide(current + (event.key === "ArrowRight" ? 1 : -1));
-    }
-  };
-
-  let touchStartX = null;
-  viewport.ontouchstart = event => {
-    touchStartX = event.touches[0]?.clientX ?? null;
-  };
-  viewport.ontouchend = event => {
-    if (touchStartX === null) return;
-    const distance = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX;
-    if (Math.abs(distance) > 45) {
-      suppressClickUntil = Date.now() + 500;
-      selectSlide(current + (distance < 0 ? 1 : -1));
-    }
-    touchStartX = null;
-  };
-
-  showSlide(0);
-  if (multiple) {
-    bar._aceCarouselTimer = window.setInterval(() => {
-      if (!document.hidden && Date.now() - lastInteraction >= 3800 &&
-          !document.getElementById("aceMuralHighlightViewer")) {
-        showSlide(current + 1);
-      }
-    }, 4000);
-  }
-
-  bar
-    .querySelectorAll(
-      "[data-ace-highlight-post]"
-    )
-    .forEach(
-      button => {
-
-        button.onclick =
-          event => {
-            if (Date.now() < suppressClickUntil) {
-              event.preventDefault();
-              return;
-            }
-            openAceMuralHighlightViewer(
-              button.dataset.aceHighlightPost
-            );
-          };
-
-      }
-    );
-
-
-  bar
-    .querySelectorAll(
-      "img[data-ace-highlight-fallback]"
-    )
-    .forEach(
-      image => {
-
-        image.addEventListener(
-          "error",
-          () => {
-
-            if (
-              image.dataset
-                .aceFallbackUsed ===
-                "1"
-            ) {
-              return;
-            }
-
-
-            const fallback =
-              image.dataset
-                .aceHighlightFallback ||
-              "";
-
-
-            if (!fallback) {
-              return;
-            }
-
-
-            image.dataset
-              .aceFallbackUsed =
-              "1";
-
-            image.src =
-              fallback;
-
-          }
-        );
-
-      }
-    );
-
-}
-
-
-async function openAcePublicationManagement() {
-
-  if (
-    !isMuralAceAdmin()
-  ) {
-
-    await showAceMessage(
-      "Esta opção está disponível somente para administradores.",
-      "🔐 Acesso restrito"
-    );
-
-    return;
-
-  }
-
-
-  acePublicationManagementRequested =
-    true;
-
-
-  // Abre imediatamente usando o conteúdo já carregado.
-  renderMuralAce();
-
-
-  if (
-    typeof activateAceOriginalTab ===
-      "function"
-  ) {
-
-    activateAceOriginalTab(
-      "mural"
-    );
-
-  }
-
-
-  // Em seguida atualiza a área administrativa pela rede/cache.
-  await loadMuralAcePosts(
-    true
-  );
-
-
-  renderMuralAce();
-
-}
-
-
 function setupMuralAcePage() {
 
   ensureMuralAceStyles();
@@ -43958,27 +42839,6 @@ function renderMuralAce() {
     isMuralAceAdmin();
 
 
-  // Os informativos públicos aparecem para todos.
-  renderAceMuralHighlights();
-
-
-  // O antigo Mural completo agora é exclusivamente a tela
-  // administrativa Configurações > Publicações.
-  // Enquanto o administrador não abrir essa tela, nenhuma imagem
-  // grande da grade é criada/carregada escondida.
-  if (
-    !admin ||
-    !acePublicationManagementRequested
-  ) {
-
-    page.innerHTML =
-      "";
-
-    return;
-
-  }
-
-
   const availablePosts =
     muralAcePosts.filter(
       post =>
@@ -44002,11 +42862,11 @@ function renderMuralAce() {
       <div>
 
         <h2 class="ace-mural-title">
-          📰 Publicações
+          📢 Mural ACE
         </h2>
 
         <div class="ace-mural-subtitle">
-          Gerencie os informativos exibidos acima do menu do sistema.
+          Notícias, campanhas, orientações e conteúdos para nossa equipe.
         </div>
 
       </div>
@@ -44191,7 +43051,7 @@ function renderMuralAce() {
               .join("")
           : `
               <div class="ace-mural-empty">
-                📭 Nenhuma publicação cadastrada.
+                📭 Nenhuma publicação disponível no Mural ACE.
               </div>
             `
       }
@@ -45072,339 +43932,54 @@ async function compressMuralAceImage(
 }
 
 
-
-async function createMuralAceThumbnailBlob(
-  file
-) {
-
-  const image =
-    await loadMuralAceImageForCompression(
-      file
-    );
-
-
-  const originalWidth =
-    Number(
-      image.naturalWidth ||
-      image.width ||
-      0
-    );
-
-
-  const originalHeight =
-    Number(
-      image.naturalHeight ||
-      image.height ||
-      0
-    );
-
-
-  if (
-    !originalWidth ||
-    !originalHeight
-  ) {
-    throw new Error(
-      "Não foi possível criar a miniatura da publicação."
-    );
-  }
-
-
-  const maxDimension =
-    420;
-
-
-  const scale =
-    Math.min(
-      1,
-      maxDimension /
-      Math.max(
-        originalWidth,
-        originalHeight
-      )
-    );
-
-
-  const width =
-    Math.max(
-      1,
-      Math.round(
-        originalWidth *
-        scale
-      )
-    );
-
-
-  const height =
-    Math.max(
-      1,
-      Math.round(
-        originalHeight *
-        scale
-      )
-    );
-
-
-  const canvas =
-    document.createElement(
-      "canvas"
-    );
-
-
-  canvas.width =
-    width;
-
-  canvas.height =
-    height;
-
-
-  const ctx =
-    canvas.getContext(
-      "2d",
-      {
-        alpha:
-          true
-      }
-    );
-
-
-  if (!ctx) {
-    throw new Error(
-      "Não foi possível preparar a miniatura da publicação."
-    );
-  }
-
-
-  ctx.imageSmoothingEnabled =
-    true;
-
-  ctx.imageSmoothingQuality =
-    "high";
-
-
-  ctx.drawImage(
-    image,
-    0,
-    0,
-    width,
-    height
-  );
-
-
-  const qualities = [
-    0.64,
-    0.56,
-    0.48
-  ];
-
-
-  let smallest =
-    null;
-
-
-  for (
-    const quality of qualities
-  ) {
-
-    const blob =
-      await canvasToMuralAceBlob(
-        canvas,
-        quality
-      );
-
-
-    if (
-      !smallest ||
-      blob.size <
-        smallest.size
-    ) {
-      smallest =
-        blob;
-    }
-
-
-    if (
-      blob.size <=
-      90 * 1024
-    ) {
-
-      return {
-        blob,
-        width,
-        height,
-        bytes:
-          blob.size
-      };
-
-    }
-
-  }
-
-
-  return {
-    blob:
-      smallest,
-    width,
-    height,
-    bytes:
-      smallest?.size ||
-      0
-  };
-
-}
-
-
 async function uploadMuralAceFile(
   file
 ) {
 
   const optimized =
-    await compressMuralAceImage(
-      file
-    );
-
-
-  const thumbnail =
-    await createMuralAceThumbnailBlob(
-      file
-    );
-
+    await compressMuralAceImage(file);
 
   const safeName =
     `${Date.now()}_${Math.random()
       .toString(36)
       .slice(2,10)}.webp`;
 
-
   const path =
     `publicacoes/${safeName}`;
-
-
-  const thumbnailPath =
-    `publicacoes/thumbs/${safeName}`;
-
 
   const { error } =
     await supabaseClient
       .storage
-      .from(
-        "mural-ace"
-      )
+      .from("mural-ace")
       .upload(
         path,
         optimized.blob,
         {
-          // Nome único + cache longo reduz Cached Egress.
-          cacheControl:
-            "31536000",
-          upsert:
-            false,
-          contentType:
-            optimized.contentType
+          // Nome único: cache longo reduz o Cached Egress.
+          cacheControl: "31536000",
+          upsert: false,
+          contentType: optimized.contentType
         }
       );
-
 
   if (error) {
     throw error;
   }
 
-
-  const {
-    error:
-      thumbnailError
-  } =
-    await supabaseClient
-      .storage
-      .from(
-        "mural-ace"
-      )
-      .upload(
-        thumbnailPath,
-        thumbnail.blob,
-        {
-          cacheControl:
-            "31536000",
-          upsert:
-            false,
-          contentType:
-            "image/webp"
-        }
-      );
-
-
-  if (
-    thumbnailError
-  ) {
-
-    try {
-
-      await supabaseClient
-        .storage
-        .from(
-          "mural-ace"
-        )
-        .remove([
-          path
-        ]);
-
-    } catch {}
-
-
-    throw thumbnailError;
-
-  }
-
-
-  const {
-    data
-  } =
+  const { data } =
     supabaseClient
       .storage
-      .from(
-        "mural-ace"
-      )
-      .getPublicUrl(
-        path
-      );
-
-
-  const {
-    data:
-      thumbnailData
-  } =
-    supabaseClient
-      .storage
-      .from(
-        "mural-ace"
-      )
-      .getPublicUrl(
-        thumbnailPath
-      );
-
+      .from("mural-ace")
+      .getPublicUrl(path);
 
   return {
     path,
-    url:
-      data?.publicUrl ||
-      "",
-    thumbnailPath,
-    thumbnailUrl:
-      thumbnailData
-        ?.publicUrl ||
-      "",
-    thumbnailBytes:
-      thumbnail.bytes ||
-      0,
-    type:
-      "imagem",
-    originalBytes:
-      optimized.originalBytes,
-    finalBytes:
-      optimized.finalBytes,
-    width:
-      optimized.width,
-    height:
-      optimized.height
+    url: data?.publicUrl || "",
+    type: "imagem",
+    originalBytes: optimized.originalBytes,
+    finalBytes: optimized.finalBytes,
+    width: optimized.width,
+    height: optimized.height
   };
 
 }
@@ -45796,18 +44371,6 @@ async function saveMuralAcePost(
         existingPost.arquivo_path
       ) {
 
-        const oldStoragePaths =
-          [
-            existingPost.arquivo_path,
-            getAceMuralThumbnailPath(
-              existingPost
-            )
-          ]
-            .filter(
-              Boolean
-            );
-
-
         const {
           error: removeOldError
         } =
@@ -45816,9 +44379,9 @@ async function saveMuralAcePost(
             .from(
               "mural-ace"
             )
-            .remove(
-              oldStoragePaths
-            );
+            .remove([
+              existingPost.arquivo_path
+            ]);
 
 
         if (removeOldError) {
@@ -45903,15 +44466,9 @@ async function saveMuralAcePost(
           .from(
             "mural-ace"
           )
-          .remove(
-            [
-              newUpload.path,
-              newUpload.thumbnailPath
-            ]
-              .filter(
-                Boolean
-              )
-          );
+          .remove([
+            newUpload.path
+          ]);
 
       } catch {
         // Apenas limpeza de arquivo órfão.
@@ -45996,7 +44553,7 @@ async function deleteMuralAcePost(
   const confirmed =
     await showAceConfirm(
       `Excluir a publicação "${post.titulo}"?\n\n` +
-      "O conteúdo também deixará de aparecer na faixa de informativos.",
+      "O conteúdo também deixará de aparecer no Mural ACE.",
       "Excluir publicação"
     );
 
@@ -46031,18 +44588,6 @@ async function deleteMuralAcePost(
       post.arquivo_path
     ) {
 
-      const storagePaths =
-        [
-          post.arquivo_path,
-          getAceMuralThumbnailPath(
-            post
-          )
-        ]
-          .filter(
-            Boolean
-          );
-
-
       const {
         error: storageError
       } =
@@ -46051,9 +44596,9 @@ async function deleteMuralAcePost(
           .from(
             "mural-ace"
           )
-          .remove(
-            storagePaths
-          );
+          .remove([
+            post.arquivo_path
+          ]);
 
 
       if (storageError) {
@@ -53697,9 +52242,8 @@ async function initApp() {
 
     setupAceInventoryRealtime();
 
-    // O Mural deixou de ser uma aba pública.
-    // O aplicativo passa a abrir diretamente no Início.
-    openDefaultAceHomePage();
+    // Sempre abre o aplicativo diretamente no Mural ACE.
+    openDefaultMuralAcePage();
 
     bindEvents();
 
@@ -62555,8 +61099,9 @@ window.aceBuildStatisticsReportHtml =
       );
 
   const directDesktop = [
-    { target: "inicio", order: 10 },
-    { target: "presenca", order: 20 }
+    { target: "mural", order: 10 },
+    { target: "inicio", order: 20 },
+    { target: "presenca", order: 30 }
   ];
 
   const groupedTargets = new Set(
@@ -62581,13 +61126,6 @@ window.aceBuildStatisticsReportHtml =
   // Configurações também passa a ser representada pelo botão agrupado.
   groupedTargets.add(
     "cadastro"
-  );
-
-  // O antigo Mural permanece como página interna, mas não aparece
-  // mais na navegação pública. Administradores o acessam por
-  // Configurações > Publicações.
-  groupedTargets.add(
-    "mural"
   );
 
   function norm(value) {
@@ -63434,19 +61972,6 @@ window.aceBuildStatisticsReportHtml =
           📁 Cadastros
         </button>
 
-        ${
-          canUseAceAdminSettings()
-            ? `
-                <button
-                  type="button"
-                  data-ace-open-publications
-                >
-                  📰 Publicações
-                </button>
-              `
-            : ""
-        }
-
         ${adminOptions}
 
       `;
@@ -63486,42 +62011,6 @@ window.aceBuildStatisticsReportHtml =
 
                 openConfigurationDestination(
                   destination
-                );
-
-              };
-
-          }
-        );
-
-
-      popup
-        .querySelectorAll(
-          "[data-ace-open-publications]"
-        )
-        .forEach(
-          button => {
-
-            button.classList.toggle(
-              "active",
-              targetMatchesTab(
-                "mural",
-                activeOriginalTab()
-              )
-            );
-
-
-            button.onclick =
-              async event => {
-
-                event.stopPropagation();
-
-                closeDesktopPopup();
-
-                await openAcePublicationManagement();
-
-                window.setTimeout(
-                  updateAllNavigationState,
-                  60
                 );
 
               };
@@ -63825,16 +62314,9 @@ window.aceBuildStatisticsReportHtml =
       "settings"
     ) {
 
-      return (
-        targetMatchesTab(
-          "cadastro",
-          active
-        )
-        ||
-        targetMatchesTab(
-          "mural",
-          active
-        )
+      return targetMatchesTab(
+        "cadastro",
+        active
       );
 
     }
@@ -63875,25 +62357,6 @@ window.aceBuildStatisticsReportHtml =
           targetMatchesTab(button.dataset.aceGroupTarget, activeOriginalTab())
         );
       });
-
-
-      popup
-        .querySelectorAll(
-          "[data-ace-open-publications]"
-        )
-        .forEach(
-          button => {
-
-            button.classList.toggle(
-              "active",
-              targetMatchesTab(
-                "mural",
-                activeOriginalTab()
-              )
-            );
-
-          }
-        );
 
       popup
         .querySelectorAll(
@@ -64039,20 +62502,6 @@ window.aceBuildStatisticsReportHtml =
               >
                 📁 Cadastros
               </button>
-
-              ${
-                canUseAceAdminSettings()
-                  ? `
-                      <button
-                        class="ace-group-sheet-item"
-                        type="button"
-                        data-ace-open-publications
-                      >
-                        📰 Publicações
-                      </button>
-                    `
-                  : ""
-              }
 
               ${
                 canUseAceAdminSettings()
@@ -64240,40 +62689,6 @@ window.aceBuildStatisticsReportHtml =
       );
 
 
-    content
-      .querySelectorAll(
-        "[data-ace-open-publications]"
-      )
-      .forEach(
-        button => {
-
-          button.classList.toggle(
-            "active",
-            targetMatchesTab(
-              "mural",
-              activeOriginalTab()
-            )
-          );
-
-
-          button.onclick =
-            async () => {
-
-              closeMobileSheet();
-
-              await openAcePublicationManagement();
-
-              window.setTimeout(
-                updateAllNavigationState,
-                60
-              );
-
-            };
-
-        }
-      );
-
-
     const mobileSettingsOptions =
       content.querySelector(
         "[data-ace-mobile-settings-options]"
@@ -64310,6 +62725,11 @@ window.aceBuildStatisticsReportHtml =
     if (!bottom) return;
 
     bottom.innerHTML = `
+      <button class="ace-bottom-item" type="button" data-ace-target="mural" data-ace-color="mural" title="Mural ACE">
+        <span class="icon">📣</span>
+        <span class="label">Mural</span>
+      </button>
+
       <button class="ace-bottom-item" type="button" data-ace-target="inicio" data-ace-color="inicio" title="Início">
         <span class="icon">🏠</span>
         <span class="label">Início</span>
@@ -64367,8 +62787,7 @@ window.aceBuildStatisticsReportHtml =
         matches =
           groupContainsActive("queries") ||
           groupContainsActive("management") ||
-          targetMatchesTab("cadastro", active) ||
-          targetMatchesTab("mural", active);
+          targetMatchesTab("cadastro", active);
       }
 
       button.classList.toggle("active", matches);
@@ -64456,22 +62875,6 @@ window.aceBuildStatisticsReportHtml =
       `;
 
 
-    const settingsPublications =
-      canUseAceAdminSettings()
-        ? `
-            <button
-              class="ace-drawer-item"
-              type="button"
-              data-ace-open-publications
-            >
-              <span>
-                📰 Publicações
-              </span>
-            </button>
-          `
-        : "";
-
-
     const settingsAdmin =
       canUseAceAdminSettings()
         ? `
@@ -64524,6 +62927,11 @@ window.aceBuildStatisticsReportHtml =
     drawerList.innerHTML = `
 
       ${directButton(
+        "mural",
+        "📣 Mural ACE"
+      )}
+
+      ${directButton(
         "inicio",
         "🏠 Início"
       )}
@@ -64565,8 +62973,6 @@ window.aceBuildStatisticsReportHtml =
           </span>
         </button>
 
-        ${settingsPublications}
-
         ${settingsAdmin}
 
       </div>
@@ -64605,24 +63011,6 @@ window.aceBuildStatisticsReportHtml =
                 button.dataset
                   .aceConfigDestination
               );
-
-        }
-      );
-
-
-    drawerList
-      .querySelectorAll(
-        "[data-ace-open-publications]"
-      )
-      .forEach(
-        button => {
-
-          button.onclick =
-            async () => {
-
-              await openAcePublicationManagement();
-
-            };
 
         }
       );
@@ -64772,7 +63160,7 @@ window.aceBuildStatisticsReportHtml =
     overrideOnlyVisualNavigationBuilders();
     buildDesktopGroupedNavigation();
 
-    // Recria a camada visual mobile sem o antigo botão Mural ACE.
+    // Recria apenas a camada visual mobile com os 5 botões aprovados.
     aceBuildGroupedBottomNavigation();
     aceBuildGroupedMobileDrawer();
     aceSetupGroupedBottomNavigation();
