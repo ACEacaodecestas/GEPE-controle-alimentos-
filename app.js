@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-destaques-publicacoes-v79",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-informativos-v80",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.28-destaques-publicacoes-v79";
+  "2026.09.28-informativos-v80";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41881,7 +41881,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-destaques-publicacoes-v79",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-informativos-v80",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -42403,7 +42403,7 @@ function ensureMuralAceStyles() {
 function ensureAceMuralHighlightsStyles() {
 
   const STYLE_ID =
-    "aceMuralHighlightsStyleV79";
+    "aceMuralHighlightsStyleV80";
 
 
   if (
@@ -42440,156 +42440,82 @@ function ensureAceMuralHighlightsStyles() {
     }
 
 
-    /* ------------------------------------------------------
-       DESTAQUES - ACIMA DA BARRA DE MENU
-       ------------------------------------------------------ */
-
+    /* Informativos acima do menu: cartões grandes, sem movimento automático. */
     #aceMuralHighlightsBar{
       position:relative;
       z-index:99970;
       display:flex;
       width:100%;
-      min-height:116px;
+      min-height:220px;
       box-sizing:border-box;
       align-items:center;
       gap:12px;
-      padding:9px clamp(14px,2vw,34px);
+      padding:14px clamp(14px,2vw,34px);
       overflow:hidden;
       border-top:1px solid rgba(255,255,255,.88);
       border-bottom:1px solid #d7e6f0;
-      background:
-        radial-gradient(
-          circle at 8% 50%,
-          rgba(139,92,246,.075),
-          transparent 18rem
-        ),
-        linear-gradient(
-          180deg,
-          rgba(252,254,255,.98),
-          rgba(241,248,253,.98)
-        );
-      box-shadow:
-        0 5px 18px rgba(4,59,99,.06);
+      background:linear-gradient(180deg,#f9fcff,#edf5fa);
+      box-shadow:0 5px 18px rgba(4,59,99,.06);
     }
-
-
-    .ace-mural-highlights-label{
-      position:relative;
-      z-index:2;
-      display:flex;
-      flex:0 0 auto;
-      min-width:98px;
-      align-items:center;
-      justify-content:center;
-      gap:7px;
-      padding:9px 11px;
-      border:1px solid #d9e7f1;
-      border-radius:13px;
-      background:rgba(255,255,255,.95);
-      color:#123e65;
-      box-shadow:0 5px 14px rgba(4,59,99,.07);
-      font-size:13px;
-      font-weight:950;
-      white-space:nowrap;
-    }
-
 
     .ace-mural-highlights-viewport{
-      position:relative;
       flex:1 1 auto;
       min-width:0;
-      overflow:hidden;
-      mask-image:
-        linear-gradient(
-          90deg,
-          transparent,
-          #000 3%,
-          #000 97%,
-          transparent
-        );
-      -webkit-mask-image:
-        linear-gradient(
-          90deg,
-          transparent,
-          #000 3%,
-          #000 97%,
-          transparent
-        );
+      overflow-x:auto;
+      overflow-y:hidden;
+      overscroll-behavior-inline:contain;
+      scrollbar-width:thin;
+      scrollbar-color:#bdd3e3 transparent;
+      scroll-snap-type:x mandatory;
+      scroll-behavior:smooth;
+      -webkit-overflow-scrolling:touch;
     }
-
 
     .ace-mural-highlights-track{
       display:flex;
       width:max-content;
+      min-width:100%;
       align-items:center;
-      animation:
-        aceMuralHighlightsFlowV79
-        38s
-        linear
-        infinite;
-      will-change:transform;
+      justify-content:safe center;
+      gap:16px;
     }
-
-
-    .ace-mural-highlights-track.single{
-      width:100%;
-      justify-content:flex-start;
-      animation:none;
-    }
-
-
-    #aceMuralHighlightsBar:hover
-    .ace-mural-highlights-track,
-    #aceMuralHighlightsBar:focus-within
-    .ace-mural-highlights-track{
-      animation-play-state:paused;
-    }
-
-
-    .ace-mural-highlights-sequence{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      padding-right:12px;
-    }
-
 
     .ace-mural-highlight-card{
       position:relative;
       display:block;
-      flex:0 0 178px;
-      width:178px;
-      height:96px;
+      flex:0 0 clamp(210px,18vw,270px);
+      width:clamp(210px,18vw,270px);
+      height:188px;
       padding:0;
       overflow:hidden;
-      border:1px solid #d6e4ee;
-      border-radius:13px;
-      background:#eef4f8;
-      box-shadow:0 5px 14px rgba(15,53,82,.09);
+      border:1px solid #cbdce9;
+      border-radius:16px;
+      background:#e7f0f6;
+      box-shadow:0 6px 17px rgba(15,53,82,.12);
       cursor:pointer;
-      transform:translateZ(0);
-      transition:
-        transform .16s ease,
-        border-color .16s ease,
-        box-shadow .16s ease;
+      scroll-snap-align:center;
+      transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
     }
-
 
     .ace-mural-highlight-card:hover{
-      transform:translateY(-2px);
-      border-color:#9ccbed;
-      box-shadow:0 9px 20px rgba(15,53,82,.14);
+      transform:translateY(-3px);
+      border-color:#82b8df;
+      box-shadow:0 12px 24px rgba(15,53,82,.18);
     }
 
+    .ace-mural-highlight-card:focus-visible,
+    .ace-mural-highlights-nav:focus-visible{
+      outline:3px solid #1689d0;
+      outline-offset:3px;
+    }
 
     .ace-mural-highlight-card img{
       display:block;
       width:100%;
       height:100%;
       object-fit:contain;
-      background:#eef4f8;
+      background:#e7f0f6;
     }
-
 
     .ace-mural-highlight-video-placeholder{
       display:flex;
@@ -42597,12 +42523,10 @@ function ensureAceMuralHighlightsStyles() {
       height:100%;
       align-items:center;
       justify-content:center;
-      background:
-        linear-gradient(145deg,#0b4b7a,#1689d0);
+      background:linear-gradient(145deg,#0b4b7a,#1689d0);
       color:#fff;
-      font-size:30px;
+      font-size:40px;
     }
-
 
     .ace-mural-highlight-caption{
       position:absolute;
@@ -42610,52 +42534,62 @@ function ensureAceMuralHighlightsStyles() {
       bottom:0;
       left:0;
       overflow:hidden;
-      padding:19px 8px 6px;
-      background:
-        linear-gradient(
-          180deg,
-          transparent,
-          rgba(3,37,66,.82)
-        );
+      padding:24px 12px 9px;
+      background:linear-gradient(180deg,transparent,rgba(3,37,66,.84));
       color:#fff;
-      font-size:10px;
-      font-weight:900;
-      line-height:1.15;
+      font-size:13px;
+      font-weight:800;
+      line-height:1.25;
       text-align:left;
       text-overflow:ellipsis;
       white-space:nowrap;
       pointer-events:none;
     }
 
-
     .ace-mural-highlight-play{
       position:absolute;
-      top:8px;
-      right:8px;
+      top:10px;
+      right:10px;
       display:flex;
-      width:27px;
-      height:27px;
+      width:34px;
+      height:34px;
       align-items:center;
       justify-content:center;
       border:1px solid rgba(255,255,255,.7);
       border-radius:50%;
       background:rgba(3,37,66,.72);
       color:#fff;
-      font-size:12px;
-      box-shadow:0 3px 8px rgba(0,0,0,.18);
+      font-size:14px;
       pointer-events:none;
     }
 
-
-    @keyframes aceMuralHighlightsFlowV79{
-      from{
-        transform:translateX(0);
-      }
-      to{
-        transform:translateX(-50%);
-      }
+    .ace-mural-highlights-nav{
+      flex:0 0 38px;
+      width:38px;
+      height:38px;
+      display:grid;
+      place-items:center;
+      border:1px solid #c5ddec;
+      border-radius:50%;
+      background:#fff;
+      color:#12527d;
+      box-shadow:0 4px 12px rgba(15,53,82,.12);
+      font-size:25px;
+      line-height:1;
+      cursor:pointer;
     }
 
+    .ace-mural-highlights-nav:hover:not(:disabled){
+      background:#e7f5ff;
+      border-color:#83bee3;
+    }
+
+    .ace-mural-highlights-nav:disabled{
+      opacity:.35;
+      cursor:default;
+    }
+
+    .ace-mural-highlights-nav[hidden]{display:none !important;}
 
     /* ------------------------------------------------------
        VISUALIZAÇÃO DA PUBLICAÇÃO
@@ -42776,45 +42710,31 @@ function ensureAceMuralHighlightsStyles() {
     @media(max-width:850px){
 
       #aceMuralHighlightsBar{
-        min-height:102px;
-        gap:8px;
-        padding:
-          8px
-          10px;
+        min-height:194px;
+        gap:6px;
+        padding:10px 8px;
       }
 
+      .ace-mural-highlights-track{gap:10px;}
 
-      .ace-mural-highlights-label{
-        min-width:auto;
-        padding:7px 9px;
+      .ace-mural-highlight-card{
+        flex-basis:min(64vw,230px);
+        width:min(64vw,230px);
+        height:170px;
+        border-radius:13px;
+      }
+
+      .ace-mural-highlight-caption{
+        padding:19px 9px 7px;
         font-size:11px;
       }
 
-
-      .ace-mural-highlight-card{
-        flex-basis:138px;
-        width:138px;
-        height:78px;
-        border-radius:11px;
+      .ace-mural-highlights-nav{
+        flex-basis:28px;
+        width:28px;
+        height:34px;
+        font-size:20px;
       }
-
-
-      .ace-mural-highlights-sequence{
-        gap:9px;
-        padding-right:9px;
-      }
-
-
-      .ace-mural-highlights-track{
-        animation-duration:44s;
-      }
-
-
-      .ace-mural-highlight-caption{
-        padding:15px 6px 5px;
-        font-size:9px;
-      }
-
 
       #aceMuralHighlightViewer{
         padding:10px;
@@ -42841,11 +42761,8 @@ function ensureAceMuralHighlightsStyles() {
 
 
     @media(prefers-reduced-motion:reduce){
-
-      .ace-mural-highlights-track{
-        animation:none !important;
-      }
-
+      .ace-mural-highlights-viewport{scroll-behavior:auto;}
+      .ace-mural-highlight-card{transition:none;}
     }
 
   `;
@@ -43379,43 +43296,53 @@ function renderAceMuralHighlights() {
 
   bar.innerHTML = `
 
-    <div class="ace-mural-highlights-label">
-      📰 Destaques
-    </div>
+    <button class="ace-mural-highlights-nav" type="button"
+      data-ace-mural-direction="previous" aria-label="Informativo anterior">‹</button>
 
-    <div class="ace-mural-highlights-viewport">
-
-      <div
-        class="ace-mural-highlights-track ${
-          activePosts.length === 1
-            ? "single"
-            : ""
-        }"
-      >
-
-        <div class="ace-mural-highlights-sequence">
-          ${sequence}
-        </div>
-
-        ${
-          activePosts.length > 1
-            ? `
-                <div
-                  class="ace-mural-highlights-sequence"
-                  aria-hidden="true"
-                >
-                  ${sequence}
-                </div>
-              `
-            : ""
-        }
-
+    <div class="ace-mural-highlights-viewport" role="region"
+      aria-label="Informativos do Mural ACE" tabindex="0">
+      <div class="ace-mural-highlights-track">
+        ${sequence}
       </div>
-
     </div>
+
+    <button class="ace-mural-highlights-nav" type="button"
+      data-ace-mural-direction="next" aria-label="Próximo informativo">›</button>
 
   `;
 
+  const viewport = bar.querySelector(".ace-mural-highlights-viewport");
+  const previous = bar.querySelector('[data-ace-mural-direction="previous"]');
+  const next = bar.querySelector('[data-ace-mural-direction="next"]');
+
+  const updateNavigation = () => {
+    const maxScroll = viewport.scrollWidth - viewport.clientWidth;
+    const canScroll = maxScroll > 2;
+    previous.hidden = !canScroll;
+    next.hidden = !canScroll;
+    previous.disabled = viewport.scrollLeft <= 2;
+    next.disabled = viewport.scrollLeft >= maxScroll - 2;
+  };
+
+  viewport.onscroll = updateNavigation;
+  [previous, next].forEach(button => {
+    button.onclick = () => {
+      const card = viewport.querySelector(".ace-mural-highlight-card");
+      const step = (card?.getBoundingClientRect().width || 230) + 16;
+      viewport.scrollBy({
+        left: button === next ? step : -step,
+        behavior: "smooth"
+      });
+    };
+  });
+
+  bar._aceResizeObserver?.disconnect();
+  if (typeof ResizeObserver !== "undefined") {
+    bar._aceResizeObserver = new ResizeObserver(updateNavigation);
+    bar._aceResizeObserver.observe(viewport);
+    bar._aceResizeObserver.observe(viewport.firstElementChild);
+  }
+  requestAnimationFrame(updateNavigation);
 
   bar
     .querySelectorAll(
@@ -43974,7 +43901,7 @@ function renderMuralAce() {
     isMuralAceAdmin();
 
 
-  // A faixa pública de Destaques existe para todos.
+  // Os informativos públicos aparecem para todos.
   renderAceMuralHighlights();
 
 
@@ -44022,7 +43949,7 @@ function renderMuralAce() {
         </h2>
 
         <div class="ace-mural-subtitle">
-          Gerencie as publicações exibidas na faixa de Destaques do sistema.
+          Gerencie os informativos exibidos acima do menu do sistema.
         </div>
 
       </div>
@@ -46012,7 +45939,7 @@ async function deleteMuralAcePost(
   const confirmed =
     await showAceConfirm(
       `Excluir a publicação "${post.titulo}"?\n\n` +
-      "O conteúdo também deixará de aparecer na faixa de Destaques.",
+      "O conteúdo também deixará de aparecer na faixa de informativos.",
       "Excluir publicação"
     );
 
