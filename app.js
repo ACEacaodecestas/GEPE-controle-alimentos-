@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-central-v81",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-ativo-v82",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.28-carrossel-central-v81";
+  "2026.09.28-carrossel-ativo-v82";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41881,7 +41881,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-central-v81",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-ativo-v82",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -42403,7 +42403,7 @@ function ensureMuralAceStyles() {
 function ensureAceMuralHighlightsStyles() {
 
   const STYLE_ID =
-    "aceMuralHighlightsStyleV81";
+    "aceMuralHighlightsStyleV82";
 
 
   if (
@@ -43342,6 +43342,8 @@ function renderAceMuralHighlights() {
   const previous = bar.querySelector('[data-ace-mural-direction="previous"]');
   const next = bar.querySelector('[data-ace-mural-direction="next"]');
   let current = 0;
+  let lastInteraction = 0;
+  let suppressClickUntil = 0;
 
   const showSlide = index => {
     current = (index + slides.length) % slides.length;
@@ -43357,13 +43359,17 @@ function renderAceMuralHighlights() {
   previous.hidden = !multiple;
   next.hidden = !multiple;
   bar.querySelector(".ace-mural-dots").hidden = !multiple;
-  previous.onclick = () => showSlide(current - 1);
-  next.onclick = () => showSlide(current + 1);
-  dots.forEach((dot, i) => dot.onclick = () => showSlide(i));
+  const selectSlide = index => {
+    lastInteraction = Date.now();
+    showSlide(index);
+  };
+  previous.onclick = () => selectSlide(current - 1);
+  next.onclick = () => selectSlide(current + 1);
+  dots.forEach((dot, i) => dot.onclick = () => selectSlide(i));
   viewport.onkeydown = event => {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
-      showSlide(current + (event.key === "ArrowRight" ? 1 : -1));
+      selectSlide(current + (event.key === "ArrowRight" ? 1 : -1));
     }
   };
 
@@ -43374,19 +43380,21 @@ function renderAceMuralHighlights() {
   viewport.ontouchend = event => {
     if (touchStartX === null) return;
     const distance = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX;
-    if (Math.abs(distance) > 45) showSlide(current + (distance < 0 ? 1 : -1));
+    if (Math.abs(distance) > 45) {
+      suppressClickUntil = Date.now() + 500;
+      selectSlide(current + (distance < 0 ? 1 : -1));
+    }
     touchStartX = null;
   };
 
   showSlide(0);
-  if (multiple && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (multiple) {
     bar._aceCarouselTimer = window.setInterval(() => {
-      if (!document.hidden && !bar.matches(":hover") &&
-          !bar.contains(document.activeElement) &&
+      if (!document.hidden && Date.now() - lastInteraction >= 3800 &&
           !document.getElementById("aceMuralHighlightViewer")) {
         showSlide(current + 1);
       }
-    }, 6000);
+    }, 4000);
   }
 
   bar
@@ -43397,11 +43405,15 @@ function renderAceMuralHighlights() {
       button => {
 
         button.onclick =
-          () =>
+          event => {
+            if (Date.now() < suppressClickUntil) {
+              event.preventDefault();
+              return;
+            }
             openAceMuralHighlightViewer(
-              button.dataset
-                .aceHighlightPost
+              button.dataset.aceHighlightPost
             );
+          };
 
       }
     );
