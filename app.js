@@ -14893,6 +14893,8 @@ function renderDashboard() {
 
   applyAceDashboardRewardCards();
 
+  renderAceDashboardQuickCharts();
+
 
   const originSummary =
     document.getElementById(
@@ -19695,6 +19697,30 @@ async function removeMovement(id) {
 function renderAttendance() {
 
   ensureAttendancePersonActionsStyle();
+
+  // Lista compacta com busca e contador fixos acima da rolagem.
+  if (!document.getElementById("aceAttendanceCompactStyle")) {
+    const style = document.createElement("style");
+    style.id = "aceAttendanceCompactStyle";
+    style.textContent = `
+      #presenca #attendanceList {
+        width:100%; box-sizing:border-box; max-height:min(46vh,440px);
+        min-height:170px; overflow-y:auto; overflow-x:hidden;
+        overscroll-behavior:contain; scrollbar-gutter:stable;
+        padding:3px 7px 3px 2px;
+        scrollbar-width:thin; scrollbar-color:#88aec7 #edf4f8;
+      }
+      #presenca #attendanceList::-webkit-scrollbar { width:9px; }
+      #presenca #attendanceList::-webkit-scrollbar-track { background:#edf4f8; border-radius:12px; }
+      #presenca #attendanceList::-webkit-scrollbar-thumb { background:#88aec7; border-radius:12px; }
+      #presenca #attendanceList .attendance-row { min-height:57px; padding:9px 13px; margin-bottom:7px; box-sizing:border-box; }
+      @media(max-width:600px) {
+        #presenca #attendanceList { max-height:min(48dvh,390px); }
+        #presenca #attendanceList .attendance-row { min-height:56px; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
 
   const date =
@@ -64163,4 +64189,69 @@ function bindAceDashboardTouchFeedback() {
 
 })();
 
+// Visão rápida do início: percentuais calculados sobre todo o histórico.
+function renderAceDashboardQuickCharts() {
+  const cards = document.querySelector("#dashboard .cards");
+  if (!cards || !db) return;
 
+  let section = document.getElementById("aceDashboardQuickCharts");
+  if (!section) {
+    section = document.createElement("section");
+    section.id = "aceDashboardQuickCharts";
+    section.setAttribute("aria-label", "Principais estatísticas de alimentos");
+    cards.insertAdjacentElement("afterend", section);
+  }
+
+  if (!document.getElementById("aceDashboardQuickChartsStyle")) {
+    const style = document.createElement("style");
+    style.id = "aceDashboardQuickChartsStyle";
+    style.textContent = `
+      #aceDashboardQuickCharts { width:min(100%,1440px); box-sizing:border-box; margin:18px auto 22px; }
+      #aceDashboardQuickCharts .ace-qc-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
+      #aceDashboardQuickCharts h2 { margin:0; color:#123b59; font-size:clamp(18px,2vw,23px); }
+      #aceDashboardQuickCharts .ace-qc-sub { margin:4px 0 0; color:#657b8c; font-size:13px; }
+      #aceDashboardQuickCharts .ace-qc-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+      #aceDashboardQuickCharts .ace-qc-card { min-width:0; padding:18px; border:1px solid #dce8ef; border-radius:17px; background:#fff; box-shadow:0 8px 23px #173f5812; }
+      #aceDashboardQuickCharts .ace-qc-card h3 { margin:0 0 4px; color:#1d4660; font-size:16px; }
+      #aceDashboardQuickCharts .ace-qc-card p { margin:0 0 16px; color:#748696; font-size:12px; }
+      #aceDashboardQuickCharts .ace-qc-rows { display:grid; gap:12px; }
+      #aceDashboardQuickCharts .ace-qc-row { min-width:0; }
+      #aceDashboardQuickCharts .ace-qc-line { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:5px; color:#40546a; font-size:13px; }
+      #aceDashboardQuickCharts .ace-qc-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      #aceDashboardQuickCharts .ace-qc-line strong { color:#243f54; white-space:nowrap; }
+      #aceDashboardQuickCharts .ace-qc-track { height:8px; overflow:hidden; border-radius:9px; background:#e9f0f4; }
+      #aceDashboardQuickCharts .ace-qc-fill { height:100%; border-radius:9px; background:var(--bar-color); }
+      #aceDashboardQuickCharts .ace-qc-empty { padding:24px 4px; color:#748696; font-size:13px; text-align:center; }
+      @media(max-width:1000px) { #aceDashboardQuickCharts .ace-qc-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+      @media(max-width:680px) { #aceDashboardQuickCharts .ace-qc-grid { grid-template-columns:1fr; } #aceDashboardQuickCharts .ace-qc-head { align-items:flex-start; } }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const entries = db.entries || [];
+  const losses = (db.movements || []).filter(row => row.type === "perda");
+  const byFood = rows => aceStatsAggregate(rows, row => aceStatsName(db.foods, row.foodId), row => row.qty);
+  const byReason = aceStatsAggregate(losses, row => aceStatsName(db.reasons, row.reasonId, "Não informado"), row => row.qty);
+  const charts = [
+    { title:"Alimentos mais recebidos", data:byFood(entries), color:"#169776" },
+    { title:"Alimentos com maior perda", data:byFood(losses), color:"#df6660" },
+    { title:"Motivos das perdas", data:byReason, color:"#d58c2d" }
+  ];
+  const barCard = chart => {
+    const rows = chart.data.filter(item => Number(item.value) > 0).slice(0, 5);
+    const total = chart.data.reduce((sum, item) => sum + Math.max(0, Number(item.value) || 0), 0);
+    const percent = value => (Number(value) / total * 100).toLocaleString("pt-BR", {minimumFractionDigits:1, maximumFractionDigits:1});
+    return `<article class="ace-qc-card" style="--bar-color:${chart.color}">
+      <h3>${esc(chart.title)}</h3><p>Top 5 · percentual do total de ${fmt(total)} unidades</p>
+      <div class="ace-qc-rows">${rows.length ? rows.map(item => `
+        <div class="ace-qc-row" title="${esc(item.label)}: ${fmt(item.value)} unidades (${percent(item.value)}%)" tabindex="0" aria-label="${esc(item.label)}: ${fmt(item.value)} unidades, ${percent(item.value)} por cento do total">
+          <div class="ace-qc-line"><span class="ace-qc-label">${esc(item.label)}</span><strong>${percent(item.value)}% · ${fmt(item.value)}</strong></div>
+          <div class="ace-qc-track"><div class="ace-qc-fill" style="width:${Number(item.value) / total * 100}%"></div></div>
+        </div>`).join("") : '<div class="ace-qc-empty">Ainda não há registros.</div>'}</div>
+    </article>`;
+  };
+
+  section.innerHTML = `<div class="ace-qc-head"><div><h2>Estatísticas em destaque</h2>
+    <p class="ace-qc-sub">Todo o histórico registrado · percentuais atualizados automaticamente</p></div></div>
+    <div class="ace-qc-grid">${charts.map(barCard).join("")}</div>`;
+}
