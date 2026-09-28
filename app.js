@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-informativos-v80",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-central-v81",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.28-informativos-v80";
+  "2026.09.28-carrossel-central-v81";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41881,7 +41881,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-informativos-v80",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260928-carrossel-central-v81",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -42403,7 +42403,7 @@ function ensureMuralAceStyles() {
 function ensureAceMuralHighlightsStyles() {
 
   const STYLE_ID =
-    "aceMuralHighlightsStyleV80";
+    "aceMuralHighlightsStyleV81";
 
 
   if (
@@ -42440,17 +42440,17 @@ function ensureAceMuralHighlightsStyles() {
     }
 
 
-    /* Informativos acima do menu: cartões grandes, sem movimento automático. */
+    /* Um informativo por vez, em uma janela fixa no centro. */
     #aceMuralHighlightsBar{
       position:relative;
       z-index:99970;
       display:flex;
-      width:100%;
-      min-height:220px;
-      box-sizing:border-box;
+      justify-content:center;
       align-items:center;
-      gap:12px;
-      padding:14px clamp(14px,2vw,34px);
+      width:100%;
+      min-height:270px;
+      box-sizing:border-box;
+      padding:12px 16px;
       overflow:hidden;
       border-top:1px solid rgba(255,255,255,.88);
       border-bottom:1px solid #d7e6f0;
@@ -42458,55 +42458,62 @@ function ensureAceMuralHighlightsStyles() {
       box-shadow:0 5px 18px rgba(4,59,99,.06);
     }
 
+    .ace-mural-carousel{
+      display:grid;
+      grid-template-columns:42px minmax(0,430px) 42px;
+      align-items:center;
+      gap:12px;
+      width:min(100%,550px);
+      margin:auto;
+    }
+
+    .ace-mural-carousel-center{min-width:0;}
+
     .ace-mural-highlights-viewport{
-      flex:1 1 auto;
-      min-width:0;
-      overflow-x:auto;
-      overflow-y:hidden;
-      overscroll-behavior-inline:contain;
-      scrollbar-width:thin;
-      scrollbar-color:#bdd3e3 transparent;
-      scroll-snap-type:x mandatory;
-      scroll-behavior:smooth;
-      -webkit-overflow-scrolling:touch;
+      width:100%;
+      overflow:hidden;
+      border-radius:17px;
     }
 
     .ace-mural-highlights-track{
       display:flex;
-      width:max-content;
-      min-width:100%;
-      align-items:center;
-      justify-content:safe center;
-      gap:16px;
+      width:100%;
+      transition:transform .46s cubic-bezier(.22,.8,.24,1);
+      will-change:transform;
+    }
+
+    .ace-mural-highlight-slide{
+      flex:0 0 100%;
+      min-width:0;
+      box-sizing:border-box;
+      padding:5px;
     }
 
     .ace-mural-highlight-card{
       position:relative;
       display:block;
-      flex:0 0 clamp(210px,18vw,270px);
-      width:clamp(210px,18vw,270px);
-      height:188px;
+      width:100%;
+      height:220px;
       padding:0;
       overflow:hidden;
       border:1px solid #cbdce9;
       border-radius:16px;
       background:#e7f0f6;
-      box-shadow:0 6px 17px rgba(15,53,82,.12);
+      box-shadow:0 6px 17px rgba(15,53,82,.13);
       cursor:pointer;
-      scroll-snap-align:center;
-      transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+      transition:border-color .18s ease,box-shadow .18s ease;
     }
 
     .ace-mural-highlight-card:hover{
-      transform:translateY(-3px);
       border-color:#82b8df;
-      box-shadow:0 12px 24px rgba(15,53,82,.18);
+      box-shadow:0 10px 23px rgba(15,53,82,.2);
     }
 
     .ace-mural-highlight-card:focus-visible,
-    .ace-mural-highlights-nav:focus-visible{
+    .ace-mural-highlights-nav:focus-visible,
+    .ace-mural-dot:focus-visible{
       outline:3px solid #1689d0;
-      outline-offset:3px;
+      outline-offset:2px;
     }
 
     .ace-mural-highlight-card img{
@@ -42564,32 +42571,49 @@ function ensureAceMuralHighlightsStyles() {
     }
 
     .ace-mural-highlights-nav{
-      flex:0 0 38px;
-      width:38px;
-      height:38px;
       display:grid;
       place-items:center;
+      width:42px;
+      height:42px;
       border:1px solid #c5ddec;
       border-radius:50%;
       background:#fff;
       color:#12527d;
       box-shadow:0 4px 12px rgba(15,53,82,.12);
-      font-size:25px;
+      font-size:27px;
       line-height:1;
       cursor:pointer;
     }
 
-    .ace-mural-highlights-nav:hover:not(:disabled){
-      background:#e7f5ff;
-      border-color:#83bee3;
+    .ace-mural-highlights-nav:hover{background:#e7f5ff;border-color:#83bee3;}
+    .ace-mural-highlights-nav[hidden]{visibility:hidden;display:block;}
+
+    .ace-mural-dots[hidden]{display:none;}
+
+    .ace-mural-dots{
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      min-height:12px;
+      margin-top:4px;
     }
 
-    .ace-mural-highlights-nav:disabled{
-      opacity:.35;
-      cursor:default;
+    .ace-mural-dot{
+      width:8px;
+      height:8px;
+      padding:0;
+      border:0;
+      border-radius:50%;
+      background:#b7ccdc;
+      cursor:pointer;
+      transition:width .25s ease,background-color .25s ease;
     }
 
-    .ace-mural-highlights-nav[hidden]{display:none !important;}
+    .ace-mural-dot[aria-current="true"]{
+      width:22px;
+      border-radius:9px;
+      background:#1689d0;
+    }
 
     /* ------------------------------------------------------
        VISUALIZAÇÃO DA PUBLICAÇÃO
@@ -42709,31 +42733,22 @@ function ensureAceMuralHighlightsStyles() {
 
     @media(max-width:850px){
 
-      #aceMuralHighlightsBar{
-        min-height:194px;
-        gap:6px;
-        padding:10px 8px;
+      #aceMuralHighlightsBar{min-height:245px;padding:8px 6px;}
+
+      .ace-mural-carousel{
+        grid-template-columns:32px minmax(0,1fr) 32px;
+        gap:4px;
+        width:min(100%,440px);
       }
 
-      .ace-mural-highlights-track{gap:10px;}
+      .ace-mural-highlight-card{height:195px;border-radius:13px;}
 
-      .ace-mural-highlight-card{
-        flex-basis:min(64vw,230px);
-        width:min(64vw,230px);
-        height:170px;
-        border-radius:13px;
-      }
-
-      .ace-mural-highlight-caption{
-        padding:19px 9px 7px;
-        font-size:11px;
-      }
+      .ace-mural-highlight-caption{padding:19px 9px 7px;font-size:11px;}
 
       .ace-mural-highlights-nav{
-        flex-basis:28px;
-        width:28px;
-        height:34px;
-        font-size:20px;
+        width:32px;
+        height:36px;
+        font-size:22px;
       }
 
       #aceMuralHighlightViewer{
@@ -42761,8 +42776,9 @@ function ensureAceMuralHighlightsStyles() {
 
 
     @media(prefers-reduced-motion:reduce){
-      .ace-mural-highlights-viewport{scroll-behavior:auto;}
-      .ace-mural-highlight-card{transition:none;}
+      .ace-mural-highlights-track,
+      .ace-mural-highlight-card,
+      .ace-mural-dot{transition:none;}
     }
 
   `;
@@ -43164,6 +43180,7 @@ function renderAceMuralHighlights() {
 
   if (!activePosts.length) {
 
+    if (bar?._aceCarouselTimer) clearInterval(bar._aceCarouselTimer);
     bar?.remove();
 
     return;
@@ -43251,6 +43268,7 @@ function renderAceMuralHighlights() {
 
       return `
 
+        <div class="ace-mural-highlight-slide">
         <button
           class="ace-mural-highlight-card"
           type="button"
@@ -43278,6 +43296,7 @@ function renderAceMuralHighlights() {
           </span>
 
         </button>
+        </div>
 
       `;
 
@@ -43294,55 +43313,81 @@ function renderAceMuralHighlights() {
       );
 
 
+  if (bar._aceCarouselTimer) clearInterval(bar._aceCarouselTimer);
+
   bar.innerHTML = `
-
-    <button class="ace-mural-highlights-nav" type="button"
-      data-ace-mural-direction="previous" aria-label="Informativo anterior">‹</button>
-
-    <div class="ace-mural-highlights-viewport" role="region"
-      aria-label="Informativos do Mural ACE" tabindex="0">
-      <div class="ace-mural-highlights-track">
-        ${sequence}
+    <div class="ace-mural-carousel" role="region"
+      aria-roledescription="carrossel" aria-label="Informativos do Mural ACE">
+      <button class="ace-mural-highlights-nav" type="button"
+        data-ace-mural-direction="previous" aria-label="Informativo anterior">‹</button>
+      <div class="ace-mural-carousel-center">
+        <div class="ace-mural-highlights-viewport" tabindex="0"
+          aria-label="Informativo atual; use as setas para navegar">
+          <div class="ace-mural-highlights-track">${sequence}</div>
+        </div>
+        <div class="ace-mural-dots" aria-label="Escolher informativo">
+          ${activePosts.map((_, i) => `<button type="button" class="ace-mural-dot"
+            data-ace-slide="${i}" aria-label="Informativo ${i + 1} de ${activePosts.length}"></button>`).join("")}
+        </div>
       </div>
+      <button class="ace-mural-highlights-nav" type="button"
+        data-ace-mural-direction="next" aria-label="Próximo informativo">›</button>
     </div>
-
-    <button class="ace-mural-highlights-nav" type="button"
-      data-ace-mural-direction="next" aria-label="Próximo informativo">›</button>
-
   `;
 
   const viewport = bar.querySelector(".ace-mural-highlights-viewport");
+  const track = bar.querySelector(".ace-mural-highlights-track");
+  const slides = [...bar.querySelectorAll(".ace-mural-highlight-slide")];
+  const dots = [...bar.querySelectorAll(".ace-mural-dot")];
   const previous = bar.querySelector('[data-ace-mural-direction="previous"]');
   const next = bar.querySelector('[data-ace-mural-direction="next"]');
+  let current = 0;
 
-  const updateNavigation = () => {
-    const maxScroll = viewport.scrollWidth - viewport.clientWidth;
-    const canScroll = maxScroll > 2;
-    previous.hidden = !canScroll;
-    next.hidden = !canScroll;
-    previous.disabled = viewport.scrollLeft <= 2;
-    next.disabled = viewport.scrollLeft >= maxScroll - 2;
+  const showSlide = index => {
+    current = (index + slides.length) % slides.length;
+    track.style.transform = `translate3d(-${current * 100}%,0,0)`;
+    slides.forEach((slide, i) => {
+      slide.setAttribute("aria-hidden", String(i !== current));
+      slide.querySelector(".ace-mural-highlight-card").tabIndex = i === current ? 0 : -1;
+      dots[i].setAttribute("aria-current", String(i === current));
+    });
   };
 
-  viewport.onscroll = updateNavigation;
-  [previous, next].forEach(button => {
-    button.onclick = () => {
-      const card = viewport.querySelector(".ace-mural-highlight-card");
-      const step = (card?.getBoundingClientRect().width || 230) + 16;
-      viewport.scrollBy({
-        left: button === next ? step : -step,
-        behavior: "smooth"
-      });
-    };
-  });
+  const multiple = slides.length > 1;
+  previous.hidden = !multiple;
+  next.hidden = !multiple;
+  bar.querySelector(".ace-mural-dots").hidden = !multiple;
+  previous.onclick = () => showSlide(current - 1);
+  next.onclick = () => showSlide(current + 1);
+  dots.forEach((dot, i) => dot.onclick = () => showSlide(i));
+  viewport.onkeydown = event => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      showSlide(current + (event.key === "ArrowRight" ? 1 : -1));
+    }
+  };
 
-  bar._aceResizeObserver?.disconnect();
-  if (typeof ResizeObserver !== "undefined") {
-    bar._aceResizeObserver = new ResizeObserver(updateNavigation);
-    bar._aceResizeObserver.observe(viewport);
-    bar._aceResizeObserver.observe(viewport.firstElementChild);
+  let touchStartX = null;
+  viewport.ontouchstart = event => {
+    touchStartX = event.touches[0]?.clientX ?? null;
+  };
+  viewport.ontouchend = event => {
+    if (touchStartX === null) return;
+    const distance = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX;
+    if (Math.abs(distance) > 45) showSlide(current + (distance < 0 ? 1 : -1));
+    touchStartX = null;
+  };
+
+  showSlide(0);
+  if (multiple && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    bar._aceCarouselTimer = window.setInterval(() => {
+      if (!document.hidden && !bar.matches(":hover") &&
+          !bar.contains(document.activeElement) &&
+          !document.getElementById("aceMuralHighlightViewer")) {
+        showSlide(current + 1);
+      }
+    }, 6000);
   }
-  requestAnimationFrame(updateNavigation);
 
   bar
     .querySelectorAll(
