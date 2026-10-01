@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261001-modal-rede-visivel-v79",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.09.27-cabecalho-aurora-visivel-v78";
+  "2026.10.01-modal-rede-visivel-v79";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -836,12 +836,14 @@ function showAceNetworkNotice(
       class="ace-modal-box"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="aceNetworkNoticeTitle"
+      aria-describedby="aceNetworkNoticeMessage"
     >
-      <div class="ace-modal-title">
+      <div id="aceNetworkNoticeTitle" class="ace-modal-title">
         ${esc(title)}
       </div>
 
-      <div class="ace-modal-message">
+      <div id="aceNetworkNoticeMessage" class="ace-modal-message">
         ${esc(message).replace(/\n/g, "<br>")}
       </div>
 
@@ -865,9 +867,11 @@ function showAceNetworkNotice(
 
   style.textContent = `
     #aceNetworkNoticeModal{
-      position:fixed;
-      inset:0;
-      z-index:1000002;
+      position:fixed !important;
+      inset:0 !important;
+      z-index:2147483646 !important;
+      isolation:isolate;
+      box-sizing:border-box;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -879,12 +883,14 @@ function showAceNetworkNotice(
     #aceNetworkNoticeModal .ace-modal-box{
       width:min(520px,calc(100vw - 40px));
       max-height:calc(100vh - 40px);
+      max-height:calc(100dvh - 40px);
+      overscroll-behavior:contain;
       overflow:auto;
       box-sizing:border-box;
       padding:28px 30px 24px;
       border-radius:18px;
-      background:#5da5e6;
-      color:#fff;
+      background:#fff !important;
+      color:#173a55 !important;
       box-shadow:0 18px 50px rgba(0,0,0,.35);
       text-align:center;
       font-family:inherit;
@@ -892,16 +898,16 @@ function showAceNetworkNotice(
 
     #aceNetworkNoticeModal .ace-modal-title{
       margin-bottom:18px;
-      font-size:25px;
+      font-size:clamp(21px,3vw,25px);
       font-weight:900;
-      color:#fff;
+      color:#173a55 !important;
     }
 
     #aceNetworkNoticeModal .ace-modal-message{
-      font-size:17px;
+      font-size:16px;
       line-height:1.55;
       text-align:left;
-      color:#fff;
+      color:#173a55 !important;
     }
 
     #aceNetworkNoticeModal .ace-modal-actions{
@@ -915,11 +921,22 @@ function showAceNetworkNotice(
       padding:11px 24px;
       border:1px solid #0756a0;
       border-radius:9px;
-      background:#0756a0;
-      color:#fff;
+      background:#0756a0 !important;
+      color:#fff !important;
       font-size:16px;
       font-weight:800;
       cursor:pointer;
+    }
+
+    #aceNetworkNoticeModal .ace-network-notice-ok:focus-visible{
+      outline:3px solid #66a9dd;
+      outline-offset:3px;
+    }
+
+    @media(max-width:600px){
+      #aceNetworkNoticeModal .ace-modal-box{
+        padding:23px 20px 20px;
+      }
     }
   `;
 
@@ -41902,7 +41919,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261001-modal-rede-visivel-v79",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
