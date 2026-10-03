@@ -34,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-pdf-sacos-corrigido-v84",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-historico-sacos-botao-v85",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.03-pdf-sacos-corrigido-v84";
+  "2026.10.03-historico-sacos-botao-v85";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41943,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-pdf-sacos-corrigido-v84",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-historico-sacos-botao-v85",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -64597,6 +64597,9 @@ function ensureAceSackInventoryUI() {
       .ace-si-table{width:100%;border-collapse:collapse;font-size:14px}.ace-si-table th{position:sticky;top:0;background:#edf5fa;color:#173750;text-align:left;z-index:1}.ace-si-table td,.ace-si-table th{padding:11px;border-bottom:1px solid #e1eaf0;vertical-align:top}
       .ace-si-table input,.ace-si-box textarea{box-sizing:border-box;padding:10px;border:1px solid #c7d8e5;border-radius:8px;background:#fff;color:#173750;font:inherit}.ace-si-table input[type=number]{width:100px}.ace-si-table input[type=text]{width:220px}.ace-si-box textarea{width:100%}
       .ace-si-difference{font-weight:900;white-space:nowrap}.ace-si-save{display:block;font-size:11px;color:#526d80;margin-top:5px}.ace-si-error{color:#b42318;font-weight:700;margin-top:10px;white-space:pre-line}.ace-si-banner{padding:12px;margin:14px 0;background:#fff4d7;border:1px solid #e9cd85;border-radius:11px;color:#704707;line-height:1.5}
+      .ace-si-history-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:24px 0 12px}
+      #aceSackInventoryModal #aceSackInvShowDeleted{width:auto!important;flex:0 0 auto;min-height:34px;padding:6px 11px;font-size:12px;font-weight:700;background:#f4f8fb;color:#526d80;border:1px solid #d6e3ec;white-space:nowrap;box-shadow:none}
+      #aceSackInventoryModal #aceSackInvShowDeleted[aria-pressed="true"]{background:#e7f3fc;color:#075985;border-color:#97c7e5}
       .ace-si-history{padding:14px 0;border-bottom:1px solid #dce7ef}.ace-si-history .ace-si-actions{justify-content:flex-start;margin:10px 0 0}.ace-si-meta{font-size:13px;color:#526d80;margin-top:5px;line-height:1.5}
       #aceCustomModal,#aceMessageModal{z-index:2147483647!important}
       @media(max-width:600px){.ace-si-box{padding:16px}.ace-si-head{align-items:flex-start}.ace-si-table td,.ace-si-table th{padding:9px}.ace-si-actions button{flex:1}.ace-si-scroll{max-height:48dvh}}
@@ -64650,11 +64653,11 @@ function renderAceSackInventoryModal() {
     <div class="ace-si-actions"><button type="button" data-si-cancel class="ace-si-danger" ${!aceIsOnline()?'disabled':''}>Cancelar inventário</button>${can?'<button type="button" data-si-reload>Recarregar contagem</button><button type="button" data-si-save>Salvar contagem</button><button type="button" data-si-finish class="ace-si-primary">✍️ Assinar e finalizar</button>':''}</div>`:
     `<p class="ace-si-note">Faça a conferência por tipo e tamanho. Durante a contagem, as movimentações de sacos ficam bloqueadas para todos os usuários.</p><button type="button" data-si-start class="ace-si-primary" ${!aceIsOnline()?'disabled':''}>Iniciar inventário de sacos</button>`}
     <div id="aceSackInvError" class="ace-si-error" role="alert"></div>
-    <h3 style="margin-top:24px;font-size:19px">Histórico de inventários</h3>
-    ${isAceOperationalAdmin()?'<label class="ace-si-note"><input type="checkbox" id="aceSackInvShowDeleted"> Mostrar excluídos para auditoria</label>':''}
+    <div class="ace-si-history-heading"><h3 style="font-size:19px">Histórico de inventários</h3>
+    ${isAceOperationalAdmin()?'<button type="button" id="aceSackInvShowDeleted" aria-pressed="false" aria-controls="aceSackInvHistory" title="Consultar inventários excluídos para auditoria">Ver excluídos</button>':''}</div>
     <div id="aceSackInvHistory"></div></div>`;
   document.body.appendChild(modal);renderAceSackInvHistory();
-  modal.querySelector('#aceSackInvShowDeleted')?.addEventListener('change',renderAceSackInvHistory);
+  modal.querySelector('#aceSackInvShowDeleted')?.addEventListener('click',toggleAceSackInvDeleted);
   modal.querySelectorAll('[data-si-item] input').forEach(input=>input.addEventListener('input',()=>aceSackInvDraft(input.closest('[data-si-item]'))));
   modal.addEventListener('click',async event=>{
     const button=event.target.closest('button');if(!button||button.disabled||aceSackInvBusy)return;
@@ -64722,9 +64725,17 @@ async function finishAceSackInventory(){
   await aceSackInvRPC('finalizar',{inventario_id:inv.id,responsavel_nome:signatures.responsibleName,responsavel_assinatura:signatures.responsibleSignature,conferente_nome:signatures.checkerName,conferente_assinatura:signatures.checkerSignature});
   aceSackInvBusy=false;await openAceSackInventory();showAceSuccess('Inventário de sacos finalizado. Estoque atualizado.');
 }
+function toggleAceSackInvDeleted(){
+  if(!isAceOperationalAdmin())return;
+  const button=document.getElementById('aceSackInvShowDeleted');if(!button)return;
+  const show=button.getAttribute('aria-pressed')!=='true';
+  button.setAttribute('aria-pressed',String(show));
+  button.textContent=show?'Ocultar excluídos':'Ver excluídos';
+  renderAceSackInvHistory();
+}
 function renderAceSackInvHistory(){
   const target=document.getElementById('aceSackInvHistory');if(!target)return;
-  const showDeleted=document.getElementById('aceSackInvShowDeleted')?.checked;
+  const showDeleted=isAceOperationalAdmin() && document.getElementById('aceSackInvShowDeleted')?.getAttribute('aria-pressed')==='true';
   const rows=(db.sackInventories||[]).filter(x=>x.status!=='em_andamento'&&(!x.excluido_em||showDeleted));
   const admin=isAceOperationalAdmin();
   target.innerHTML=rows.map(x=>`<section class="ace-si-history"><b>#${Number(x.id)} · ${esc(aceSackInvStatus(x))}${x.excluido_em?' · Excluído da lista principal':''}</b><div class="ace-si-meta">${esc(new Date(x.iniciado_em).toLocaleString('pt-BR'))} · ${esc(x.usuario_nome)}<br>Sistema: ${fmt(x.total_sistema||0)} · Físico: ${x.total_contado==null?'—':fmt(x.total_contado)} · Ajuste: ${x.total_ajuste==null?'—':aceSackInvDiff(Number(x.total_ajuste))}
