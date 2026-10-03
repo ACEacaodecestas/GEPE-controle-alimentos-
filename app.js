@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261001-modal-rede-visivel-v79",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-alimento-encontrado-v80",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.01-modal-rede-visivel-v79";
+  "2026.10.03-inventario-alimento-encontrado-v80";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41919,7 +41919,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261001-modal-rede-visivel-v79",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-alimento-encontrado-v80",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -54710,7 +54710,7 @@ async function refreshAceInventoryState(render = true) {
   if (aceInventoryActive) {
     const itemsResult = await aceEconomicSelect(
       "inventario_itens",
-      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
+      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca,incluido_durante_contagem,observacao_encontrado,incluido_por_nome",
       query => query
         .eq("inventario_id", aceInventoryActive.id)
         .order("alimento_nome")
@@ -54776,7 +54776,7 @@ async function refreshAceInventoryState(render = true) {
   if (aceInventoryLast) {
     const lastItemsResult = await aceEconomicSelect(
       "inventario_itens",
-      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
+      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca,incluido_durante_contagem,observacao_encontrado,incluido_por_nome",
       query => query
         .eq("inventario_id", aceInventoryLast.id)
         .order("alimento_nome")
@@ -55218,7 +55218,7 @@ function renderAceLastInventorySummary() {
 
           return `
             <tr class="${difference !== 0 ? "ace-inventory-adjusted-row" : ""}">
-              <td>${esc(item.alimento_nome)}</td>
+              <td>${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
               <td>${fmt(systemQuantity)}</td>
               <td><b>${fmt(countedQuantity)}</b></td>
               <td>
@@ -55996,7 +55996,7 @@ function renderAceInventory() {
 
       return `
         <tr>
-          <td>${esc(item.alimento_nome)}</td>
+          <td>${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
           <td><b>${fmt(item.estoque_sistema || 0)}</b></td>
           <td>
             <div class="ace-inventory-count-control">
@@ -56054,7 +56054,8 @@ function renderAceInventory() {
         </div>
         <div class="ace-inventory-actions">
           ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${!total || counted !== total || aceInventorySnapshotSyncError ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
-          ${typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin() ? '<button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button">🗑️ Cancelar inventário</button>' : ""}
+          ${owner || isAceOperationalAdmin() ? `<button id="aceInventoryFound" class="ace-inventory-btn ace-inventory-start" type="button" ${!online ? "disabled" : ""}>➕ Adicionar alimento encontrado</button>` : ""}
+          <button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button" ${!online ? "disabled" : ""}>🗑️ Cancelar inventário</button>
         </div>
       </div>`;
   }
@@ -56564,7 +56565,9 @@ async function finishAceInventory() {
 
 
 async function cancelAceInventory() {
-  if (!(typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin())) return;
+  if (!currentUser?.id || !isAceInventoryInProgress()) return;
+  if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para cancelar o inventário para todos os usuários.", "Operação online");
+  const inventoryId = Number(aceInventoryActive.id);
 
   const confirmed = await showAceConfirm(
     "Cancelar o inventário em andamento?\n\nNenhum ajuste será aplicado ao estoque.",
@@ -56573,7 +56576,7 @@ async function cancelAceInventory() {
   if (!confirmed) return;
 
   const { error } = await supabaseClient.rpc("ace_cancelar_inventario", {
-    p_inventario_id: Number(aceInventoryActive.id)
+    p_inventario_id: inventoryId
   });
   if (error) throw error;
 
@@ -56723,7 +56726,7 @@ function buildAceInventoryPdfElement(inventory, items) {
     return `
       <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;color:#667085;text-align:center">${index + 1}</td>
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;font-weight:700">${esc(item.alimento_nome)}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;font-weight:700">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right">${fmt(system)}</td>
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900">${fmt(counted)}</td>
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor}">${difference > 0 ? "+" : ""}${fmt(difference)}</td>
@@ -56825,7 +56828,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
           ),
           aceEconomicSelect(
             "inventario_itens",
-            "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
+            "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca,incluido_durante_contagem,observacao_encontrado,incluido_por_nome",
             query => query
               .eq("inventario_id", Number(inventoryId))
               .order("alimento_nome")
@@ -56956,6 +56959,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
 
 
 function bindAceInventoryPageEvents() {
+  document.getElementById("aceInventoryFound")?.addEventListener("click", showAceInventoryFoundDialog);
   document.getElementById("aceInventoryAdjustedToggle")?.addEventListener("click", () => {
     aceInventoryShowOnlyAdjusted = !aceInventoryShowOnlyAdjusted;
     renderAceInventory();
@@ -64271,4 +64275,97 @@ function renderAceDashboardQuickCharts() {
   section.innerHTML = `<div class="ace-qc-head"><div><h2>Estatísticas em destaque</h2>
     <p class="ace-qc-sub">Todo o histórico registrado · percentuais atualizados automaticamente</p></div></div>
     <div class="ace-qc-grid">${charts.map(barCard).join("")}</div>`;
+}
+
+// Alimentos encontrados durante a conferência: saldo aplicado apenas na finalização.
+function aceInventoryFoundDetails(item) {
+  if (!item?.incluido_durante_contagem) return "";
+  return `<small style="display:block;margin-top:5px;color:#526d80;font-size:11px;white-space:normal">Encontrado na conferência · ${esc(item.incluido_por_nome || "Usuário")}<br>${esc(item.observacao_encontrado || "")}</small>`;
+}
+
+function showAceInventoryFoundDialog() {
+  if (!isAceInventoryInProgress() || !aceIsOnline()) {
+    return showAceMessage("Abra um inventário e conecte-se à internet para incluir o alimento.", "Inventário");
+  }
+  const admin = isAceOperationalAdmin();
+  if (!isCurrentUserInventoryOwner() && !admin) return;
+  if (document.getElementById("aceInventoryFoundModal")) return;
+  const inventoryId = Number(aceInventoryActive.id);
+  const foods = (db.foods || []).slice().sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
+  const overlay = document.createElement("div");
+  overlay.id = "aceInventoryFoundModal";
+  overlay.innerHTML = `<style>
+    #aceInventoryFoundModal{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;background:rgba(3,32,55,.65);backdrop-filter:blur(5px)}
+    #aceInventoryFoundModal .ace-found-box{width:min(560px,100%);max-height:calc(100vh - 36px);max-height:calc(100dvh - 36px);overflow:auto;padding:24px;box-sizing:border-box;border-radius:18px;background:#fff;color:#173a55;box-shadow:0 20px 60px #001a3540}
+    #aceInventoryFoundModal h3{margin:0 0 10px;color:#173a55}#aceInventoryFoundModal p{font-size:14px;line-height:1.5;color:#526d80}
+    #aceInventoryFoundModal label{display:block;margin-top:14px;font-weight:700;font-size:14px}#aceInventoryFoundModal input,#aceInventoryFoundModal select,#aceInventoryFoundModal textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:11px;border:1px solid #cbdce8;border-radius:10px;background:#fff;color:#173a55;font:inherit}
+    #aceInventoryFoundModal .ace-found-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:20px}#aceInventoryFoundModal button{padding:11px 15px;border-radius:10px;border:1px solid #cbdce8;font:inherit;font-weight:700;cursor:pointer}#aceInventoryFoundModal button[type=submit]{background:#0b659b;color:#fff}#aceInventoryFoundModal [role=alert]{color:#b42318;font-size:14px;margin-top:12px}
+  </style><div class="ace-found-box" role="dialog" aria-modal="true" aria-labelledby="aceFoundTitle">
+    <h3 id="aceFoundTitle">Adicionar alimento encontrado</h3>
+    <p>Procure primeiro um alimento cadastrado, inclusive com saldo zero. Informe a quantidade total encontrada. O estoque será ajustado somente após a finalização e as assinaturas.</p>
+    <form id="aceFoundForm">
+      <label>Procurar alimento<input id="aceFoundSearch" type="search" placeholder="Nome do alimento" autocomplete="off"></label>
+      <label>Alimento cadastrado<select id="aceFoundFood" required><option value="">Selecione o alimento</option>${foods.map(f=>`<option value="${Number(f.id)}">${esc(f.name)} · saldo ${fmt(getAceGlobalStockQty(f.id))}</option>`).join("")}${admin?'<option value="new">+ Cadastrar alimento novo</option>':""}</select></label>
+      ${admin?'<label id="aceFoundNameLabel" hidden>Nome do novo alimento<input id="aceFoundName" maxlength="160" placeholder="Ex.: Arroz 1 kg"></label>':""}
+      <label>Quantidade física total<input id="aceFoundQty" type="number" min="1" step="1" required inputmode="numeric"></label>
+      <label>Observação<textarea id="aceFoundNote" required maxlength="1000" rows="3">Encontrado na conferência, sem registro no sistema.</textarea></label>
+      <div id="aceFoundError" role="alert"></div>
+      <div class="ace-found-actions"><button type="button" id="aceFoundClose">Cancelar</button><button type="submit" id="aceFoundSave">Salvar na contagem</button></div>
+    </form></div>`;
+  document.body.appendChild(overlay);
+  const form=overlay.querySelector("form"), select=overlay.querySelector("#aceFoundFood");
+  const errorBox=overlay.querySelector("#aceFoundError"), save=overlay.querySelector("#aceFoundSave");
+  const closeButton=overlay.querySelector("#aceFoundClose");
+  let busy=false;
+  closeButton.onclick=()=>{if(!busy)overlay.remove();};
+  overlay.querySelector("#aceFoundSearch").oninput=e=>{
+    const q=normalizeAceText(e.target.value);
+    Array.from(select.options).forEach(option=>{option.hidden=Boolean(option.value && option.value!=="new" && !normalizeAceText(option.textContent).includes(q));});
+  };
+  select.onchange=()=>{
+    const label=overlay.querySelector("#aceFoundNameLabel"), input=overlay.querySelector("#aceFoundName");
+    if(label)label.hidden=select.value!=="new";
+    if(input)input.required=select.value==="new";
+    errorBox.textContent="";
+  };
+  form.onsubmit=async e=>{
+    e.preventDefault();if(busy)return;
+    const qty=Number(overlay.querySelector("#aceFoundQty").value);
+    const note=overlay.querySelector("#aceFoundNote").value.trim();
+    const newName=overlay.querySelector("#aceFoundName")?.value.trim() || "";
+    let foodId=select.value==="new"?null:Number(select.value);
+    if(!Number.isSafeInteger(qty)||qty<1||!note){errorBox.textContent="Informe uma quantidade inteira positiva e a observação.";return;}
+    if(select.value==="new"){
+      if(!admin||newName.length<2){errorBox.textContent="Informe o nome do alimento.";return;}
+      const match=foods.find(f=>normalizeAceText(f.name)===normalizeAceText(newName));
+      if(match){foodId=Number(match.id);select.value=String(match.id);select.onchange();}
+    }
+    if(foodId!==null && (!Number.isSafeInteger(foodId)||foodId<=0)){errorBox.textContent="Selecione o alimento.";return;}
+    const previous=aceInventoryItems.find(item=>Number(item.alimento_id)===foodId);
+    busy=true;save.disabled=true;closeButton.disabled=true;save.textContent="Salvando…";
+    try{
+      if(!isAceInventoryInProgress()||Number(aceInventoryActive.id)!==inventoryId)throw new Error("O inventário foi encerrado. Atualize a página.");
+      if(previous?.quantidade_contada!=null){
+        const confirmed=await showAceConfirm(`Este alimento já tem ${fmt(previous.quantidade_contada)} unidade(s) contada(s). Substituir pela quantidade física total de ${fmt(qty)}?`,"Atualizar contagem");
+        if(!confirmed)return;
+      }
+      const {error}=await supabaseClient.rpc("ace_incluir_alimento_inventario",{
+        p_inventario_id:inventoryId,p_alimento_id:foodId,p_nome_novo:foodId===null?newName:null,
+        p_novo_id:foodId===null?newNumericId():null,p_quantidade:qty,p_observacao:note,
+        p_contagem_anterior:previous?.quantidade_contada ?? null
+      });
+      if(error){
+        if(error.code==="PGRST202")throw new Error("Execute primeiro o SQL de atualização do inventário enviado com este script.");
+        throw error;
+      }
+      overlay.remove();
+      db=await loadFromSupabase(false);
+      await saveOfflineSnapshot(db);
+      await refreshAceInventoryState(false);
+      renderAll();
+      showAceSuccess("Alimento salvo na contagem. O saldo será ajustado ao finalizar o inventário.");
+    }catch(error){errorBox.textContent=error?.message||"Não foi possível incluir o alimento.";}
+    finally{busy=false;save.disabled=false;closeButton.disabled=false;save.textContent="Salvar na contagem";}
+  };
+  overlay.querySelector("#aceFoundSearch").focus();
 }
