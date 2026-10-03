@@ -1,4 +1,12 @@
 
+// Inventário de sacos: ajustes independentes, contagem persistida e histórico auditável.
+let aceSackInvView = null;
+let aceSackInvDrafts = new Map();
+let aceSackInvTimers = new Map();
+let aceSackInvSaveChain = Promise.resolve();
+let aceSackInvBusy = false;
+const ACE_SACK_INV_COLUMNS = 'id,status,usuario_id,usuario_nome,iniciado_em,finalizado_em,cancelado_em,cancelado_nome,motivo_cancelamento,estornado_em,estornado_nome,motivo_estorno,excluido_em,excluido_nome,motivo_exclusao,responsavel_nome,conferente_nome,total_sistema,total_contado,total_ajuste';
+
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
 // V7 + SUPABASE AUTH + PWA + APK + INVENTÁRIO ÁGUA FRIA
@@ -26,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-chat-confirmacao-leitura-v81",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-sacos-v82",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.03-chat-confirmacao-leitura-v81";
+  "2026.10.03-inventario-sacos-v82";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -4235,7 +4243,9 @@ async function aceLoadFromSupabaseNetwork(
     movementAuditResult,
     sackTypesResult,
     sackMovementsResult,
-    lossEvidenceResult
+    lossEvidenceResult,
+    sackAdjustmentsResult,
+    sackInventoriesResult
   ] = await Promise.all([
 
     aceEconomicSelect(
@@ -4398,7 +4408,9 @@ async function aceLoadFromSupabaseNetwork(
         "created_at",
         { ascending: false }
       )
-    )
+    ),
+    aceEconomicSelect("sacos_ajustes_inventario", "id,inventario_id,saco_tipo_id,quantidade,tipo,created_at", query => query.order("id")),
+    aceEconomicSelect("sacos_inventarios", ACE_SACK_INV_COLUMNS, query => query.order("iniciado_em", { ascending:false }))
 
   ]);
 
@@ -4656,6 +4668,12 @@ async function aceLoadFromSupabaseNetwork(
       lossEvidenceResult?.error
     );
   }
+
+  // Falhas de rede/permissão não podem omitir ajustes e mostrar saldo incorreto.
+  for (const result of [sackAdjustmentsResult,sackInventoriesResult]) {
+    if (result?.error && !["42P01","PGRST205"].includes(result.error.code)) throw result.error;
+  }
+  const sackInventoryReady = !sackAdjustmentsResult?.error && !sackInventoriesResult?.error;
 
   const reasons =
     loadLocalReasons();
@@ -5072,6 +5090,12 @@ async function aceLoadFromSupabaseNetwork(
         editedAt:
           row.editado_em || ""
       })),
+
+    sackInventoryReady,
+    sackInventories: sackInventoriesResult?.data || [],
+    sackInventoryAdjustments: (sackAdjustmentsResult?.data || []).map(row => ({
+      id:Number(row.id), inventoryId:Number(row.inventario_id), sackTypeId:Number(row.saco_tipo_id), qty:Number(row.quantidade), type:row.tipo
+    })),
 
     sackTypes:
       sackTypeRows.map(row => ({
@@ -41919,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-chat-confirmacao-leitura-v81",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-sacos-v82",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -48500,6 +48524,9 @@ function calcAceSackStock() {
     if (!Object.prototype.hasOwnProperty.call(stock, id)) stock[id] = 0;
     stock[id] += item.type === "entrada" ? Number(item.qty || 0) : -Number(item.qty || 0);
   });
+  (db?.sackInventoryAdjustments || []).forEach(item => {
+    const id=Number(item.sackTypeId); stock[id]=(stock[id]||0)+Number(item.qty||0);
+  });
   return stock;
 }
 
@@ -49231,13 +49258,17 @@ async function deleteAceSackType(
       );
 
 
-  const hasHistory =
-    linkedMovements.length > 0;
+  let hasHistory = linkedMovements.length > 0;
+  if (!hasHistory && db?.sackInventoryReady && aceIsOnline()) {
+    const linkedInventory = await supabaseClient.from("sacos_inventario_itens").select("id").eq("saco_tipo_id",Number(item.id)).limit(1);
+    if (linkedInventory.error) return showAceMessage(linkedInventory.error.message,"Cadastro de sacos");
+    hasHistory = Boolean(linkedInventory.data?.length);
+  }
 
 
   const message =
     hasHistory
-      ? `O tipo "${item.name}" possui ${linkedMovements.length} movimentação(ões) registrada(s).\n\nPara preservar o histórico, ele será DESATIVADO e deixará de aparecer em novos lançamentos.\n\nDeseja continuar?`
+      ? `O tipo "${item.name}" possui histórico de movimentações ou inventários.\n\nPara preservar o histórico, ele será DESATIVADO e deixará de aparecer em novos lançamentos.\n\nDeseja continuar?`
       : `Excluir definitivamente o tipo de saco "${item.name}"?\n\nComo ele nunca foi usado em movimentações, o cadastro pode ser removido sem afetar o histórico.`;
 
 
@@ -49388,6 +49419,7 @@ async function reactivateAceSackType(
 
 
 async function saveAceSackMovement(form) {
+  if (aceSackInvActive()) throw new Error("Inventário de sacos em andamento. Finalize ou cancele antes de movimentar.");
   if (!window.aceSackModuleReady) throw new Error("Execute o SQL do módulo de sacos antes de registrar movimentações.");
   if (!aceIsOnline()) throw new Error("A movimentação de sacos precisa de conexão com o Supabase.");
   const data = new FormData(form);
@@ -49625,6 +49657,7 @@ function renderAceSackModule() {
   renderAceSackHistory("saida");
   renderAceSackStock();
   renderAceSackTypeList();
+  ensureAceSackInventoryUI();
 }
 
 
@@ -49672,6 +49705,7 @@ function restoreAceMovementFormDraft(draft) {
 
 
 function openAceSackEditModal(id) {
+  if (aceSackInvActive()) return showAceMessage("Inventário de sacos em andamento. Finalize ou cancele antes de alterar movimentações.", "Inventário de sacos");
   const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
   if (!item) return;
   document.getElementById("aceSackEditModal")?.remove();
@@ -49705,6 +49739,7 @@ function openAceSackEditModal(id) {
 
 
 async function deleteAceSackMovement(id) {
+  if (aceSackInvActive()) return showAceMessage("Inventário de sacos em andamento. Finalize ou cancele antes de alterar movimentações.", "Inventário de sacos");
   const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
   if (!item) return;
   const ok = await showAceConfirm(`Excluir esta ${item.type === "entrada" ? "entrada" : "saída"} de ${fmt(item.qty)} saco(s)?\n\nO saldo será recalculado automaticamente.`, "🗑️ Excluir movimentação de sacos");
@@ -56288,7 +56323,7 @@ async function saveAceInventoryCount(itemId, quantity) {
 }
 
 
-function requestAceInventorySignatures() {
+function requestAceInventorySignatures(options = {}) {
   return new Promise(resolve => {
     document
       .getElementById("aceInventorySignatureModal")
@@ -56296,6 +56331,7 @@ function requestAceInventorySignatures() {
 
     const responsibleDefault =
       String(
+        options.responsibleName ||
         aceInventoryActive?.usuario_nome ||
         getCurrentDisplayName() ||
         ""
@@ -64536,4 +64572,204 @@ function resetAceChatReadReceipts() {
   aceChatReadEpoch++;
   aceChatStopReadObserver();clearTimeout(aceChatReadFlushTimer);
   aceChatPendingReadIds.clear();aceChatReadRows.clear();aceChatReadFlushing=false;
+}
+
+function aceSackInvActive() { return (db?.sackInventories || []).find(row => row.status === 'em_andamento' && !row.excluido_em); }
+function aceSackInvCanCount(row) { return Boolean(row && (String(row.usuario_id) === String(currentUser?.id) || isAceOperationalAdmin())); }
+function aceSackInvStatus(row) { return ({em_andamento:'Em andamento',finalizado:'Finalizado',cancelado:'Cancelado',estornado:'Estornado'})[row.status] || row.status; }
+function ensureAceSackInventoryUI() {
+  if (!document.getElementById('aceSackInventoryStyles')) {
+    const style=document.createElement('style');style.id='aceSackInventoryStyles';
+    style.textContent=`
+      #aceSackInventoryModal,#aceSackInvReasonModal{position:fixed;inset:0;z-index:2147483640;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(3,31,52,.7);backdrop-filter:blur(4px)}
+      #aceSackInvReasonModal{z-index:2147483645}
+      .ace-si-box{background:#fff;color:#173750;border-radius:18px;padding:22px;width:min(1050px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;box-shadow:0 18px 60px #001c3940}
+      .ace-si-box h3{margin:0;color:#0b4b7a}.ace-si-head,.ace-si-actions{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}.ace-si-actions{justify-content:flex-end;margin-top:18px}
+      .ace-si-box button,.ace-si-banner button{padding:10px 14px;border:1px solid #b9d0df;border-radius:9px;background:#fff;color:#0b4b7a;font:inherit;font-weight:800;cursor:pointer;min-height:42px}
+      .ace-si-box button.ace-si-primary{background:#0b659b;color:#fff;border-color:#0b659b}.ace-si-box button.ace-si-danger{color:#b42318;border-color:#ecb0ad}
+      .ace-si-box button:disabled{opacity:.5;cursor:default}.ace-si-note{color:#526d80;font-size:14px;line-height:1.5}.ace-si-scroll{overflow:auto;max-height:52vh;border:1px solid #d6e3ec;border-radius:10px}
+      .ace-si-table{width:100%;border-collapse:collapse;font-size:14px}.ace-si-table th{position:sticky;top:0;background:#edf5fa;color:#173750;text-align:left;z-index:1}.ace-si-table td,.ace-si-table th{padding:11px;border-bottom:1px solid #e1eaf0;vertical-align:top}
+      .ace-si-table input,.ace-si-box textarea{box-sizing:border-box;padding:10px;border:1px solid #c7d8e5;border-radius:8px;background:#fff;color:#173750;font:inherit}.ace-si-table input[type=number]{width:100px}.ace-si-table input[type=text]{width:220px}.ace-si-box textarea{width:100%}
+      .ace-si-difference{font-weight:900;white-space:nowrap}.ace-si-save{display:block;font-size:11px;color:#526d80;margin-top:5px}.ace-si-error{color:#b42318;font-weight:700;margin-top:10px;white-space:pre-line}.ace-si-banner{padding:12px;margin:14px 0;background:#fff4d7;border:1px solid #e9cd85;border-radius:11px;color:#704707;line-height:1.5}
+      .ace-si-history{padding:14px 0;border-bottom:1px solid #dce7ef}.ace-si-history .ace-si-actions{justify-content:flex-start;margin:10px 0 0}.ace-si-meta{font-size:13px;color:#526d80;margin-top:5px;line-height:1.5}
+      #aceCustomModal,#aceMessageModal{z-index:2147483647!important}
+      @media(max-width:600px){.ace-si-box{padding:16px}.ace-si-head{align-items:flex-start}.ace-si-table td,.ace-si-table th{padding:9px}.ace-si-actions button{flex:1}.ace-si-scroll{max-height:48dvh}}
+    `;
+    document.head.appendChild(style);
+  }
+  const page=document.getElementById('sacosEstoque'); if(!page)return;
+  let controls=document.getElementById('aceSackInventoryControls');
+  if(!controls){controls=document.createElement('div');controls.id='aceSackInventoryControls';page.querySelector('.ace-sack-title')?.after(controls);}
+  const active=aceSackInvActive();
+  controls.innerHTML=`<div style="margin:14px 0"><button type="button" class="ace-sack-submit" id="aceSackInventoryOpen">📋 ${active?'Continuar inventário de sacos':'Inventário de sacos'}</button></div>${active?`<div class="ace-si-banner"><b>Inventário de sacos em andamento</b><br>Iniciado por ${esc(active.usuario_nome)}. Entradas, saídas e alterações de sacos estão bloqueadas até finalizar ou cancelar.</div>`:''}`;
+  document.getElementById('aceSackInventoryOpen').onclick=()=>openAceSackInventory().catch(error=>showAceMessage(error.message,'Inventário de sacos'));
+  for(const id of ['sacosEntrada','sacosSaida']){
+    const target=document.getElementById(id);if(!target)continue;
+    let banner=target.querySelector('[data-ace-si-banner]');
+    if(!banner){banner=document.createElement('div');banner.dataset.aceSiBanner='1';target.prepend(banner);}
+    banner.innerHTML=active?`<div class="ace-si-banner"><b>Inventário de sacos em andamento.</b> Finalize ou cancele a conferência para movimentar o estoque.</div>`:'';
+  }
+}
+async function aceSackInvRPC(action,data={}) {
+  if(!aceIsOnline())throw new Error('Conecte-se à internet para realizar esta operação.');
+  const result=await supabaseClient.rpc('ace_inventario_sacos',{p_acao:action,p_dados:data});
+  if(result.error){if(['PGRST202','42P01'].includes(result.error.code))throw new Error('Execute primeiro o SQL do inventário de sacos enviado com este script.');throw new Error(result.error.message || 'Não foi possível salvar.');}
+  return result.data;
+}
+async function openAceSackInventory() {
+  if(aceSackInvBusy)return;
+  if(aceSackInvDrafts.size)await aceSackInvFlush();
+  ensureAceSackInventoryUI();
+  if(aceIsOnline())await reloadFromSupabase();
+  if(!db?.sackInventoryReady)throw new Error('Execute o SQL do inventário de sacos para ativar esta função.');
+  const active=aceSackInvActive();
+  if(active){
+    if(!aceIsOnline())throw new Error('Conecte-se à internet para continuar a contagem salva.');
+    const result=await supabaseClient.from('sacos_inventario_itens').select('*').eq('inventario_id',active.id).order('saco_nome');
+    if(result.error)throw new Error(result.error.message);
+    aceSackInvView={inventory:active,items:result.data||[]};
+  }else aceSackInvView={inventory:null,items:[]};
+  aceSackInvDrafts.clear();aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();
+  renderAceSackInventoryModal();
+}
+function renderAceSackInventoryModal() {
+  document.getElementById('aceSackInventoryModal')?.remove();
+  const modal=document.createElement('div');modal.id='aceSackInventoryModal';
+  const inv=aceSackInvView?.inventory,items=aceSackInvView?.items||[],can=aceSackInvCanCount(inv)&&aceIsOnline();
+  const counted=items.filter(x=>x.quantidade_contada!=null).length;
+  modal.innerHTML=`<div class="ace-si-box" role="dialog" aria-modal="true" aria-labelledby="aceSackInvTitle"><div class="ace-si-head"><h3 id="aceSackInvTitle">📋 Inventário de sacos</h3><button type="button" data-si-close>Fechar</button></div>
+    ${inv?`<p class="ace-si-note">Responsável: <b>${esc(inv.usuario_nome)}</b> · Início: ${esc(new Date(inv.iniciado_em).toLocaleString('pt-BR'))}<br>Informe a quantidade física total de cada tamanho, inclusive zero. Justifique as diferenças. O saldo só será ajustado após as duas assinaturas.</p>
+    <p id="aceSackInvProgress" class="ace-si-note">${counted} de ${items.length} tipo(s) contado(s).</p>
+    <div class="ace-si-scroll"><table class="ace-si-table"><thead><tr><th>Tipo / tamanho</th><th>Sistema</th><th>Quantidade física</th><th>Diferença</th><th>Justificativa</th></tr></thead><tbody>${items.map(x=>`<tr data-si-item="${Number(x.id)}"><td>${esc(x.saco_nome)}</td><td>${fmt(x.estoque_sistema)}</td><td><input type="number" aria-label="Quantidade física de ${esc(x.saco_nome)}" data-si-qty min="0" max="2147483647" step="1" inputmode="numeric" value="${x.quantidade_contada==null?'':Number(x.quantidade_contada)}" ${!can?'disabled':''}><small class="ace-si-save">${x.quantidade_contada==null?'Não contado':'Salvo'}</small></td><td class="ace-si-difference">${x.quantidade_contada==null?'—':aceSackInvDiff(Number(x.quantidade_contada)-Number(x.estoque_sistema))}</td><td><input type="text" aria-label="Justificativa de ${esc(x.saco_nome)}" data-si-note maxlength="1000" value="${esc(x.justificativa||'')}" placeholder="Obrigatória se houver diferença" ${!can?'disabled':''}></td></tr>`).join('')}</tbody></table></div>
+    <div class="ace-si-actions"><button type="button" data-si-cancel class="ace-si-danger" ${!aceIsOnline()?'disabled':''}>Cancelar inventário</button>${can?'<button type="button" data-si-reload>Recarregar contagem</button><button type="button" data-si-save>Salvar contagem</button><button type="button" data-si-finish class="ace-si-primary">✍️ Assinar e finalizar</button>':''}</div>`:
+    `<p class="ace-si-note">Faça a conferência por tipo e tamanho. Durante a contagem, as movimentações de sacos ficam bloqueadas para todos os usuários.</p><button type="button" data-si-start class="ace-si-primary" ${!aceIsOnline()?'disabled':''}>Iniciar inventário de sacos</button>`}
+    <div id="aceSackInvError" class="ace-si-error" role="alert"></div>
+    <h3 style="margin-top:24px;font-size:19px">Histórico de inventários</h3>
+    ${isAceOperationalAdmin()?'<label class="ace-si-note"><input type="checkbox" id="aceSackInvShowDeleted"> Mostrar excluídos para auditoria</label>':''}
+    <div id="aceSackInvHistory"></div></div>`;
+  document.body.appendChild(modal);renderAceSackInvHistory();
+  modal.querySelector('#aceSackInvShowDeleted')?.addEventListener('change',renderAceSackInvHistory);
+  modal.querySelectorAll('[data-si-item] input').forEach(input=>input.addEventListener('input',()=>aceSackInvDraft(input.closest('[data-si-item]'))));
+  modal.addEventListener('click',async event=>{
+    const button=event.target.closest('button');if(!button||button.disabled||aceSackInvBusy)return;
+    aceSackInvBusy=true;button.disabled=true;
+    try{
+      if(button.matches('[data-si-close]')){
+        try { await aceSackInvFlush(); }
+        catch(error){
+          if(!await showAceConfirm(`${error.message}\n\nFechar e descartar somente as alterações ainda não salvas neste aparelho? A contagem já salva será preservada.`, 'Alterações pendentes'))throw error;
+          aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();aceSackInvDrafts.clear();
+        }
+        modal.remove();aceSackInvView=null;
+      }
+      else if(button.matches('[data-si-reload]')){
+        if(aceSackInvDrafts.size && !await showAceConfirm('Descartar as alterações ainda não salvas e carregar a contagem atual do servidor?', 'Recarregar contagem'))return;
+        aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();await aceSackInvSaveChain.catch(()=>{});aceSackInvDrafts.clear();aceSackInvBusy=false;await openAceSackInventory();
+      }
+      else if(button.matches('[data-si-save]')){await aceSackInvFlush();aceSackInvError('');}
+      else if(button.matches('[data-si-start]')){
+        if(await showAceConfirm('Iniciar a conferência? As movimentações de sacos ficarão bloqueadas para todos até finalizar ou cancelar.','Iniciar inventário de sacos')){await aceSackInvRPC('iniciar');aceSackInvBusy=false;await openAceSackInventory();}
+      }else if(button.matches('[data-si-finish]'))await finishAceSackInventory();
+      else if(button.matches('[data-si-cancel]'))await aceSackInvHistoryAction('cancelar',inv.id);
+      else if(button.dataset.siAction)await aceSackInvHistoryAction(button.dataset.siAction,Number(button.dataset.siId));
+    }catch(error){aceSackInvError(error.message);}
+    finally{aceSackInvBusy=false;if(button.isConnected)button.disabled=false;}
+  });
+}
+function aceSackInvError(message) {const el=document.getElementById('aceSackInvError');if(el)el.textContent=message;}
+function aceSackInvDiff(value){return `${value>0?'+':''}${fmt(value)}`;}
+function aceSackInvDraft(row){
+  const id=Number(row.dataset.siItem),item=aceSackInvView.items.find(x=>Number(x.id)===id);
+  const qty=row.querySelector('[data-si-qty]').value,note=row.querySelector('[data-si-note]').value.trim();
+  const draft={qty,note};aceSackInvDrafts.set(id,draft);
+  row.querySelector('.ace-si-difference').textContent=qty===''?'—':aceSackInvDiff(Number(qty)-Number(item.estoque_sistema));
+  row.querySelector('.ace-si-save').textContent='Alteração pendente';
+  clearTimeout(aceSackInvTimers.get(id));
+  aceSackInvTimers.set(id,setTimeout(()=>{aceSackInvTimers.delete(id);aceSackInvQueueSave(id).catch(error=>aceSackInvError(error.message));},750));
+}
+function aceSackInvQueueSave(id){
+  const task=aceSackInvSaveChain.catch(()=>{}).then(async()=>{
+    const draft=aceSackInvDrafts.get(id);if(!draft)return;
+    const inv=aceSackInvView?.inventory,item=aceSackInvView?.items.find(x=>Number(x.id)===id);
+    if(!inv||!item)throw new Error('Reabra o inventário antes de salvar.');
+    if(draft.qty===''||!Number.isSafeInteger(Number(draft.qty))||Number(draft.qty)<0||Number(draft.qty)>2147483647)throw new Error('Informe uma quantidade inteira igual ou maior que zero.');
+    if(Number(draft.qty)!==Number(item.estoque_sistema)&&draft.note.length<3)throw new Error('Justifique a diferença para salvar a contagem.');
+    const result=await aceSackInvRPC('contar',{inventario_id:inv.id,item_id:id,quantidade:Number(draft.qty),justificativa:draft.note,versao:item.versao});
+    Object.assign(item,result);
+    if(aceSackInvDrafts.get(id)===draft){aceSackInvDrafts.delete(id);const row=document.querySelector(`[data-si-item="${id}"] .ace-si-save`);if(row)row.textContent='Salvo';}
+    const p=document.getElementById('aceSackInvProgress');if(p)p.textContent=`${aceSackInvView.items.filter(x=>x.quantidade_contada!=null).length} de ${aceSackInvView.items.length} tipo(s) contado(s).`;
+    aceSackInvError('');
+  });
+  aceSackInvSaveChain=task;return task;
+}
+async function aceSackInvFlush(){
+  aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();await aceSackInvSaveChain.catch(()=>{});
+  for(const id of Array.from(aceSackInvDrafts.keys()))await aceSackInvQueueSave(id);
+}
+async function finishAceSackInventory(){
+  await aceSackInvFlush();const inv=aceSackInvView.inventory,items=aceSackInvView.items;
+  if(!items.length||items.some(x=>x.quantidade_contada==null))throw new Error('Conte todos os tipos de saco antes de finalizar.');
+  ensureAceInventoryStyles();
+  const signatures=await requestAceInventorySignatures({responsibleName:inv.usuario_nome});if(!signatures)return;
+  const diff=items.reduce((sum,x)=>sum+Number(x.quantidade_contada)-Number(x.estoque_sistema),0);
+  if(!await showAceConfirm(`Finalizar o inventário de sacos?\nAjuste total: ${aceSackInvDiff(diff)} saco(s).\nAs diferenças por tamanho serão aplicadas ao estoque e as assinaturas serão registradas.`,'Finalizar inventário de sacos'))return;
+  await aceSackInvRPC('finalizar',{inventario_id:inv.id,responsavel_nome:signatures.responsibleName,responsavel_assinatura:signatures.responsibleSignature,conferente_nome:signatures.checkerName,conferente_assinatura:signatures.checkerSignature});
+  aceSackInvBusy=false;await openAceSackInventory();showAceSuccess('Inventário de sacos finalizado. Estoque atualizado.');
+}
+function renderAceSackInvHistory(){
+  const target=document.getElementById('aceSackInvHistory');if(!target)return;
+  const showDeleted=document.getElementById('aceSackInvShowDeleted')?.checked;
+  const rows=(db.sackInventories||[]).filter(x=>x.status!=='em_andamento'&&(!x.excluido_em||showDeleted));
+  const admin=isAceOperationalAdmin();
+  target.innerHTML=rows.map(x=>`<section class="ace-si-history"><b>#${Number(x.id)} · ${esc(aceSackInvStatus(x))}${x.excluido_em?' · Excluído da lista principal':''}</b><div class="ace-si-meta">${esc(new Date(x.iniciado_em).toLocaleString('pt-BR'))} · ${esc(x.usuario_nome)}<br>Sistema: ${fmt(x.total_sistema||0)} · Físico: ${x.total_contado==null?'—':fmt(x.total_contado)} · Ajuste: ${x.total_ajuste==null?'—':aceSackInvDiff(Number(x.total_ajuste))}
+    ${x.cancelado_em?`<br>Cancelado por ${esc(x.cancelado_nome)} em ${esc(new Date(x.cancelado_em).toLocaleString('pt-BR'))}: ${esc(x.motivo_cancelamento)}`:''}
+    ${x.estornado_em?`<br>Estornado por ${esc(x.estornado_nome)} em ${esc(new Date(x.estornado_em).toLocaleString('pt-BR'))}: ${esc(x.motivo_estorno)}`:''}
+    ${x.excluido_em?`<br>Excluído por ${esc(x.excluido_nome)} em ${esc(new Date(x.excluido_em).toLocaleString('pt-BR'))}: ${esc(x.motivo_exclusao)}`:''}</div>
+    <div class="ace-si-actions"><button type="button" data-si-action="pdf" data-si-id="${Number(x.id)}">📄 PDF</button>${!x.excluido_em&&admin&&x.status==='finalizado'?`<button type="button" data-si-action="estornar" data-si-id="${Number(x.id)}">↩️ Estornar ajuste</button>`:''}${!x.excluido_em&&admin&&['cancelado','estornado'].includes(x.status)?`<button type="button" class="ace-si-danger" data-si-action="excluir" data-si-id="${Number(x.id)}">Excluir do histórico</button>`:''}</div></section>`).join('')||'<p class="ace-si-note">Nenhum inventário encerrado.</p>';
+}
+function aceSackInvAskReason(action){
+  return new Promise(resolve=>{
+    const title={cancelar:'Cancelar inventário',estornar:'Estornar ajuste do inventário',excluir:'Excluir da lista principal'}[action];
+    const modal=document.createElement('div');modal.id='aceSackInvReasonModal';modal.innerHTML=`<form class="ace-si-box" style="max-width:520px"><h3>${title}</h3><p class="ace-si-note">${action==='estornar'?'O sistema reverterá apenas o ajuste deste inventário. As movimentações posteriores serão preservadas.':action==='excluir'?'O registro ficará disponível em “Mostrar excluídos para auditoria”. O estoque não será alterado.':'A contagem será encerrada sem aplicar ajustes ao estoque.'}</p><label>Motivo<textarea required minlength="3" maxlength="1000" rows="3"></textarea></label><div class="ace-si-actions"><button type="button">Voltar</button><button type="submit" class="ace-si-danger">Confirmar</button></div></form>`;
+    document.body.appendChild(modal);modal.querySelector('textarea').focus();
+    modal.querySelector('button[type=button]').onclick=()=>{modal.remove();resolve(null);};
+    modal.querySelector('form').onsubmit=e=>{e.preventDefault();const reason=modal.querySelector('textarea').value.trim();if(reason.length<3)return;modal.remove();resolve(reason);};
+  });
+}
+async function aceSackInvHistoryAction(action,id){
+  if(action==='pdf')return generateAceSackInventoryPDF(id);
+  if(action==='cancelar'){
+    // O cancelamento descarta apenas os rascunhos locais ainda não salvos.
+    await aceSackInvSaveChain.catch(()=>{});
+  }
+  const reason=await aceSackInvAskReason(action);if(!reason)return;
+  aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();
+  await aceSackInvRPC(action,{inventario_id:id,motivo:reason});
+  aceSackInvDrafts.clear();aceSackInvBusy=false;await openAceSackInventory();
+  showAceSuccess(({cancelar:'Inventário cancelado. Estoque preservado.',estornar:'Ajuste estornado. Estoque atualizado.',excluir:'Inventário excluído da lista principal. Registro preservado para auditoria.'})[action]);
+}
+async function generateAceSackInventoryPDF(id){
+  if(!aceIsOnline())throw new Error('Conecte-se à internet para carregar o relatório e as assinaturas.');
+  const [r,i]=await Promise.all([supabaseClient.from('sacos_inventarios').select('*').eq('id',id).single(),supabaseClient.from('sacos_inventario_itens').select('*').eq('inventario_id',id).order('saco_nome')]);
+  if(r.error||i.error)throw new Error((r.error||i.error).message);
+  const inv=r.data,items=i.data||[];await ensureHtml2PdfLibrary();
+  const signature=(label,name,value)=>{const safe=getAceSafeInventorySignature(value);return `<div style="width:48%;text-align:center;break-inside:avoid"><p>${esc(label)}</p><b>${esc(name||'—')}</b>${safe?`<img src="${safe}" style="width:100%;height:110px;object-fit:contain">`:'<p>Sem assinatura: inventário não finalizado.</p>'}</div>`;};
+  const element=document.createElement('div');element.style.cssText='width:760px;min-width:760px;box-sizing:border-box;padding:24px;background:#fff;color:#173750;font-family:Arial,sans-serif;font-size:12px';
+  element.innerHTML=`<h1 style="color:#0b4b7a;font-size:25px">ACE — Inventário de sacos</h1><p>GEPE — Grupo Espírita Paulo e Estevão · Amor que alimenta e acolhe.</p><h2 style="font-size:18px">Inventário #${Number(inv.id)} · ${esc(aceSackInvStatus(inv))}${inv.excluido_em?' · Excluído da lista principal':''}</h2><p>Responsável pela abertura: ${esc(inv.usuario_nome)}<br>Início: ${esc(new Date(inv.iniciado_em).toLocaleString('pt-BR'))}<br>Finalização: ${inv.finalizado_em?esc(new Date(inv.finalizado_em).toLocaleString('pt-BR')):'—'}</p><p><b>Sistema: ${fmt(inv.total_sistema||0)} · Físico: ${inv.total_contado==null?'—':fmt(inv.total_contado)} · Ajuste: ${inv.total_ajuste==null?'—':aceSackInvDiff(Number(inv.total_ajuste))}</b></p>
+    <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#edf5fa"><th style="padding:10px;text-align:left">Tipo / tamanho</th><th>Sistema</th><th>Físico</th><th>Diferença</th><th style="width:30%">Justificativa</th></tr></thead><tbody>${items.map(x=>`<tr style="break-inside:avoid"><td style="padding:10px;border-bottom:1px solid #dce7ef">${esc(x.saco_nome)}</td><td>${fmt(x.estoque_sistema)}</td><td>${x.quantidade_contada==null?'—':fmt(x.quantidade_contada)}</td><td>${x.quantidade_contada==null?'—':aceSackInvDiff(Number(x.quantidade_contada)-Number(x.estoque_sistema))}</td><td style="overflow-wrap:anywhere;padding:8px">${esc(x.justificativa||'—')}</td></tr>`).join('')}</tbody></table>
+    <div style="display:flex;justify-content:space-between;margin-top:25px;break-inside:avoid">${signature('Responsável',inv.responsavel_nome,inv.responsavel_assinatura)}${signature('Conferente',inv.conferente_nome,inv.conferente_assinatura)}</div>
+    ${inv.cancelado_em?`<p>Cancelado por ${esc(inv.cancelado_nome)} em ${esc(new Date(inv.cancelado_em).toLocaleString('pt-BR'))}. Motivo: ${esc(inv.motivo_cancelamento)}</p>`:''}
+    ${inv.estornado_em?`<p><b>Ajuste estornado</b> por ${esc(inv.estornado_nome)} em ${esc(new Date(inv.estornado_em).toLocaleString('pt-BR'))}. Motivo: ${esc(inv.motivo_estorno)}. A contagem acima é o registro original.</p>`:''}
+    ${inv.excluido_em?`<p>Excluído da lista principal por ${esc(inv.excluido_nome)} em ${esc(new Date(inv.excluido_em).toLocaleString('pt-BR'))}. Motivo: ${esc(inv.motivo_exclusao)}</p>`:''}
+    <p style="margin-top:24px;font-size:10px;color:#526d80">Gerado por ${esc(getCurrentDisplayName())} em ${esc(new Date().toLocaleString('pt-BR'))}. Ajustes de inventário são registrados separadamente das entradas e saídas.</p>`;
+  const host=document.createElement('div');host.style.cssText='position:fixed;left:0;top:0;width:794px;background:#fff;z-index:-2147483647;pointer-events:none';host.appendChild(element);document.body.appendChild(host);
+  try{
+    if(document.fonts?.ready)await document.fonts.ready;
+    await Promise.all(Array.from(element.querySelectorAll('img')).map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));
+    const filename=`inventario_sacos_${id}_${String(inv.iniciado_em).slice(0,10)}.pdf`;
+    const worker=window.html2pdf().set({margin:[8,8,8,8],filename,image:{type:'jpeg',quality:.98},html2canvas:{scale:1.6,useCORS:true,backgroundColor:'#fff',windowWidth:794,width:760,scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','thead']}}).from(element).toPdf();
+    const cap=window.Capacitor,fs=cap?.Plugins?.Filesystem,share=cap?.Plugins?.Share;
+    if(cap?.isNativePlatform?.()&&fs&&share){const blob=await worker.outputPdf('blob');if(!blob||blob.size<1000)throw new Error('PDF sem conteúdo.');const saved=await fs.writeFile({path:filename,data:await blobToBase64ForAce(blob),directory:'CACHE',recursive:true});if(!saved?.uri)throw new Error('Não foi possível salvar o PDF no Android.');await share.share({title:'Inventário de sacos ACE',files:[saved.uri],dialogTitle:'Compartilhar PDF'});}
+    else await worker.save();
+  }finally{host.remove();}
 }
