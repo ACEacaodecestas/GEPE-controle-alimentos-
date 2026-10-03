@@ -26,7 +26,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-alimento-encontrado-v80",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-chat-confirmacao-leitura-v81",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -414,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.03-inventario-alimento-encontrado-v80";
+  "2026.10.03-chat-confirmacao-leitura-v81";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41919,7 +41919,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-alimento-encontrado-v80",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-chat-confirmacao-leitura-v81",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -49866,6 +49866,14 @@ let aceTeamUnread = 0;
 let aceTeamPanelOpen = false;
 let aceTeamActiveTab = "online";
 let aceTeamConnecting = false;
+let aceChatReadRows = new Map();
+let aceChatReadObserver = null;
+let aceChatReadDwellTimers = new Map();
+let aceChatVisibleReadRows = new Map();
+let aceChatPendingReadIds = new Set();
+let aceChatReadFlushTimer = null;
+let aceChatReadFlushing = false;
+let aceChatReadEpoch = 0;
 
 const ACE_TEAM_SOUND_PREF_KEY =
   "ace_team_chat_sound_enabled_v1";
@@ -50754,6 +50762,10 @@ function ensureAceTeamStyles() {
       font-size:9px;
     }
 
+    .ace-chat-meta{flex-wrap:wrap;}
+    .ace-chat-receipt{border:0;background:transparent;padding:2px 0;color:#677e8f;font:inherit;font-size:10px;cursor:pointer;white-space:nowrap;}
+    .ace-chat-receipt.is-read{color:#087cc4;font-weight:800;}
+    .ace-chat-receipt:focus-visible{outline:2px solid #1689d0;outline-offset:3px;border-radius:3px;}
     .ace-chat-delete{
       padding:0;
       border:0;
@@ -51120,9 +51132,14 @@ function renderAceTeamOnlineUsers() {
 }
 
 
-function renderAceTeamChat() {
+function renderAceTeamChat({ scrollToBottom = false } = {}) {
   const target = document.getElementById("aceTeamChatMessages");
   if (!target) return;
+  const scrollTopBefore = target.scrollTop;
+  const nearBottom = target.scrollHeight - target.clientHeight - target.scrollTop < 65;
+  aceChatStopReadObserver();
+  const retainedIds = new Set(aceTeamChatMessages.map(row => Number(row.id)));
+  aceChatReadRows.forEach((row,key) => { if (!retainedIds.has(Number(row.message_id))) aceChatReadRows.delete(key); });
 
   if (!aceTeamChatMessages.length) {
     target.innerHTML = `
@@ -51150,6 +51167,7 @@ function renderAceTeamChat() {
           <div class="ace-chat-text">${esc(row.message)}</div>
           <div class="ace-chat-meta">
             <span>${esc(formatAceChatTime(row.created_at))}</span>
+            ${aceChatReceiptHtml(row)}
             ${canDelete ? `
               <button class="ace-chat-delete" type="button"
                 data-ace-chat-delete="${row.id}">Excluir</button>
@@ -51166,7 +51184,9 @@ function renderAceTeamChat() {
   });
 
   requestAnimationFrame(() => {
-    target.scrollTop = target.scrollHeight;
+    target.scrollTop = scrollToBottom || nearBottom ? target.scrollHeight : scrollTopBefore;
+    aceChatUpdateReceiptButtons();
+    aceChatScheduleReadObserver();
   });
 }
 
@@ -51278,7 +51298,7 @@ function receiveAceTeamChatMessage(row, countUnread = true) {
 
   saveAceTeamChatCache();
   renderAceTeamStatus();
-  renderAceTeamChat();
+  renderAceTeamChat({ scrollToBottom: mine });
 }
 
 
@@ -51309,6 +51329,7 @@ async function loadAceTeamChatMessages(force = false) {
     aceTeamChatLoaded = true;
     saveAceTeamChatCache();
     renderAceTeamChat();
+    await loadAceChatReadReceipts();
   } catch (error) {
     console.warn("ACE Chat: não foi possível carregar:", error);
     aceTeamChatMessages = loadAceTeamChatCache();
@@ -51434,6 +51455,7 @@ function removeAceTeamChatMessage(id) {
 
 
 function clearAceTeamChatLocalState() {
+  resetAceChatReadReceipts();
 
   aceTeamChatMessages =
     [];
@@ -51914,6 +51936,7 @@ async function clearAllAceTeamChats() {
 
 
 function setAceTeamTab(tab) {
+  aceChatStopReadObserver();
   aceTeamActiveTab = tab === "chat" ? "chat" : "online";
 
   document.querySelectorAll("[data-ace-team-tab]").forEach(button => {
@@ -51941,6 +51964,8 @@ function setAceTeamTab(tab) {
     setTimeout(() => {
       const target = document.getElementById("aceTeamChatMessages");
       if (target) target.scrollTop = target.scrollHeight;
+      aceChatScheduleReadObserver();
+      loadAceChatReadReceipts();
     }, 60);
   }
 }
@@ -51956,6 +51981,7 @@ function openAceTeamPanel(tab = "online") {
 
 
 function closeAceTeamPanel() {
+  aceChatStopReadObserver();
   aceTeamPanelOpen = false;
   document.getElementById("aceTeamBackdrop")?.classList.remove("open");
   document.getElementById("aceTeamPanel")?.classList.remove("open");
@@ -51963,6 +51989,7 @@ function closeAceTeamPanel() {
 
 
 async function teardownAceTeamRealtime() {
+  resetAceChatReadReceipts();
   const oldChannel = aceTeamChannel;
 
   aceTeamChannel = null;
@@ -52022,6 +52049,9 @@ async function setupAceTeamRealtime() {
       .on("presence", { event: "sync" }, syncAceTeamPresenceState)
       .on("presence", { event: "join" }, syncAceTeamPresenceState)
       .on("presence", { event: "leave" }, syncAceTeamPresenceState)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ace_chat_message_reads" }, event => {
+        receiveAceChatReadReceipt(event.new);
+      })
       .on("broadcast", { event: "chat-message" }, event => {
         receiveAceTeamChatMessage(event?.payload, true);
       })
@@ -52148,7 +52178,10 @@ function setupAceTeamEvents() {
   });
 
   document.addEventListener("visibilitychange", () => {
+    aceChatStopReadObserver();
     if (document.visibilityState === "visible" && aceIsOnline()) {
+      aceChatScheduleReadObserver();
+      loadAceChatReadReceipts();
       if (aceTeamChannel) {
         aceTrackCurrentPresence();
       } else {
@@ -52157,7 +52190,11 @@ function setupAceTeamEvents() {
     }
   });
 
+  window.addEventListener("focus", () => { aceChatScheduleReadObserver(); });
+  window.addEventListener("blur", aceChatStopReadObserver);
+
   window.addEventListener("beforeunload", () => {
+    aceChatStopReadObserver();
     try { aceTeamChannel?.untrack(); } catch {}
   });
 }
@@ -64368,4 +64405,135 @@ function showAceInventoryFoundDialog() {
     finally{busy=false;save.disabled=false;closeButton.disabled=false;save.textContent="Salvar na contagem";}
   };
   overlay.querySelector("#aceFoundSearch").focus();
+}
+
+// Confirmações de leitura: somente mensagens visíveis no Chat aberto.
+function aceChatCanMarkRead() {
+  return Boolean(currentUser?.id && aceIsOnline() && aceTeamPanelOpen &&
+    aceTeamActiveTab === "chat" && document.visibilityState === "visible" &&
+    (typeof document.hasFocus !== "function" || document.hasFocus()));
+}
+
+function aceChatReceiptsFor(messageId) {
+  const message=aceTeamChatMessages.find(row=>Number(row.id)===Number(messageId));
+  return Array.from(aceChatReadRows.values())
+    .filter(row=>Number(row.message_id)===Number(messageId) && String(row.user_id)!==String(message?.user_id))
+    .sort((a,b)=>String(a.read_at).localeCompare(String(b.read_at)));
+}
+
+function aceChatReceiptHtml(row) {
+  if(String(row.user_id)!==String(currentUser?.id||""))return "";
+  const count=aceChatReceiptsFor(row.id).length;
+  return `<button type="button" class="ace-chat-receipt ${count?"is-read":""}" data-ace-chat-receipt="${Number(row.id)}" title="${count?"Ver quem leu e o horário":"Mensagem salva no chat"}">${count?`✓✓ Lida por ${count}`:"✓ Enviada"}</button>`;
+}
+
+function aceChatUpdateReceiptButtons() {
+  document.querySelectorAll("[data-ace-chat-receipt]").forEach(button=>{
+    const id=Number(button.dataset.aceChatReceipt);
+    const count=aceChatReceiptsFor(id).length;
+    button.classList.toggle("is-read",count>0);
+    button.textContent=count?`✓✓ Lida por ${count}`:"✓ Enviada";
+    button.title=count?"Ver quem leu e o horário":"Mensagem salva no chat";
+    button.onclick=()=>{
+      const readers=aceChatReceiptsFor(id);
+      const details=readers.length?readers.map(row=>`${row.reader_name || "Usuário"} — ${new Date(row.read_at).toLocaleString("pt-BR")}`).join("\n"):"Ainda não há confirmação de leitura de outros usuários.";
+      showAceMessage(details,readers.length?"Quem leu a mensagem":"Mensagem enviada");
+    };
+  });
+}
+
+function receiveAceChatReadReceipt(row) {
+  const id=Number(row?.message_id), user=String(row?.user_id||"");
+  if(!Number.isSafeInteger(id)||id<=0||!user||!row?.read_at)return;
+  if(!aceTeamChatMessages.some(message=>Number(message.id)===id))return;
+  aceChatReadRows.set(`${id}:${user}`,{message_id:id,user_id:user,reader_name:String(row.reader_name||"Usuário"),read_at:row.read_at});
+  aceChatUpdateReceiptButtons();
+}
+
+async function loadAceChatReadReceipts() {
+  if(!currentUser?.id||!aceIsOnline()||!aceTeamChatMessages.length)return;
+  const epoch=aceChatReadEpoch, user=String(currentUser.id);
+  const ids=aceTeamChatMessages.map(row=>Number(row.id));
+  try{
+    const {data,error}=await supabaseClient.from("ace_chat_message_reads")
+      .select("message_id,user_id,reader_name,read_at").in("message_id",ids);
+    if(error)throw error;
+    if(epoch!==aceChatReadEpoch||String(currentUser?.id)!==user)return;
+    (data||[]).forEach(receiveAceChatReadReceipt);
+    aceChatScheduleReadObserver();
+  }catch(error){console.warn("ACE Chat: confirmações de leitura indisponíveis:",error?.message||error);}
+}
+
+function aceChatStopReadObserver() {
+  aceChatReadObserver?.disconnect();aceChatReadObserver=null;
+  aceChatReadDwellTimers.forEach(timer=>clearTimeout(timer));aceChatReadDwellTimers.clear();
+  aceChatVisibleReadRows.clear();
+}
+
+function aceChatRowReallyVisible(element) {
+  if(!aceChatCanMarkRead()||!element?.isConnected)return false;
+  const root=document.getElementById("aceTeamChatMessages");
+  if(!root)return false;
+  const r=element.getBoundingClientRect(), box=root.getBoundingClientRect();
+  const left=Math.max(r.left,box.left,0),right=Math.min(r.right,box.right,window.innerWidth);
+  const top=Math.max(r.top,box.top,0),bottom=Math.min(r.bottom,box.bottom,window.innerHeight);
+  if(r.width<=0||r.height<=0||right<=left||bottom<=top)return false;
+  if((right-left)*(bottom-top)/(r.width*r.height)<0.6)return false;
+  const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);
+  return Boolean(hit && element.contains(hit));
+}
+
+function aceChatScheduleReadObserver() {
+  aceChatStopReadObserver();
+  if(!aceChatCanMarkRead()||typeof IntersectionObserver!=="function")return;
+  const root=document.getElementById("aceTeamChatMessages");
+  if(!root)return;
+  aceChatReadObserver=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      const id=Number(entry.target.dataset.aceChatId);
+      if(!entry.isIntersecting||entry.intersectionRatio<0.6){
+        clearTimeout(aceChatReadDwellTimers.get(id));aceChatReadDwellTimers.delete(id);
+        aceChatVisibleReadRows.delete(id);return;
+      }
+      aceChatVisibleReadRows.set(id,entry.target);
+      if(aceChatReadRows.has(`${id}:${currentUser?.id}`)||aceChatReadDwellTimers.has(id))return;
+      aceChatReadDwellTimers.set(id,setTimeout(()=>{
+        aceChatReadDwellTimers.delete(id);
+        if(!aceChatRowReallyVisible(entry.target))return;
+        aceChatPendingReadIds.add(id);
+        clearTimeout(aceChatReadFlushTimer);
+        aceChatReadFlushTimer=setTimeout(flushAceChatReadReceipts,160);
+      },700));
+    });
+  },{root,threshold:[0,0.6,1]});
+  root.querySelectorAll("[data-ace-chat-id]").forEach(element=>{
+    const message=aceTeamChatMessages.find(row=>Number(row.id)===Number(element.dataset.aceChatId));
+    if(message && String(message.user_id)!==String(currentUser.id))aceChatReadObserver.observe(element);
+  });
+}
+
+async function flushAceChatReadReceipts() {
+  if(aceChatReadFlushing||!aceChatCanMarkRead())return;
+  const ids=Array.from(aceChatPendingReadIds).filter(id=>
+    !aceChatReadRows.has(`${id}:${currentUser.id}`) && aceChatRowReallyVisible(aceChatVisibleReadRows.get(id)));
+  aceChatPendingReadIds.clear();if(!ids.length)return;
+  const epoch=aceChatReadEpoch, user=String(currentUser.id);
+  aceChatReadFlushing=true;
+  try{
+    const {data,error}=await supabaseClient.rpc("ace_marcar_mensagens_lidas",{p_message_ids:ids});
+    if(error)throw error;
+    if(epoch!==aceChatReadEpoch||String(currentUser?.id)!==user)return;
+    (Array.isArray(data)?data:[]).forEach(receiveAceChatReadReceipt);
+  }catch(error){console.warn("ACE Chat: não foi possível confirmar leitura:",error?.message||error);}
+  finally{
+    if(epoch===aceChatReadEpoch){aceChatReadFlushing=false;
+      if(aceChatPendingReadIds.size)aceChatReadFlushTimer=setTimeout(flushAceChatReadReceipts,160);
+    }
+  }
+}
+
+function resetAceChatReadReceipts() {
+  aceChatReadEpoch++;
+  aceChatStopReadObserver();clearTimeout(aceChatReadFlushTimer);
+  aceChatPendingReadIds.clear();aceChatReadRows.clear();aceChatReadFlushing=false;
 }
