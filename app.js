@@ -34,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventarios-gestao-v83",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-pdf-sacos-corrigido-v84",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.03-inventarios-gestao-v83";
+  "2026.10.03-pdf-sacos-corrigido-v84";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41943,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventarios-gestao-v83",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-pdf-sacos-corrigido-v84",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -64756,26 +64756,104 @@ async function aceSackInvHistoryAction(action,id){
 }
 async function generateAceSackInventoryPDF(id){
   if(!aceIsOnline())throw new Error('Conecte-se à internet para carregar o relatório e as assinaturas.');
-  const [r,i]=await Promise.all([supabaseClient.from('sacos_inventarios').select('*').eq('id',id).single(),supabaseClient.from('sacos_inventario_itens').select('*').eq('inventario_id',id).order('saco_nome')]);
+  const [r,i]=await Promise.all([
+    aceEconomicSelect('sacos_inventarios','*',query=>query.eq('id',id)),
+    aceEconomicSelect('sacos_inventario_itens','*',query=>query.eq('inventario_id',id).order('saco_nome'))
+  ]);
   if(r.error||i.error)throw new Error((r.error||i.error).message);
-  const inv=r.data,items=i.data||[];await ensureHtml2PdfLibrary();
-  const signature=(label,name,value)=>{const safe=getAceSafeInventorySignature(value);return `<div style="width:48%;text-align:center;break-inside:avoid"><p>${esc(label)}</p><b>${esc(name||'—')}</b>${safe?`<img src="${safe}" style="width:100%;height:110px;object-fit:contain">`:'<p>Sem assinatura: inventário não finalizado.</p>'}</div>`;};
-  const element=document.createElement('div');element.style.cssText='width:760px;min-width:760px;box-sizing:border-box;padding:24px;background:#fff;color:#173750;font-family:Arial,sans-serif;font-size:12px';
-  element.innerHTML=`<h1 style="color:#0b4b7a;font-size:25px">ACE — Inventário de sacos</h1><p>GEPE — Grupo Espírita Paulo e Estevão · Amor que alimenta e acolhe.</p><h2 style="font-size:18px">Inventário #${Number(inv.id)} · ${esc(aceSackInvStatus(inv))}${inv.excluido_em?' · Excluído da lista principal':''}</h2><p>Responsável pela abertura: ${esc(inv.usuario_nome)}<br>Início: ${esc(new Date(inv.iniciado_em).toLocaleString('pt-BR'))}<br>Finalização: ${inv.finalizado_em?esc(new Date(inv.finalizado_em).toLocaleString('pt-BR')):'—'}</p><p><b>Sistema: ${fmt(inv.total_sistema||0)} · Físico: ${inv.total_contado==null?'—':fmt(inv.total_contado)} · Ajuste: ${inv.total_ajuste==null?'—':aceSackInvDiff(Number(inv.total_ajuste))}</b></p>
-    <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#edf5fa"><th style="padding:10px;text-align:left">Tipo / tamanho</th><th>Sistema</th><th>Físico</th><th>Diferença</th><th style="width:30%">Justificativa</th></tr></thead><tbody>${items.map(x=>`<tr style="break-inside:avoid"><td style="padding:10px;border-bottom:1px solid #dce7ef">${esc(x.saco_nome)}</td><td>${fmt(x.estoque_sistema)}</td><td>${x.quantidade_contada==null?'—':fmt(x.quantidade_contada)}</td><td>${x.quantidade_contada==null?'—':aceSackInvDiff(Number(x.quantidade_contada)-Number(x.estoque_sistema))}</td><td style="overflow-wrap:anywhere;padding:8px">${esc(x.justificativa||'—')}</td></tr>`).join('')}</tbody></table>
-    <div style="display:flex;justify-content:space-between;margin-top:25px;break-inside:avoid">${signature('Responsável',inv.responsavel_nome,inv.responsavel_assinatura)}${signature('Conferente',inv.conferente_nome,inv.conferente_assinatura)}</div>
-    ${inv.cancelado_em?`<p>Cancelado por ${esc(inv.cancelado_nome)} em ${esc(new Date(inv.cancelado_em).toLocaleString('pt-BR'))}. Motivo: ${esc(inv.motivo_cancelamento)}</p>`:''}
-    ${inv.estornado_em?`<p><b>Ajuste estornado</b> por ${esc(inv.estornado_nome)} em ${esc(new Date(inv.estornado_em).toLocaleString('pt-BR'))}. Motivo: ${esc(inv.motivo_estorno)}. A contagem acima é o registro original.</p>`:''}
-    ${inv.excluido_em?`<p>Excluído da lista principal por ${esc(inv.excluido_nome)} em ${esc(new Date(inv.excluido_em).toLocaleString('pt-BR'))}. Motivo: ${esc(inv.motivo_exclusao)}</p>`:''}
-    <p style="margin-top:24px;font-size:10px;color:#526d80">Gerado por ${esc(getCurrentDisplayName())} em ${esc(new Date().toLocaleString('pt-BR'))}. Ajustes de inventário são registrados separadamente das entradas e saídas.</p>`;
-  const host=document.createElement('div');host.style.cssText='position:fixed;left:0;top:0;width:794px;background:#fff;z-index:-2147483647;pointer-events:none';host.appendChild(element);document.body.appendChild(host);
-  try{
-    if(document.fonts?.ready)await document.fonts.ready;
-    await Promise.all(Array.from(element.querySelectorAll('img')).map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));
-    const filename=`inventario_sacos_${id}_${String(inv.iniciado_em).slice(0,10)}.pdf`;
-    const worker=window.html2pdf().set({margin:[8,8,8,8],filename,image:{type:'jpeg',quality:.98},html2canvas:{scale:1.6,useCORS:true,backgroundColor:'#fff',windowWidth:794,width:760,scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','thead']}}).from(element).toPdf();
-    const cap=window.Capacitor,fs=cap?.Plugins?.Filesystem,share=cap?.Plugins?.Share;
-    if(cap?.isNativePlatform?.()&&fs&&share){const blob=await worker.outputPdf('blob');if(!blob||blob.size<1000)throw new Error('PDF sem conteúdo.');const saved=await fs.writeFile({path:filename,data:await blobToBase64ForAce(blob),directory:'CACHE',recursive:true});if(!saved?.uri)throw new Error('Não foi possível salvar o PDF no Android.');await share.share({title:'Inventário de sacos ACE',files:[saved.uri],dialogTitle:'Compartilhar PDF'});}
-    else await worker.save();
-  }finally{host.remove();}
+  const inv=r.data?.[0],items=i.data||[];
+  if(!inv||!items.length)throw new Error('Inventário ou itens não encontrados.');
+  await ensureHtml2PdfLibrary();
+  // Obtemos o jsPDF já incluído na biblioteca usando um canvas branco.
+  // O relatório é desenhado diretamente em milímetros, sem captura do DOM.
+  const seed=document.createElement('canvas');seed.width=740;seed.height=1;
+  const seedContext=seed.getContext('2d');seedContext.fillStyle='#fff';seedContext.fillRect(0,0,740,1);
+  const worker=window.html2pdf().set({margin:0,jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(seed,'canvas').toPdf();
+  const pdf=await worker.get('pdf');
+  buildAceSackInventoryDirectPDF(pdf,inv,items);
+  const filename=`inventario_sacos_${id}_${String(inv.iniciado_em).slice(0,10)}.pdf`;
+  const cap=window.Capacitor,fs=cap?.Plugins?.Filesystem,share=cap?.Plugins?.Share;
+  if(cap?.isNativePlatform?.()&&fs&&share){
+    const blob=pdf.output('blob');if(!blob||blob.size<1000)throw new Error('PDF sem conteúdo.');
+    const saved=await fs.writeFile({path:filename,data:await blobToBase64ForAce(blob),directory:'CACHE',recursive:true});
+    if(!saved?.uri)throw new Error('Não foi possível salvar o PDF no Android.');
+    await share.share({title:'Inventário de sacos ACE',files:[saved.uri],dialogTitle:'Compartilhar PDF'});
+  }else pdf.save(filename);
+}
+function buildAceSackInventoryDirectPDF(pdf,inv,items){
+  const left=14,right=196,width=182,bottom=277;
+  let y=0;
+  const clean=value=>String(value??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');
+  const date=value=>value?new Date(value).toLocaleString('pt-BR'):'—';
+  const font=(size=10,bold=false)=>{pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);pdf.setTextColor(23,55,80);};
+  const header=()=>{
+    font(19,true);pdf.text('ACE - Inventário de sacos',left,20);
+    font(9);pdf.text('GEPE - Grupo Espírita Paulo e Estevão',left,27);
+    pdf.text(`Inventário #${Number(inv.id)} | ${clean(aceSackInvStatus(inv))}${inv.excluido_em?' | Excluído da lista principal':''}`,left,33);
+    pdf.setDrawColor(190,211,226);pdf.line(left,37,right,37);y=44;
+  };
+  const next=()=>{pdf.addPage();header();};
+  const room=height=>{if(y+height>bottom)next();};
+  const paragraph=(value,{bold=false,size=10}={})=>{
+    font(size,bold);
+    const lines=pdf.splitTextToSize(clean(value),width);
+    for(const line of lines){room(5);font(size,bold);pdf.text(line,left,y);y+=5;}
+    y+=2;
+  };
+  header();
+  paragraph(`Responsável pela abertura: ${inv.usuario_nome}`);
+  paragraph(`Início: ${date(inv.iniciado_em)} | Finalização: ${date(inv.finalizado_em)}`);
+  const total=items.reduce((sum,x)=>sum+Number(x.estoque_sistema||0),0);
+  const counted=items.filter(x=>x.quantidade_contada!=null);
+  const physical=counted.reduce((sum,x)=>sum+Number(x.quantidade_contada),0);
+  paragraph(`Sistema: ${fmt(inv.total_sistema??total)} | Físico: ${inv.total_contado==null?'Não finalizado':fmt(inv.total_contado)} | Ajuste aplicado: ${inv.total_ajuste==null?'—':aceSackInvDiff(Number(inv.total_ajuste))}`,{bold:true});
+  if(inv.total_contado==null)paragraph(`Contagem parcial: ${counted.length}/${items.length} tipo(s), ${fmt(physical)} saco(s). Nenhum ajuste aplicado.`);
+  y+=3;
+  const columns=[{x:14,w:58,label:'Tipo / tamanho'},{x:72,w:22,label:'Sistema'},{x:94,w:22,label:'Físico'},{x:116,w:24,label:'Diferença'},{x:140,w:56,label:'Justificativa'}];
+  const tableHeader=()=>{
+    room(12);pdf.setFillColor(232,242,249);pdf.rect(left,y-4,width,10,'F');font(9,true);
+    columns.forEach(c=>pdf.text(c.label,c.x+2,y+2));y+=10;
+  };
+  tableHeader();
+  items.forEach((item,index)=>{
+    font(9);
+    const values=[item.saco_nome,fmt(item.estoque_sistema),item.quantidade_contada==null?'—':fmt(item.quantidade_contada),item.quantidade_contada==null?'—':aceSackInvDiff(Number(item.quantidade_contada)-Number(item.estoque_sistema)),item.justificativa||'—'];
+    const lines=values.map((value,n)=>pdf.splitTextToSize(clean(value),columns[n].w-4));
+    const count=Math.max(...lines.map(x=>x.length));let offset=0;
+    const rowHeight=count*4.5+6;
+    if(rowHeight<=bottom-54 && y+rowHeight>bottom){next();tableHeader();}
+    while(offset<count){
+      let capacity=Math.floor((bottom-y-6)/4.5);
+      if(capacity<1){next();tableHeader();capacity=Math.floor((bottom-y-6)/4.5);}
+      const take=Math.min(capacity,count-offset),height=take*4.5+6;
+      if(index%2===0){pdf.setFillColor(248,251,253);pdf.rect(left,y-3,width,height,'F');}
+      font(9);
+      columns.forEach((c,n)=>{const part=lines[n].slice(offset,offset+take);part.forEach((line,k)=>pdf.text(line,c.x+2,y+2+k*4.5));});
+      y+=height;pdf.setDrawColor(216,230,239);pdf.line(left,y-3,right,y-3);offset+=take;
+      if(offset<count){next();tableHeader();}
+    }
+  });
+  y+=8;
+  const signed=Boolean(inv.finalizado_em);
+  if(signed){
+    room(60);const top=y;
+    const signature=(label,name,value,x)=>{
+      font(10,true);pdf.text(label,x+42,top,{align:'center'});
+      font(9);const names=pdf.splitTextToSize(clean(name||'—'),80);
+      names.forEach((line,k)=>pdf.text(line,x+42,top+6+k*4,{align:'center'}));
+      const safe=getAceSafeInventorySignature(value);
+      if(safe){const props=pdf.getImageProperties(safe);const scale=Math.min(80/props.width,30/props.height);const w=props.width*scale,h=props.height*scale;pdf.addImage(safe,props.fileType||'PNG',x+(84-w)/2,top+17,w,h);}
+      else {font(9);pdf.text('Assinatura não disponível',x+42,top+30,{align:'center'});}
+      pdf.setDrawColor(190,211,226);pdf.line(x,top+49,x+84,top+49);
+    };
+    signature('Responsável',inv.responsavel_nome,inv.responsavel_assinatura,14);
+    signature('Conferente',inv.conferente_nome,inv.conferente_assinatura,112);y=top+58;
+  }
+  if(inv.cancelado_em)paragraph(`Cancelado por ${inv.cancelado_nome} em ${date(inv.cancelado_em)}. Motivo: ${inv.motivo_cancelamento}`);
+  if(inv.estornado_em)paragraph(`AJUSTE ESTORNADO por ${inv.estornado_nome} em ${date(inv.estornado_em)}. Motivo: ${inv.motivo_estorno}. A tabela preserva a contagem original.`,{bold:true});
+  if(inv.excluido_em)paragraph(`Excluído da lista principal por ${inv.excluido_nome} em ${date(inv.excluido_em)}. Motivo: ${inv.motivo_exclusao}`);
+  paragraph(`Gerado por ${getCurrentDisplayName()} em ${new Date().toLocaleString('pt-BR')}. Ajustes registrados separadamente das entradas e saídas.`,{size:8});
+  const pages=pdf.internal.getNumberOfPages();
+  for(let page=1;page<=pages;page++){pdf.setPage(page);font(8);pdf.setDrawColor(216,230,239);pdf.line(left,283,right,283);pdf.text('ACE - Controle de alimentos | Inventário de sacos',left,289);pdf.text(`Página ${page} de ${pages}`,right,289,{align:'right'});}
+  return pdf;
 }
