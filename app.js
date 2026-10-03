@@ -34,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-sacos-v82",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventarios-gestao-v83",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.03-inventario-sacos-v82";
+  "2026.10.03-inventarios-gestao-v83";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41943,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventario-sacos-v82",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-inventarios-gestao-v83",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -61198,7 +61198,8 @@ window.aceBuildStatisticsReportHtml =
     management: {
       label: "📈 Gestão",
       items: [
-        { target: "inventario", label: "📦 Inventário" }
+        { target: "inventario", label: "📦 Inventário de alimentos" },
+        { target: "inventarioSacos", label: "🛍️ Inventário de sacos" }
       ]
     },
     settings: {
@@ -61360,6 +61361,11 @@ window.aceBuildStatisticsReportHtml =
   function openOriginal(target) {
     closeDesktopPopup();
     closeMobileSheet();
+    if (target === "inventarioSacos") {
+      if (typeof closeAceMobileDrawer === "function") closeAceMobileDrawer();
+      openAceSackInventory().catch(error => showAceMessage(error.message, "Inventário de sacos"));
+      return;
+    }
 
     try {
       if (typeof activateAceOriginalTab === "function") {
@@ -64601,8 +64607,8 @@ function ensureAceSackInventoryUI() {
   let controls=document.getElementById('aceSackInventoryControls');
   if(!controls){controls=document.createElement('div');controls.id='aceSackInventoryControls';page.querySelector('.ace-sack-title')?.after(controls);}
   const active=aceSackInvActive();
-  controls.innerHTML=`<div style="margin:14px 0"><button type="button" class="ace-sack-submit" id="aceSackInventoryOpen">📋 ${active?'Continuar inventário de sacos':'Inventário de sacos'}</button></div>${active?`<div class="ace-si-banner"><b>Inventário de sacos em andamento</b><br>Iniciado por ${esc(active.usuario_nome)}. Entradas, saídas e alterações de sacos estão bloqueadas até finalizar ou cancelar.</div>`:''}`;
-  document.getElementById('aceSackInventoryOpen').onclick=()=>openAceSackInventory().catch(error=>showAceMessage(error.message,'Inventário de sacos'));
+  controls.innerHTML=active?`<div class="ace-si-banner"><b>Inventário de sacos em andamento</b><br>Iniciado por ${esc(active.usuario_nome)}. Entradas, saídas e alterações de sacos estão bloqueadas até finalizar ou cancelar.<br><button type="button" id="aceSackInventoryContinue" style="margin-top:8px">Continuar contagem</button></div>`:'';
+  document.getElementById('aceSackInventoryContinue')?.addEventListener('click',()=>openAceSackInventory().catch(error=>showAceMessage(error.message,'Inventário de sacos')));
   for(const id of ['sacosEntrada','sacosSaida']){
     const target=document.getElementById(id);if(!target)continue;
     let banner=target.querySelector('[data-ace-si-banner]');
