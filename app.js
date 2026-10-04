@@ -34,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261004-retirada-sugestoes-v86",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-historico-sacos-botao-v85",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.04-retirada-sugestoes-v86";
+  "2026.10.03-historico-sacos-botao-v85";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -36109,15 +36109,9 @@ function openMountedBasketWithdrawalModal(
 
         <input
           id="mountedBasketWithdrawalResponsible"
-          type="search"
-          autocomplete="off"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded="false"
-          aria-controls="aceWithdrawalResponsibleNames"
-          placeholder="Digite ou escolha o responsável"
+          type="text"
+          placeholder="Nome do responsável"
         >
-        <div id="aceWithdrawalResponsibleNames" role="listbox" aria-label="Responsáveis de retiradas anteriores" hidden style="max-height:190px;overflow:auto;border:1px solid #c7d8e5;border-radius:10px;padding:4px;margin-top:4px;background:#fff"></div>
       </label>
 
       <label class="ace-stock-field">
@@ -36158,8 +36152,6 @@ function openMountedBasketWithdrawalModal(
   document.body.appendChild(
     modal
   );
-
-  setupAceWithdrawalResponsibleSuggestions(modal);
 
 
   document
@@ -41951,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261004-retirada-sugestoes-v86",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-historico-sacos-botao-v85",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -64875,44 +64867,4 @@ function buildAceSackInventoryDirectPDF(pdf,inv,items){
   const pages=pdf.internal.getNumberOfPages();
   for(let page=1;page<=pages;page++){pdf.setPage(page);font(8);pdf.setDrawColor(216,230,239);pdf.line(left,283,right,283);pdf.text('ACE - Controle de alimentos | Inventário de sacos',left,289);pdf.text(`Página ${page} de ${pages}`,right,289,{align:'right'});}
   return pdf;
-}
-// Sugestões próprias: não dependem do popup de dados pessoais do navegador.
-function setupAceWithdrawalResponsibleSuggestions(modal){
-  const input=modal.querySelector('#mountedBasketWithdrawalResponsible');
-  const list=modal.querySelector('#aceWithdrawalResponsibleNames');if(!input||!list)return;
-  const known=new Map();
-  (db?.basketWithdrawals||[]).forEach(row=>{
-    const name=String(row.responsible||'').trim();const key=normalizeAceText(name);
-    if(name&&!known.has(key))known.set(key,name);
-  });
-  const names=Array.from(known.values());let visible=[],active=-1;
-  const hide=()=>{list.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;};
-  const select=name=>{input.value=name;hide();input.focus();input.dispatchEvent(new Event('change',{bubbles:true}));};
-  const highlight=()=>{
-    Array.from(list.querySelectorAll('[role=option]')).forEach((button,index)=>{
-      const selected=index===active;button.setAttribute('aria-selected',String(selected));button.style.background=selected?'#eaf4fd':'#fff';
-      if(selected){input.setAttribute('aria-activedescendant',button.id);button.scrollIntoView({block:'nearest'});}
-    });
-  };
-  const show=()=>{
-    const q=normalizeAceText(input.value);visible=names.filter(name=>!q||normalizeAceText(name).includes(q)).slice(0,10);active=-1;
-    list.innerHTML=visible.map((name,index)=>`<button type="button" role="option" aria-selected="false" id="aceWithdrawalName${index}" data-ace-withdrawal-name="${index}" style="display:block;width:100%;text-align:left;padding:11px 12px;border:0;border-radius:7px;background:#fff;color:#173750;font:inherit;cursor:pointer">${esc(name)}</button>`).join('');
-    list.hidden=!visible.length;input.setAttribute('aria-expanded',String(visible.length>0));input.removeAttribute('aria-activedescendant');
-  };
-  input.addEventListener('focus',show);input.addEventListener('input',show);
-  input.addEventListener('keydown',event=>{
-    if(event.key==='Escape'){hide();event.preventDefault();event.stopPropagation();return;}
-    if(event.key==='ArrowDown'||event.key==='ArrowUp'){
-      if(list.hidden)show();if(!visible.length)return;event.preventDefault();
-      active=event.key==='ArrowDown'?(active+1)%visible.length:(active<=0?visible.length-1:active-1);highlight();
-    }else if(event.key==='Enter'&&!list.hidden&&active>=0){event.preventDefault();select(visible[active]);}
-    else if(event.key==='Tab')hide();
-  });
-  // Mantém o foco no campo até o clique escolher o nome.
-  list.addEventListener('pointerdown',event=>{if(event.target.closest('[data-ace-withdrawal-name]'))event.preventDefault();});
-  list.addEventListener('click',event=>{
-    const button=event.target.closest('[data-ace-withdrawal-name]');if(!button)return;
-    event.preventDefault();event.stopPropagation();select(visible[Number(button.dataset.aceWithdrawalName)]);
-  });
-  modal.addEventListener('focusout',event=>{if(!event.relatedTarget||!list.contains(event.relatedTarget))hide();});
 }
