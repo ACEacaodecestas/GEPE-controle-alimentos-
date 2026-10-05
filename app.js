@@ -34,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-historico-sacos-botao-v85",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261005-menu-mobile-gestao-v87",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.03-historico-sacos-botao-v85";
+  "2026.10.05-menu-mobile-gestao-v87";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41943,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261003-historico-sacos-botao-v85",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261005-menu-mobile-gestao-v87",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -61628,6 +61628,10 @@ window.aceBuildStatisticsReportHtml =
           background: #edf7ff;
         }
 
+        #aceMobileBottomNav .ace-bottom-item[data-ace-color="gestao"] .icon {
+          background: #eaf8ef;
+        }
+
         #aceMobileBottomNav .ace-bottom-item[data-ace-color="mais"] .icon {
           background: #f1ecff;
         }
@@ -62571,6 +62575,11 @@ window.aceBuildStatisticsReportHtml =
         <h3 class="ace-group-sheet-title">🔄 Movimentações</h3>
         ${groups.movements.items.map(renderMobileSheetItem).join("")}
       `;
+    } else if (kind === "management") {
+      content.innerHTML = `
+        <h3 class="ace-group-sheet-title">📈 Gestão</h3>
+        ${groups.management.items.map(renderMobileSheetItem).join("")}
+      `;
     } else {
       const accordionSection = (key, icon, title, items) => `
         <div class="ace-more-accordion-section" data-ace-more-section="${key}">
@@ -62594,7 +62603,7 @@ window.aceBuildStatisticsReportHtml =
 
         <div class="ace-more-accordion">
           ${accordionSection("queries", "🗂️", "Consultas", groups.queries.items)}
-          ${accordionSection("management", "📈", "Gestão", groups.management.items)}
+          ${renderMobileSheetItem({target:"presenca",label:"👥 Presença"})}
           <div
             class="ace-more-accordion-section"
             data-ace-more-section="settings"
@@ -62861,14 +62870,14 @@ window.aceBuildStatisticsReportHtml =
         <span class="label">Início</span>
       </button>
 
-      <button class="ace-bottom-item" type="button" data-ace-target="presenca" data-ace-color="presenca" title="Presença">
-        <span class="icon">👥</span>
-        <span class="label">Presença</span>
-      </button>
-
       <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
         <span class="icon">🔄</span>
         <span class="label">Moviment.</span>
+      </button>
+
+      <button class="ace-bottom-item" type="button" data-ace-mobile-group="management" data-ace-color="gestao" title="Gestão">
+        <span class="icon">📈</span>
+        <span class="label">Gestão</span>
       </button>
 
       <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Mais opções">
@@ -62907,12 +62916,12 @@ window.aceBuildStatisticsReportHtml =
 
       if (button.dataset.aceTarget) {
         matches = targetMatchesTab(button.dataset.aceTarget, active);
-      } else if (button.dataset.aceMobileGroup === "movements") {
-        matches = groupContainsActive("movements");
+      } else if (button.dataset.aceMobileGroup) {
+        matches = groupContainsActive(button.dataset.aceMobileGroup);
       } else if (button.dataset.aceMobileMore) {
         matches =
           groupContainsActive("queries") ||
-          groupContainsActive("management") ||
+          targetMatchesTab("presenca", active) ||
           targetMatchesTab("cadastro", active);
       }
 
