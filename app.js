@@ -65,7 +65,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-cestas-disponiveis-gepe-v92",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-cestas-disponiveis-montadas-gepe-v93",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -453,7 +453,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.06-cestas-disponiveis-gepe-v92";
+  "2026.10.06-cestas-disponiveis-montadas-gepe-v93";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14793,6 +14793,12 @@ function renderDashboard() {
   const cestasDisponiveis =
     getMountedBasketAvailableTotal(true);
 
+  // Produção da data selecionada; não altera o saldo disponível.
+  const cestasMontadasNaData =
+    (db.basketStock || [])
+      .filter(row => !row.hiddenHistory && String(row.date || "") === String(date))
+      .reduce((total, row) => total + Number(row.mountedQty || 0), 0);
+
 
   const cestasSaidas =
     (db.basketWithdrawals || [])
@@ -14923,6 +14929,20 @@ function renderDashboard() {
 
       if (item.description) {
         card.title = item.description;
+      }
+
+      if (item.id === "kpiCestas") {
+        let mountedNote = card.querySelector(".ace-kpi-mounted-note");
+        if (!mountedNote) {
+          mountedNote = document.createElement("div");
+          mountedNote.className = "ace-kpi-mounted-note";
+          mountedNote.setAttribute("aria-live", "polite");
+          card.appendChild(mountedNote);
+        }
+        mountedNote.hidden = cestasMontadasNaData <= 0;
+        mountedNote.textContent = cestasMontadasNaData > 0
+          ? `Montadas em ${fmtDate(date)}: ${fmt(cestasMontadasNaData)}`
+          : "";
       }
 
     }
@@ -41971,7 +41991,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-cestas-disponiveis-gepe-v92",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-cestas-disponiveis-montadas-gepe-v93",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -63479,6 +63499,20 @@ function installAceDashboardRewardStyle() {
       margin-left:auto !important;
       margin-right:auto !important;
     }
+
+    #dashboard .cards .ace-kpi-mounted-note{
+      position:relative;
+      z-index:1;
+      margin-top:8px;
+      padding-top:7px;
+      border-top:1px solid rgba(229,138,23,.22);
+      color:#86500d;
+      font-size:12px;
+      font-weight:700;
+      line-height:1.4;
+      overflow-wrap:anywhere;
+    }
+    #dashboard .cards .ace-kpi-mounted-note[hidden]{display:none !important;}
 
     #dashboard .cards > .card{
       width:auto !important;
