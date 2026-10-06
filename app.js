@@ -1,3 +1,38 @@
+// GEPE: fundo geral independente das variáveis e dos temas anteriores.
+// Instalado antes da inicialização para também cobrir login e uso offline.
+(function installGepePageBackground() {
+  const id = "aceGepePageBackgroundV91";
+  document.documentElement.setAttribute("data-ace-gepe-background", "v91");
+  if (document.getElementById(id)) return;
+  const style = document.createElement("style");
+  style.id = id;
+  style.textContent = `
+    @media screen {
+      html[data-ace-gepe-background="v91"]:root {
+        background:#c9e0f2 !important;
+      }
+      html[data-ace-gepe-background="v91"]:root body {
+        background-color:#c9e0f2 !important;
+        background-image:linear-gradient(135deg,#bdd8ed 0%,#d0e5f5 55%,#c4deef 100%) !important;
+        background-repeat:no-repeat !important;
+        background-size:100% 100% !important;
+      }
+      html[data-ace-gepe-background="v91"]:root body > main,
+      html[data-ace-gepe-background="v91"]:root body > .container,
+      html[data-ace-gepe-background="v91"]:root main > .page,
+      html[data-ace-gepe-background="v91"]:root main > .tab-content {
+        background:transparent !important;
+      }
+      /* Preserva a tela de abertura enquanto ela estiver visível. */
+      html[data-ace-gepe-background="v91"].ace-startup-loading body {
+        background:#064b7d !important;
+      }
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+})();
+
+
 
 // Inventário de sacos: ajustes independentes, contagem persistida e histórico auditável.
 let aceSackInvView = null;
@@ -24,17 +59,13 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 (function updateAceServiceWorkerBeforeStartup() {
 
   if (!("serviceWorker" in navigator)) {
-    return {
-      movementId,
-      historyId,
-      online: false
-    };
+    return;
   }
 
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-identidade-gepe-v88",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-fundo-azul-gepe-v91",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +453,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.06-identidade-gepe-v88";
+  "2026.10.06-fundo-azul-gepe-v91";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41943,7 +41974,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-identidade-gepe-v88",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-fundo-azul-gepe-v91",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -53528,7 +53559,7 @@ startAuth();
 (function installAceProfessionalBlueWhiteTheme() {
   "use strict";
 
-  const STYLE_ID = "aceProfessionalGepeThemeV2";
+  const STYLE_ID = "aceProfessionalGepeThemeV3";
   if (document.getElementById(STYLE_ID)) return;
 
   const style = document.createElement("style");
@@ -53545,6 +53576,8 @@ startAuth();
       --ace-blue-200:#c6e4f6;
       --ace-blue-100:#eaf5fc;
       --ace-blue-50:#edf3f8;
+      --ace-gepe-page-bg:#d8e9f5;
+      --ace-gepe-page-background:linear-gradient(145deg,#cbdff0 0%,#d8e9f5 55%,#d2e5f2 100%);
       --ace-gepe-green:#159d78;
       --ace-gepe-green-dark:#08785b;
       --ace-gepe-green-bg:#e7f5ef;
@@ -53571,15 +53604,12 @@ startAuth();
     html{
       color-scheme:light;
       scroll-behavior:smooth;
-      background:var(--ace-blue-50);
+      background:var(--ace-gepe-page-bg);
     }
 
     body{
       color:var(--ace-ink);
-      background:
-        radial-gradient(ellipse at 0% 0%,rgba(18,75,115,.07),transparent 34rem),
-        radial-gradient(ellipse at 100% 12%,rgba(21,157,120,.065),transparent 32rem),
-        var(--ace-blue-50) !important;
+      background:var(--ace-gepe-page-background) !important;
       -webkit-font-smoothing:antialiased;
       text-rendering:optimizeLegibility;
     }
@@ -54184,7 +54214,7 @@ startAuth();
     @media(max-width:850px){
       body{
         background:
-          linear-gradient(160deg,#e7eff6 0,#edf3f8 45%,#eaf3ef 100%) !important;
+          var(--ace-gepe-page-background) !important;
       }
 
       .ace-header-v6{

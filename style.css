@@ -3,7 +3,7 @@
   --blue2:#1467a8;
   --green:#2e9d62;
   --red:#d92d20;
-  --bg:#f3f6f8;
+  --bg:#c9e0f2;
   --card:#fff;
   --text:#17202a;
   --muted:#667085;
@@ -957,4 +957,16 @@ th{
     padding:6px 8px;
   }
 
+}
+
+/* GEPE v91: fundo azul comum no computador e celular. */
+@media screen {
+  html:root { background:#c9e0f2 !important; }
+  html:root body {
+    background-color:#c9e0f2 !important;
+    background-image:linear-gradient(135deg,#bdd8ed 0%,#d0e5f5 55%,#c4deef 100%) !important;
+    background-repeat:no-repeat !important;
+    background-size:100% 100% !important;
+  }
+  html.ace-startup-loading:root body { background:#064b7d !important; }
 }

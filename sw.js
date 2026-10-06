@@ -4,7 +4,7 @@
 // ============================================================
 
 const ACE_CACHE_VERSION =
-  "controle-alimentos-inventario-assinado-20260908-v2";
+  "controle-alimentos-gepe-fundo-azul-20261006-v91";
 
 const ACE_APP_BASE =
   "/GEPE-controle-alimentos-/";
@@ -12,8 +12,8 @@ const ACE_APP_BASE =
 const ACE_CORE_FILES = [
   ACE_APP_BASE,
   `${ACE_APP_BASE}index.html`,
-  `${ACE_APP_BASE}style.css`,
-  `${ACE_APP_BASE}app.js`,
+  `${ACE_APP_BASE}style.css?v=gepe-v91`,
+  `${ACE_APP_BASE}app.js?v=gepe-v91`,
   `${ACE_APP_BASE}manifest-v3.json`,
   `${ACE_APP_BASE}icon-192.png`,
   `${ACE_APP_BASE}icon-512.png`
@@ -74,7 +74,13 @@ async function aceNetworkFirst(request) {
 
     return response;
   } catch (error) {
-    const cached = await caches.match(request);
+    // Os arquivos estáticos podem ter um novo parâmetro de versão.
+    // Mantém o offline usando apenas o cache desta versão do aplicativo.
+    const path = new URL(request.url).pathname;
+    const isCore = ACE_CORE_FILES.some(file =>
+      new URL(file, self.location.origin).pathname === path
+    );
+    const cached = await cache.match(request, { ignoreSearch: isCore });
     if (cached) return cached;
     throw error;
   }
