@@ -34,7 +34,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261005-menu-mobile-gestao-v87",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-identidade-gepe-v88",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -422,7 +422,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.05-menu-mobile-gestao-v87";
+  "2026.10.06-identidade-gepe-v88";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41943,7 +41943,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261005-menu-mobile-gestao-v87",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-identidade-gepe-v88",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -53520,7 +53520,7 @@ startAuth();
 
 
 // ============================================================
-// ACE VISUAL PROFISSIONAL — AZUL E BRANCO
+// ACE VISUAL PROFISSIONAL — IDENTIDADE GEPE: AZUL E VERDE
 // Camada exclusivamente visual. Não altera regras, dados,
 // Supabase, inventário, chat, Gemini ou funcionamento offline.
 // ============================================================
@@ -53528,7 +53528,7 @@ startAuth();
 (function installAceProfessionalBlueWhiteTheme() {
   "use strict";
 
-  const STYLE_ID = "aceProfessionalBlueWhiteThemeV1";
+  const STYLE_ID = "aceProfessionalGepeThemeV2";
   if (document.getElementById(STYLE_ID)) return;
 
   const style = document.createElement("style");
@@ -53536,7 +53536,7 @@ startAuth();
   style.textContent = `
     :root{
       --ace-blue-950:#032f52;
-      --ace-blue-900:#063b63;
+      --ace-blue-900:#124b73;
       --ace-blue-800:#064b7d;
       --ace-blue-700:#075a94;
       --ace-blue-600:#0872b9;
@@ -53544,11 +53544,14 @@ startAuth();
       --ace-blue-300:#8bc8ed;
       --ace-blue-200:#c6e4f6;
       --ace-blue-100:#eaf5fc;
-      --ace-blue-50:#f4f9fd;
+      --ace-blue-50:#edf3f8;
+      --ace-gepe-green:#159d78;
+      --ace-gepe-green-dark:#08785b;
+      --ace-gepe-green-bg:#e7f5ef;
       --ace-white:#ffffff;
       --ace-ink:#102f49;
       --ace-muted:#647b8f;
-      --ace-line:#d9e7f1;
+      --ace-line:#d8e3ec;
       --ace-success:#16834d;
       --ace-success-bg:#eaf8f0;
       --ace-warning:#a86408;
@@ -53574,11 +53577,26 @@ startAuth();
     body{
       color:var(--ace-ink);
       background:
-        radial-gradient(circle at 7% 0%,rgba(22,137,208,.09),transparent 25rem),
-        radial-gradient(circle at 96% 16%,rgba(139,200,237,.10),transparent 28rem),
+        radial-gradient(ellipse at 0% 0%,rgba(18,75,115,.07),transparent 34rem),
+        radial-gradient(ellipse at 100% 12%,rgba(21,157,120,.065),transparent 32rem),
         var(--ace-blue-50) !important;
       -webkit-font-smoothing:antialiased;
       text-rendering:optimizeLegibility;
+    }
+
+    /* O fundo comum aparece por trás dos módulos em todas as telas. */
+    main, .container, .content{
+      background:transparent !important;
+    }
+
+    .tabs .tab.active,
+    .ace-desktop-group-trigger.active,
+    .ace-desktop-group-trigger.open{
+      box-shadow:inset 0 -3px 0 var(--ace-gepe-green),0 5px 14px rgba(18,75,115,.08) !important;
+    }
+
+    #aceMobileBottomNav .ace-bottom-item.active::before{
+      background:var(--ace-gepe-green) !important;
     }
 
     *{
@@ -53662,7 +53680,7 @@ startAuth();
 
     .ace-header-v6{
       isolation:isolate;
-      border-bottom:1px solid rgba(255,255,255,.18) !important;
+      border-bottom:2px solid var(--ace-gepe-green) !important;
       background:
         radial-gradient(circle at 18% 20%,rgba(255,255,255,.12),transparent 18rem),
         linear-gradient(125deg,var(--ace-blue-950) 0%,var(--ace-blue-800) 48%,var(--ace-blue-600) 100%) !important;
@@ -53714,7 +53732,6 @@ startAuth();
       border-color:var(--ace-blue-200) !important;
       background:linear-gradient(180deg,#f4faff,#e4f2fb) !important;
       color:var(--ace-blue-700) !important;
-      box-shadow:inset 0 0 0 1px rgba(22,137,208,.12),0 5px 14px rgba(4,90,148,.08) !important;
     }
 
     #aceDesktopGroupedPopup{
@@ -53749,7 +53766,7 @@ startAuth();
     .ace-admin-info-card{
       border:1px solid var(--ace-line) !important;
       border-radius:var(--ace-radius-md) !important;
-      background:rgba(255,255,255,.98) !important;
+      background:#fff !important;
       box-shadow:var(--ace-shadow-sm) !important;
     }
 
@@ -53790,7 +53807,7 @@ startAuth();
       height:4px;
       margin-top:9px;
       border-radius:999px;
-      background:linear-gradient(90deg,var(--ace-blue-600),var(--ace-blue-300));
+      background:linear-gradient(90deg,var(--ace-blue-700),var(--ace-gepe-green));
     }
 
     .ace-mural-card{
@@ -53819,11 +53836,12 @@ startAuth();
     .ace-report-share-btn,
     .ace-basket-save-btn,
     .ace-stock-confirm,
-    .login-button{
+    .login-button,
+    .ace-si-box button.ace-si-primary{
       border-color:transparent !important;
-      background:linear-gradient(135deg,var(--ace-blue-800),var(--ace-blue-600)) !important;
+      background:linear-gradient(135deg,#09694f,var(--ace-gepe-green-dark)) !important;
       color:#fff !important;
-      box-shadow:0 8px 20px rgba(7,90,148,.20) !important;
+      box-shadow:0 8px 20px rgba(8,120,91,.20) !important;
     }
 
     .ace-mural-admin-btn:hover,
@@ -53833,8 +53851,9 @@ startAuth();
     .ace-report-share-btn:hover,
     .ace-basket-save-btn:hover,
     .ace-stock-confirm:hover,
-    .login-button:hover{
-      box-shadow:0 11px 26px rgba(7,90,148,.28) !important;
+    .login-button:hover,
+    .ace-si-box button.ace-si-primary:hover{
+      box-shadow:0 11px 26px rgba(8,120,91,.28) !important;
       transform:translateY(-2px);
     }
 
@@ -54048,7 +54067,7 @@ startAuth();
     }
 
     #aceChatSend{
-      background:linear-gradient(135deg,var(--ace-blue-800),var(--ace-blue-600)) !important;
+      background:linear-gradient(135deg,#09694f,var(--ace-gepe-green-dark)) !important;
       box-shadow:0 7px 17px rgba(7,90,148,.18);
     }
 
@@ -54165,7 +54184,7 @@ startAuth();
     @media(max-width:850px){
       body{
         background:
-          linear-gradient(180deg,#edf7fd 0,#f7fbfe 250px,#f4f9fd 100%) !important;
+          linear-gradient(160deg,#e7eff6 0,#edf3f8 45%,#eaf3ef 100%) !important;
       }
 
       .ace-header-v6{
@@ -54306,6 +54325,10 @@ startAuth();
         transition-duration:.01ms !important;
       }
     }
+    @media print{
+      html, body{background:#fff !important;}
+    }
+
   `;
 
   document.head.appendChild(style);
