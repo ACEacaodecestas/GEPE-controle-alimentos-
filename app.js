@@ -65,7 +65,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-fundo-azul-gepe-v91",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-cestas-disponiveis-gepe-v92",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -453,7 +453,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.06-fundo-azul-gepe-v91";
+  "2026.10.06-cestas-disponiveis-gepe-v92";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14788,22 +14788,10 @@ function renderDashboard() {
       .length;
 
 
-  const cestasMontadas =
-    (db.basketStock || [])
-      .filter(
-        x =>
-          String(x.date || "") ===
-            String(date || "") &&
-          !x.hiddenHistory
-      )
-      .reduce(
-        (total, x) =>
-          total +
-          Number(
-            x.mountedQty || 0
-          ),
-        0
-      );
+  // Saldo atual de todos os lotes, independente das datas selecionadas.
+  // Usa availableQty, a mesma fonte do estoque de cestas montadas.
+  const cestasDisponiveis =
+    getMountedBasketAvailableTotal(true);
 
 
   const cestasSaidas =
@@ -14846,7 +14834,9 @@ function renderDashboard() {
   const basketKpiCards = [
     {
       id: "kpiCestas",
-      label: "🧺 Cestas montadas"
+      label: "🧺 Cestas disponíveis",
+      unit: "prontas para entrega",
+      description: "Saldo atual de cestas prontas para entrega, independente do filtro de data."
     },
     {
       id: "kpiCestasSaidas",
@@ -14888,7 +14878,7 @@ function renderDashboard() {
       card.innerHTML = `
         <span>${item.label}</span>
         <strong id="${item.id}">0</strong>
-        <small>cestas</small>
+        <small>${item.unit || "cestas"}</small>
       `;
 
 
@@ -14928,7 +14918,11 @@ function renderDashboard() {
 
       if (unit) {
         unit.textContent =
-          "cestas";
+          item.unit || "cestas";
+      }
+
+      if (item.description) {
+        card.title = item.description;
       }
 
     }
@@ -14942,7 +14936,7 @@ function renderDashboard() {
     ["kpiPerda", per],
     ["kpiEstoque", estoque],
     ["kpiPresentes", pres],
-    ["kpiCestas", cestasMontadas],
+    ["kpiCestas", cestasDisponiveis],
     ["kpiCestasSaidas", cestasSaidas],
     ["kpiCestasEstornadas", cestasEstornadas]
   ];
@@ -35221,10 +35215,13 @@ function getFilteredMountedBasketStock() {
 }
 
 
-function getMountedBasketAvailableTotal() {
+function getMountedBasketAvailableTotal(allDates = false) {
 
-  return getFilteredMountedBasketStock()
-    .reduce(
+  const rows = allDates
+    ? (db?.basketStock || []).filter(row => !row.hiddenHistory)
+    : getFilteredMountedBasketStock();
+
+  return rows.reduce(
       (sum, row) =>
         sum +
         Number(
@@ -41974,7 +41971,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-fundo-azul-gepe-v91",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261006-cestas-disponiveis-gepe-v92",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
