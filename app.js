@@ -1,3 +1,4 @@
+let aceMobileDrawerReturnFocus = null;
 // Estado local dos filtros do Estoque geral (PWA).
 let aceStockFilters = {status:'positive', query:'', foodIds:[], sort:'name', pickerQuery:'', pdfScope:'filtered'};
 
@@ -68,7 +69,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-filtros-estoque-pwa-v94",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-layout-mobile-pwa-v95",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -456,7 +457,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.18-filtros-estoque-pwa-v94";
+  "2026.10.18-layout-mobile-pwa-v95";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41991,7 +41992,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-filtros-estoque-pwa-v94",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-layout-mobile-pwa-v95",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -46123,52 +46124,32 @@ function setupAceAccountMenuEvents() {
 // ------------------------------------------------------------
 
 function closeAceMobileDrawer() {
-
-  document.body.classList.remove(
-    "ace-mobile-drawer-open"
-  );
-
-  document
-    .getElementById(
-      "aceMobileDrawer"
-    )
-    ?.classList.remove(
-      "open"
-    );
-
-  document
-    .getElementById(
-      "aceMobileDrawerBackdrop"
-    )
-    ?.classList.remove(
-      "open"
-    );
-
+  const drawer = document.getElementById('aceMobileDrawer');
+  const wasOpen = drawer?.classList.contains('open');
+  document.body.classList.remove('ace-mobile-drawer-open');
+  drawer?.classList.remove('open');
+  document.getElementById('aceMobileDrawerBackdrop')?.classList.remove('open');
+  document.querySelector('#aceMobileBottomNav [data-ace-mobile-more]')?.setAttribute('aria-expanded', 'false');
+  if (wasOpen && aceMobileDrawerReturnFocus?.isConnected) aceMobileDrawerReturnFocus.focus({preventScroll:true});
+  if (drawer) { drawer.setAttribute('aria-hidden', 'true'); drawer.inert = true; }
+  aceMobileDrawerReturnFocus = null;
 }
 
-
 function openAceMobileDrawer() {
-
-  document.body.classList.add(
-    "ace-mobile-drawer-open"
-  );
-
-  document
-    .getElementById(
-      "aceMobileDrawer"
-    )
-    ?.classList.add(
-      "open"
-    );
-
-  document
-    .getElementById(
-      "aceMobileDrawerBackdrop"
-    )
-    ?.classList.add(
-      "open"
-    );
-
+  const drawer = document.getElementById('aceMobileDrawer');
+  if (!drawer) return;
+  closeAceAccountMenu();
+  aceMobileDrawerReturnFocus = document.activeElement;
+  drawer.inert = false;
+  drawer.setAttribute('role', 'dialog');
+  drawer.setAttribute('aria-modal', 'true');
+  drawer.setAttribute('aria-label', 'Menu completo');
+  drawer.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('ace-mobile-drawer-open');
+  drawer.classList.add('open');
+  document.getElementById('aceMobileDrawerBackdrop')?.classList.add('open');
+  document.querySelector('#aceMobileBottomNav [data-ace-mobile-more]')?.setAttribute('aria-expanded', 'true');
+  document.getElementById('aceMobileDrawerClose')?.focus({preventScroll:true});
 }
 
 
@@ -47828,6 +47809,8 @@ function setupProfessionalMobileLayout() {
 
     drawer.id =
       "aceMobileDrawer";
+    drawer.inert = true;
+    drawer.setAttribute('aria-hidden', 'true');
 
 
     drawer.innerHTML = `
@@ -53476,7 +53459,7 @@ startAuth();
         "aceMobileBottomNav"
       );
 
-    if (!bottom) return;
+    if (!bottom || bottom.dataset.aceModernNav === "1") return;
 
     const icons = {
       mural:"📣",
@@ -62929,29 +62912,31 @@ window.aceBuildStatisticsReportHtml =
     const bottom = document.getElementById("aceMobileBottomNav");
     if (!bottom) return;
 
+    bottom.dataset.aceModernNav = "1";
+    bottom.setAttribute('aria-label', 'Navegação principal');
     bottom.innerHTML = `
       <button class="ace-bottom-item" type="button" data-ace-target="mural" data-ace-color="mural" title="Mural ACE">
-        <span class="icon">📣</span>
+        <span class="icon">${getAceModernMobileIcon("mural")}</span>
         <span class="label">Mural</span>
       </button>
 
       <button class="ace-bottom-item" type="button" data-ace-target="inicio" data-ace-color="inicio" title="Início">
-        <span class="icon">🏠</span>
+        <span class="icon">${getAceModernMobileIcon("inicio")}</span>
         <span class="label">Início</span>
       </button>
 
       <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
-        <span class="icon">🔄</span>
+        <span class="icon">${getAceModernMobileIcon("movimentos")}</span>
         <span class="label">Moviment.</span>
       </button>
 
       <button class="ace-bottom-item" type="button" data-ace-mobile-group="management" data-ace-color="gestao" title="Gestão">
-        <span class="icon">📈</span>
+        <span class="icon">${getAceModernMobileIcon("gestao")}</span>
         <span class="label">Gestão</span>
       </button>
 
-      <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Mais opções">
-        <span class="icon">☰</span>
+      <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Menu completo" aria-label="Mais: abrir menu completo" aria-controls="aceMobileDrawer" aria-expanded="false" aria-haspopup="dialog">
+        <span class="icon">${getAceModernMobileIcon("mais")}</span>
         <span class="label">Mais</span>
       </button>
     `;
@@ -62970,7 +62955,10 @@ window.aceBuildStatisticsReportHtml =
     });
 
     const more = bottom.querySelector("[data-ace-mobile-more]");
-    if (more) more.onclick = () => openMobileSheet("more");
+    if (more) more.onclick = () => {
+      document.getElementById(MOBILE_SHEET_ID)?.classList.remove('open');
+      openAceMobileDrawer();
+    };
 
     updateAceGroupedMobileNavigationState();
   }
@@ -62996,6 +62984,8 @@ window.aceBuildStatisticsReportHtml =
       }
 
       button.classList.toggle("active", matches);
+      if (matches) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
     });
   }
 
@@ -65091,3 +65081,71 @@ function renderAceStockPickerOptions(allItems) {
   list.innerHTML = options.length ? options.map(item => `<label class="ace-sf-option"><input type="checkbox" data-stock-food="${Number(item.id)}" ${selected.has(Number(item.id)) ? 'checked' : ''}><span>${esc(item.name)}</span><small>${fmt(item.qty)} un.</small></label>`).join('') : '<p class="ace-sf-help">Nenhum alimento encontrado nesta lista.</p>';
   list.scrollTop = scrollTop;
 }
+
+
+// Ícones vetoriais locais e consistentes; sem dependências de rede.
+function getAceModernMobileIcon(kind) {
+  const paths = {
+    mural: '<path d="m3 10 13-5v14L3 14z"/><path d="m6 15 1 6h4l-2-5M16 9h2a3 3 0 0 1 0 6h-2"/>',
+    inicio: '<path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9"/>',
+    movimentos: '<path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>',
+    gestao: '<path d="M4 3v18h17M8 16v-5m5 5V7m5 9v-8"/>',
+    mais: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'
+  };
+  return `<svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[kind] || paths.mais}</svg>`;
+}
+
+(function installAceModernMobileLayout() {
+  const id = 'aceModernMobileLayoutV95';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = `
+    @media(max-width:850px){
+      html body #aceMenuOutsideHost,html body #aceMobileMenuButton{display:none!important}
+      html body .ace-header-v6{height:128px!important;min-height:128px!important;padding:0!important;position:relative!important}
+      html body #aceMobileHeader{position:absolute!important;inset:0!important;display:grid!important;grid-template-columns:54px minmax(0,1fr) 36px!important;grid-template-rows:56px 44px!important;gap:4px 10px!important;padding:10px 12px!important;height:128px!important;min-height:0!important;box-sizing:border-box!important;align-items:center!important}
+      html body #aceMobileHeader .ace-mobile-logo{grid-column:1!important;grid-row:1!important;width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;margin:0!important;object-fit:contain!important}
+      html body #aceMobileHeader .ace-mobile-brand{grid-column:2/4!important;grid-row:1!important;min-width:0!important;padding:0!important;margin:0!important}
+      html body #aceMobileHeader .ace-mobile-brand-title{font-size:clamp(16px,4.4vw,20px)!important;font-weight:850!important;line-height:1.2!important;letter-spacing:-.3px!important;white-space:normal!important;overflow-wrap:break-word!important;color:#fff!important;margin:0!important}
+      html body #aceMobileHeader .ace-mobile-brand-subtitle{font-size:12px!important;font-weight:550!important;line-height:1.3!important;margin:4px 0 0!important;white-space:normal!important;color:rgba(255,255,255,.9)!important}
+      html body #aceMobileHeader .ace-mobile-user{grid-column:2!important;grid-row:2!important;position:relative!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;min-width:0!important;gap:7px!important;padding:0!important;margin:0!important}
+      html body #aceMobileHeader .ace-mobile-user-name{font-size:11.5px!important;line-height:1.25!important;font-weight:650!important;max-width:calc(100vw - 244px)!important;min-width:0!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important}
+      html body #aceMobileHeader .ace-mobile-avatar-button{width:40px!important;height:40px!important;flex:0 0 40px!important;border:2px solid rgba(255,255,255,.85)!important}
+      html body #aceMobileHeader .ace-mobile-more{grid-column:3!important;grid-row:2!important;width:36px!important;min-height:44px!important;height:44px!important;justify-self:end!important;font-size:24px!important}
+      html body .ace-header-v6 > #aceTeamStatusButton:not(.ace-team-floating){display:inline-flex!important;position:absolute!important;left:12px!important;top:auto!important;bottom:16px!important;right:auto!important;max-width:110px!important;min-height:40px!important;padding:7px 9px!important;gap:5px!important;font-size:11px!important;box-sizing:border-box!important}
+      html body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating{bottom:calc(86px + env(safe-area-inset-bottom,0px))!important;right:12px!important}
+      html body #aceMobileBottomNav{min-height:72px!important;height:auto!important;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px))!important;gap:2px!important;background:rgba(255,255,255,.98)!important;border-top:1px solid #d8e3ec!important;box-shadow:0 -5px 20px rgba(18,75,115,.09)!important}
+      html body #aceMobileBottomNav .ace-bottom-item{flex:1 1 20%!important;min-width:0!important;width:20%!important;min-height:58px!important;padding:5px 1px!important;border-radius:12px!important;color:#526c80!important;gap:4px!important}
+      html body #aceMobileBottomNav .ace-bottom-item .icon{display:flex!important;align-items:center!important;justify-content:center!important;width:34px!important;height:28px!important;min-height:28px!important;background:transparent!important;box-shadow:none!important;border:0!important;filter:none!important;transform:none!important;color:inherit!important}
+      html body #aceMobileBottomNav .ace-bottom-item .icon svg{display:block;width:25px;height:25px;flex:none}
+      html body #aceMobileBottomNav .ace-bottom-item .label{font-size:10.5px!important;font-weight:700!important;line-height:1.2!important;letter-spacing:0!important}
+      html body #aceMobileBottomNav .ace-bottom-item.active{background:#e7f2fa!important;color:#124b73!important;box-shadow:none!important}
+      html body #aceMobileBottomNav .ace-bottom-item.active::before{background:#159d78!important;width:22px!important;height:3px!important;top:1px!important}
+      html body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
+      html body #aceMobileDrawer{width:min(88vw,350px)!important;border-radius:0 20px 20px 0!important;padding:16px 12px calc(18px + env(safe-area-inset-bottom,0px))!important}
+      html body #aceMobileDrawer .ace-drawer-close{width:44px!important;height:44px!important;flex:0 0 44px!important}
+      html body #aceMobileDrawer .ace-drawer-item{min-height:48px!important;font-size:14px!important}
+      html body #aceMobileDrawer .ace-drawer-section-title{font-size:12px!important;letter-spacing:.04em}
+      html body main{padding-top:18px!important}
+      html body #mural .ace-mural-title{font-size:26px!important;line-height:1.2!important}
+      html body #mural .ace-mural-subtitle{font-size:14px!important;line-height:1.5!important;margin-top:8px!important}
+      html body #mural .ace-mural-admin-btn{min-height:44px!important;font-size:14px!important;padding:10px 14px!important}
+      html body .page > .page-head h2{font-size:23px!important;line-height:1.25!important}
+      html body .page > .page-head p{font-size:14px!important;line-height:1.5!important}
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+  document.addEventListener('keydown', event => {
+    const drawer = document.getElementById('aceMobileDrawer');
+    if (!drawer?.classList.contains('open')) return;
+    if (event.key === 'Escape') { event.preventDefault(); closeAceMobileDrawer(); return; }
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(drawer.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex="0"]')).filter(node => node.getClientRects().length);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+  });
+  window.addEventListener('resize', () => { if (window.innerWidth > 850) closeAceMobileDrawer(); });
+})();
