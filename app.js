@@ -77,7 +77,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-icone-v97",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-lateral-v99",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -465,7 +465,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.18-acessibilidade-icone-v97";
+  "2026.10.18-acessibilidade-lateral-v99";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42000,7 +42000,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-icone-v97",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-lateral-v99",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65185,17 +65185,20 @@ function scaleAceAccessibilityStyles() {
 
 function ensureAceAccessibilityButtons() {
   const icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="butt" stroke-linejoin="round" aria-hidden="true" focusable="false">  <path d="M7 18A28 28 0 0 1 57 18M4 30A28 28 0 0 0 12 52M60 30A28 28 0 0 1 52 52M22 60Q32 63 42 60"/>  <path d="M5 26Q32 42 59 26M32 34L17 55M32 34L47 55" stroke-linecap="round"/>  <g fill="#43c5ef">    <circle cx="32" cy="18.5" r="7.4"/>    <circle cx="5" cy="24.5" r="3.5"/>    <circle cx="59" cy="24.5" r="3.5"/>    <circle cx="17" cy="55" r="3.5"/>    <circle cx="47" cy="55" r="3.5"/>  </g></svg>';
-  for (const selector of ['#aceMobileHeader .ace-mobile-user', '#userBar']) {
-    const host = document.querySelector(selector);
-    if (!host || host.querySelector('[data-ace-accessibility]')) continue;
+  // Um único acesso flutuante, sem ocupar o cabeçalho.
+  document.querySelectorAll('#aceMobileHeader .ace-accessibility-button, #userBar .ace-accessibility-button').forEach(button => button.remove());
+  if (!document.getElementById('aceAccessibilityFloatingButton')) {
     const button = document.createElement('button');
-    button.type = 'button'; button.className = 'ace-accessibility-button';
+    button.id = 'aceAccessibilityFloatingButton';
+    button.type = 'button';
     button.setAttribute('data-ace-accessibility', 'open');
     button.setAttribute('aria-label', 'Acessibilidade: ajustar tamanho das letras');
     button.setAttribute('aria-haspopup', 'dialog');
-    button.title = 'Acessibilidade'; button.innerHTML = icon;
-    const avatar = host.querySelector('.ace-mobile-avatar-button, .ace-desktop-avatar-button');
-    host.insertBefore(button, avatar || null);
+    button.setAttribute('aria-controls', 'aceAccessibilityModal');
+    button.setAttribute('aria-expanded', 'false');
+    button.title = 'Acessibilidade';
+    button.innerHTML = icon;
+    document.body.appendChild(button);
   }
   const menu = document.getElementById('aceMobileDrawerList');
   if (menu && !menu.querySelector('[data-ace-accessibility]')) {
@@ -65230,6 +65233,7 @@ function closeAceAccessibility() {
   const modal = document.getElementById('aceAccessibilityModal');
   if (!modal) return;
   modal.remove();
+  document.getElementById('aceAccessibilityFloatingButton')?.setAttribute('aria-expanded', 'false');
   document.body.classList.remove('ace-accessibility-open');
   if (aceAccessibilityReturnFocus?.isConnected) aceAccessibilityReturnFocus.focus({preventScroll:true});
   aceAccessibilityReturnFocus = null;
@@ -65272,6 +65276,7 @@ function openAceAccessibility() {
     else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
   });
   document.body.appendChild(modal); document.body.classList.add('ace-accessibility-open');
+  document.getElementById('aceAccessibilityFloatingButton')?.setAttribute('aria-expanded', 'true');
   setAceAccessibilityLevel(aceAccessibilityLevel, false);
   scaleAceAccessibilityStyles();
   modal.querySelector('[data-ace-font-close]').focus({preventScroll:true});
@@ -65285,8 +65290,11 @@ function openAceAccessibility() {
     const style = document.createElement('style'); style.id = 'aceAccessibilityStyleV96';
     style.textContent = `
       html[data-ace-font-level] body{font-size:calc(var(--ace-body-font-base,16px) * var(--ace-text-scale,1))!important}
-      .ace-accessibility-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;min-width:40px;min-height:44px;padding:6px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
-      .ace-accessibility-button:focus-visible{outline:3px solid #a1e9cf!important;outline-offset:3px}
+      html body #aceAccessibilityFloatingButton{position:fixed!important;right:max(12px,env(safe-area-inset-right,0px))!important;bottom:35vh!important;bottom:calc(clamp(170px,35dvh,360px) + env(safe-area-inset-bottom,0px))!important;z-index:1000050!important;display:flex!important;align-items:center;justify-content:center;width:50px!important;min-width:50px!important;height:50px!important;min-height:50px!important;padding:7px!important;box-sizing:border-box!important;border:2px solid rgba(255,255,255,.95)!important;border-radius:50%!important;background:#124b73!important;color:#fff!important;box-shadow:0 5px 18px rgba(3,47,82,.24)!important;cursor:pointer}
+      html body #aceAccessibilityFloatingButton svg{display:block;width:32px!important;height:32px!important;stroke-width:3;overflow:visible;flex:none}
+      html body #aceAccessibilityFloatingButton:hover{background:#075a94!important}
+      html body #aceAccessibilityFloatingButton:focus-visible{outline:3px solid #159d78!important;outline-offset:4px!important}
+      body.ace-accessibility-open #aceAccessibilityFloatingButton,body.ace-mobile-drawer-open #aceAccessibilityFloatingButton{visibility:hidden!important;pointer-events:none!important}
       .ace-accessibility-menu-item svg{flex:0 0 24px;color:#124b73}
       body.ace-accessibility-open{overflow:hidden!important}
       #aceAccessibilityModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.62);box-sizing:border-box}
@@ -65311,8 +65319,8 @@ function openAceAccessibility() {
       html[data-ace-font-level="1"] body :is(td,th),html[data-ace-font-level="2"] body :is(td,th){white-space:normal;overflow-wrap:anywhere}
       html[data-ace-font-level="1"] body .table-wrap,html[data-ace-font-level="2"] body .table-wrap{overflow-x:auto}
       @media(max-width:850px){
-        html body #aceMobileHeader .ace-mobile-user-name{max-width:calc(100vw - 288px)!important}
-        html body #aceMobileHeader .ace-accessibility-button{flex:0 0 36px;width:36px;min-width:36px;min-height:40px;padding:4px}
+        html body #aceMobileHeader .ace-mobile-user-name{max-width:calc(100vw - 244px)!important}
+        html body #aceAccessibilityFloatingButton{width:48px!important;min-width:48px!important;height:48px!important;min-height:48px!important;padding:6px!important}
         html[data-ace-font-level="1"] body .ace-header-v6,html[data-ace-font-level="2"] body .ace-header-v6{height:auto!important;min-height:188px!important}
         html[data-ace-font-level="1"] body #aceMobileHeader,html[data-ace-font-level="2"] body #aceMobileHeader{position:relative!important;height:auto!important;min-height:188px!important;grid-template-rows:minmax(70px,auto) minmax(44px,auto) 44px!important}
         html[data-ace-font-level="1"] body #aceMobileHeader .ace-mobile-user,html[data-ace-font-level="2"] body #aceMobileHeader .ace-mobile-user{grid-column:1/3!important;grid-row:2!important}
@@ -65324,7 +65332,7 @@ function openAceAccessibility() {
         html[data-ace-font-level="1"] body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating,html[data-ace-font-level="2"] body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating{bottom:calc(112px + env(safe-area-inset-bottom,0px))!important}
         #aceAccessibilityModal .ace-accessibility-box{padding:18px}
       }
-      @media print{html:root{--ace-text-scale:1!important}}
+      @media print{html:root{--ace-text-scale:1!important}html body #aceAccessibilityFloatingButton{display:none!important}}
     `;
     document.head.appendChild(style);
     let stored = 0; try { stored = localStorage.getItem(ACE_ACCESSIBILITY_KEY); } catch {}
