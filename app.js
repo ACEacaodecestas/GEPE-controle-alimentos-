@@ -1,3 +1,11 @@
+// Preferência de leitura local ao aparelho, compartilhada pelas telas do aplicativo.
+const ACE_ACCESSIBILITY_KEY = 'ace_accessibility_text_size_v1';
+const ACE_ACCESSIBILITY_LEVELS = [
+  {name:'Padrão', scale:1}, {name:'Grande', scale:1.2}, {name:'Muito grande', scale:1.4}
+];
+let aceAccessibilityLevel = 0;
+let aceAccessibilityReturnFocus = null;
+
 let aceMobileDrawerReturnFocus = null;
 // Estado local dos filtros do Estoque geral (PWA).
 let aceStockFilters = {status:'positive', query:'', foodIds:[], sort:'name', pickerQuery:'', pdfScope:'filtered'};
@@ -69,7 +77,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-layout-mobile-pwa-v95",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-v96",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -457,7 +465,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.18-layout-mobile-pwa-v95";
+  "2026.10.18-acessibilidade-v96";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41992,7 +42000,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-layout-mobile-pwa-v95",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-v96",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65148,4 +65156,187 @@ function getAceModernMobileIcon(kind) {
     else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
   });
   window.addEventListener('resize', () => { if (window.innerWidth > 850) closeAceMobileDrawer(); });
+})();
+
+
+function scaleAceFontDeclaration(style) {
+  if (!style) return;
+  const value = style.getPropertyValue('font-size');
+  // Tamanhos relativos ao pai já acompanham a herança. rem se refere à raiz fixa.
+  if (!value || value.includes('--ace-text-scale') || /^(inherit|initial|unset|revert|revert-layer)$/i.test(value)) return;
+  if (!/(?:px|rem|vw|vh|pt)\b/i.test(value) || /(?:\d*\.?\d+em\b|%)/i.test(value)) return;
+  style.setProperty('font-size', `calc(${value} * var(--ace-text-scale, 1))`, style.getPropertyPriority('font-size'));
+}
+
+function scaleAceAccessibilityStyles() {
+  const visit = rules => {
+    for (const rule of Array.from(rules || [])) {
+      // A raiz deve manter sua medida original para não multiplicar unidades rem.
+      const rootRule = rule.selectorText?.split(',').some(selector => /^(html|:root)$/.test(selector.trim()));
+      if (!rootRule && rule.style) scaleAceFontDeclaration(rule.style);
+      try { if (rule.cssRules) visit(rule.cssRules); } catch {}
+    }
+  };
+  for (const sheet of Array.from(document.styleSheets || [])) {
+    try { visit(sheet.cssRules); } catch { /* Folhas externas podem bloquear CSSOM. */ }
+  }
+  document.body?.querySelectorAll('[style]').forEach(element => scaleAceFontDeclaration(element.style));
+}
+
+function ensureAceAccessibilityButtons() {
+  const icon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="4.5" r="2"/><path d="M4 9h16M12 7v7m0 0-5 7m5-7 5 7"/></svg>';
+  for (const selector of ['#aceMobileHeader .ace-mobile-user', '#userBar']) {
+    const host = document.querySelector(selector);
+    if (!host || host.querySelector('[data-ace-accessibility]')) continue;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'ace-accessibility-button';
+    button.setAttribute('data-ace-accessibility', 'open');
+    button.setAttribute('aria-label', 'Acessibilidade: ajustar tamanho das letras');
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.title = 'Acessibilidade'; button.innerHTML = icon;
+    const avatar = host.querySelector('.ace-mobile-avatar-button, .ace-desktop-avatar-button');
+    host.insertBefore(button, avatar || null);
+  }
+  const menu = document.getElementById('aceMobileDrawerList');
+  if (menu && !menu.querySelector('[data-ace-accessibility]')) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'ace-drawer-item ace-accessibility-menu-item';
+    button.setAttribute('data-ace-accessibility', 'open');
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.innerHTML = `${icon}<span>Acessibilidade</span>`;
+    menu.appendChild(button);
+  }
+}
+
+function setAceAccessibilityLevel(value, persist = true) {
+  const number = Number(value);
+  aceAccessibilityLevel = Number.isInteger(number) && number >= 0 && number < ACE_ACCESSIBILITY_LEVELS.length ? number : 0;
+  const level = ACE_ACCESSIBILITY_LEVELS[aceAccessibilityLevel];
+  const root = document.documentElement;
+  root.setAttribute('data-ace-font-level', String(aceAccessibilityLevel));
+  root.style.setProperty('--ace-text-scale', String(level.scale));
+  if (persist) { try { localStorage.setItem(ACE_ACCESSIBILITY_KEY, String(aceAccessibilityLevel)); } catch {} }
+  const modal = document.getElementById('aceAccessibilityModal');
+  if (modal) {
+    modal.querySelectorAll('[data-ace-font-level]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.aceFontLevel) === aceAccessibilityLevel)));
+    const status = modal.querySelector('[data-ace-font-status]');
+    if (status) status.textContent = `Tamanho atual: ${level.name} (${Math.round(level.scale * 100)}%)`;
+    modal.querySelector('[data-ace-font-decrease]').disabled = aceAccessibilityLevel === 0;
+    modal.querySelector('[data-ace-font-increase]').disabled = aceAccessibilityLevel === ACE_ACCESSIBILITY_LEVELS.length - 1;
+  }
+}
+
+function closeAceAccessibility() {
+  const modal = document.getElementById('aceAccessibilityModal');
+  if (!modal) return;
+  modal.remove();
+  document.body.classList.remove('ace-accessibility-open');
+  if (aceAccessibilityReturnFocus?.isConnected) aceAccessibilityReturnFocus.focus({preventScroll:true});
+  aceAccessibilityReturnFocus = null;
+}
+
+function openAceAccessibility() {
+  if (document.getElementById('aceAccessibilityModal')) return;
+  if (typeof closeAceMobileDrawer === 'function') closeAceMobileDrawer();
+  if (typeof closeAceAccountMenu === 'function') closeAceAccountMenu();
+  aceAccessibilityReturnFocus = document.activeElement;
+  const modal = document.createElement('div');
+  modal.id = 'aceAccessibilityModal';
+  modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'aceAccessibilityTitle');
+  modal.innerHTML = `
+    <div class="ace-accessibility-box">
+      <div class="ace-accessibility-title-row"><h2 id="aceAccessibilityTitle">Acessibilidade</h2><button type="button" data-ace-font-close aria-label="Fechar acessibilidade">×</button></div>
+      <p>Ajuste o tamanho das letras para uma leitura mais confortável.</p>
+      <div class="ace-accessibility-stepper" role="group" aria-label="Ajustar tamanho das letras"><button type="button" data-ace-font-decrease aria-label="Diminuir letras">A−</button><strong data-ace-font-status role="status" aria-live="polite"></strong><button type="button" data-ace-font-increase aria-label="Aumentar letras">A+</button></div>
+      <div class="ace-accessibility-presets" role="group" aria-label="Tamanhos disponíveis">${ACE_ACCESSIBILITY_LEVELS.map((level,index)=>`<button type="button" data-ace-font-level="${index}" aria-pressed="false">${level.name}</button>`).join('')}</div>
+      <div class="ace-accessibility-preview">Amor que alimenta e acolhe.<br>Escolha o tamanho que fica melhor para você.</div>
+      <p class="ace-accessibility-save-note">Sua preferência fica salva neste aparelho.</p>
+      <button type="button" class="ace-accessibility-reset" data-ace-font-reset>Restaurar padrão</button>
+    </div>`;
+  modal.addEventListener('click', event => {
+    if (event.target === modal || event.target.closest('[data-ace-font-close]')) { closeAceAccessibility(); return; }
+    const preset = event.target.closest('[data-ace-font-level]');
+    if (preset) setAceAccessibilityLevel(preset.dataset.aceFontLevel);
+    else if (event.target.closest('[data-ace-font-decrease]')) setAceAccessibilityLevel(Math.max(0, aceAccessibilityLevel - 1));
+    else if (event.target.closest('[data-ace-font-increase]')) setAceAccessibilityLevel(Math.min(2, aceAccessibilityLevel + 1));
+    else if (event.target.closest('[data-ace-font-reset]')) setAceAccessibilityLevel(0);
+  });
+  modal.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAceAccessibility(); return; }
+    if (event.key !== 'Tab') return;
+    const controls = Array.from(modal.querySelectorAll('button:not(:disabled)')).filter(button => button.getClientRects().length);
+    const first = controls[0], last = controls[controls.length - 1];
+    if (!first) return;
+    if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+  });
+  document.body.appendChild(modal); document.body.classList.add('ace-accessibility-open');
+  setAceAccessibilityLevel(aceAccessibilityLevel, false);
+  scaleAceAccessibilityStyles();
+  modal.querySelector('[data-ace-font-close]').focus({preventScroll:true});
+}
+
+(function installAceAccessibility() {
+  function start() {
+    if (document.getElementById('aceAccessibilityStyleV96')) return;
+    const root = document.documentElement;
+    root.style.setProperty('--ace-body-font-base', getComputedStyle(document.body).fontSize || '16px');
+    const style = document.createElement('style'); style.id = 'aceAccessibilityStyleV96';
+    style.textContent = `
+      html[data-ace-font-level] body{font-size:calc(var(--ace-body-font-base,16px) * var(--ace-text-scale,1))!important}
+      .ace-accessibility-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;min-width:40px;min-height:44px;padding:6px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+      .ace-accessibility-button:focus-visible{outline:3px solid #a1e9cf!important;outline-offset:3px}
+      .ace-accessibility-menu-item svg{flex:0 0 24px;color:#124b73}
+      body.ace-accessibility-open{overflow:hidden!important}
+      #aceAccessibilityModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.62);box-sizing:border-box}
+      #aceAccessibilityModal .ace-accessibility-box{width:min(480px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;padding:22px;box-sizing:border-box;border-radius:20px;background:#fff;color:#173750;box-shadow:0 22px 70px rgba(0,31,58,.3)}
+      #aceAccessibilityModal .ace-accessibility-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+      #aceAccessibilityModal h2{margin:0;font-size:22px;color:#124b73}
+      #aceAccessibilityModal p{font-size:14px;line-height:1.5}
+      #aceAccessibilityModal button{min-height:44px;border:1px solid #bdd2e2;border-radius:10px;background:#f4f8fb;color:#124b73;font:inherit;font-weight:750;padding:9px 12px;cursor:pointer;white-space:normal}
+      #aceAccessibilityModal button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
+      #aceAccessibilityModal [data-ace-font-close]{flex:0 0 44px;font-size:25px;padding:0}
+      #aceAccessibilityModal .ace-accessibility-stepper{display:grid;grid-template-columns:54px minmax(0,1fr) 54px;align-items:center;gap:10px;margin:20px 0}
+      #aceAccessibilityModal [data-ace-font-status]{font-size:14px;text-align:center;line-height:1.5}
+      #aceAccessibilityModal .ace-accessibility-presets{display:flex;flex-wrap:wrap;gap:8px}
+      #aceAccessibilityModal .ace-accessibility-presets button{flex:1 1 110px}
+      #aceAccessibilityModal button[aria-pressed=true]{background:#08785b;color:#fff;border-color:#08785b}
+      #aceAccessibilityModal .ace-accessibility-preview{margin-top:18px;padding:15px;border:1px solid #d8e3ec;border-radius:12px;background:#edf6fc;font-size:16px;line-height:1.6}
+      #aceAccessibilityModal .ace-accessibility-save-note{font-size:12px;color:#526a7d}
+      #aceAccessibilityModal .ace-accessibility-reset{width:100%}
+      #aceStockPdfHost,#aceStockPdfDocument,#aceReportPdfHost{--ace-text-scale:1!important}
+      html[data-ace-font-level="1"] body :is(button,input,select,textarea),html[data-ace-font-level="2"] body :is(button,input,select,textarea){height:auto;min-height:44px;white-space:normal;overflow-wrap:anywhere}
+      html[data-ace-font-level="1"] body main :is(button,input,select,textarea),html[data-ace-font-level="2"] body main :is(button,input,select,textarea){height:auto!important;min-height:44px!important;white-space:normal!important;overflow-wrap:anywhere}
+      html[data-ace-font-level="1"] body :is(td,th),html[data-ace-font-level="2"] body :is(td,th){white-space:normal;overflow-wrap:anywhere}
+      html[data-ace-font-level="1"] body .table-wrap,html[data-ace-font-level="2"] body .table-wrap{overflow-x:auto}
+      @media(max-width:850px){
+        html body #aceMobileHeader .ace-mobile-user-name{max-width:calc(100vw - 288px)!important}
+        html body #aceMobileHeader .ace-accessibility-button{flex:0 0 36px;width:36px;min-width:36px;min-height:40px;padding:4px}
+        html[data-ace-font-level="1"] body .ace-header-v6,html[data-ace-font-level="2"] body .ace-header-v6{height:auto!important;min-height:188px!important}
+        html[data-ace-font-level="1"] body #aceMobileHeader,html[data-ace-font-level="2"] body #aceMobileHeader{position:relative!important;height:auto!important;min-height:188px!important;grid-template-rows:minmax(70px,auto) minmax(44px,auto) 44px!important}
+        html[data-ace-font-level="1"] body #aceMobileHeader .ace-mobile-user,html[data-ace-font-level="2"] body #aceMobileHeader .ace-mobile-user{grid-column:1/3!important;grid-row:2!important}
+        html[data-ace-font-level="1"] body #aceMobileHeader .ace-mobile-user-name,html[data-ace-font-level="2"] body #aceMobileHeader .ace-mobile-user-name{max-width:calc(100vw - 180px)!important;white-space:normal!important;line-height:1.35!important}
+        html[data-ace-font-level="1"] body .ace-header-v6 > #aceTeamStatusButton:not(.ace-team-floating),html[data-ace-font-level="2"] body .ace-header-v6 > #aceTeamStatusButton:not(.ace-team-floating){bottom:12px!important;max-width:none!important}
+        html[data-ace-font-level="1"] body #aceMobileBottomNav .ace-bottom-item,html[data-ace-font-level="2"] body #aceMobileBottomNav .ace-bottom-item{height:auto!important;min-height:68px!important;overflow:visible!important}
+        html[data-ace-font-level="1"] body #aceMobileBottomNav .ace-bottom-item .label,html[data-ace-font-level="2"] body #aceMobileBottomNav .ace-bottom-item .label{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+        html[data-ace-font-level="1"] body,html[data-ace-font-level="2"] body{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))!important}
+        html[data-ace-font-level="1"] body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating,html[data-ace-font-level="2"] body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating{bottom:calc(112px + env(safe-area-inset-bottom,0px))!important}
+        #aceAccessibilityModal .ace-accessibility-box{padding:18px}
+      }
+      @media print{html:root{--ace-text-scale:1!important}}
+    `;
+    document.head.appendChild(style);
+    let stored = 0; try { stored = localStorage.getItem(ACE_ACCESSIBILITY_KEY); } catch {}
+    setAceAccessibilityLevel(stored, false);
+    let scheduled = false;
+    const refresh = () => { scheduled = false; scaleAceAccessibilityStyles(); ensureAceAccessibilityButtons(); };
+    const schedule = () => { if (!scheduled) { scheduled = true; requestAnimationFrame(refresh); } };
+    refresh();
+    new MutationObserver(schedule).observe(root, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['style']});
+    window.addEventListener('load', schedule);
+    window.addEventListener('storage', event => { if (event.key === ACE_ACCESSIBILITY_KEY) setAceAccessibilityLevel(event.newValue, false); });
+    document.addEventListener('click', event => { if (event.target.closest?.('[data-ace-accessibility]')) { event.preventDefault(); openAceAccessibility(); } });
+  }
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start, {once:true});
 })();
