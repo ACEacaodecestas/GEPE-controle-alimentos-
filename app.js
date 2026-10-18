@@ -8,7 +8,7 @@ let aceAccessibilityReturnFocus = null;
 
 let aceMobileDrawerReturnFocus = null;
 // Estado local dos filtros do Estoque geral (PWA).
-let aceStockFilters = {status:'positive', query:'', foodIds:[], sort:'name', pickerQuery:'', pdfScope:'filtered'};
+let aceStockFilters = {status:'positive', query:'', sort:'name', pdfScope:'filtered'};
 
 // GEPE: fundo geral independente das variáveis e dos temas anteriores.
 // Instalado antes da inicialização para também cobrir login e uso offline.
@@ -77,7 +77,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-lateral-v99",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-estoque-simplificado-v100",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -465,7 +465,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.18-acessibilidade-lateral-v99";
+  "2026.10.18-estoque-simplificado-v100";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -20978,14 +20978,13 @@ function ensureStockPdfButton() {
 }
 
 
-function renderStock({ refreshPicker = true } = {}) {
+function renderStock() {
 
   const stockItems =
     getAceUnifiedStockDisplayRows();
 
 
   ensureAceStockFilters(stockItems);
-  if (refreshPicker) renderAceStockPickerOptions(stockItems);
   const stockView = getAceStockFilterView(stockItems);
   const count = document.getElementById('aceStockFilterCount');
   if (count) count.textContent = `Mostrando ${fmt(stockView.items.length)} de ${fmt(stockItems.length)} alimentos cadastrados · ${fmt(stockView.total)} unidades na visualização.`;
@@ -42000,7 +41999,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-lateral-v99",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-estoque-simplificado-v100",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -64968,28 +64967,25 @@ function normalizeAceStockFilterText(value) {
 
 function getAceStockFilterView(allItems = getAceUnifiedStockDisplayRows()) {
   const query = normalizeAceStockFilterText(aceStockFilters.query).trim();
-  const selectedIds = new Set(aceStockFilters.foodIds.map(Number));
   const compareNames = (a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR', { sensitivity: 'base' }) || Number(a.id) - Number(b.id);
   const items = allItems.filter(item => {
     const qty = Number(item.qty || 0);
     if (aceStockFilters.status === 'positive' && qty <= 0) return false;
     if (aceStockFilters.status === 'zero' && qty !== 0) return false;
     if (query && !normalizeAceStockFilterText(item.name).includes(query)) return false;
-    return !selectedIds.size || selectedIds.has(Number(item.id));
+    return true;
   }).slice().sort((a, b) => {
     if (aceStockFilters.sort === 'qty-desc') return Number(b.qty || 0) - Number(a.qty || 0) || compareNames(a, b);
     if (aceStockFilters.sort === 'qty-asc') return Number(a.qty || 0) - Number(b.qty || 0) || compareNames(a, b);
     return compareNames(a, b);
   });
   const sum = rows => rows.reduce((total, row) => total + Number(row.qty || 0), 0);
-  const selectedNames = allItems.filter(item => selectedIds.has(Number(item.id))).map(item => item.name);
   const statusLabel = { positive: 'Com estoque (quantidade maior que zero)', zero: 'Sem estoque (quantidade zero)', all: 'Todos os saldos' }[aceStockFilters.status] || 'Todos os saldos';
   const sortLabel = { name: 'Nome (A–Z)', 'qty-desc': 'Maior quantidade', 'qty-asc': 'Menor quantidade' }[aceStockFilters.sort] || 'Nome (A–Z)';
   return {
     allItems, items, total: sum(items), globalTotal: sum(allItems),
-    active: aceStockFilters.status !== 'all' || !!query || selectedIds.size > 0,
+    active: aceStockFilters.status !== 'all' || !!query,
     description: [statusLabel, query ? `Busca: ${aceStockFilters.query.trim()}` : '',
-      selectedIds.size ? `Alimentos selecionados: ${selectedNames.join(', ') || 'nenhum disponível no cadastro atual'}` : 'Alimentos: todos',
       `Ordem: ${sortLabel}`].filter(Boolean).join(' · ')
   };
 }
@@ -65006,23 +65002,13 @@ function ensureAceStockFilters(allItems) {
       #aceStockFilters .ace-sf-field{display:flex;flex-direction:column;gap:6px;min-width:0;font-weight:700;font-size:13px;color:#124b73}
       #aceStockFilters input[type=search],#aceStockFilters select{box-sizing:border-box;width:100%;min-height:44px;padding:9px 11px;font:inherit}
       #aceStockFilters button{min-height:42px;padding:9px 13px;border:1px solid #bdd2e2;border-radius:10px;background:#f5f9fc;color:#124b73;font:inherit;font-weight:700;cursor:pointer}
-      #aceStockFilters button:focus-visible,#aceStockFilters summary:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
-      #aceStockFilters .ace-sf-bottom{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px;margin-top:14px}
-      #aceStockFilters details{flex:1 1 340px;min-width:0;border:1px solid #d8e3ec;border-radius:12px;padding:11px 13px}
-      #aceStockFilters summary{cursor:pointer;color:#124b73;font-weight:800;min-height:24px}
-      #aceStockFilters .ace-sf-picker-tools{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-      #aceStockFilters .ace-sf-picker-tools input{flex:1 1 200px;min-width:0}
-      #aceStockFilters .ace-sf-picker-list{max-height:230px;overflow:auto;overscroll-behavior:contain;border-top:1px solid #e5edf3}
-      #aceStockFilters .ace-sf-option{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px 4px;border-bottom:1px solid #e5edf3;cursor:pointer;color:#173750;font-size:14px}
-      #aceStockFilters .ace-sf-option input[type=checkbox]{appearance:auto!important;width:18px!important;height:18px!important;min-height:18px!important;margin:0!important;padding:0!important;accent-color:#08785b;cursor:pointer}
-      #aceStockFilters .ace-sf-option span{overflow-wrap:anywhere}
-      #aceStockFilters .ace-sf-option small{color:#526a7d;font-size:12px;white-space:nowrap}
-      #aceStockFilters .ace-sf-help{font-size:12px;color:#526a7d;margin:9px 0 0;line-height:1.5}
+      #aceStockFilters button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
+      #aceStockFilters .ace-sf-bottom{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:flex-end;gap:14px;margin-top:14px}
       #aceStockFilters .ace-sf-pdf{flex:0 1 260px}
       #aceStockFilterCount{margin:14px 0 0;color:#526a7d;font-size:13px;line-height:1.5}
       #stockCards .ace-sf-subtotal-note{margin:6px 0 0;color:#526a7d;font-size:12px}
       @media(max-width:850px){#aceStockFilters .ace-sf-grid{grid-template-columns:1fr 1fr}#aceStockFilters .ace-sf-bottom{display:block}#aceStockFilters .ace-sf-pdf{margin-top:12px}}
-      @media(max-width:480px){#aceStockFilters .ace-sf-grid{grid-template-columns:1fr}#aceStockFilters{padding:14px}#aceStockFilters .ace-sf-picker-tools button{flex:1 1 auto}}
+      @media(max-width:480px){#aceStockFilters .ace-sf-grid{grid-template-columns:1fr}#aceStockFilters{padding:14px}}
     `;
     document.head.appendChild(style);
   }
@@ -65039,11 +65025,6 @@ function ensureAceStockFilters(allItems) {
         <button id="aceStockClear" type="button">Limpar filtros</button>
       </div>
       <div class="ace-sf-bottom">
-        <details id="aceStockPicker"><summary id="aceStockPickerSummary">Selecionar alimentos</summary>
-          <p class="ace-sf-help">Marque os alimentos que deseja consultar. Sem seleção, todos participam da consulta. A situação do estoque e a busca também se aplicam.</p>
-          <div class="ace-sf-picker-tools"><input id="aceStockPickerSearch" type="search" aria-label="Buscar na lista de seleção" placeholder="Pesquisar na lista" autocomplete="off"><button id="aceStockSelectResults" type="button">Marcar resultados</button><button id="aceStockClearSelection" type="button">Limpar seleção</button></div>
-          <div id="aceStockPickerList" class="ace-sf-picker-list" role="group" aria-label="Alimentos para consulta"></div>
-        </details>
         <label class="ace-sf-field ace-sf-pdf">Conteúdo do PDF<select id="aceStockPdfScope"><option value="filtered">Visualização filtrada</option><option value="full">Estoque completo</option></select></label>
       </div>
       <p id="aceStockFilterCount" role="status" aria-live="polite"></p>`;
@@ -65054,42 +65035,13 @@ function ensureAceStockFilters(allItems) {
     bind('aceStockSearch', 'input', event => { aceStockFilters.query = event.target.value; renderStock(); });
     bind('aceStockSort', 'change', event => { aceStockFilters.sort = event.target.value; renderStock(); });
     bind('aceStockPdfScope', 'change', event => { aceStockFilters.pdfScope = event.target.value; });
-    bind('aceStockClear', 'click', () => { Object.assign(aceStockFilters, {status:'positive', query:'', foodIds:[], sort:'name', pickerQuery:'', pdfScope:'filtered'}); renderStock(); });
-    bind('aceStockPickerSearch', 'input', event => { aceStockFilters.pickerQuery = event.target.value; renderAceStockPickerOptions(getAceUnifiedStockDisplayRows()); });
-    bind('aceStockClearSelection', 'click', () => { aceStockFilters.foodIds = []; renderStock(); });
-    bind('aceStockSelectResults', 'click', () => {
-      const query = normalizeAceStockFilterText(aceStockFilters.pickerQuery).trim();
-      const ids = new Set(aceStockFilters.foodIds.map(Number));
-      getAceUnifiedStockDisplayRows().filter(item => !query || normalizeAceStockFilterText(item.name).includes(query)).forEach(item => ids.add(Number(item.id)));
-      aceStockFilters.foodIds = [...ids]; renderStock();
-    });
-    bind('aceStockPickerList', 'change', event => {
-      const input = event.target;
-      if (!input.matches('input[data-stock-food]')) return;
-      const id = Number(input.dataset.stockFood);
-      const ids = new Set(aceStockFilters.foodIds.map(Number));
-      input.checked ? ids.add(id) : ids.delete(id);
-      aceStockFilters.foodIds = [...ids];
-      // Keep the clicked checkbox in place for keyboard focus and scrolling.
-      renderStock({ refreshPicker: false });
-    });
+    bind('aceStockClear', 'click', () => { Object.assign(aceStockFilters, {status:'positive', query:'', sort:'name', pdfScope:'filtered'}); renderStock(); });
+
   }
-  const fields = {aceStockStatus:'status', aceStockSearch:'query', aceStockSort:'sort', aceStockPickerSearch:'pickerQuery', aceStockPdfScope:'pdfScope'};
+  const fields = {aceStockStatus:'status', aceStockSearch:'query', aceStockSort:'sort', aceStockPdfScope:'pdfScope'};
   Object.entries(fields).forEach(([id, key]) => { const field = document.getElementById(id); if (field.value !== aceStockFilters[key]) field.value = aceStockFilters[key]; });
-  document.getElementById('aceStockPickerSummary').textContent = aceStockFilters.foodIds.length ? `Selecionar alimentos (${fmt(aceStockFilters.foodIds.length)} selecionados)` : 'Selecionar alimentos (todos)';
-}
 
-function renderAceStockPickerOptions(allItems) {
-  const list = document.getElementById('aceStockPickerList');
-  if (!list) return;
-  const scrollTop = list.scrollTop;
-  const query = normalizeAceStockFilterText(aceStockFilters.pickerQuery).trim();
-  const selected = new Set(aceStockFilters.foodIds.map(Number));
-  const options = allItems.filter(item => !query || normalizeAceStockFilterText(item.name).includes(query));
-  list.innerHTML = options.length ? options.map(item => `<label class="ace-sf-option"><input type="checkbox" data-stock-food="${Number(item.id)}" ${selected.has(Number(item.id)) ? 'checked' : ''}><span>${esc(item.name)}</span><small>${fmt(item.qty)} un.</small></label>`).join('') : '<p class="ace-sf-help">Nenhum alimento encontrado nesta lista.</p>';
-  list.scrollTop = scrollTop;
 }
-
 
 // Ícones vetoriais locais e consistentes; sem dependências de rede.
 function getAceModernMobileIcon(kind) {
