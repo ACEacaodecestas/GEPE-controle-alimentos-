@@ -4,7 +4,7 @@
 // ============================================================
 
 const ACE_CACHE_VERSION =
-  "controle-alimentos-gepe-fundo-azul-20261006-v91";
+  "controle-alimentos-gepe-acessibilidade-icone-20261018-v97";
 
 const ACE_APP_BASE =
   "/GEPE-controle-alimentos-/";
@@ -12,8 +12,8 @@ const ACE_APP_BASE =
 const ACE_CORE_FILES = [
   ACE_APP_BASE,
   `${ACE_APP_BASE}index.html`,
-  `${ACE_APP_BASE}style.css?v=gepe-v91`,
-  `${ACE_APP_BASE}app.js?v=gepe-v91`,
+  `${ACE_APP_BASE}style.css?v=gepe-v97`,
+  `${ACE_APP_BASE}app.js?v=gepe-v97`,
   `${ACE_APP_BASE}manifest-v3.json`,
   `${ACE_APP_BASE}icon-192.png`,
   `${ACE_APP_BASE}icon-512.png`

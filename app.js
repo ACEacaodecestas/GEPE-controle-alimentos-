@@ -77,7 +77,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-v96",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-icone-v97",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -465,7 +465,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.18-acessibilidade-v96";
+  "2026.10.18-acessibilidade-icone-v97";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42000,7 +42000,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-v96",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261018-acessibilidade-icone-v97",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65184,7 +65184,7 @@ function scaleAceAccessibilityStyles() {
 }
 
 function ensureAceAccessibilityButtons() {
-  const icon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="4.5" r="2"/><path d="M4 9h16M12 7v7m0 0-5 7m5-7 5 7"/></svg>';
+  const icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="butt" stroke-linejoin="round" aria-hidden="true" focusable="false">  <path d="M7 18A28 28 0 0 1 57 18M4 30A28 28 0 0 0 12 52M60 30A28 28 0 0 1 52 52M22 60Q32 63 42 60"/>  <path d="M5 26Q32 42 59 26M32 34L17 55M32 34L47 55" stroke-linecap="round"/>  <g fill="#43c5ef">    <circle cx="32" cy="18.5" r="7.4"/>    <circle cx="5" cy="24.5" r="3.5"/>    <circle cx="59" cy="24.5" r="3.5"/>    <circle cx="17" cy="55" r="3.5"/>    <circle cx="47" cy="55" r="3.5"/>  </g></svg>';
   for (const selector of ['#aceMobileHeader .ace-mobile-user', '#userBar']) {
     const host = document.querySelector(selector);
     if (!host || host.querySelector('[data-ace-accessibility]')) continue;
