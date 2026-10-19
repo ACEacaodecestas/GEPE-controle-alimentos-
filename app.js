@@ -77,7 +77,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-cabecalho-acessivel-v101",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-online-compacto-v102",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -465,7 +465,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-cabecalho-acessivel-v101";
+  "2026.10.19-online-compacto-v102";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41999,7 +41999,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-cabecalho-acessivel-v101",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-online-compacto-v102",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65137,33 +65137,52 @@ function scaleAceAccessibilityStyles() {
 
 function ensureAceAccessibilityButtons() {
   const icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="butt" stroke-linejoin="round" aria-hidden="true" focusable="false">  <path d="M7 18A28 28 0 0 1 57 18M4 30A28 28 0 0 0 12 52M60 30A28 28 0 0 1 52 52M22 60Q32 63 42 60"/>  <path d="M5 26Q32 42 59 26M32 34L17 55M32 34L47 55" stroke-linecap="round"/>  <g fill="#43c5ef">    <circle cx="32" cy="18.5" r="7.4"/>    <circle cx="5" cy="24.5" r="3.5"/>    <circle cx="59" cy="24.5" r="3.5"/>    <circle cx="17" cy="55" r="3.5"/>    <circle cx="47" cy="55" r="3.5"/>  </g></svg>';
-  // Acessos integrados aos cabeçalhos; recriados somente se o cabeçalho mudar.
-  document.getElementById('aceAccessibilityFloatingButton')?.remove();
-  for (const [hostId, buttonId] of [['aceMobileHeader','aceAccessibilityHeaderButton'], ['userBar','aceAccessibilityDesktopButton']]) {
-    const host = document.getElementById(hostId);
-    if (!host || host.querySelector('[data-ace-accessibility]')) continue;
+  // Acessibilidade nos menus: sem controles sobre o conteúdo ou no cabeçalho.
+  for (const id of ['aceAccessibilityFloatingButton','aceAccessibilityHeaderButton','aceAccessibilityDesktopButton']) document.getElementById(id)?.remove();
+  for (const menuId of ['aceMobileDrawerList','aceDesktopAccountDropdown']) {
+    const menu = document.getElementById(menuId);
+    if (!menu || menu.querySelector('[data-ace-accessibility]')) continue;
     const button = document.createElement('button');
-    button.id = buttonId;
-    button.className = 'ace-accessibility-header-button';
     button.type = 'button';
+    button.className = 'ace-drawer-item ace-accessibility-menu-item';
     button.setAttribute('data-ace-accessibility', 'open');
     button.setAttribute('aria-label', 'Acessibilidade: ajustar tamanho das letras');
     button.setAttribute('aria-haspopup', 'dialog');
     button.setAttribute('aria-controls', 'aceAccessibilityModal');
     button.setAttribute('aria-expanded', String(!!document.getElementById('aceAccessibilityModal')));
-    button.title = 'Acessibilidade';
-    button.innerHTML = icon;
-    host.appendChild(button);
-  }
-  const menu = document.getElementById('aceMobileDrawerList');
-  if (menu && !menu.querySelector('[data-ace-accessibility]')) {
-    const button = document.createElement('button');
-    button.type = 'button'; button.className = 'ace-drawer-item ace-accessibility-menu-item';
-    button.setAttribute('data-ace-accessibility', 'open');
-    button.setAttribute('aria-haspopup', 'dialog');
     button.innerHTML = `${icon}<span>Acessibilidade</span>`;
-    menu.appendChild(button);
+    menu.insertBefore(button, menu.querySelector('.logout'));
   }
+  ensureAceCompactOnline();
+}
+
+// A área de toque continua confortável; somente a cápsula interna tem fundo branco.
+function ensureAceCompactOnline() {
+  const button = document.getElementById('aceTeamStatusButton');
+  if (!button) return;
+  if (button.querySelector('.ace-team-compact-pill')) { syncAceCompactOnlineWidth(); return; }
+  const pill = document.createElement('span');
+  pill.className = 'ace-team-compact-pill';
+  while (button.firstChild) pill.appendChild(button.firstChild);
+  const chat = pill.querySelector('.ace-team-chat-symbol');
+  if (chat) chat.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></svg>';
+  button.appendChild(pill);
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(syncAceCompactOnlineWidth);
+    observer.observe(pill);
+  }
+  syncAceCompactOnlineWidth();
+}
+
+function syncAceCompactOnlineWidth() {
+  if (window.innerWidth > 850) return;
+  const header = document.getElementById('aceMobileHeader');
+  const pill = document.querySelector('#aceTeamStatusButton .ace-team-compact-pill');
+  if (!header || !pill) return;
+  const width = Math.ceil(pill.getBoundingClientRect().width);
+  if (!width) return;
+  const value = `${width}px`;
+  if (header.style.getPropertyValue('--ace-team-slot') !== value) header.style.setProperty('--ace-team-slot', value);
 }
 
 function setAceAccessibilityLevel(value, persist = true) {
@@ -65198,6 +65217,7 @@ function openAceAccessibility() {
   if (document.getElementById('aceAccessibilityModal')) return;
   if (typeof closeAceMobileDrawer === 'function') closeAceMobileDrawer();
   if (typeof closeAceAccountMenu === 'function') closeAceAccountMenu();
+  if (typeof closeAceDesktopAccountMenu === 'function') closeAceDesktopAccountMenu();
   aceAccessibilityReturnFocus = document.activeElement;
   const modal = document.createElement('div');
   modal.id = 'aceAccessibilityModal';
@@ -65245,11 +65265,10 @@ function openAceAccessibility() {
     const style = document.createElement('style'); style.id = 'aceAccessibilityStyleV96';
     style.textContent = `
       html[data-ace-font-level] body{font-size:calc(var(--ace-body-font-base,16px) * var(--ace-text-scale,1))!important}
-      html body :is(#aceAccessibilityHeaderButton,#aceAccessibilityDesktopButton){position:static!important;display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 44px;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:6px!important;box-sizing:border-box!important;border:1px solid rgba(255,255,255,.65)!important;border-radius:12px!important;background:rgba(5,46,78,.35)!important;color:#fff!important;box-shadow:none!important;cursor:pointer}
-      html body .ace-accessibility-header-button svg{display:block;width:30px!important;height:30px!important;stroke-width:3;overflow:visible;flex:none}
-      html body .ace-accessibility-header-button:hover{background:#075a94!important}
-      html body .ace-accessibility-header-button:focus-visible{outline:3px solid #5ee5bb!important;outline-offset:3px!important}
-      .ace-accessibility-menu-item svg{flex:0 0 24px;color:#124b73}
+      html body :is(#aceAccessibilityFloatingButton,#aceAccessibilityHeaderButton,#aceAccessibilityDesktopButton){display:none!important}
+      .ace-accessibility-menu-item{display:flex;align-items:center;gap:10px}
+      .ace-accessibility-menu-item svg{width:20px!important;height:20px!important;flex:0 0 20px!important;color:#124b73}
+      #aceTeamStatusButton .ace-team-compact-pill{display:contents}
       body.ace-accessibility-open{overflow:hidden!important}
       #aceAccessibilityModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.62);box-sizing:border-box}
       #aceAccessibilityModal .ace-accessibility-box{width:min(480px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;padding:22px;box-sizing:border-box;border-radius:20px;background:#fff;color:#173750;box-shadow:0 22px 70px rgba(0,31,58,.3)}
@@ -65276,22 +65295,23 @@ function openAceAccessibility() {
         /* A identidade ocupa toda a largura. A conta e os comandos têm sua própria linha.
            A altura acompanha o texto, sem colunas implícitas ou palavras cortadas. */
         html[data-ace-font-level] body .ace-header-v6{height:auto!important;min-height:128px!important;display:block!important}
-        html[data-ace-font-level] body #aceMobileHeader{position:relative!important;inset:auto!important;width:100%!important;max-width:none!important;height:auto!important;min-height:128px!important;display:grid!important;grid-template-columns:104px minmax(0,1fr) 40px 44px 36px!important;grid-template-rows:minmax(56px,auto) minmax(44px,auto)!important;gap:10px 4px!important;padding:10px 12px 12px!important;box-sizing:border-box!important;align-items:center!important}
+        html[data-ace-font-level] body #aceMobileHeader{position:relative!important;inset:auto!important;width:100%!important;max-width:none!important;height:auto!important;min-height:128px!important;display:grid!important;grid-template-columns:var(--ace-team-slot,132px) minmax(0,1fr) 40px 36px!important;grid-template-rows:minmax(56px,auto) minmax(44px,auto)!important;gap:10px 4px!important;padding:10px 12px 12px!important;box-sizing:border-box!important;align-items:center!important}
         html[data-ace-font-level] body #aceMobileHeader .ace-mobile-logo{grid-column:1!important;grid-row:1!important;width:52px!important;height:52px!important;align-self:center!important;justify-self:start!important}
         html[data-ace-font-level] body #aceMobileHeader .ace-mobile-brand{grid-column:1/-1!important;grid-row:1!important;width:auto!important;max-width:none!important;min-width:0!important;padding:0 0 0 64px!important;box-sizing:border-box!important;align-items:flex-start!important;justify-self:stretch!important;text-align:left!important}
         html[data-ace-font-level] body #aceMobileHeader .ace-mobile-brand-title{width:100%!important;max-width:none!important;font-size:clamp(17px,4.4vw,20px)!important;line-height:1.25!important;white-space:normal!important;word-break:normal!important;overflow-wrap:normal!important;text-align:left!important;letter-spacing:0!important}
         html[data-ace-font-level] body #aceMobileHeader .ace-mobile-brand-subtitle{width:100%!important;font-size:12px!important;line-height:1.4!important;white-space:normal!important;word-break:normal!important;overflow-wrap:normal!important;text-align:left!important;margin-top:4px!important}
         html[data-ace-font-level] body #aceMobileHeader .ace-mobile-user{grid-column:2/4!important;grid-row:2!important;display:flex!important;gap:5px!important;min-width:0!important;width:100%!important;justify-content:flex-end!important}
         html[data-ace-font-level] body #aceMobileHeader .ace-mobile-user-name{max-width:none!important;min-width:0!important;flex:1 1 0!important;font-size:11.5px!important;line-height:1.3!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;word-break:normal!important;text-align:right!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-more{grid-column:5!important;grid-row:2!important;width:36px!important;min-width:36px!important;height:44px!important;min-height:44px!important;line-height:1!important;white-space:nowrap!important}
-        html[data-ace-font-level] body #aceMobileHeader #aceAccessibilityHeaderButton{grid-column:4!important;grid-row:2!important;align-self:center!important;justify-self:center!important}
-        /* O botão online mantém alvo de toque de 44px e texto proporcional. */
-        html[data-ace-font-level] body .ace-header-v6 > #aceTeamStatusButton{--ace-text-scale:1!important;max-width:104px!important;width:auto!important;min-width:0!important;height:44px!important;min-height:44px!important;padding:5px 7px!important;gap:5px!important;font-size:11px!important;line-height:1.2!important;white-space:nowrap!important;overflow-wrap:normal!important;box-sizing:border-box!important;box-shadow:0 3px 10px rgba(0,26,54,.12)!important}
-        html[data-ace-font-level] body .ace-header-v6 > #aceTeamStatusButton:not(.ace-team-floating){position:absolute!important;left:12px!important;right:auto!important;top:auto!important;bottom:12px!important}
-        html[data-ace-font-level] body #aceTeamStatusText{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
-        html[data-ace-font-level] body #aceTeamStatusButton .ace-team-chat-symbol{flex:none!important;font-size:15px!important;line-height:1!important;padding-left:4px!important}
+        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-more{grid-column:4!important;grid-row:2!important;width:36px!important;min-width:36px!important;height:44px!important;min-height:44px!important;line-height:1!important;white-space:nowrap!important}
+        /* Cápsula de 28px dentro de botão transparente de 44px; largura acompanha o texto. */
+        html[data-ace-font-level] body .ace-header-v6 #aceTeamStatusButton{--ace-text-scale:1!important;display:inline-flex!important;align-items:center!important;justify-content:flex-start!important;width:max-content!important;max-width:none!important;min-width:0!important;height:44px!important;min-height:44px!important;padding:0!important;gap:0!important;font-size:12px!important;line-height:1!important;white-space:nowrap!important;overflow:visible!important;overflow-wrap:normal!important;box-sizing:border-box!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;transform:none!important}
+        html[data-ace-font-level] body .ace-header-v6 #aceTeamStatusButton:not(.ace-team-floating){position:absolute!important;left:12px!important;right:auto!important;top:auto!important;bottom:12px!important}
+        html[data-ace-font-level] body .ace-header-v6 #aceTeamStatusButton .ace-team-compact-pill{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:none!important;gap:5px!important;height:28px!important;min-height:28px!important;width:max-content!important;padding:0 8px!important;box-sizing:border-box!important;border:1px solid rgba(255,255,255,.8)!important;border-radius:999px!important;background:#fff!important;box-shadow:0 2px 6px rgba(0,26,54,.1)!important}
+        html[data-ace-font-level] body #aceTeamStatusText{flex:none!important;min-width:max-content!important;max-width:none!important;width:auto!important;font-size:12px!important;line-height:1!important;overflow:visible!important;text-overflow:clip!important;white-space:nowrap!important}
+        html[data-ace-font-level] body #aceTeamStatusButton .ace-team-chat-symbol{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:none!important;width:19px!important;height:16px!important;box-sizing:border-box!important;font-size:15px!important;line-height:1!important;padding:0 0 0 4px!important;border-left:1px solid #dbe4ea!important}
+        html[data-ace-font-level] body #aceTeamStatusButton .ace-team-chat-symbol svg{width:15px!important;height:15px!important;flex:none!important}
         html[data-ace-font-level] body #aceTeamStatusButton .ace-team-status-dot{width:6px!important;height:6px!important;flex:0 0 6px!important;box-shadow:none!important}
-        html[data-ace-font-level] body #aceTeamUnreadBadge{flex:none!important;min-width:15px!important;height:15px!important;padding:0 3px!important;font-size:9px!important}
+        html[data-ace-font-level] body #aceTeamUnreadBadge{flex:none!important;min-width:15px!important;height:15px!important;padding:0 3px!important;font-size:9px!important;line-height:1!important}
         html[data-ace-font-level="1"] body #aceMobileBottomNav .ace-bottom-item,html[data-ace-font-level="2"] body #aceMobileBottomNav .ace-bottom-item{height:auto!important;min-height:68px!important;overflow:visible!important}
         html[data-ace-font-level="1"] body #aceMobileBottomNav .ace-bottom-item .label,html[data-ace-font-level="2"] body #aceMobileBottomNav .ace-bottom-item .label{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
         html[data-ace-font-level="1"] body,html[data-ace-font-level="2"] body{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))!important}
