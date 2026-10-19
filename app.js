@@ -9,6 +9,7 @@ let aceAccessibilityReturnFocus = null;
 let aceMobileDrawerReturnFocus = null;
 let aceMobileDrawerScrollLock = null;
 // Estado local dos filtros do Estoque geral (PWA).
+let aceBasketMountDate = null;
 let aceStockFilters = {status:'positive', query:'', sort:'name', pdfScope:'filtered'};
 
 // GEPE: fundo geral independente das variáveis e dos temas anteriores.
@@ -78,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-total-itens-cestas-v105",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-data-montagem-cestas-v106",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -466,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-total-itens-cestas-v105";
+  "2026.10.19-data-montagem-cestas-v106";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -2727,6 +2728,7 @@ function applyLocalAttendance(
 
 
 function applyLocalBasketOutput({
+  date = isoToday(),
   basketId,
   basketName,
   basketImage = "",
@@ -2747,8 +2749,7 @@ function applyLocalBasketOutput({
   }
 
 
-  const today =
-    isoToday();
+  const mountDate = validateAceBasketMountDate(date);
 
   const userId =
     currentUser?.id ||
@@ -2805,7 +2806,7 @@ function applyLocalBasketOutput({
             basketId
           ) &&
         item.date ===
-          today &&
+          mountDate &&
         Number(
           item.originId
         ) ===
@@ -2871,7 +2872,7 @@ function applyLocalBasketOutput({
           ? receivedBy || ""
           : "",
       date:
-        today,
+        mountDate,
       usuarioId:
         userId,
       composition,
@@ -2913,7 +2914,7 @@ function applyLocalBasketOutput({
     status:
       "disponivel",
     date:
-      today,
+      mountDate,
     usuarioId:
       userId,
     createdAt:
@@ -2949,7 +2950,7 @@ function applyLocalBasketOutput({
             movement.type ===
               "saida" &&
             movement.date ===
-              today &&
+              mountDate &&
             Number(
               movement.foodId
             ) ===
@@ -2995,7 +2996,7 @@ function applyLocalBasketOutput({
           sourceTable:
             "saídas",
           date:
-            today,
+            mountDate,
           type:
             "saida",
           foodId:
@@ -3029,7 +3030,7 @@ function applyLocalBasketOutput({
           id:
             newNumericId(),
           date:
-            today,
+            mountDate,
           type:
             "saida",
           originId:
@@ -33893,6 +33894,36 @@ function getBasketItems(basketId) {
 
 
 // Soma das unidades de alimento na composição de UMA cesta, sem multiplicar pelo lote.
+function validateAceBasketMountDate(value) {
+  const date = String(value ?? '').trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + 'T12:00:00') : null;
+  if (!parsed || !Number.isFinite(parsed.getTime()) ||
+      parsed.getFullYear() !== Number(date.slice(0,4)) ||
+      parsed.getMonth() + 1 !== Number(date.slice(5,7)) ||
+      parsed.getDate() !== Number(date.slice(8,10))) {
+    throw new Error('Informe uma data válida para a montagem das cestas.');
+  }
+  return date;
+}
+
+function getAceBasketMountDate() {
+  if (aceBasketMountDate === null) aceBasketMountDate = isoToday();
+  return aceBasketMountDate;
+}
+
+function readAceBasketMountDate(module) {
+  const field = module.querySelector('#basketMountDate');
+  try {
+    const date = validateAceBasketMountDate(field ? field.value : getAceBasketMountDate());
+    aceBasketMountDate = date;
+    return date;
+  } catch (error) {
+    toast(error.message);
+    field?.focus();
+    return null;
+  }
+}
+
 function getAceBasketItemTotal(items) {
   return (Array.isArray(items) ? items : []).reduce((total,item) => {
     const qty = Number(item?.qty);
@@ -33987,6 +34018,11 @@ function ensureBasketStyles() {
       background:#fff;
       box-shadow:0 8px 20px rgba(16,42,67,.07);
     }
+
+    .ace-basket-mount-date{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;margin:0 0 20px;padding:14px 16px;border:1px solid #d3e5ef;border-radius:12px;background:#f4f9fd;color:#124b73;}
+    .ace-basket-mount-date label{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:14px;font-weight:800;}
+    .ace-basket-mount-date input{min-height:44px;max-width:100%;padding:8px 12px;border:1px solid #adc8dc;border-radius:9px;background:#fff;color:#173750;font:inherit;box-sizing:border-box;}
+    .ace-basket-mount-date p{flex:1 1 220px;margin:0;font-size:12px;line-height:1.5;color:#526d80;}
 
     .ace-basket-item-total{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #d3e5ef;background:#edf6fc;color:#124b73;box-sizing:border-box;min-width:0;}
     .ace-basket-item-total-label{font-size:12px;font-weight:850;letter-spacing:.04em;line-height:1.4;}
@@ -38147,6 +38183,13 @@ function renderBasketModule() {
       </span>
     </div>
 
+    <div class="ace-basket-mount-date">
+      <label for="basketMountDate">Data da montagem
+        <input id="basketMountDate" type="date" value="${esc(getAceBasketMountDate())}" required aria-describedby="basketMountDateHelp">
+      </label>
+      <p id="basketMountDateHelp">Escolha a data em que as cestas foram montadas. Válida para cestas padrão e personalizadas.</p>
+    </div>
+
     <div class="ace-basket-grid">
 
       ${
@@ -38590,6 +38633,11 @@ function renderBasketModule() {
 
   `;
 
+  const mountDateField = module.querySelector('#basketMountDate');
+  for (const eventName of ['input','change']) {
+    mountDateField?.addEventListener(eventName, () => { aceBasketMountDate = mountDateField.value; });
+  }
+
   // Mostra no máximo 10 linhas no Histórico de saída de cestas.
   requestAnimationFrame(() => {
     applyTenVisibleRows(
@@ -38878,9 +38926,13 @@ function renderBasketModule() {
             return;
           }
 
+          const date = readAceBasketMountDate(module);
+          if (!date) return;
+
           const confirmed =
             await showAceConfirm(
               `Confirmar a montagem de ${qty} cesta(s) ${basket?.name || ""}?\n\n` +
+              `Data da montagem: ${fmtDate(date)}\n` +
               `Destino: ${destination}\n\n` +
               `Os alimentos serão debitados do estoque principal e as cestas entrarão no estoque de cestas montadas.`,
               "🧺 Confirmar montagem"
@@ -38899,6 +38951,7 @@ function renderBasketModule() {
           try {
 
             await registerBasketOutput({
+              date,
               basketId,
               basketQty: qty,
               destination,
@@ -39270,9 +39323,13 @@ function renderBasketModule() {
         }
 
 
+        const date = readAceBasketMountDate(module);
+        if (!date) return;
+
         const confirmed =
           await showAceConfirm(
             `Confirmar a montagem de ${basketQty} cesta(s) "${name}"?\n\n` +
+            `Data da montagem: ${fmtDate(date)}\n` +
             `Destino: ${destination}\n` +
             `Itens diferentes: ${manualBasketItems.length}\n\n` +
             `Os alimentos serão debitados do estoque principal e as cestas entrarão no estoque de cestas montadas.`,
@@ -39295,6 +39352,7 @@ function renderBasketModule() {
         try {
 
           await registerManualBasketOutput({
+            date,
             name,
             basketQty,
             destination,
@@ -40055,12 +40113,15 @@ function showBasketStockError({
 
 
 async function registerManualBasketOutput({
+  date = isoToday(),
   name,
   basketQty,
   destination,
   receivedBy,
   items
 }) {
+
+  date = validateAceBasketMountDate(date);
 
   const aguaFria =
     getAguaFriaOrigin();
@@ -40212,6 +40273,7 @@ async function registerManualBasketOutput({
 
 
     applyLocalBasketOutput({
+      date,
       basketId:
         localBasketId,
       basketName:
@@ -40230,6 +40292,7 @@ async function registerManualBasketOutput({
     enqueueOfflineOperation(
       "manualBasket",
       {
+        date,
         name,
         basketQty:
           qtyCestas,
@@ -40383,6 +40446,7 @@ async function registerManualBasketOutput({
   try {
 
     await registerBasketOutput({
+      date,
       basketId:
         manualBasketId,
       basketQty:
@@ -40432,11 +40496,14 @@ async function registerManualBasketOutput({
 
 
 async function registerBasketOutput({
+  date = isoToday(),
   basketId,
   basketQty,
   destination,
   receivedBy
 }) {
+
+  date = validateAceBasketMountDate(date);
 
   const basket =
     (db?.baskets || [])
@@ -40593,6 +40660,7 @@ async function registerBasketOutput({
 
 
     applyLocalBasketOutput({
+      date,
       basketId:
         basket.id,
       basketName:
@@ -40613,6 +40681,7 @@ async function registerBasketOutput({
     enqueueOfflineOperation(
       "basket",
       {
+        date,
         basketId:
           basket.id,
         basketQty:
@@ -40654,7 +40723,7 @@ async function registerBasketOutput({
     p_usuario_id:
       getCurrentUserId(),
     p_data:
-      isoToday()
+      date
   };
 
 
@@ -42163,7 +42232,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-total-itens-cestas-v105",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-data-montagem-cestas-v106",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
