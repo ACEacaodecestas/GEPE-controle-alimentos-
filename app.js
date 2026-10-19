@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-data-montagem-cestas-v106",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saidas-sacos-painel-v107",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-data-montagem-cestas-v106";
+  "2026.10.19-saidas-sacos-painel-v107";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14835,25 +14835,17 @@ function renderDashboard() {
       );
 
 
-  const cestasEstornadas =
-    (db.basketAdjustments || [])
-      .filter(
-        x =>
-          String(x.date || "") ===
-            String(date || "") &&
-          x.type === "estorno"
-      )
-      .reduce(
-        (total, x) =>
-          total +
-          Number(
-            x.qty || 0
-          ),
-        0
-      );
+  // Mesma fonte e mesmos critérios do histórico de Saída de Sacos.
+  const sacosSaidas =
+    (db.sackMovements || [])
+      .filter(item => item.type === 'saida' && String(item.date || '') === String(date))
+      .reduce((total,item) => total + Number(item.qty || 0),0);
 
+  // Reaproveita o cartão caso o HTML antigo já contenha o indicador de estornos.
+  const oldReversalKpi = document.getElementById('kpiCestasEstornadas');
+  if (oldReversalKpi && !document.getElementById('kpiSacosSaidas')) oldReversalKpi.id = 'kpiSacosSaidas';
 
-  // Cria e mantém os três indicadores de cestas no Resumo do dia.
+  // Cria e mantém os indicadores de cestas e sacos no Resumo do dia.
   // Cada cartão usa os mesmos efeitos profissionais dos demais KPIs.
   const basketKpiCards = [
     {
@@ -14867,8 +14859,10 @@ function renderDashboard() {
       label: "🚚 Saídas de cestas"
     },
     {
-      id: "kpiCestasEstornadas",
-      label: "↩️ Estornos de cestas"
+      id: "kpiSacosSaidas",
+      label: "🛍️ Saídas de sacos",
+      unit: "sacos",
+      description: "Quantidade de sacos com saída registrada na data selecionada."
     }
   ];
 
@@ -14976,7 +14970,7 @@ function renderDashboard() {
     ["kpiPresentes", pres],
     ["kpiCestas", cestasDisponiveis],
     ["kpiCestasSaidas", cestasSaidas],
-    ["kpiCestasEstornadas", cestasEstornadas]
+    ["kpiSacosSaidas", sacosSaidas]
   ];
 
 
@@ -42232,7 +42226,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-data-montagem-cestas-v106",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saidas-sacos-painel-v107",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -63763,8 +63757,8 @@ const ACE_DASHBOARD_KPI_CONFIG = [
     rgb: "12,145,166"
   },
   {
-    id: "kpiCestasEstornadas",
-    key: "cestas-estornadas",
+    id: "kpiSacosSaidas",
+    key: "sacos-saidas",
     accent: "#c75284",
     rgb: "199,82,132"
   }
