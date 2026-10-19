@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saida-sacos-motivos-v109",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-finalidade-sacos-v110",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-saida-sacos-motivos-v109";
+  "2026.10.19-finalidade-sacos-v110";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14841,12 +14841,18 @@ function renderDashboard() {
   const sacosSaidas = sackOutputsInDate.reduce((total,item) => total + Number(item.qty || 0),0);
   const sackReasonsInDate = new Map();
   sackOutputsInDate.forEach(item => {
-    const reason = String(item.purpose || '').replace(/\s+/g,' ').trim() || 'Não informado';
+    const reason = String(item.purpose ?? item.finalidade ?? '').replace(/\s+/g,' ').trim() || 'Finalidade não informada';
     const key = reason.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
     const group = sackReasonsInDate.get(key) || {reason,qty:0};
     group.qty += Number(item.qty || 0);
     sackReasonsInDate.set(key,group);
   });
+
+  const sackPurposeText = !sackOutputsInDate.length
+    ? 'Sem saídas nesta data.'
+    : (sackReasonsInDate.size === 1
+      ? Array.from(sackReasonsInDate.values())[0].reason
+      : Array.from(sackReasonsInDate.values()).map(group => `${group.reason}: ${fmt(group.qty)}`).join('\n'));
 
   // Substitui também cartões legados identificados pelo título, sem criar duplicatas.
   const legacySackCards = Array.from(document.querySelectorAll('#dashboard .cards .card')).filter(card => {
@@ -14879,7 +14885,7 @@ function renderDashboard() {
     {
       id: "kpiSacosSaidas",
       label: "🛍️ Saída de sacos",
-      unit: "sacos",
+      unit: sackPurposeText,
       description: "Quantidade de sacos com saída registrada na data selecionada."
     }
   ];
@@ -14914,7 +14920,7 @@ function renderDashboard() {
       card.innerHTML = `
         <span>${item.label}</span>
         <strong id="${item.id}">0</strong>
-        <small>${item.unit || "cestas"}</small>
+        <small>${esc(item.unit || "cestas")}</small>
       `;
 
 
@@ -14962,17 +14968,13 @@ function renderDashboard() {
       }
 
       if (item.id === 'kpiSacosSaidas') {
-        let reasons = card.querySelector('.ace-kpi-sack-reasons');
-        if (!reasons) {
-          reasons = document.createElement('div');
-          reasons.className = 'ace-kpi-sack-reasons';
-          reasons.setAttribute('aria-live','polite');
-          card.appendChild(reasons);
+        // A finalidade ocupa a própria linha que antes dizia somente "sacos".
+        if (unit) {
+          unit.className = 'ace-kpi-sack-purpose';
+          unit.setAttribute('aria-live','polite');
         }
-        reasons.textContent = sackOutputsInDate.length
-          ? Array.from(sackReasonsInDate.values()).map(group => `Motivo: ${group.reason} — ${fmt(group.qty)} saco(s)`).join('\n')
-          : 'Sem saída de sacos nesta data.';
-        card.title = `Saída de sacos em ${fmtDate(date)}. Motivos conforme a finalidade informada pelo usuário.`;
+        card.querySelector('.ace-kpi-sack-reasons')?.remove();
+        card.title = `Saída de sacos em ${fmtDate(date)}. Finalidade: ${sackPurposeText}`;
       }
 
       if (item.id === "kpiCestas") {
@@ -42261,7 +42263,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saida-sacos-motivos-v109",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-finalidade-sacos-v110",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -63819,10 +63821,10 @@ function installAceDashboardRewardStyle() {
 
   style.textContent = `
 
-    #dashboard .cards .card .ace-kpi-sack-reasons{
-      margin-top:9px;padding-top:8px;border-top:1px solid rgba(199,82,132,.2);
-      font-size:12px;line-height:1.5;font-weight:500;color:#526d80;
+    #dashboard .cards .card > small.ace-kpi-sack-purpose{
+      display:block;font-size:12px;line-height:1.5;font-weight:500;color:#526d80;
       white-space:pre-line;overflow-wrap:anywhere;text-align:left;
+      height:auto;max-height:none;overflow:visible;
     }
 
     #dashboard .cards{
