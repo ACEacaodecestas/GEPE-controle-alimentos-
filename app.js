@@ -7,6 +7,7 @@ let aceAccessibilityLevel = 0;
 let aceAccessibilityReturnFocus = null;
 
 let aceMobileDrawerReturnFocus = null;
+let aceMobileDrawerScrollLock = null;
 // Estado local dos filtros do Estoque geral (PWA).
 let aceStockFilters = {status:'positive', query:'', sort:'name', pdfScope:'filtered'};
 
@@ -77,7 +78,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-online-compacto-v102",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-menu-rolagem-v103",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -465,7 +466,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-online-compacto-v102";
+  "2026.10.19-menu-rolagem-v103";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -41999,7 +42000,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-online-compacto-v102",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-menu-rolagem-v103",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -46130,11 +46131,82 @@ function setupAceAccountMenuEvents() {
 // DRAWER LATERAL
 // ------------------------------------------------------------
 
+// Congela a página sem perder o ponto de leitura; o menu mantém sua rolagem própria.
+function lockAceMobileDrawerScroll() {
+  if (aceMobileDrawerScrollLock) return;
+  const root = document.documentElement;
+  const body = document.body;
+  const remember = (element, properties) => properties.map(name => ({
+    name, value:element.style.getPropertyValue(name), priority:element.style.getPropertyPriority(name)
+  }));
+  aceMobileDrawerScrollLock = {
+    x:window.scrollX, y:window.scrollY,
+    root:remember(root, ['overflow','overscroll-behavior','scroll-behavior']),
+    body:remember(body, ['position','top','left','right','width','overflow','overscroll-behavior','scroll-behavior'])
+  };
+  for (const element of [root,body]) {
+    element.style.setProperty('overflow','hidden','important');
+    element.style.setProperty('overscroll-behavior','none','important');
+    element.style.setProperty('scroll-behavior','auto','important');
+  }
+  body.style.setProperty('position','fixed','important');
+  body.style.setProperty('top',`${-aceMobileDrawerScrollLock.y}px`,'important');
+  body.style.setProperty('left',`${-aceMobileDrawerScrollLock.x}px`,'important');
+  body.style.setProperty('right','0','important');
+  body.style.setProperty('width','100%','important');
+}
+
+function unlockAceMobileDrawerScroll() {
+  const state = aceMobileDrawerScrollLock;
+  if (!state) return;
+  aceMobileDrawerScrollLock = null;
+  const restore = (element, properties, behavior = false) => {
+    for (const property of properties) {
+      if ((property.name === 'scroll-behavior') !== behavior) continue;
+      if (property.value) element.style.setProperty(property.name,property.value,property.priority);
+      else element.style.removeProperty(property.name);
+    }
+  };
+  restore(document.body,state.body);
+  restore(document.documentElement,state.root);
+  // scroll-behavior continua em auto até a posição ter sido reposta.
+  window.scrollTo(state.x,state.y);
+  restore(document.body,state.body,true);
+  restore(document.documentElement,state.root,true);
+}
+
+// Contém o gesto nas bordas, inclusive em WebViews sem overscroll-behavior.
+function installAceDrawerScrollGuards() {
+  let lastY = 0;
+  document.addEventListener('touchstart', event => {
+    if (aceMobileDrawerScrollLock && event.touches.length === 1) lastY = event.touches[0].clientY;
+  }, {passive:true,capture:true});
+  document.addEventListener('touchmove', event => {
+    if (!aceMobileDrawerScrollLock || event.touches.length !== 1) return;
+    const currentY = event.touches[0].clientY;
+    const delta = currentY - lastY;
+    lastY = currentY;
+    const list = document.getElementById('aceMobileDrawerList');
+    let node = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+    if (list?.contains(node)) {
+      for (; node && list.contains(node); node = node.parentElement) {
+        if (node.scrollHeight <= node.clientHeight + 1) continue;
+        if (!/^(auto|scroll)$/.test(getComputedStyle(node).overflowY)) continue;
+        const canMoveUp = delta > 0 && node.scrollTop > 0;
+        const canMoveDown = delta < 0 && node.scrollTop < node.scrollHeight - node.clientHeight - 1;
+        if (!delta || canMoveUp || canMoveDown) return;
+      }
+    }
+    if (event.cancelable) event.preventDefault();
+  }, {passive:false,capture:true});
+}
+
 function closeAceMobileDrawer() {
   const drawer = document.getElementById('aceMobileDrawer');
   const wasOpen = drawer?.classList.contains('open');
   document.body.classList.remove('ace-mobile-drawer-open');
   drawer?.classList.remove('open');
+  unlockAceMobileDrawerScroll();
   document.getElementById('aceMobileDrawerBackdrop')?.classList.remove('open');
   document.querySelector('#aceMobileBottomNav [data-ace-mobile-more]')?.setAttribute('aria-expanded', 'false');
   if (wasOpen && aceMobileDrawerReturnFocus?.isConnected) aceMobileDrawerReturnFocus.focus({preventScroll:true});
@@ -46144,8 +46216,9 @@ function closeAceMobileDrawer() {
 
 function openAceMobileDrawer() {
   const drawer = document.getElementById('aceMobileDrawer');
-  if (!drawer) return;
+  if (!drawer || drawer.classList.contains('open')) return;
   closeAceAccountMenu();
+  lockAceMobileDrawerScroll();
   aceMobileDrawerReturnFocus = document.activeElement;
   drawer.inert = false;
   drawer.setAttribute('role', 'dialog');
@@ -46309,10 +46382,10 @@ function activateAceOriginalTab(
   }
 
 
-  original.click();
-
-
   closeAceMobileDrawer();
+
+
+  original.click();
 
 
   setTimeout(
@@ -47885,8 +47958,7 @@ function setupProfessionalMobileLayout() {
       .getElementById(
         "aceDrawerLogout"
       )
-      .onclick =
-        logoutUser;
+      .onclick = () => { closeAceMobileDrawer(); logoutUser(); };
 
   }
 
@@ -65084,6 +65156,11 @@ function getAceModernMobileIcon(kind) {
       html body #aceMobileBottomNav .ace-bottom-item.active::before{background:#159d78!important;width:22px!important;height:3px!important;top:1px!important}
       html body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
       html body #aceMobileDrawer{width:min(88vw,350px)!important;border-radius:0 20px 20px 0!important;padding:16px 12px calc(18px + env(safe-area-inset-bottom,0px))!important}
+      html body #aceMobileDrawer{height:100vh!important;height:100dvh!important;max-height:100dvh!important;overflow:hidden!important;overscroll-behavior:none!important}
+      html body #aceMobileDrawerList{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch;touch-action:pan-y pinch-zoom}
+      html body #aceMobileDrawerList > *{flex-shrink:0!important}
+      html body #aceMobileDrawer :is(.ace-drawer-head,.ace-drawer-footer){flex-shrink:0!important}
+      html body #aceMobileDrawerBackdrop{overscroll-behavior:none!important;touch-action:none!important}
       html body #aceMobileDrawer .ace-drawer-close{width:44px!important;height:44px!important;flex:0 0 44px!important}
       html body #aceMobileDrawer .ace-drawer-item{min-height:48px!important;font-size:14px!important}
       html body #aceMobileDrawer .ace-drawer-section-title{font-size:12px!important;letter-spacing:.04em}
@@ -65107,6 +65184,7 @@ function getAceModernMobileIcon(kind) {
     if (event.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
   });
+  installAceDrawerScrollGuards();
   window.addEventListener('resize', () => { if (window.innerWidth > 850) closeAceMobileDrawer(); });
 })();
 
