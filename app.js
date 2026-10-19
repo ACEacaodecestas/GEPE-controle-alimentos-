@@ -78,7 +78,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-rascunho-entrada-v104",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-total-itens-cestas-v105",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -466,7 +466,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-rascunho-entrada-v104";
+  "2026.10.19-total-itens-cestas-v105";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -33892,6 +33892,21 @@ function getBasketItems(basketId) {
 }
 
 
+// Soma das unidades de alimento na composição de UMA cesta, sem multiplicar pelo lote.
+function getAceBasketItemTotal(items) {
+  return (Array.isArray(items) ? items : []).reduce((total,item) => {
+    const qty = Number(item?.qty);
+    return total + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+  },0);
+}
+
+function renderAceBasketItemTotal(items, manual = false) {
+  return `<div class="ace-basket-item-total" ${manual ? 'id="manualBasketItemTotal" role="status" aria-live="polite" aria-atomic="true"' : ''}>
+    <span class="ace-basket-item-total-label">TOTAL DE ITENS</span>
+    <span class="ace-basket-item-total-value"><strong data-ace-basket-item-total>${fmt(getAceBasketItemTotal(items))}</strong><small>por cesta</small></span>
+  </div>`;
+}
+
 function ensureBasketStyles() {
 
   if (
@@ -33972,6 +33987,13 @@ function ensureBasketStyles() {
       background:#fff;
       box-shadow:0 8px 20px rgba(16,42,67,.07);
     }
+
+    .ace-basket-item-total{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #d3e5ef;background:#edf6fc;color:#124b73;box-sizing:border-box;min-width:0;}
+    .ace-basket-item-total-label{font-size:12px;font-weight:850;letter-spacing:.04em;line-height:1.4;}
+    .ace-basket-item-total-value{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;line-height:1.3;}
+    .ace-basket-item-total-value strong{font-size:20px;font-weight:900;color:#08785c;}
+    .ace-basket-item-total-value small{font-size:11px;font-weight:600;color:#526d80;}
+    .ace-manual-basket > .ace-basket-item-total{margin-bottom:16px;border:1px solid #d3e5ef;border-radius:12px;}
 
     .ace-basket-name{
       padding:16px 16px 10px;
@@ -38157,6 +38179,8 @@ function renderBasketModule() {
                   data-basket-card="${basket.id}"
                 >
 
+                  ${renderAceBasketItemTotal(items)}
+
                   <div class="ace-basket-name">
                     ${esc(basket.name)}
                   </div>
@@ -38295,6 +38319,8 @@ function renderBasketModule() {
     </div>
 
     <div class="ace-manual-basket">
+
+      ${renderAceBasketItemTotal([],true)}
 
       <h3 class="ace-manual-basket-title">
         <img
@@ -38954,6 +38980,9 @@ function renderBasketModule() {
 
   const renderManualBasketItems =
     () => {
+
+      const total = module.querySelector('#manualBasketItemTotal [data-ace-basket-item-total]');
+      if (total) total.textContent = fmt(getAceBasketItemTotal(manualBasketItems));
 
       const list =
         module.querySelector(
@@ -42134,7 +42163,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-rascunho-entrada-v104",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-total-itens-cestas-v105",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
