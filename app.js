@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saidas-sacos-painel-v107",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saida-sacos-motivos-v109",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-saidas-sacos-painel-v107";
+  "2026.10.19-saida-sacos-motivos-v109";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -14835,15 +14835,33 @@ function renderDashboard() {
       );
 
 
-  // Mesma fonte e mesmos critérios do histórico de Saída de Sacos.
-  const sacosSaidas =
-    (db.sackMovements || [])
-      .filter(item => item.type === 'saida' && String(item.date || '') === String(date))
-      .reduce((total,item) => total + Number(item.qty || 0),0);
+  // O valor e os motivos usam exclusivamente as saídas da data escolhida.
+  const sackOutputsInDate = (db.sackMovements || [])
+    .filter(item => item.type === 'saida' && String(item.date || '') === String(date));
+  const sacosSaidas = sackOutputsInDate.reduce((total,item) => total + Number(item.qty || 0),0);
+  const sackReasonsInDate = new Map();
+  sackOutputsInDate.forEach(item => {
+    const reason = String(item.purpose || '').replace(/\s+/g,' ').trim() || 'Não informado';
+    const key = reason.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+    const group = sackReasonsInDate.get(key) || {reason,qty:0};
+    group.qty += Number(item.qty || 0);
+    sackReasonsInDate.set(key,group);
+  });
 
-  // Reaproveita o cartão caso o HTML antigo já contenha o indicador de estornos.
-  const oldReversalKpi = document.getElementById('kpiCestasEstornadas');
-  if (oldReversalKpi && !document.getElementById('kpiSacosSaidas')) oldReversalKpi.id = 'kpiSacosSaidas';
+  // Substitui também cartões legados identificados pelo título, sem criar duplicatas.
+  const legacySackCards = Array.from(document.querySelectorAll('#dashboard .cards .card')).filter(card => {
+    const label = String(card.querySelector('span')?.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return card.querySelector('#kpiCestasEstornadas') || (label.includes('estorno') && label.includes('cesta'));
+  });
+  let sackKpi = document.getElementById('kpiSacosSaidas');
+  for (const legacyCard of legacySackCards) {
+    if (!sackKpi) {
+      sackKpi = legacyCard.querySelector('strong');
+      if (sackKpi) sackKpi.id = 'kpiSacosSaidas';
+    } else if (sackKpi.closest('.card') !== legacyCard) {
+      legacyCard.remove();
+    }
+  }
 
   // Cria e mantém os indicadores de cestas e sacos no Resumo do dia.
   // Cada cartão usa os mesmos efeitos profissionais dos demais KPIs.
@@ -14860,7 +14878,7 @@ function renderDashboard() {
     },
     {
       id: "kpiSacosSaidas",
-      label: "🛍️ Saídas de sacos",
+      label: "🛍️ Saída de sacos",
       unit: "sacos",
       description: "Quantidade de sacos com saída registrada na data selecionada."
     }
@@ -14941,6 +14959,20 @@ function renderDashboard() {
 
       if (item.description) {
         card.title = item.description;
+      }
+
+      if (item.id === 'kpiSacosSaidas') {
+        let reasons = card.querySelector('.ace-kpi-sack-reasons');
+        if (!reasons) {
+          reasons = document.createElement('div');
+          reasons.className = 'ace-kpi-sack-reasons';
+          reasons.setAttribute('aria-live','polite');
+          card.appendChild(reasons);
+        }
+        reasons.textContent = sackOutputsInDate.length
+          ? Array.from(sackReasonsInDate.values()).map(group => `Motivo: ${group.reason} — ${fmt(group.qty)} saco(s)`).join('\n')
+          : 'Sem saída de sacos nesta data.';
+        card.title = `Saída de sacos em ${fmtDate(date)}. Motivos conforme a finalidade informada pelo usuário.`;
       }
 
       if (item.id === "kpiCestas") {
@@ -33132,7 +33164,10 @@ function bindEvents() {
 
 
   const dashboardDate = document.getElementById("dashboardDate");
-  if (dashboardDate) dashboardDate.addEventListener("change", renderDashboard);
+  if (dashboardDate) {
+    dashboardDate.addEventListener("change", renderDashboard);
+    dashboardDate.addEventListener("input", renderDashboard);
+  }
 
   const entryDate = document.getElementById("entryDate");
   if (entryDate) entryDate.addEventListener("change", renderEntries);
@@ -42226,7 +42261,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saidas-sacos-painel-v107",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-saida-sacos-motivos-v109",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -63783,6 +63818,12 @@ function installAceDashboardRewardStyle() {
     "aceDashboardRewardStyleV1";
 
   style.textContent = `
+
+    #dashboard .cards .card .ace-kpi-sack-reasons{
+      margin-top:9px;padding-top:8px;border-top:1px solid rgba(199,82,132,.2);
+      font-size:12px;line-height:1.5;font-weight:500;color:#526d80;
+      white-space:pre-line;overflow-wrap:anywhere;text-align:left;
+    }
 
     #dashboard .cards{
       width:min(100%,1440px) !important;
