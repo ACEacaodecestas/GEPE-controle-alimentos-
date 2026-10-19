@@ -78,7 +78,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-menu-rolagem-v103",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-rascunho-entrada-v104",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -466,7 +466,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-menu-rolagem-v103";
+  "2026.10.19-rascunho-entrada-v104";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -13942,6 +13942,8 @@ function setDates() {
 
 function refreshSelects() {
 
+  const entryDraftContext = captureAceBulkEntryDraftContext();
+
   populateSelect(
     "entryOrigin",
     getAceOperationalOrigins()
@@ -13985,6 +13987,8 @@ function refreshSelects() {
         .join("");
 
   }
+
+  restoreAceBulkEntryDraftContext(entryDraftContext);
 
 }
 
@@ -29899,6 +29903,104 @@ let aceBulkEntryDraft = [];
 let aceBulkEntryEditingId = null;
 
 
+const ACE_BULK_ENTRY_DRAFT_PREFIX = 'ace_bulk_entry_draft_v1:';
+let aceBulkEntryDraftOwner = null;
+let aceBulkEntryDraftContext = null;
+let aceBulkEntryDraftLastSaved = null;
+let aceBulkEntryDraftRecovered = false;
+let aceBulkEntryDraftStorageError = '';
+let aceBulkEntryDraftLoadFailed = false;
+
+function ensureAceBulkEntryDraftLoaded() {
+  const owner = currentUser?.id ? String(currentUser.id) : null;
+  if (aceBulkEntryDraftOwner === owner) return false;
+  aceBulkEntryDraftOwner = owner;
+  aceBulkEntryDraft = [];
+  aceBulkEntryEditingId = null;
+  aceBulkEntryDraftContext = null;
+  aceBulkEntryDraftLastSaved = null;
+  aceBulkEntryDraftRecovered = false;
+  aceBulkEntryDraftStorageError = '';
+  aceBulkEntryDraftLoadFailed = false;
+  if (!owner) return true;
+  try {
+    const raw = localStorage.getItem(ACE_BULK_ENTRY_DRAFT_PREFIX + encodeURIComponent(owner));
+    if (!raw) return true;
+    const record = JSON.parse(raw);
+    if (record.version !== 1 || record.userId !== owner || !Array.isArray(record.items) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || typeof record.originId !== 'string' ||
+        !record.items.every(item => item && ['string','number'].includes(typeof item.id) && String(item.id) &&
+          ['string','number'].includes(typeof item.foodId) && String(item.foodId) &&
+          Number.isInteger(item.qty) && item.qty > 0 && typeof item.foodName === 'string' && typeof item.note === 'string')) {
+      throw new Error('Rascunho de entrada inválido.');
+    }
+    aceBulkEntryDraft = record.items;
+    aceBulkEntryDraftContext = {date:record.date,originId:record.originId};
+    aceBulkEntryDraftLastSaved = JSON.stringify({version:1,userId:owner,...aceBulkEntryDraftContext,items:record.items});
+    aceBulkEntryDraftRecovered = record.items.length > 0;
+  } catch (error) {
+    aceBulkEntryDraftLoadFailed = true;
+    aceBulkEntryDraftStorageError = 'Não foi possível recuperar o rascunho neste aparelho. Mantenha a página aberta enquanto confere os dados.';
+    console.warn('ACE: falha ao recuperar rascunho da entrada.',error);
+  }
+  return true;
+}
+
+function restoreAceBulkEntryDraftContext(context = aceBulkEntryDraftContext) {
+  if (!context) return;
+  for (const [id,key] of [['entryDate','date'],['entryOrigin','originId']]) {
+    const field = document.getElementById(id);
+    if (field) field.value = context[key] || '';
+  }
+}
+
+function captureAceBulkEntryDraftContext() {
+  if (ensureAceBulkEntryDraftLoaded()) restoreAceBulkEntryDraftContext();
+  return {
+    date:document.getElementById('entryDate')?.value || aceBulkEntryDraftContext?.date || isoToday(),
+    originId:document.getElementById('entryOrigin')?.value ?? aceBulkEntryDraftContext?.originId ?? ''
+  };
+}
+
+function updateAceBulkEntryDraftStatus() {
+  const status = document.getElementById('aceBulkEntryDraftStatus');
+  if (!status) return;
+  status.textContent = aceBulkEntryDraftStorageError || (aceBulkEntryDraft.length
+    ? (aceBulkEntryDraftRecovered
+      ? 'Rascunho recuperado. Confira a data e a origem antes de registrar.'
+      : 'Rascunho salvo automaticamente neste aparelho.')
+    : '');
+  status.style.color = aceBulkEntryDraftStorageError ? '#9a5800' : '#526d80';
+}
+
+function saveAceBulkEntryDraft() {
+  const context = captureAceBulkEntryDraftContext();
+  if (!aceBulkEntryDraftOwner) return;
+  aceBulkEntryDraftContext = context;
+  // Um erro de leitura nunca apaga automaticamente o conteúdo ainda não recuperado.
+  if (aceBulkEntryDraftLoadFailed && !aceBulkEntryDraft.length) { updateAceBulkEntryDraftStatus(); return; }
+  const payload = JSON.stringify({version:1,userId:aceBulkEntryDraftOwner,...context,items:aceBulkEntryDraft});
+  const key = ACE_BULK_ENTRY_DRAFT_PREFIX + encodeURIComponent(aceBulkEntryDraftOwner);
+  try {
+    if (!aceBulkEntryDraft.length) {
+      if (aceBulkEntryDraftLastSaved !== '') localStorage.removeItem(key);
+      aceBulkEntryDraftLastSaved = '';
+      aceBulkEntryDraftRecovered = false;
+    } else if (payload !== aceBulkEntryDraftLastSaved) {
+      localStorage.setItem(key,JSON.stringify({...JSON.parse(payload),savedAt:new Date().toISOString()}));
+      aceBulkEntryDraftLastSaved = payload;
+      aceBulkEntryDraftRecovered = false;
+    }
+    aceBulkEntryDraftStorageError = '';
+    aceBulkEntryDraftLoadFailed = false;
+  } catch (error) {
+    aceBulkEntryDraftStorageError = 'Não foi possível salvar o rascunho neste aparelho. Mantenha a página aberta até concluir o registro.';
+    console.warn('ACE: falha ao salvar rascunho da entrada.',error);
+  }
+  updateAceBulkEntryDraftStatus();
+}
+
+
 function ensureBulkEntryStyles() {
 
   if (
@@ -30447,6 +30549,8 @@ function setupBulkEntryForm() {
         ></div>
 
 
+        <p id="aceBulkEntryDraftStatus" role="status" aria-live="polite" style="font-size:12px;line-height:1.5;margin:10px 0;color:#526d80;"></p>
+
         <div
           id="bulkEntryTotal"
           class="ace-bulk-total"
@@ -30504,6 +30608,8 @@ function setupBulkEntryForm() {
   }
 
 
+  ensureAceBulkEntryDraftLoaded();
+  restoreAceBulkEntryDraftContext();
   renderBulkEntryDraft();
 
   // Liga os comandos imediatamente aos elementos recém-criados.
@@ -30537,6 +30643,8 @@ function getBulkEntryFoodName(
 
 
 function renderBulkEntryDraft() {
+
+  if (ensureAceBulkEntryDraftLoaded()) restoreAceBulkEntryDraftContext();
 
   const list =
     document.getElementById(
@@ -30679,6 +30787,7 @@ function renderBulkEntryDraft() {
   // botões recebem eventos DIRETOS após toda renderização, sem depender
   // do listener delegado do painel (que falhava em alguns navegadores).
   bindBulkEntryDraftItemActions();
+  saveAceBulkEntryDraft();
 
 }
 
@@ -31978,6 +32087,13 @@ function bindBulkEntryFormEvents() {
   form.dataset.aceBulkBound =
     "1";
 
+  for (const id of ['entryDate','entryOrigin']) {
+    const field = document.getElementById(id);
+    field?.addEventListener('input',saveAceBulkEntryDraft);
+    field?.addEventListener('change',saveAceBulkEntryDraft);
+  }
+
+
 
   document
     .getElementById(
@@ -32161,6 +32277,13 @@ function bindBulkEntryFormEvents() {
       }
 
 
+      if (form.dataset.aceBulkSubmitting === '1') return;
+      const unavailable = aceBulkEntryDraft.find(item => !(db.foods || []).some(food => String(food.id) === String(item.foodId)));
+      if (unavailable || !getAceOperationalOrigins().some(origin => String(origin.id) === String(originId))) {
+        await showAceMessage('Um alimento ou a origem do rascunho não está mais disponível. Revise a lista e selecione a origem antes de registrar.','Revise a entrada');
+        return;
+      }
+
       const originName =
         getName(
           db.origins,
@@ -32194,6 +32317,11 @@ function bindBulkEntryFormEvents() {
         return;
       }
 
+
+      if (form.dataset.aceBulkSubmitting === '1') return;
+      form.dataset.aceBulkSubmitting = '1';
+      const wasInert = form.inert;
+      form.inert = true;
 
       const submit =
         document.getElementById(
@@ -32236,6 +32364,9 @@ function bindBulkEntryFormEvents() {
               item.note || ""
           });
 
+          aceBulkEntryDraft = aceBulkEntryDraft.filter(row => String(row.id) !== String(item.id));
+          saveAceBulkEntryDraft();
+
         }
 
 
@@ -32273,6 +32404,9 @@ function bindBulkEntryFormEvents() {
 
       } finally {
 
+        delete form.dataset.aceBulkSubmitting;
+        form.inert = wasInert;
+        renderBulkEntryDraft();
         if (submit) {
 
           submit.disabled =
@@ -42000,7 +42134,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-menu-rolagem-v103",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-rascunho-entrada-v104",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
