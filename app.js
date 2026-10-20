@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-desktop-noticias-v120";
+  "2026.10.20-desktop-noticias-v121";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -65884,146 +65884,169 @@ function openAceAccessibility() {
 
 
 // =============================================================
-// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V120
-// 3 notícias grandes por página, miniaturas reais quando houver,
-// sem ícone de jornal/pilha e sem links FEEC/FEB no canto direito.
-// Não toca nos dados, no Supabase, nos menus mobile ou no APK.
+// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V121
+// 3 notícias por vez, alternância FEEC/FEB, fotos quando disponíveis,
+// ilustração local quando não existir foto e correção do botão residual.
+// NÃO usa Supabase; NÃO modifica layout do celular ou APK.
 // =============================================================
-(function installAceDesktopNewsV120() {
+(function installAceDesktopNewsV121() {
   'use strict';
-
   const desktop = window.matchMedia('(min-width: 851px)');
   const SECTION_ID = 'aceDesktopNews';
-  const CSS_ID = 'aceDesktopNewsStylesV120';
-  const CACHE_KEY = 'ace_desktop_news_v120';
-  const CACHE_MS = 6 * 60 * 60 * 1000; // 6 horas, por aparelho
+  const CSS_ID = 'aceDesktopNewsStylesV121';
+  const CACHE_KEY = 'ace_desktop_news_v121';
+  const CACHE_MS = 6 * 60 * 60 * 1000;
   const ROTATE_MS = 7500;
   const PER_PAGE = 3;
   const FEEC_SITE = 'https://feec.org.br/';
+  const FEB_SITE = 'https://febnet.org.br/';
   const FEEC_NEWS = FEEC_SITE + 'noticias/';
-  const FEB_SITE = 'https://www.febnet.org.br/portal/';
-  // Usa apenas a fonte oficial, sem consultas ao Supabase.
-  // Conteúdo do post ajuda a encontrar fotos que NÃO são imagens destacadas.
-  const FEED = FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded';
-  const FEED_SIMPLE = FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_fields=id,date,link,title,content,featured_media';
-
-  const fallback = [
-    {title:'Confira as notícias e os eventos do movimento espírita cearense', source:'FEEC', link:FEEC_NEWS},
-    {title:'Acompanhe as atividades e os encontros da Federação Espírita Brasileira', source:'FEB', link:FEB_SITE},
-    {title:'Programação e informações das casas espíritas do Ceará', source:'FEEC', link:FEEC_SITE}
+  const FEEDS = {
+    FEEC: [
+      FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded',
+      FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_fields=id,date,link,title,content,featured_media'
+    ],
+    FEB: [
+      FEB_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded',
+      'https://www.febnet.org.br/portal/wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded'
+    ]
+  };
+  // Seleção verificada de publicações da FEB: é exibida se a API oficial
+  // não liberar acesso CORS no navegador. Não é apresentada como feed ao vivo.
+  const curatedFEB = [
+    {source:'FEB',title:'Viver é uma escolha: ore pelos suicidas',link:'https://febnet.org.br/viver-e-uma-escolha-ore-pelos-suicidas/',date:'2026-09-18'},
+    {source:'FEB',title:'Revista Espírita na atualidade: divulgação das comunicações',link:'https://febnet.org.br/revista-espirita-na-atualidade-divulgacao-das-comunicacoes/',date:'2026-09-16'},
+    {source:'FEB',title:'Você sabia? A missão evangelizadora do Brasil',link:'https://febnet.org.br/voce-sabia-a-missao-evangelizadora-do-brasil/',date:'2026-09-10'}
   ];
-
-  let news = fallback;
+  const curatedFEEC = [
+    {source:'FEEC',title:'Notícias e eventos da Federação Espírita do Ceará',link:FEEC_NEWS,date:''},
+    {source:'FEEC',title:'Confira a programação e as atividades espíritas no Ceará',link:FEEC_SITE,date:''}
+  ];
+  let news = interleave(curatedFEEC,curatedFEB);
   let page = 0;
   let timer = null;
   let loading = false;
-  let lastLoadedAt = 0;
+  let lastCheck = 0;
 
-  function secureLink(raw, image = false) {
+  function secureLink(raw, image=false) {
     try {
       const url = new URL(String(raw || ''), FEEC_SITE);
       if (url.protocol !== 'https:') return null;
-      if (!image) {
-        return /(^|\.)feec\.org\.br$/i.test(url.hostname) ||
-               /(^|\.)febnet\.org\.br$/i.test(url.hostname) ? url.href : null;
-      }
-      // Imagens apenas da FEEC ou do CDN tradicional do WordPress.
-      const allowed = /(^|\.)feec\.org\.br$/i.test(url.hostname) ||
-        /^i\d?\.wp\.com$/i.test(url.hostname) || url.hostname === 's0.wp.com';
-      if (!allowed) return null;
-      if (!/\.(?:png|jpe?g|webp|gif|avif)(?:$|[?#])/i.test(url.pathname + url.search)) return null;
-      return url.href;
+      const host = url.hostname.toLowerCase();
+      const official = /(^|\.)(?:feec\.org\.br|febnet\.org\.br)$/.test(host);
+      if (!image) return official ? url.href : null;
+      const wpCdn = /^i\d?\.wp\.com$/.test(host) || host === 's0.wp.com';
+      const imageHost = official || wpCdn;
+      if (!imageHost) return null;
+      const ext = /\.(?:png|jpe?g|webp|gif|avif)(?:$|[?#])/i.test(url.pathname + url.search);
+      return ext ? url.href : null;
     } catch { return null; }
   }
 
   function cleanText(html) {
-    const tmp = document.createElement('span');
-    tmp.innerHTML = String(html || '');
-    return (tmp.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    const node=document.createElement('span'); node.innerHTML=String(html||'');
+    return (node.textContent||'').replace(/\s+/g,' ').trim().slice(0,220);
   }
 
   function extractImage(post) {
-    const embedded = post?._embedded?.['wp:featuredmedia']?.[0];
-    const sizes = embedded?.media_details?.sizes || {};
-    const featured = [
-      sizes.thumbnail?.source_url, sizes.medium?.source_url,
-      sizes.medium_large?.source_url, embedded?.source_url
-    ];
-    for (const candidate of featured) {
-      const valid = secureLink(candidate, true);
-      if (valid) return valid;
-    }
-    // Muitas notícias usam uma imagem no texto sem definir featured_media.
-    const content = String(post?.content?.rendered || '');
-    if (!content) return null;
-    const parsed = new DOMParser().parseFromString(content, 'text/html');
-    for (const img of parsed.querySelectorAll('img')) {
-      // Prefere a miniatura WordPress e evita baixar originais grandes.
-      const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-      const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
-      const candidates = [];
-      for (const part of srcset.split(',')) {
-        const pieces = part.trim().split(/\s+/);
-        const width = Number((pieces[1] || '').replace(/w$/,''));
-        if (pieces[0] && width >= 100 && width <= 600) candidates.push({url:pieces[0],width});
-      }
-      candidates.sort((a,b)=>a.width-b.width);
-      for (const item of candidates) { const valid = secureLink(item.url,true); if(valid) return valid; }
-      const valid = secureLink(src,true);
-      if(valid) return valid;
+    const media=post?._embedded?.['wp:featuredmedia']?.[0];
+    const sizes=media?.media_details?.sizes||{};
+    const candidates=[sizes.thumbnail?.source_url,sizes.medium?.source_url,sizes.medium_large?.source_url,media?.source_url];
+    for(const candidate of candidates) {const url=secureLink(candidate,true);if(url)return url;}
+    const rendered=String(post?.content?.rendered||'');
+    if(!rendered)return null;
+    const documentCopy=new DOMParser().parseFromString(rendered,'text/html');
+    for(const img of documentCopy.querySelectorAll('img')) {
+      const srcset=img.getAttribute('srcset')||img.getAttribute('data-srcset')||'';
+      const choices=srcset.split(',').map(part=>{
+        const a=part.trim().split(/\s+/);
+        return {url:a[0],size:Number((a[1]||'').replace(/w$/,''))};
+      }).filter(row=>row.url&&row.size>=120&&row.size<=640).sort((a,b)=>a.size-b.size);
+      const imgUrls=[...choices.map(i=>i.url),img.getAttribute('data-src'),img.getAttribute('src')];
+      for(const candidate of imgUrls) {const url=secureLink(candidate,true);if(url)return url;}
     }
     return null;
   }
 
+  function illustration(source) {
+    // Vetor gerado localmente: custo de rede ZERO, sem imagem falsa.
+    // A alternativa visual identifica a fonte, não se passa por foto.
+    const feb=source==='FEB';
+    const accent=feb?'#216e87':'#258d78';
+    const secondary=feb?'#d5eaf3':'#d7efe5';
+    const holder=document.createElement('span');
+    holder.className='ace-news-illustration';
+    holder.innerHTML=`<svg viewBox="0 0 130 100" width="130" height="100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <rect width="130" height="100" rx="12" fill="${secondary}"/>
+      <circle cx="110" cy="9" r="54" fill="white" opacity=".45"/>
+      <path d="M29 62 Q47 51 63 65 Q80 52 100 62 L100 78 Q79 68 63 80 Q46 68 29 78 Z" fill="white" opacity=".9"/>
+      <path d="M64 60 L64 81 M30 62 Q47 54 63 65 M65 65 Q84 54 99 62" stroke="${accent}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="65" cy="34" r="13" fill="${accent}" opacity=".16"/>
+      <path d="M65 16 V26 M48 24 L55 30 M82 24 L75 30" stroke="${accent}" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="65" y="96" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="2" fill="${accent}">${feb?'FEB':'FEEC'}</text>
+    </svg>`;
+    return holder;
+  }
+
+  function interleave(feec,feb) {
+    // A primeira página terá SEMPRE 2 notícias FEEC + 1 FEB quando disponíveis.
+    // Isso evita que a FEEC ocupe as três primeiras posições sozinha.
+    const a=feec.slice(0,9),b=feb.slice(0,9),out=[];
+    let i=0,j=0;
+    while(i<a.length||j<b.length) {
+      if(i<a.length)out.push(a[i++]);
+      if(j<b.length)out.push(b[j++]);
+      if(i<a.length)out.push(a[i++]);
+    }
+    return out.slice(0,18);
+  }
+
   function ensureStyle() {
-    if (document.getElementById(CSS_ID)) return;
-    const style = document.createElement('style');
-    style.id = CSS_ID;
-    style.textContent = `
+    if(document.getElementById(CSS_ID))return;
+    const style=document.createElement('style');style.id=CSS_ID;
+    style.textContent=`
       @media(min-width:851px){
+        /* Controle branco estreito no canto do cabeçalho: botão flutuante
+           da equipe/chat. Desativa APENAS o botão problemático no PC;
+           toda a estrutura original do chat permanece no código. */
+        html[data-ace-font-level] body .ace-header-v6 > #aceTeamStatusButton,
+        html body .ace-header-v6 > #aceTeamStatusButton,
+        html body #aceTeamStatusButton.ace-team-floating{
+          display:none!important;visibility:hidden!important;pointer-events:none!important;
+        }
         #aceDesktopNews{box-sizing:border-box;margin:14px 16px 17px;padding:18px 20px 15px;
           width:calc(100% - 32px);border:1px solid #d4e7f0;border-radius:19px;
           background:linear-gradient(110deg,#f8fcff,#ebf6fd 70%,#eaf7f2);
           box-shadow:0 8px 28px rgba(12,62,94,.09);color:#173b55;font-family:inherit;}
         #aceDesktopNews *{box-sizing:border-box;}
-        #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;
-          gap:16px;margin:0 0 14px;}
+        #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;}
         #aceDesktopNews .ace-news-ident{min-width:0;}
-        #aceDesktopNews .ace-news-heading{display:block;font-size:19px;font-weight:900;
-          letter-spacing:-.2px;color:#113f61;line-height:1.3;}
+        #aceDesktopNews .ace-news-heading{display:block;font-size:19px;font-weight:900;letter-spacing:-.2px;color:#113f61;line-height:1.3;}
         #aceDesktopNews .ace-news-caption{margin-top:3px;color:#527184;font-size:12px;}
         #aceDesktopNews .ace-news-controls{display:flex;flex:none;align-items:center;gap:7px;}
-        #aceDesktopNews .ace-news-control{display:grid;place-items:center;min-height:38px;
-          width:40px;height:38px;padding:0;border:1px solid #c5dce9;border-radius:11px;
-          background:#fff;color:#155e86;cursor:pointer;font-size:24px;font-weight:800;
-          line-height:1;transition:background .2s ease,transform .2s ease;}
+        #aceDesktopNews .ace-news-control{display:grid;place-items:center;min-height:38px;width:40px;height:38px;padding:0;
+          border:1px solid #c5dce9;border-radius:11px;background:#fff;color:#155e86;cursor:pointer;
+          font-size:24px;font-weight:800;line-height:1;transition:background .2s ease;}
         #aceDesktopNews .ace-news-control:hover:not(:disabled){background:#e2f1fb;}
         #aceDesktopNews .ace-news-control:disabled{opacity:.35;cursor:default;}
         #aceDesktopNews :is(.ace-news-control,.ace-news-link):focus-visible{outline:3px solid #168bc5;outline-offset:3px;}
         #aceDesktopNews .ace-news-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
-        #aceDesktopNews .ace-news-card{display:flex;align-items:center;min-width:0;min-height:130px;
-          gap:15px;padding:12px;border:1px solid #d6e8f2;border-radius:15px;
-          background:#fff;box-shadow:0 3px 10px rgba(14,67,98,.045);}
+        #aceDesktopNews .ace-news-card{display:flex;align-items:center;min-width:0;min-height:130px;gap:15px;padding:12px;
+          border:1px solid #d6e8f2;border-radius:15px;background:#fff;box-shadow:0 3px 10px rgba(14,67,98,.045);}
         #aceDesktopNews .ace-news-card:hover{border-color:#acd1e5;box-shadow:0 8px 20px rgba(12,62,94,.09);}
-        #aceDesktopNews .ace-news-thumb{display:block;flex:0 0 124px;width:124px;height:97px;
-          border-radius:10px;overflow:hidden;background:linear-gradient(140deg,#c9e3f4,#e5f2fb 68%,#d7e8e2);
-          pointer-events:none;}
+        #aceDesktopNews .ace-news-thumb{display:grid;place-items:center;flex:0 0 124px;width:124px;height:97px;
+          border-radius:10px;overflow:hidden;background:linear-gradient(140deg,#dceef6,#e5f2fb 68%,#d7e8e2);pointer-events:none;}
         #aceDesktopNews .ace-news-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
-        /* Sem foto real: apenas fundo decorativo; nenhum ícone de pilha/jornal. */
-        #aceDesktopNews .ace-news-thumb.ace-news-no-image{position:relative;}
-        #aceDesktopNews .ace-news-no-image::before{content:'';position:absolute;left:22%;top:18%;
-          width:65%;height:65%;border-radius:999px;border:8px solid rgba(255,255,255,.40);}
-        #aceDesktopNews .ace-news-no-image::after{content:'';position:absolute;left:8%;bottom:-35%;
-          width:70%;height:84%;border-radius:50%;background:rgba(11,108,157,.12);}
+        #aceDesktopNews .ace-news-illustration{display:block;width:100%;height:100%;}
+        #aceDesktopNews .ace-news-illustration svg{width:100%;height:100%;display:block;}
         #aceDesktopNews .ace-news-copy{min-width:0;flex:1;}
-        #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;
-          letter-spacing:.75px;font-weight:900;color:#17769b;margin-bottom:8px;}
-        #aceDesktopNews .ace-news-link{display:-webkit-box;-webkit-box-orient:vertical;
-          -webkit-line-clamp:3;overflow:hidden;color:#17405b;text-decoration:none;
-          font-size:clamp(13px,1vw,15px);font-weight:850;line-height:1.43;overflow-wrap:anywhere;}
+        #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.75px;
+          font-weight:900;color:#17769b;margin-bottom:8px;}
+        #aceDesktopNews .ace-news-link{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;
+          color:#17405b;text-decoration:none;font-size:clamp(13px,1vw,15px);font-weight:850;line-height:1.43;overflow-wrap:anywhere;}
         #aceDesktopNews .ace-news-link:hover{color:#0872b9;text-decoration:underline;}
-        #aceDesktopNews .ace-news-footer{display:flex;align-items:center;justify-content:space-between;
-          gap:8px;margin-top:12px;min-height:18px;color:#57788d;font-size:12px;}
+        #aceDesktopNews .ace-news-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;
+          margin-top:12px;min-height:18px;color:#57788d;font-size:12px;}
         #aceDesktopNews .ace-news-page{font-weight:800;font-variant-numeric:tabular-nums;}
       }
       @media(min-width:851px) and (max-width:1150px){
@@ -66038,147 +66061,112 @@ function openAceAccessibility() {
         #aceDesktopNews *,#aceDesktopNews *::before,#aceDesktopNews *::after{animation:none!important;transition:none!important;}
       }
     `;
-    (document.head || document.documentElement).appendChild(style);
+    (document.head||document.documentElement).appendChild(style);
   }
 
-  const section = () => document.getElementById(SECTION_ID);
-  const pages = () => Math.max(1,Math.ceil(news.length/PER_PAGE));
-  function stop() { if(timer) { clearInterval(timer); timer=null; } }
-  function mayRotate() {
-    return desktop.matches && section() && pages()>1 &&
-      document.visibilityState === 'visible' &&
-      !window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  }
-  function play() {
-    stop();
-    const holder = section();
-    if(!holder || holder.matches(':hover') || !mayRotate()) return;
-    timer = window.setInterval(() => {
-      if(!mayRotate()) {stop();return;}
-      if(!holder.matches(':hover')) changePage(1);
-    }, ROTATE_MS);
-  }
-  function changePage(direction) {
-    page = (page + direction + pages()) % pages();
-    render();
-  }
-
-  function render() {
-    const holder = section();
-    const grid = holder?.querySelector('.ace-news-grid');
-    if(!grid) return;
-    // SOMENTE três cards com no máximo três imagens na página.
-    const showing = news.slice(page*PER_PAGE,(page+1)*PER_PAGE);
-    const fragment = document.createDocumentFragment();
-    for(const item of showing) {
-      const card = document.createElement('article'); card.className='ace-news-card';
-      const thumb = document.createElement('div'); thumb.className='ace-news-thumb';
-      thumb.setAttribute('aria-hidden','true');
-      // Miniaturas nunca clicáveis: não abrem páginas e não bloqueiam tela.
-      const imgUrl = secureLink(item.image,true);
-      if(imgUrl) {
-        const pic=document.createElement('img');pic.src=imgUrl;
-        pic.alt='';pic.loading='lazy';pic.decoding='async';pic.referrerPolicy='no-referrer';
-        pic.addEventListener('error',()=>{pic.remove();thumb.classList.add('ace-news-no-image');},{once:true});
+  const section=()=>document.getElementById(SECTION_ID);
+  const pages=()=>Math.max(1,Math.ceil(news.length/PER_PAGE));
+  function stop(){if(timer){clearInterval(timer);timer=null;}}
+  function mayRotate(){return desktop.matches&&!!section()&&pages()>1&&document.visibilityState==='visible'&&
+    !window.matchMedia('(prefers-reduced-motion:reduce)').matches;}
+  function play(){stop();const holder=section();if(!holder||holder.matches(':hover')||!mayRotate())return;
+    timer=setInterval(()=>{if(!mayRotate()){stop();return;}if(!holder.matches(':hover'))changePage(1);},ROTATE_MS);}
+  function changePage(direction){page=(page+direction+pages())%pages();render();}
+  function render(){
+    const holder=section(),grid=holder?.querySelector('.ace-news-grid');if(!grid)return;
+    const shown=news.slice(page*PER_PAGE,(page+1)*PER_PAGE);
+    const fragment=document.createDocumentFragment();
+    for(const item of shown){
+      const card=document.createElement('article');card.className='ace-news-card';
+      const thumb=document.createElement('div');thumb.className='ace-news-thumb';thumb.setAttribute('aria-hidden','true');
+      const imageUrl=secureLink(item.image,true);
+      if(imageUrl){
+        const pic=document.createElement('img');pic.src=imageUrl;pic.alt='';pic.loading='lazy';pic.decoding='async';
+        // Alguns sites recusam hotlink sem referer: não suprime o cabeçalho.
+        pic.addEventListener('error',()=>{pic.remove();thumb.replaceChildren(illustration(item.source));},{once:true});
         thumb.appendChild(pic);
-      } else thumb.classList.add('ace-news-no-image');
+      } else thumb.appendChild(illustration(item.source));
       const copy=document.createElement('div');copy.className='ace-news-copy';
-      const tag=document.createElement('span');tag.className='ace-news-source';tag.textContent=item.source||'FEEC';
+      const source=document.createElement('span');source.className='ace-news-source';source.textContent=item.source==='FEB'?'FEB':'FEEC';
       const link=document.createElement('a');link.className='ace-news-link';
-      link.href=secureLink(item.link)||FEEC_NEWS;
-      link.target='_blank';link.rel='noopener noreferrer';link.textContent=item.title;
-      link.title=item.title;
-      copy.append(tag,link);card.append(thumb,copy);fragment.appendChild(card);
+      link.href=secureLink(item.link)||(item.source==='FEB'?FEB_SITE:FEEC_NEWS);
+      link.target='_blank';link.rel='noopener noreferrer';link.textContent=item.title;link.title=item.title;
+      copy.append(source,link);card.append(thumb,copy);fragment.appendChild(card);
     }
     grid.replaceChildren(fragment);
-    const counter=holder.querySelector('.ace-news-page');
-    if(counter) {
-      counter.textContent=`${page+1} de ${pages()}`;
-      counter.setAttribute('aria-label',`Página ${page+1} de ${pages()}`);
+    const counter=holder.querySelector('.ace-news-page');if(counter){counter.textContent=`${page+1} de ${pages()}`;
+      counter.setAttribute('aria-label',`Página ${page+1} de ${pages()}`);}
+    holder.querySelectorAll('.ace-news-control').forEach(btn=>{btn.disabled=pages()<=1;});
+  }
+
+  async function getJson(url,timeoutMs=5000){
+    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),timeoutMs);
+    try {const response=await fetch(url,{signal:controller.signal,credentials:'omit',cache:'no-store'});
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      return await response.json();}finally{clearTimeout(timeout);}
+  }
+  async function getFromOfficial(source){
+    for(const url of FEEDS[source]){
+      try {const list=await getJson(url,4500);if(Array.isArray(list)&&list.length)return normalize(list,source);}
+      catch{/* Falha de CORS, indisponibilidade ou rede: passa à próxima tentativa. */}
     }
-    holder.querySelectorAll('.ace-news-control').forEach(button=>{button.disabled=pages()<=1;});
+    return [];
   }
-
-  async function getJson(url, milliseconds=7000) {
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(),milliseconds);
-    try {
-      const response=await fetch(url,{signal:controller.signal,credentials:'omit',cache:'no-store'});
-      if(!response.ok) throw new Error('HTTP '+response.status);
-      return await response.json();
-    } finally {clearTimeout(timeout);}
-  }
-
-  function normalize(records) {
-    if(!Array.isArray(records)) return [];
+  function normalize(records,source){
+    if(!Array.isArray(records))return [];
     return records.map(post=>{
-      const url=secureLink(post?.link);
-      const title=cleanText(post?.title?.rendered);
-      if(!title || !url || !/\bfeec\.org\.br\b/.test(url))return null;
-      return {title,link:url,source:'FEEC',image:extractImage(post),date:post?.date||''};
+      const link=secureLink(post?.link),title=cleanText(post?.title?.rendered);
+      const host=link?new URL(link).hostname:'';
+      const expected=source==='FEB'?/(^|\.)febnet\.org\.br$/:/(^|\.)feec\.org\.br$/;
+      if(!link||!title||!expected.test(host))return null;
+      return {title,link,source,image:extractImage(post),date:post?.date||''};
     }).filter(Boolean).slice(0,9);
   }
 
-  async function fetchNews() {
-    if(!desktop.matches || loading) return;
-    loading=true;
-    try {
-      let cached=null;
-      try{cached=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{}
-      if(cached?.items?.length) {
+  async function fetchNews(){
+    if(!desktop.matches||loading)return;loading=true;
+    try{
+      let cached=null;try{cached=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{}
+      if(cached?.items?.length){
         news=cached.items;page=0;render();play();
-        if(Date.now()-Number(cached.at||0)<CACHE_MS) return;
+        if(Date.now()-Number(cached.at||0)<CACHE_MS)return;
       }
-      let records;
-      try {records=await getJson(FEED);}catch {records=await getJson(FEED_SIMPLE);}
-      const fetched=normalize(records);
-      if(!fetched.length)throw new Error('Sem notícias na fonte');
-      news=fetched;page=0;lastLoadedAt=Date.now();
-      render();play();
-      try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:lastLoadedAt,items:fetched}));}catch{}
-    } catch(error) {
-      console.info('ACE: notícias oficiais temporariamente indisponíveis; conteúdo salvo/padrão mantido.',error?.message||'');
-    } finally {loading=false;}
+      // As duas fontes são consultadas em paralelo; cache é local ao aparelho.
+      const [feecResult,febResult]=await Promise.all([getFromOfficial('FEEC'),getFromOfficial('FEB')]);
+      const feec=feecResult.length?feecResult:curatedFEEC;
+      const feb=febResult.length?febResult:curatedFEB;
+      news=interleave(feec,feb);page=0;lastCheck=Date.now();render();play();
+      try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:lastCheck,items:news}));}catch{}
+    }catch(error){console.info('ACE: notícias temporariamente indisponíveis; seleção salva mantida.',error?.message||'');}
+    finally{loading=false;}
   }
 
-  function mount() {
-    if(!desktop.matches || section() || document.getElementById('loginScreen'))return;
+  function mount(){
+    if(!desktop.matches||section()||document.getElementById('loginScreen'))return;
     const header=document.querySelector('.ace-header-v6');if(!header)return;
     const area=document.createElement('section');area.id=SECTION_ID;
     area.setAttribute('aria-label','Notícias do Movimento Espírita');
-    area.innerHTML=`<div class="ace-news-top">
-      <div class="ace-news-ident"><strong class="ace-news-heading">Notícias do Movimento Espírita</strong>
-        <div class="ace-news-caption">Fontes oficiais · Atualização a cada 6 horas · Miniaturas leves</div></div>
+    area.innerHTML=`<div class="ace-news-top"><div class="ace-news-ident">
+      <strong class="ace-news-heading">Notícias do Movimento Espírita</strong>
+      <div class="ace-news-caption">FEEC e FEB · Atualização periódica · Fotos quando disponíveis</div></div>
       <div class="ace-news-controls">
         <button class="ace-news-control" data-ace-news-prev type="button" aria-label="Notícias anteriores">‹</button>
         <button class="ace-news-control" data-ace-news-next type="button" aria-label="Próximas notícias">›</button>
-      </div></div>
-      <div class="ace-news-grid" role="group" aria-label="Três notícias em destaque"></div>
-      <div class="ace-news-footer"><span>As notícias mudam automaticamente ou pelas setas</span>
-        <span class="ace-news-page" aria-live="polite">1 de 1</span></div>`;
+      </div></div><div class="ace-news-grid" role="group" aria-label="Três notícias em destaque"></div>
+      <div class="ace-news-footer"><span>Mais notícias pelas setas ou automaticamente</span>
+      <span class="ace-news-page" aria-live="polite">1 de 1</span></div>`;
     header.insertAdjacentElement('afterend',area);
-    // Ao contrário da V119, não há ícones clicáveis nem link de fonte no rodapé.
     area.querySelector('[data-ace-news-prev]').addEventListener('click',()=>{changePage(-1);play();});
     area.querySelector('[data-ace-news-next]').addEventListener('click',()=>{changePage(1);play();});
-    area.addEventListener('mouseenter',stop);
-    area.addEventListener('mouseleave',play);
-    area.addEventListener('focusin',stop);
-    area.addEventListener('focusout',()=>setTimeout(play,0));
+    area.addEventListener('mouseenter',stop);area.addEventListener('mouseleave',play);
+    area.addEventListener('focusin',stop);area.addEventListener('focusout',()=>setTimeout(play,0));
     render();fetchNews();
   }
-
-  function refresh() {
-    if(!desktop.matches) {stop();section()?.remove();return;}
-    ensureStyle();mount();
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});
-  else refresh();
+  function refresh(){if(!desktop.matches){stop();section()?.remove();return;}ensureStyle();mount();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
   desktop.addEventListener?.('change',refresh);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stop();else play();});
-  // A tela principal pode nascer depois da autenticação; aguarda só a montagem.
-  let checks=0;
-  const mountProbe=setInterval(()=>{
-    if(section() || ++checks>180){clearInterval(mountProbe);return;}
-    refresh();
-  },1000);
+  let tries=0;const probe=setInterval(()=>{if(section()||++tries>180){clearInterval(probe);return;}refresh();},1000);
+  // Persistindo na mesma aba por horas, revalida a cada 20 min sem gasto em banco.
+  setInterval(()=>{if(desktop.matches&&section()&&document.visibilityState==='visible')fetchNews();},20*60*1000);
 })();
