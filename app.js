@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-painel-mensal-v111",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-nomes-maiores-v113",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-painel-mensal-v111";
+  "2026.10.20-menu-nomes-maiores-v113";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42263,7 +42263,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-painel-mensal-v111",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-nomes-maiores-v113",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -60608,7 +60608,9 @@ function aceMonthlyShift(month, delta) {
   return `${String(Math.floor(index/12)).padStart(4,'0')}-${String(index%12+1).padStart(2,'0')}`;
 }
 function aceMonthlyMonthLabel(month) {
-  return new Date(month+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
+  if (!aceMonthlyValidMonth(month)) return '';
+  const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${names[Number(month.slice(5,7))-1]}/${month.slice(0,4)}`;
 }
 function aceMonthlyValidMonth(month) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && Number(month.slice(0,4))>0; }
 function aceMonthlyQty(value) { const n=Number(value); return Number.isFinite(n) && n>0 ? n : 0; }
@@ -65607,8 +65609,11 @@ function getAceModernMobileIcon(kind) {
       html body #aceMobileDrawer :is(.ace-drawer-head,.ace-drawer-footer){flex-shrink:0!important}
       html body #aceMobileDrawerBackdrop{overscroll-behavior:none!important;touch-action:none!important}
       html body #aceMobileDrawer .ace-drawer-close{width:44px!important;height:44px!important;flex:0 0 44px!important}
-      html body #aceMobileDrawer .ace-drawer-item{min-height:48px!important;font-size:14px!important}
-      html body #aceMobileDrawer .ace-drawer-section-title{font-size:12px!important;letter-spacing:.04em}
+      /* Mesma hierarquia de leitura para todas as opções do menu no celular. */
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){min-height:52px!important;height:auto!important;font-size:18px!important;font-weight:800!important;line-height:1.35!important;white-space:normal!important;text-align:left!important;padding:12px!important;box-sizing:border-box!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span:first-child{font-size:inherit!important;font-weight:inherit!important;line-height:inherit!important;min-width:0!important;white-space:normal!important;overflow-wrap:break-word!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span:last-child{flex:0 0 auto!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-title{font-size:16px!important;font-weight:900!important;line-height:1.35!important;letter-spacing:.04em;white-space:normal!important;overflow-wrap:break-word!important}
       html body main{padding-top:18px!important}
       html body #mural .ace-mural-title{font-size:26px!important;line-height:1.2!important}
       html body #mural .ace-mural-subtitle{font-size:14px!important;line-height:1.5!important;margin-top:8px!important}
