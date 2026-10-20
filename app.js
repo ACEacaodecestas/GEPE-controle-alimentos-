@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-desktop-noticias-v123";
+  "2026.10.20-inicio-padrao-v124";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -52736,8 +52736,9 @@ async function initApp() {
 
     setupAceInventoryRealtime();
 
-    // Sempre abre o aplicativo diretamente no Mural ACE.
-    openDefaultMuralAcePage();
+    // Abre sempre no Início, no PWA (PC e celular) e no APK.
+    // Usa a mesma navegação do botão Início já existente.
+    activateAceOriginalTab("inicio");
 
     bindEvents();
 
