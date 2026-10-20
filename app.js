@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-hierarquia-v116",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-menu-hierarquia-v116";
+  "2026.10.20-menu-grupos-visiveis-v117";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42269,7 +42269,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-hierarquia-v116",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -63556,6 +63556,7 @@ window.aceBuildStatisticsReportHtml =
             ${title}
           </div>
 
+          <div class="ace-drawer-section-items">
           ${
             items
               .map(
@@ -63591,6 +63592,7 @@ window.aceBuildStatisticsReportHtml =
               )
               .join("")
           }
+          </div>
 
         </div>
       `;
@@ -63684,6 +63686,7 @@ window.aceBuildStatisticsReportHtml =
           Configurações
         </div>
 
+        <div class="ace-drawer-section-items">
         <button
           class="ace-drawer-item"
           type="button"
@@ -63695,6 +63698,7 @@ window.aceBuildStatisticsReportHtml =
         </button>
 
         ${settingsAdmin}
+        </div>
 
       </div>
 
@@ -65616,15 +65620,18 @@ function getAceModernMobileIcon(kind) {
       html body #aceMobileDrawerBackdrop{overscroll-behavior:none!important;touch-action:none!important}
       html body #aceMobileDrawer .ace-drawer-close{width:44px!important;height:44px!important;flex:0 0 44px!important}
       /* Títulos em destaque e opções discretas com recuo por nível. */
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){min-height:48px!important;height:auto!important;font-size:15px!important;font-weight:650!important;line-height:1.35!important;white-space:normal!important;text-align:left!important;padding:9px 12px!important;box-sizing:border-box!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){min-height:48px!important;height:auto!important;font-size:15.5px!important;font-weight:600!important;line-height:1.35!important;white-space:normal!important;text-align:left!important;padding:9px 12px!important;box-sizing:border-box!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span{font-size:inherit!important;font-weight:inherit!important;line-height:inherit!important;min-width:0!important;white-space:normal!important;overflow-wrap:break-word!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span:last-child{flex:0 0 auto!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-level2,.ace-drawer-settings-level2){margin:3px 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){border:0!important;border-radius:12px!important;background:transparent!important;box-shadow:none!important;color:#28445e!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle):hover{background:#edf5fb!important;color:#0756a0!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-title{font-size:14px!important;font-weight:900!important;line-height:1.35!important;color:#124b73!important;letter-spacing:.04em;margin:14px 8px 5px!important;white-space:normal!important;overflow-wrap:break-word!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){padding-left:24px!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-title{font-size:15px!important;font-weight:900!important;line-height:1.35!important;color:#124b73!important;letter-spacing:.04em;margin:16px 8px 7px!important;white-space:normal!important;overflow-wrap:break-word!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){padding-left:12px!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-panel,.ace-drawer-settings-panel){padding:0 0 3px 12px!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section{padding:0 0 8px!important;margin:0!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-items{display:flex!important;flex-direction:column!important;gap:0!important;margin-left:20px!important;padding-left:8px!important;border-left:2px solid #d7e7f2!important;min-width:0!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-items > *{flex-shrink:0!important}
       html body main{padding-top:18px!important}
       html body #mural .ace-mural-title{font-size:26px!important;line-height:1.2!important}
       html body #mural .ace-mural-subtitle{font-size:14px!important;line-height:1.5!important;margin-top:8px!important}
@@ -65690,7 +65697,7 @@ function ensureAceAccessibilityButtons() {
     button.setAttribute('aria-controls', 'aceAccessibilityModal');
     button.setAttribute('aria-expanded', String(!!document.getElementById('aceAccessibilityModal')));
     button.innerHTML = `${icon}<span>Acessibilidade</span>`;
-    const host = menuId === 'aceMobileDrawerList' ? (menu.querySelector('.ace-drawer-config-section') || menu) : menu;
+    const host = menuId === 'aceMobileDrawerList' ? (menu.querySelector('.ace-drawer-config-section .ace-drawer-section-items') || menu) : menu;
     host.insertBefore(button, host.querySelector('.logout'));
   }
   ensureAceCompactOnline();
