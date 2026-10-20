@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-compacto-sem-caixas-v114",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-cadastros-fechar-menu-v115",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-menu-compacto-sem-caixas-v114";
+  "2026.10.20-cadastros-fechar-menu-v115";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -23720,6 +23720,12 @@ async function openAceConfigurationDestination(
   }
 
 
+  // Fecha o menu e libera a rolagem antes de abrir a página de destino,
+  // inclusive quando a aba Cadastros já estava ativa atrás do menu.
+  if (typeof closeAceMobileDrawer === "function") {
+    closeAceMobileDrawer();
+  }
+
   aceConfigurationDestination =
     selected;
 
@@ -42263,7 +42269,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-compacto-sem-caixas-v114",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-cadastros-fechar-menu-v115",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
