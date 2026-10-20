@@ -4,7 +4,7 @@
 // ============================================================
 
 const ACE_CACHE_VERSION =
-  "controle-alimentos-painel-mensal-20261020-v111";
+  "controle-alimentos-menu-nomes-maiores-20261020-v113";
 
 const ACE_APP_BASE =
   "/GEPE-controle-alimentos-/";
@@ -13,7 +13,7 @@ const ACE_CORE_FILES = [
   ACE_APP_BASE,
   `${ACE_APP_BASE}index.html`,
   `${ACE_APP_BASE}style.css?v=gepe-v99`,
-  `${ACE_APP_BASE}app.js?v=gepe-v111`,
+  `${ACE_APP_BASE}app.js?v=gepe-v113`,
   `${ACE_APP_BASE}manifest-v3.json`,
   `${ACE_APP_BASE}icon-192.png`,
   `${ACE_APP_BASE}icon-512.png`
