@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-nomes-maiores-v113",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-compacto-sem-caixas-v114",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-menu-nomes-maiores-v113";
+  "2026.10.20-menu-compacto-sem-caixas-v114";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42263,7 +42263,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-nomes-maiores-v113",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-compacto-sem-caixas-v114",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65609,11 +65609,14 @@ function getAceModernMobileIcon(kind) {
       html body #aceMobileDrawer :is(.ace-drawer-head,.ace-drawer-footer){flex-shrink:0!important}
       html body #aceMobileDrawerBackdrop{overscroll-behavior:none!important;touch-action:none!important}
       html body #aceMobileDrawer .ace-drawer-close{width:44px!important;height:44px!important;flex:0 0 44px!important}
-      /* Mesma hierarquia de leitura para todas as opções do menu no celular. */
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){min-height:52px!important;height:auto!important;font-size:18px!important;font-weight:800!important;line-height:1.35!important;white-space:normal!important;text-align:left!important;padding:12px!important;box-sizing:border-box!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span:first-child{font-size:inherit!important;font-weight:inherit!important;line-height:inherit!important;min-width:0!important;white-space:normal!important;overflow-wrap:break-word!important}
+      /* Menu compacto: opções e grupos com a mesma tipografia, sem caixas. */
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){min-height:48px!important;height:auto!important;font-size:14px!important;font-weight:750!important;line-height:1.35!important;white-space:normal!important;text-align:left!important;padding:9px 12px!important;box-sizing:border-box!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span{font-size:inherit!important;font-weight:inherit!important;line-height:inherit!important;min-width:0!important;white-space:normal!important;overflow-wrap:break-word!important}
       html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span:last-child{flex:0 0 auto!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-title{font-size:16px!important;font-weight:900!important;line-height:1.35!important;letter-spacing:.04em;white-space:normal!important;overflow-wrap:break-word!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-level2,.ace-drawer-settings-level2){margin:3px 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){border:0!important;border-radius:12px!important;background:transparent!important;box-shadow:none!important;color:#28445e!important}
+      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle):hover{background:#edf5fb!important;color:#0756a0!important}
+      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-title{font-size:12px!important;font-weight:900!important;line-height:1.35!important;letter-spacing:.04em;white-space:normal!important;overflow-wrap:break-word!important}
       html body main{padding-top:18px!important}
       html body #mural .ace-mural-title{font-size:26px!important;line-height:1.2!important}
       html body #mural .ace-mural-subtitle{font-size:14px!important;line-height:1.5!important;margin-top:8px!important}
