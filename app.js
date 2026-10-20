@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-finalidade-sacos-v110",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-painel-mensal-v111",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.19-finalidade-sacos-v110";
+  "2026.10.20-painel-mensal-v111";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42263,7 +42263,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261019-finalidade-sacos-v110",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-painel-mensal-v111",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -60597,6 +60597,226 @@ function aceStatsTopTieLabel(
 }
 
 
+// Painel mensal com filtros locais. Consulta somente os dados já carregados.
+let aceMonthlyState = {mode:'food',foodId:'',search:'',month:'',anchor:'',span:6,visible:{a:true,b:true,c:true}};
+let aceMonthlyModel = null;
+let aceMonthlyModal = null;
+
+function aceMonthlyShift(month, delta) {
+  const [year,number] = month.split('-').map(Number);
+  const index = year * 12 + number - 1 + delta;
+  return `${String(Math.floor(index/12)).padStart(4,'0')}-${String(index%12+1).padStart(2,'0')}`;
+}
+function aceMonthlyMonthLabel(month) {
+  return new Date(month+'-01T12:00:00').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
+}
+function aceMonthlyValidMonth(month) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && Number(month.slice(0,4))>0; }
+function aceMonthlyQty(value) { const n=Number(value); return Number.isFinite(n) && n>0 ? n : 0; }
+function aceMonthlyFoods(source) {
+  const map=new Map((source.foods||[]).map(food=>[String(food.id),{id:String(food.id),name:String(food.name||'Alimento sem nome')}]));
+  [...(source.entries||[]),...(source.movements||[])].forEach(row=>{
+    if(row.foodId!=null && !map.has(String(row.foodId))) map.set(String(row.foodId),{id:String(row.foodId),name:String(row.foodName||`Alimento #${row.foodId}`)});
+  });
+  return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+}
+function aceMonthlyBuildModel(source,state) {
+  const month=aceMonthlyValidMonth(state.month)?state.month:aceStatsIsoToday().slice(0,7);
+  const anchor=aceMonthlyValidMonth(state.anchor)?state.anchor:month;
+  const span=[3,6,12].includes(Number(state.span))?Number(state.span):6;
+  const months=Array.from({length:span},(_,i)=>aceMonthlyShift(anchor,i-span+1));
+  const foodMode=state.mode!=='basket';
+  const series=foodMode
+    ? [{key:'a',label:'Entradas',color:'#11966f'},{key:'b',label:'Saídas',color:'#1689d0'},{key:'c',label:'Perdas',color:'#dc3b35'}]
+    : [{key:'a',label:'Montadas',color:'#7b68c9'},{key:'b',label:'Saídas',color:'#1689d0'},{key:'c',label:'Estornos',color:'#c75284'}];
+  const foodMatch=row=>!state.foodId||String(row.foodId)===String(state.foodId);
+  const rows=foodMode ? {
+    a:(source.entries||[]).filter(foodMatch),
+    b:(source.movements||[]).filter(row=>row.type==='saida'&&foodMatch(row)),
+    c:(source.movements||[]).filter(row=>row.type==='perda'&&foodMatch(row))
+  } : {
+    a:(source.basketStock||[]).filter(row=>!row.hiddenHistory),
+    b:source.basketWithdrawals||[],
+    c:(source.basketAdjustments||[]).filter(row=>row.type==='estorno')
+  };
+  const qty=(row,key)=>aceMonthlyQty(!foodMode&&key==='a'?row.mountedQty:row.qty);
+  const monthly=months.map(key=>({month:key,a:0,b:0,c:0}));
+  const byMonth=new Map(monthly.map(item=>[item.month,item]));
+  const totals={a:0,b:0,c:0};
+  const dailyKey=foodMode?'a':'b';
+  const date=new Date(month+'-01T12:00:00');date.setMonth(date.getMonth()+1);date.setDate(0);
+  const days=Array.from({length:date.getDate()},(_,i)=>({date:`${month}-${String(i+1).padStart(2,'0')}`,value:0,count:0}));
+  const byDay=new Map(days.map(item=>[item.date,item]));
+  const ranking=new Map();
+  for(const key of ['a','b','c']) rows[key].forEach(row=>{
+    const day=String(row.date||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return;
+    const value=qty(row,key),item=byMonth.get(day.slice(0,7));
+    if(item)item[key]+=value;
+    if(day.slice(0,7)!==month)return;
+    totals[key]+=value;
+    if(key===dailyKey&&byDay.has(day)){byDay.get(day).value+=value;byDay.get(day).count++;}
+    if((foodMode&&key==='c')||(!foodMode&&key==='b')){
+      const label=foodMode?aceStatsName(source.reasons,row.reasonId,row.reason||'Motivo não informado'):String(row.destination||'Destino não informado');
+      ranking.set(label,(ranking.get(label)||0)+value);
+    }
+  });
+  const foods=aceMonthlyFoods(source);
+  return {mode:foodMode?'food':'basket',month,anchor,span,months:monthly,series,totals,days,dailyKey,
+    ranking:[...ranking].map(([label,value])=>({label,value})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value||a.label.localeCompare(b.label,'pt-BR')),
+    unit:foodMode?'unidades':'cestas',foodName:foodMode?(foods.find(food=>food.id===String(state.foodId))?.name||(state.foodId?`Alimento #${state.foodId}`:'Todos os alimentos')):'Cestas',foods};
+}
+function aceMonthlyFoodOptions(model) {
+  const query=aceStatsNormalize(aceMonthlyState.search);
+  const foods=model.foods.filter(food=>food.id===String(aceMonthlyState.foodId)||!query||aceStatsNormalize(food.name).includes(query));
+  return '<option value="">Todos os alimentos</option>'+foods.map(food=>`<option value="${aceStatsEsc(food.id)}" ${food.id===String(aceMonthlyState.foodId)?'selected':''}>${aceStatsEsc(food.name)}</option>`).join('');
+}
+function aceMonthlyGraph(model,kind) {
+  const e=aceStatsEsc,f=aceStatsFmt;
+  if(kind==='monthly'){
+    const visible=model.series.filter(item=>aceMonthlyState.visible[item.key]!==false);
+    const max=Math.max(4,Math.ceil(Math.max(0,...model.months.flatMap(item=>visible.map(series=>item[series.key])))/4)*4);
+    const width=Math.max(620,model.months.length*105),height=290,left=64,right=18,top=30,bottom=55;
+    const plot=width-left-right,plotHeight=height-top-bottom,step=plot/model.months.length;
+    const grid=Array.from({length:5},(_,i)=>{const y=top+plotHeight*i/4;return `<line x1="${left}" x2="${width-right}" y1="${y}" y2="${y}" stroke="#dce7ef"/><text x="${left-9}" y="${y+4}" text-anchor="end">${f(max*(1-i/4))}</text>`;}).join('');
+    const bars=model.months.map((item,i)=>{
+      const tip=`${aceMonthlyMonthLabel(item.month)}: ${model.series.map(series=>`${series.label} ${f(item[series.key])}`).join(' · ')}`;
+      const groupWidth=Math.min(step*.75,72),barWidth=groupWidth/visible.length;
+      return `<g role="button" tabindex="0" data-amp-month="${item.month}" data-amp-tip="${e(tip)}" aria-label="${e(tip)}. Abrir detalhes deste mês." aria-pressed="${item.month===model.month}"><title>${e(tip)}</title><rect x="${left+i*step}" y="${top}" width="${step}" height="${plotHeight+35}" fill="${item.month===model.month?'#eaf5fb':'#fff'}" fill-opacity="${item.month===model.month?1:0}" pointer-events="all" rx="7"/>${visible.map((series,j)=>{
+        const value=item[series.key],h=value/max*plotHeight,x=left+i*step+(step-groupWidth)/2+j*barWidth;
+        return `<rect x="${x+2}" y="${top+plotHeight-h}" width="${Math.max(3,barWidth-4)}" height="${h}" rx="3" fill="${series.color}"/>`;
+      }).join('')}<text x="${left+(i+.5)*step}" y="${height-22}" text-anchor="middle">${e(aceMonthlyMonthLabel(item.month))}</text></g>`;
+    }).join('');
+    return `<div class="ace-amp-legend" role="group" aria-label="Séries do comparativo mensal">${model.series.map(item=>`<button type="button" id="aceMonthlySeries${item.key}" data-amp-series="${item.key}" aria-pressed="${aceMonthlyState.visible[item.key]!==false}" ${visible.length===1&&visible[0].key===item.key?'disabled':''}><i style="background:${item.color}"></i>${e(item.label)}</button>`).join('')}</div><div class="ace-amp-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="min-width:${width}px" aria-label="Comparativo mensal em ${model.unit}. Selecione um mês para detalhar." role="group">${grid}${bars}</svg></div>`;
+  }
+  if(kind==='daily'){
+    const width=Math.max(680,model.days.length*27),height=260,left=58,top=28,bottom=42,plotHeight=height-top-bottom,step=(width-left-15)/model.days.length;
+    const max=Math.max(4,Math.ceil(Math.max(0,...model.days.map(day=>day.value))/4)*4);
+    const grid=Array.from({length:5},(_,i)=>{const y=top+plotHeight*i/4;return `<line x1="${left}" x2="${width-15}" y1="${y}" y2="${y}" stroke="#dce7ef"/><text x="${left-8}" y="${y+4}" text-anchor="end">${f(max*(1-i/4))}</text>`;}).join('');
+    const bars=model.days.map((day,i)=>{
+      const tip=`${fmtDate(day.date)}: ${f(day.value)} ${model.unit} · ${day.count} lançamento(s)`,h=day.value/max*plotHeight,x=left+i*step;
+      return `<g role="button" tabindex="0" data-amp-day="${day.date}" data-amp-tip="${e(tip)}" aria-label="${e(tip)}"><title>${e(tip)}</title><rect x="${x}" y="${top}" width="${step}" height="${plotHeight}" fill="#fff" fill-opacity="0" pointer-events="all"/><rect x="${x+3}" y="${top+plotHeight-h}" width="${Math.max(3,step-6)}" height="${h}" fill="${model.mode==='food'?'#11966f':'#1689d0'}" rx="3"/><text x="${x+step/2}" y="${height-18}" text-anchor="middle">${Number(day.date.slice(-2))}</text></g>`;
+    }).join('');
+    return `${model.days.every(day=>!day.value)?'<p class="ace-amp-empty">Nenhuma movimentação deste tipo no mês selecionado.</p>':''}<div class="ace-amp-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="min-width:${width}px" role="group" aria-label="${model.mode==='food'?'Entradas':'Saídas de cestas'} por dia, em ${model.unit}. Toque em um dia para consultar.">${grid}${bars}</svg></div>`;
+  }
+  const total=model.ranking.reduce((sum,item)=>sum+item.value,0),max=Math.max(1,...model.ranking.map(item=>item.value));
+  return model.ranking.length?`<div class="ace-amp-ranking">${model.ranking.map(item=>{
+    const tip=`${item.label}: ${f(item.value)} ${model.unit} (${(item.value/total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%)`;
+    return `<button type="button" class="ace-amp-rank" data-amp-tip="${e(tip)}" aria-label="${e(tip)}"><span>${e(item.label)}</span><strong>${f(item.value)} <small>${(item.value/total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</small></strong><i><b style="width:${item.value/max*100}%"></b></i></button>`;
+  }).join('')}</div>`:`<div class="ace-amp-empty">${model.mode==='food'?'Nenhuma perda registrada para esta seleção.':'Nenhuma saída de cesta registrada para esta seleção.'}</div>`;
+}
+function aceMonthlyGraphTitle(model,kind) {
+  return kind==='monthly'?'Comparativo mensal':kind==='daily'?(model.mode==='food'?'Entradas por dia do mês':'Saídas de cestas por dia'):(model.mode==='food'?'Perdas por motivo':'Destinos das saídas de cestas');
+}
+function aceMonthlyChartCard(model,kind) {
+  return `<article class="ace-amp-chart" data-amp-chart="${kind}"><div class="ace-amp-chart-head"><h4>${aceMonthlyGraphTitle(model,kind)}</h4><button type="button" data-amp-expand="${kind}" aria-label="Ampliar ${aceMonthlyGraphTitle(model,kind)}">⛶ Ampliar</button></div>${aceMonthlyGraph(model,kind)}<p class="ace-amp-tip" data-amp-detail role="status" aria-live="polite">${kind==='monthly'?'Clique ou toque em um mês para abrir seu detalhamento.':kind==='daily'?'Passe o mouse, use o teclado ou toque nas colunas para consultar data e quantidade.':'Consulte as quantidades e os percentuais desta seleção.'}</p></article>`;
+}
+function aceMonthlyEnsureStyles() {
+  if(document.getElementById('aceMonthlyPanelStyle111'))return;
+  const style=document.createElement('style');style.id='aceMonthlyPanelStyle111';
+  style.textContent=`
+    #aceMonthlyExplorer,.ace-amp-modal{--amp-blue:#124b73;--amp-green:#11966f;color:#173750}
+    .ace-amp-mode,.ace-amp-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .ace-amp-mode button,.ace-amp-legend button,.ace-amp-chart-head button,.ace-amp-reset,.ace-amp-modal button[data-amp-close]{font:inherit;font-size:13px;min-height:44px;padding:9px 13px;border:1px solid #bfd4e4;border-radius:10px;color:#124b73;background:#fff;cursor:pointer}
+    .ace-amp-mode button[aria-pressed=true]{background:#124b73;color:#fff;border-color:#124b73}
+    .ace-amp-legend button{display:flex;align-items:center;gap:6px;min-height:38px}
+    .ace-amp-legend button[aria-pressed=false]{opacity:.5;text-decoration:line-through}
+    .ace-amp-legend i{display:block;width:9px;height:9px;border-radius:50%}
+    .ace-amp-legend button:disabled{cursor:default}
+    .ace-amp-filters{display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.4fr) minmax(145px,1fr) minmax(125px,.8fr) auto;gap:12px;align-items:end;padding:16px;background:#eff7fc;border:1px solid #d5e6f0;border-radius:14px}
+    .ace-amp-filters label{display:grid;gap:6px;min-width:0;font-size:13px;font-weight:750}
+    .ace-amp-filters input,.ace-amp-filters select{box-sizing:border-box;width:100%;min-width:0;min-height:44px;border:1px solid #b7cfdf;border-radius:9px;padding:9px 10px;background:#fff;color:#173750;font:inherit;font-size:14px}
+    .ace-amp-filters :disabled{opacity:.6}
+    .ace-amp-context{font-size:13px;line-height:1.5;margin:12px 0;color:#526d80}
+    .ace-amp-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}
+    .ace-amp-kpi{padding:14px;border:1px solid #d5e5ef;border-top:3px solid var(--amp-color);border-radius:12px;background:#fff;min-width:0}
+    .ace-amp-kpi span,.ace-amp-kpi small{display:block;font-size:12px;color:#526d80;line-height:1.5}.ace-amp-kpi strong{display:block;font-size:26px;color:var(--amp-color);overflow-wrap:anywhere}
+    .ace-amp-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ace-amp-charts>.ace-amp-chart:first-child{grid-column:1/-1}
+    .ace-amp-chart{min-width:0;padding:16px;background:#fff;border:1px solid #d3e3ee;border-radius:14px;box-sizing:border-box}
+    .ace-amp-chart-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}.ace-amp-chart-head h4{margin:0;font-size:16px;line-height:1.4;color:#124b73}
+    .ace-amp-scroll{overflow-x:auto;overscroll-behavior-x:contain;max-width:100%}.ace-amp-scroll svg{display:block;width:100%;height:auto;max-height:380px;overflow:visible}.ace-amp-scroll text{font-size:12px;font-family:Arial,sans-serif;fill:#526d80}
+    .ace-amp-scroll g[role=button]{cursor:pointer}.ace-amp-scroll g[role=button]:focus{outline:2px solid #0b74ad;outline-offset:-2px}.ace-amp-scroll g[role=button]:hover>rect:first-of-type{fill:#e5f3fa;fill-opacity:1}
+    .ace-amp-tip{margin:12px 0 0;padding:10px;border-radius:9px;background:#f2f7fa;color:#425d72;font-size:12px;line-height:1.5;min-height:18px}
+    .ace-amp-empty{padding:20px;color:#6b8192;font-size:14px;line-height:1.5;text-align:center}
+    .ace-amp-ranking{max-height:300px;overflow:auto;overscroll-behavior:contain}.ace-amp-rank{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;width:100%;padding:10px 0;border:0;border-bottom:1px solid #e7eef3;background:#fff;color:#173750;text-align:left;font:inherit;font-size:13px;cursor:pointer}.ace-amp-rank>span{overflow-wrap:anywhere}.ace-amp-rank>strong{font-size:13px;white-space:nowrap}.ace-amp-rank small{color:#61798a;font-size:11px}.ace-amp-rank>i{grid-column:1/-1;display:block;height:8px;background:#edf2f6;border-radius:5px;overflow:hidden}.ace-amp-rank b{display:block;height:100%;background:#c75284;border-radius:5px}
+    #aceMonthlyExplorer :is(button,input,select):focus-visible,.ace-amp-modal button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
+    .ace-amp-modal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.66);box-sizing:border-box;overscroll-behavior:none}
+    .ace-amp-modal-box{width:min(1180px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;background:#fff;border-radius:18px;padding:20px;box-sizing:border-box}.ace-amp-modal-head{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:15px}.ace-amp-modal-head h3{margin:0;font-size:18px;line-height:1.4;color:#124b73}.ace-amp-modal .ace-amp-chart{padding:10px;border:0}.ace-amp-modal .ace-amp-scroll svg{max-height:65vh}
+    @media(max-width:850px){.ace-amp-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.ace-amp-reset{grid-column:1/-1}.ace-amp-charts{grid-template-columns:1fr}.ace-amp-chart{padding:12px}.ace-amp-kpi{padding:10px}.ace-amp-kpi strong{font-size:23px}.ace-amp-modal{padding:8px}.ace-amp-modal-box{padding:14px;max-height:calc(100dvh - 16px)}}
+    @media(max-width:380px){.ace-amp-filters{grid-template-columns:1fr}.ace-amp-kpis{gap:6px}.ace-amp-kpi strong{font-size:20px}}
+  `;
+  document.head.appendChild(style);
+}
+function renderAceMonthlyPanel() {
+  const host=document.getElementById('aceMonthlyExplorer');if(!host)return;
+  aceMonthlyEnsureStyles();
+  if(!aceMonthlyValidMonth(aceMonthlyState.month))aceMonthlyState.month=aceStatsIsoToday().slice(0,7);
+  if(!aceMonthlyValidMonth(aceMonthlyState.anchor))aceMonthlyState.anchor=aceMonthlyState.month;
+  const model=aceMonthlyBuildModel(db,aceMonthlyState);aceMonthlyModel=model;
+  const e=aceStatsEsc,foodMode=model.mode==='food';
+  host.innerHTML=`<div class="ace-amp-mode" role="group" aria-label="Análise mensal"><button type="button" data-amp-mode="food" aria-pressed="${foodMode}">Alimentos</button><button type="button" data-amp-mode="basket" aria-pressed="${!foodMode}">Cestas</button></div>
+    <div class="ace-amp-filters"><label>Buscar alimento<input id="aceMonthlyFoodSearch" type="search" value="${e(aceMonthlyState.search)}" placeholder="Digite o nome" ${foodMode?'':'disabled'}></label><label>Alimento<select id="aceMonthlyFood" ${foodMode?'':'disabled'}>${aceMonthlyFoodOptions(model)}</select></label><label>Mês e ano<input id="aceMonthlyMonth" type="month" value="${model.month}"></label><label>Comparar<select id="aceMonthlySpan">${[3,6,12].map(n=>`<option value="${n}" ${model.span===n?'selected':''}>${n} meses</option>`).join('')}</select></label><button type="button" class="ace-amp-reset" data-amp-reset>Limpar filtros</button></div>
+    <p class="ace-amp-context"><strong>${e(model.foodName)} · ${e(aceMonthlyMonthLabel(model.month))}</strong><br>Filtros exclusivos deste painel. Quantidades em ${model.unit}${foodMode?', conforme o cadastro dos alimentos':''}. Meses sem movimentação aparecem com zero.</p>
+    <div class="ace-amp-kpis">${model.series.map(item=>`<div class="ace-amp-kpi" style="--amp-color:${item.color}"><span>${item.label} no mês</span><strong>${aceStatsFmt(model.totals[item.key])}</strong><small>${model.unit}</small></div>`).join('')}</div>
+    <div class="ace-amp-charts">${['monthly','daily','ranking'].map(kind=>aceMonthlyChartCard(model,kind)).join('')}</div>`;
+  host.querySelector('#aceMonthlyFoodSearch').addEventListener('input',event=>{aceMonthlyState.search=event.target.value;host.querySelector('#aceMonthlyFood').innerHTML=aceMonthlyFoodOptions(model);});
+  host.querySelector('#aceMonthlyFood').addEventListener('change',event=>{aceMonthlyState.foodId=event.target.value;aceMonthlyRepaint('aceMonthlyFood');});
+  host.querySelector('#aceMonthlyMonth').addEventListener('change',event=>{if(!aceMonthlyValidMonth(event.target.value))return;aceMonthlyState.month=event.target.value;aceMonthlyState.anchor=event.target.value;aceMonthlyRepaint('aceMonthlyMonth');});
+  host.querySelector('#aceMonthlySpan').addEventListener('change',event=>{aceMonthlyState.span=Number(event.target.value);aceMonthlyState.anchor=aceMonthlyState.month;aceMonthlyRepaint('aceMonthlySpan');});
+  host.querySelector('[data-amp-reset]').addEventListener('click',()=>{aceMonthlyState={mode:aceMonthlyState.mode,foodId:'',search:'',month:aceStatsIsoToday().slice(0,7),anchor:'',span:6,visible:{a:true,b:true,c:true}};aceMonthlyRepaint();});
+  aceMonthlyBindCharts(host,model);
+}
+function aceMonthlyRepaint(focusId) {renderAceMonthlyPanel();if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});}
+function aceMonthlyBindCharts(host,model) {
+  host.aceMonthlyModel = model;
+  if (host.aceMonthlyEventsBound) return;
+  host.aceMonthlyEventsBound = true;
+  const details=target=>{
+    const point=target.closest?.('[data-amp-tip]');if(!point)return;
+    point.closest('[data-amp-chart]')?.querySelector('[data-amp-detail]')?.replaceChildren(document.createTextNode(point.dataset.ampTip));
+  };
+  host.addEventListener('mouseover',event=>details(event.target));host.addEventListener('focusin',event=>details(event.target));
+  host.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches?.('g[role=button]')){event.preventDefault();event.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+  host.addEventListener('click',event=>{
+    const target=event.target.closest?.('button,[data-amp-month],[data-amp-day]');if(!target)return;
+    details(target);
+    if(target.hasAttribute('data-amp-mode')){aceMonthlyState.mode=target.dataset.ampMode;aceMonthlyState.visible={a:true,b:true,c:true};aceMonthlyRepaint();document.getElementById('aceMonthlyExplorer')?.querySelector(`[data-amp-mode="${aceMonthlyState.mode}"]`)?.focus({preventScroll:true});return;}
+    if(target.hasAttribute('data-amp-series')){
+      const key=target.dataset.ampSeries;if(aceMonthlyState.visible[key]!==false&&host.aceMonthlyModel.series.filter(item=>aceMonthlyState.visible[item.key]!==false).length===1)return;
+      aceMonthlyState.visible[key]=aceMonthlyState.visible[key]===false;
+      const kind=aceMonthlyModal?.kind;if(kind){aceMonthlyCloseExpanded();renderAceMonthlyPanel();aceMonthlyOpenExpanded(kind);aceMonthlyModal?.overlay.querySelector(`[data-amp-series="${key}"]`)?.focus({preventScroll:true});}else aceMonthlyRepaint('aceMonthlySeries'+key);return;
+    }
+    if(target.hasAttribute('data-amp-month')){aceMonthlyState.month=target.dataset.ampMonth;const expanded=!!aceMonthlyModal;if(expanded)aceMonthlyCloseExpanded();aceMonthlyRepaint('aceMonthlyMonth');return;}
+    if(target.hasAttribute('data-amp-expand'))aceMonthlyOpenExpanded(target.dataset.ampExpand);
+  });
+}
+function aceMonthlyOpenExpanded(kind) {
+  if(!aceMonthlyModel||aceMonthlyModal)return;
+  const model=aceMonthlyModel,overlay=document.createElement('div');overlay.className='ace-amp-modal';overlay.id='aceMonthlyExpanded';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-labelledby','aceMonthlyExpandedTitle');
+  overlay.innerHTML=`<div class="ace-amp-modal-box"><div class="ace-amp-modal-head"><h3 id="aceMonthlyExpandedTitle">${aceStatsEsc(aceMonthlyGraphTitle(model,kind))} · ${aceStatsEsc(model.foodName)} · ${aceStatsEsc(aceMonthlyMonthLabel(model.month))}</h3><button type="button" data-amp-close aria-label="Fechar gráfico ampliado">× Fechar</button></div>${aceMonthlyChartCard(model,kind).replace(/<button type="button" data-amp-expand="[^"]+"[^>]*>[^<]*<\/button>/,'')}</div>`;
+  overlay.innerHTML=overlay.innerHTML.replace(/id="aceMonthlySeries([abc])"/g,'id="aceMonthlyExpandedSeries$1"');
+  const properties=['position','top','left','right','width','overflow','scroll-behavior'];
+  const save=element=>properties.map(name=>({name,value:element.style.getPropertyValue(name),priority:element.style.getPropertyPriority(name)}));
+  aceMonthlyModal={kind,overlay,focus:document.activeElement,x:window.scrollX,y:window.scrollY,body:save(document.body),root:save(document.documentElement)};
+  document.body.style.setProperty('position','fixed','important');document.body.style.setProperty('top',`${-aceMonthlyModal.y}px`,'important');document.body.style.setProperty('left','0','important');document.body.style.setProperty('right','0','important');document.body.style.setProperty('width','100%','important');
+  document.body.style.setProperty('overflow','hidden','important');document.documentElement.style.setProperty('overflow','hidden','important');
+  document.body.appendChild(overlay);aceMonthlyBindCharts(overlay,model);
+  overlay.addEventListener('click',event=>{if(event.target===overlay||event.target.closest('[data-amp-close]'))aceMonthlyCloseExpanded();});
+  overlay.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();aceMonthlyCloseExpanded();return;}
+    if(event.key!=='Tab')return;
+    const controls=[...overlay.querySelectorAll('button:not(:disabled),[tabindex="0"]')].filter(node=>node.getClientRects().length);
+    const first=controls[0],last=controls[controls.length-1];if(!first)return;
+    if(event.shiftKey&&(document.activeElement===first||!overlay.contains(document.activeElement))){event.preventDefault();last.focus();}else if(!event.shiftKey&&(document.activeElement===last||!overlay.contains(document.activeElement))){event.preventDefault();first.focus();}
+  });
+  overlay.querySelector('[data-amp-close]').focus({preventScroll:true});
+}
+function aceMonthlyCloseExpanded() {
+  const state=aceMonthlyModal;if(!state)return;aceMonthlyModal=null;state.overlay.remove();
+  const restore=(element,properties,behavior=false)=>properties.forEach(item=>{if((item.name==='scroll-behavior')!==behavior)return;if(item.value)element.style.setProperty(item.name,item.value,item.priority);else element.style.removeProperty(item.name);});
+  document.body.style.setProperty('scroll-behavior','auto','important');document.documentElement.style.setProperty('scroll-behavior','auto','important');restore(document.body,state.body);restore(document.documentElement,state.root);window.scrollTo(state.x,state.y);restore(document.body,state.body,true);restore(document.documentElement,state.root,true);
+  if(state.focus?.isConnected)state.focus.focus({preventScroll:true});else document.getElementById('aceMonthlyMonth')?.focus({preventScroll:true});
+}
+
+
 function renderAceStatistics() {
   const page =
     document.getElementById(
@@ -61022,61 +61242,17 @@ function renderAceStatistics() {
     </section>
 
     <section class="ace-stats-section">
-
-      <div class="ace-stats-section-head">
-        <div>
-          <h3>📈 Evolução mensal</h3>
-          <p>
-            Comparativo dos últimos meses com movimentação registrada.
-          </p>
-        </div>
-      </div>
-
-      <div class="ace-stats-grid">
-        ${aceStatsEvolutionChart(
-          entries,
-          movements,
-          baskets
-        )}
-      </div>
-
+      <div class="ace-stats-section-head"><div>
+        <h3>📈 Painel mensal interativo</h3>
+        <p>Explore alimentos e cestas por mês. Selecione um mês no gráfico para detalhar.</p>
+      </div></div>
+      <div id="aceMonthlyExplorer"></div>
     </section>
   `;
 
 
-  body
-    .querySelectorAll(
-      "[data-ace-stats-evolution-metric]"
-    )
-    .forEach(button => {
+  renderAceMonthlyPanel();
 
-      button.addEventListener(
-        "click",
-        () => {
-
-          const metric =
-            String(
-              button.dataset
-                .aceStatsEvolutionMetric ||
-              ""
-            );
-
-
-          if (!metric) {
-            return;
-          }
-
-
-          aceStatsEvolutionMetric =
-            metric;
-
-
-          renderAceStatistics();
-
-        }
-      );
-
-    });
 }
 
 
