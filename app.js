@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v119",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v120",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-desktop-noticias-v119";
+  "2026.10.20-desktop-noticias-v120";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42269,7 +42269,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v119",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v120",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65884,96 +65884,301 @@ function openAceAccessibility() {
 
 
 // =============================================================
-// ACE — EXPERIÊNCIA DESKTOP E NOTÍCIAS ESPÍRITAS · v119
-// Escopo: >=851px, nenhum acesso Supabase, sem mexer no mobile/APK.
+// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V120
+// 3 notícias grandes por página, miniaturas reais quando houver,
+// sem ícone de jornal/pilha e sem links FEEC/FEB no canto direito.
+// Não toca nos dados, no Supabase, nos menus mobile ou no APK.
 // =============================================================
-(() => {
+(function installAceDesktopNewsV120() {
   'use strict';
+
   const desktop = window.matchMedia('(min-width: 851px)');
-  const KEY = 'ace_desktop_news_v119';
-  const TTL = 6 * 60 * 60 * 1000;
-  const FEEC = 'https://feec.org.br/noticias/';
-  const FEB = 'https://www.febnet.org.br/portal/';
-  const API = 'https://feec.org.br/wp-json/wp/v2/posts?per_page=5&_fields=date,link,title,featured_media';
-  const safe = raw => { try {const u=new URL(String(raw));return u.protocol==='https:'?u.href:null;}catch{return null;} };
-  const clean = raw => {const el=document.createElement('span');el.innerHTML=String(raw||'');return (el.textContent||'').trim().slice(0,160);};
+  const SECTION_ID = 'aceDesktopNews';
+  const CSS_ID = 'aceDesktopNewsStylesV120';
+  const CACHE_KEY = 'ace_desktop_news_v120';
+  const CACHE_MS = 6 * 60 * 60 * 1000; // 6 horas, por aparelho
+  const ROTATE_MS = 7500;
+  const PER_PAGE = 3;
+  const FEEC_SITE = 'https://feec.org.br/';
+  const FEEC_NEWS = FEEC_SITE + 'noticias/';
+  const FEB_SITE = 'https://www.febnet.org.br/portal/';
+  // Usa apenas a fonte oficial, sem consultas ao Supabase.
+  // Conteúdo do post ajuda a encontrar fotos que NÃO são imagens destacadas.
+  const FEED = FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded';
+  const FEED_SIMPLE = FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_fields=id,date,link,title,content,featured_media';
+
   const fallback = [
-    {title:'Notícias e atividades da Federação Espírita do Estado do Ceará',link:FEEC,source:'FEEC',emoji:'📰'},
-    {title:'Conteúdos e publicações da Federação Espírita Brasileira',link:FEB,source:'FEB',emoji:'📖'},
-    {title:'Confira os encontros e eventos do movimento espírita cearense',link:'https://feec.org.br/',source:'FEEC',emoji:'✨'}
+    {title:'Confira as notícias e os eventos do movimento espírita cearense', source:'FEEC', link:FEEC_NEWS},
+    {title:'Acompanhe as atividades e os encontros da Federação Espírita Brasileira', source:'FEB', link:FEB_SITE},
+    {title:'Programação e informações das casas espíritas do Ceará', source:'FEEC', link:FEEC_SITE}
   ];
-  const css=document.createElement('style'); css.id='aceDesktopNewsStylesV119';
-  css.textContent=`
-  @media(min-width:851px){
-    html body .ace-header-v6{box-shadow:0 9px 25px rgba(7,50,80,.13)!important}
-    #aceDesktopNews{box-sizing:border-box;margin:12px 16px 16px;padding:14px 16px 11px;max-width:calc(100% - 32px);border:1px solid #d5e5ee;border-radius:18px;background:linear-gradient(112deg,#f8fcff 0%,#edf7fd 65%,#eff9f5 100%);box-shadow:0 5px 20px rgba(19,64,91,.08);color:#193e59;font-family:inherit}
-    #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
-    #aceDesktopNews .ace-news-ident{display:flex;gap:11px;align-items:center;min-width:0}
-    #aceDesktopNews .ace-news-symbol{height:41px;width:41px;flex:none;display:grid;place-items:center;background:#e0f0fa;border:1px solid #cbe4f3;border-radius:12px;font-size:23px}
-    #aceDesktopNews .ace-news-heading{display:block;font-size:16px;font-weight:850;line-height:1.25;color:#113e5f}
-    #aceDesktopNews .ace-news-caption{font-size:12px;color:#517087;line-height:1.3;margin-top:3px}
-    #aceDesktopNews .ace-news-controls{display:flex;align-items:center;gap:6px;flex:none}
-    #aceDesktopNews button.ace-news-control{display:grid;place-items:center;width:32px;height:32px;min-width:32px;padding:0;border:1px solid #c5dce9;border-radius:10px;background:#fff;color:#145b83;cursor:pointer;font:800 20px/1 inherit}
-    #aceDesktopNews button.ace-news-control:focus-visible,#aceDesktopNews a:focus-visible{outline:3px solid #168bc5;outline-offset:2px}
-    #aceDesktopNews button.ace-news-control:hover{background:#dceffa}
-    #aceDesktopNews .ace-news-track{display:flex;gap:11px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:thin;padding:2px 2px 9px;scroll-behavior:smooth}
-    #aceDesktopNews .ace-news-item{box-sizing:border-box;display:flex;align-items:center;gap:11px;flex:0 0 clamp(245px,27vw,355px);min-width:0;min-height:82px;padding:10px 12px;border:1px solid #dbe8f1;border-radius:13px;background:#fff;text-decoration:none;color:#173c57;scroll-snap-align:start;transition:box-shadow .2s,border-color .2s}
-    #aceDesktopNews .ace-news-item:hover{border-color:#9dc8df;box-shadow:0 5px 16px rgba(10,55,93,.13)}
-    #aceDesktopNews .ace-news-thumb{display:grid;place-items:center;flex:0 0 56px;width:56px;height:56px;overflow:hidden;border-radius:11px;background:#eaf4fa;font-size:25px}
-    #aceDesktopNews .ace-news-thumb img{width:100%;height:100%;object-fit:cover}
-    #aceDesktopNews .ace-news-copy{display:block;min-width:0}
-    #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;font-weight:900;color:#187194;margin-bottom:5px}
-    #aceDesktopNews .ace-news-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:13px;line-height:1.4;font-weight:750}
-    #aceDesktopNews .ace-news-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:4px;font-size:11px;color:#607d8d}
-    #aceDesktopNews .ace-news-footer a{color:#176289;font-weight:800;text-decoration:none}
-    #aceDesktopNews .ace-news-footer a:hover{text-decoration:underline}
-    @media(prefers-reduced-motion:reduce){#aceDesktopNews .ace-news-track{scroll-behavior:auto!important}}
+
+  let news = fallback;
+  let page = 0;
+  let timer = null;
+  let loading = false;
+  let lastLoadedAt = 0;
+
+  function secureLink(raw, image = false) {
+    try {
+      const url = new URL(String(raw || ''), FEEC_SITE);
+      if (url.protocol !== 'https:') return null;
+      if (!image) {
+        return /(^|\.)feec\.org\.br$/i.test(url.hostname) ||
+               /(^|\.)febnet\.org\.br$/i.test(url.hostname) ? url.href : null;
+      }
+      // Imagens apenas da FEEC ou do CDN tradicional do WordPress.
+      const allowed = /(^|\.)feec\.org\.br$/i.test(url.hostname) ||
+        /^i\d?\.wp\.com$/i.test(url.hostname) || url.hostname === 's0.wp.com';
+      if (!allowed) return null;
+      if (!/\.(?:png|jpe?g|webp|gif|avif)(?:$|[?#])/i.test(url.pathname + url.search)) return null;
+      return url.href;
+    } catch { return null; }
   }
-  @media(max-width:850px){#aceDesktopNews{display:none!important}}
-  `;
-  (document.head||document.documentElement).appendChild(css);
-  let interval=null, busy=false, articles=fallback;
-  const canRotate=()=>desktop.matches && document.visibilityState==='visible' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function move(dir=1){const track=document.querySelector('#aceDesktopNews .ace-news-track');if(!track)return;const item=track.querySelector('.ace-news-item');const step=(item?.getBoundingClientRect().width||285)+11;const nearEnd=track.scrollLeft+track.clientWidth>=track.scrollWidth-12;if(dir>0&&nearEnd){track.scrollTo({left:0,behavior:'smooth'});}else{track.scrollBy({left:dir*step,behavior:'smooth'});}}
-  function stop(){if(interval){clearInterval(interval);interval=null;}}
-  function play(){stop();const section=document.getElementById('aceDesktopNews');if(!section||section.matches(':hover')||section.contains(document.activeElement)||!canRotate())return;interval=setInterval(()=>{if(canRotate())move(1);},6500);}
-  function draw(items){const track=document.querySelector('#aceDesktopNews .ace-news-track');if(!track)return;articles=items;track.replaceChildren();items.forEach(item=>{
-    const url=safe(item.link);if(!url)return;
-    const a=document.createElement('a');a.className='ace-news-item';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.setAttribute('role','listitem');a.setAttribute('aria-label',item.source+': '+item.title);
-    const pic=document.createElement('span');pic.className='ace-news-thumb';pic.setAttribute('aria-hidden','true');pic.textContent=item.emoji||'📰';
-    // Imagem remota só é requisitada quando efetivamente há URL de miniatura HTTPS.
-    if(item.image&&safe(item.image)){const img=document.createElement('img');img.loading='lazy';img.decoding='async';img.alt='';img.referrerPolicy='no-referrer';img.addEventListener('load',()=>pic.replaceChildren(img),{once:true});img.src=item.image;}
-    const copy=document.createElement('span');copy.className='ace-news-copy';
-    const src=document.createElement('span');src.className='ace-news-source';src.textContent=item.source;
-    const title=document.createElement('span');title.className='ace-news-title';title.textContent=item.title;
-    copy.append(src,title);a.append(pic,copy);track.appendChild(a);
-  });play();}
-  async function getJson(url,ms=5500){const ctrl=new AbortController();const timeout=setTimeout(()=>ctrl.abort(),ms);try{const r=await fetch(url,{signal:ctrl.signal,credentials:'omit',cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}finally{clearTimeout(timeout);}}
-  async function fetchNews(){if(busy||!desktop.matches)return;busy=true;try{
-    let saved;try{saved=JSON.parse(localStorage.getItem(KEY)||'null');}catch{}
-    if(saved&&Array.isArray(saved.items)&&saved.items.length){draw([...saved.items,fallback[1]]);if(Date.now()-saved.at<TTL)return;}
-    const records=await getJson(API);if(!Array.isArray(records))throw Error('Fonte sem formato esperado');
-    const items=records.map(p=>({title:clean(p?.title?.rendered),link:safe(p?.link),source:'FEEC',emoji:'📰',mediaId:Number(p?.featured_media)||0})).filter(p=>p.title&&p.link&&new URL(p.link).hostname.endsWith('feec.org.br')).slice(0,5);
-    if(!items.length)throw Error('Nenhum artigo disponível');
-    // Apenas duas miniaturas pequenas por atualização (demais cartões usam ícones leves).
-    await Promise.all(items.slice(0,2).map(async item=>{if(!item.mediaId)return;try{const media=await getJson('https://feec.org.br/wp-json/wp/v2/media/'+item.mediaId+'?_fields=media_details',3500);const thumb=media?.media_details?.sizes?.thumbnail?.source_url;if(safe(thumb)&&new URL(thumb).hostname.endsWith('feec.org.br'))item.image=thumb;}catch{}}));
-    const cleaned=items.map(({mediaId,...rest})=>rest);draw([...cleaned,fallback[1]]);
-    try{localStorage.setItem(KEY,JSON.stringify({at:Date.now(),items:cleaned}));}catch{}
-  }catch(e){console.info('ACE notícias: conteúdo padrão mantido.',e?.message||'');}finally{busy=false;}}
-  function mount(){if(!desktop.matches||document.getElementById('aceDesktopNews')||document.getElementById('loginScreen'))return;
+
+  function cleanText(html) {
+    const tmp = document.createElement('span');
+    tmp.innerHTML = String(html || '');
+    return (tmp.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  }
+
+  function extractImage(post) {
+    const embedded = post?._embedded?.['wp:featuredmedia']?.[0];
+    const sizes = embedded?.media_details?.sizes || {};
+    const featured = [
+      sizes.thumbnail?.source_url, sizes.medium?.source_url,
+      sizes.medium_large?.source_url, embedded?.source_url
+    ];
+    for (const candidate of featured) {
+      const valid = secureLink(candidate, true);
+      if (valid) return valid;
+    }
+    // Muitas notícias usam uma imagem no texto sem definir featured_media.
+    const content = String(post?.content?.rendered || '');
+    if (!content) return null;
+    const parsed = new DOMParser().parseFromString(content, 'text/html');
+    for (const img of parsed.querySelectorAll('img')) {
+      // Prefere a miniatura WordPress e evita baixar originais grandes.
+      const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
+      const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';
+      const candidates = [];
+      for (const part of srcset.split(',')) {
+        const pieces = part.trim().split(/\s+/);
+        const width = Number((pieces[1] || '').replace(/w$/,''));
+        if (pieces[0] && width >= 100 && width <= 600) candidates.push({url:pieces[0],width});
+      }
+      candidates.sort((a,b)=>a.width-b.width);
+      for (const item of candidates) { const valid = secureLink(item.url,true); if(valid) return valid; }
+      const valid = secureLink(src,true);
+      if(valid) return valid;
+    }
+    return null;
+  }
+
+  function ensureStyle() {
+    if (document.getElementById(CSS_ID)) return;
+    const style = document.createElement('style');
+    style.id = CSS_ID;
+    style.textContent = `
+      @media(min-width:851px){
+        #aceDesktopNews{box-sizing:border-box;margin:14px 16px 17px;padding:18px 20px 15px;
+          width:calc(100% - 32px);border:1px solid #d4e7f0;border-radius:19px;
+          background:linear-gradient(110deg,#f8fcff,#ebf6fd 70%,#eaf7f2);
+          box-shadow:0 8px 28px rgba(12,62,94,.09);color:#173b55;font-family:inherit;}
+        #aceDesktopNews *{box-sizing:border-box;}
+        #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;
+          gap:16px;margin:0 0 14px;}
+        #aceDesktopNews .ace-news-ident{min-width:0;}
+        #aceDesktopNews .ace-news-heading{display:block;font-size:19px;font-weight:900;
+          letter-spacing:-.2px;color:#113f61;line-height:1.3;}
+        #aceDesktopNews .ace-news-caption{margin-top:3px;color:#527184;font-size:12px;}
+        #aceDesktopNews .ace-news-controls{display:flex;flex:none;align-items:center;gap:7px;}
+        #aceDesktopNews .ace-news-control{display:grid;place-items:center;min-height:38px;
+          width:40px;height:38px;padding:0;border:1px solid #c5dce9;border-radius:11px;
+          background:#fff;color:#155e86;cursor:pointer;font-size:24px;font-weight:800;
+          line-height:1;transition:background .2s ease,transform .2s ease;}
+        #aceDesktopNews .ace-news-control:hover:not(:disabled){background:#e2f1fb;}
+        #aceDesktopNews .ace-news-control:disabled{opacity:.35;cursor:default;}
+        #aceDesktopNews :is(.ace-news-control,.ace-news-link):focus-visible{outline:3px solid #168bc5;outline-offset:3px;}
+        #aceDesktopNews .ace-news-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+        #aceDesktopNews .ace-news-card{display:flex;align-items:center;min-width:0;min-height:130px;
+          gap:15px;padding:12px;border:1px solid #d6e8f2;border-radius:15px;
+          background:#fff;box-shadow:0 3px 10px rgba(14,67,98,.045);}
+        #aceDesktopNews .ace-news-card:hover{border-color:#acd1e5;box-shadow:0 8px 20px rgba(12,62,94,.09);}
+        #aceDesktopNews .ace-news-thumb{display:block;flex:0 0 124px;width:124px;height:97px;
+          border-radius:10px;overflow:hidden;background:linear-gradient(140deg,#c9e3f4,#e5f2fb 68%,#d7e8e2);
+          pointer-events:none;}
+        #aceDesktopNews .ace-news-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
+        /* Sem foto real: apenas fundo decorativo; nenhum ícone de pilha/jornal. */
+        #aceDesktopNews .ace-news-thumb.ace-news-no-image{position:relative;}
+        #aceDesktopNews .ace-news-no-image::before{content:'';position:absolute;left:22%;top:18%;
+          width:65%;height:65%;border-radius:999px;border:8px solid rgba(255,255,255,.40);}
+        #aceDesktopNews .ace-news-no-image::after{content:'';position:absolute;left:8%;bottom:-35%;
+          width:70%;height:84%;border-radius:50%;background:rgba(11,108,157,.12);}
+        #aceDesktopNews .ace-news-copy{min-width:0;flex:1;}
+        #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;
+          letter-spacing:.75px;font-weight:900;color:#17769b;margin-bottom:8px;}
+        #aceDesktopNews .ace-news-link{display:-webkit-box;-webkit-box-orient:vertical;
+          -webkit-line-clamp:3;overflow:hidden;color:#17405b;text-decoration:none;
+          font-size:clamp(13px,1vw,15px);font-weight:850;line-height:1.43;overflow-wrap:anywhere;}
+        #aceDesktopNews .ace-news-link:hover{color:#0872b9;text-decoration:underline;}
+        #aceDesktopNews .ace-news-footer{display:flex;align-items:center;justify-content:space-between;
+          gap:8px;margin-top:12px;min-height:18px;color:#57788d;font-size:12px;}
+        #aceDesktopNews .ace-news-page{font-weight:800;font-variant-numeric:tabular-nums;}
+      }
+      @media(min-width:851px) and (max-width:1150px){
+        #aceDesktopNews{padding:14px 14px 12px;}
+        #aceDesktopNews .ace-news-grid{gap:9px;}
+        #aceDesktopNews .ace-news-card{padding:9px;gap:9px;min-height:112px;}
+        #aceDesktopNews .ace-news-thumb{flex-basis:74px;width:74px;height:84px;}
+        #aceDesktopNews .ace-news-link{font-size:12px;line-height:1.35;}
+      }
+      @media(max-width:850px){#aceDesktopNews{display:none!important;}}
+      @media(prefers-reduced-motion:reduce){
+        #aceDesktopNews *,#aceDesktopNews *::before,#aceDesktopNews *::after{animation:none!important;transition:none!important;}
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  const section = () => document.getElementById(SECTION_ID);
+  const pages = () => Math.max(1,Math.ceil(news.length/PER_PAGE));
+  function stop() { if(timer) { clearInterval(timer); timer=null; } }
+  function mayRotate() {
+    return desktop.matches && section() && pages()>1 &&
+      document.visibilityState === 'visible' &&
+      !window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  }
+  function play() {
+    stop();
+    const holder = section();
+    if(!holder || holder.matches(':hover') || !mayRotate()) return;
+    timer = window.setInterval(() => {
+      if(!mayRotate()) {stop();return;}
+      if(!holder.matches(':hover')) changePage(1);
+    }, ROTATE_MS);
+  }
+  function changePage(direction) {
+    page = (page + direction + pages()) % pages();
+    render();
+  }
+
+  function render() {
+    const holder = section();
+    const grid = holder?.querySelector('.ace-news-grid');
+    if(!grid) return;
+    // SOMENTE três cards com no máximo três imagens na página.
+    const showing = news.slice(page*PER_PAGE,(page+1)*PER_PAGE);
+    const fragment = document.createDocumentFragment();
+    for(const item of showing) {
+      const card = document.createElement('article'); card.className='ace-news-card';
+      const thumb = document.createElement('div'); thumb.className='ace-news-thumb';
+      thumb.setAttribute('aria-hidden','true');
+      // Miniaturas nunca clicáveis: não abrem páginas e não bloqueiam tela.
+      const imgUrl = secureLink(item.image,true);
+      if(imgUrl) {
+        const pic=document.createElement('img');pic.src=imgUrl;
+        pic.alt='';pic.loading='lazy';pic.decoding='async';pic.referrerPolicy='no-referrer';
+        pic.addEventListener('error',()=>{pic.remove();thumb.classList.add('ace-news-no-image');},{once:true});
+        thumb.appendChild(pic);
+      } else thumb.classList.add('ace-news-no-image');
+      const copy=document.createElement('div');copy.className='ace-news-copy';
+      const tag=document.createElement('span');tag.className='ace-news-source';tag.textContent=item.source||'FEEC';
+      const link=document.createElement('a');link.className='ace-news-link';
+      link.href=secureLink(item.link)||FEEC_NEWS;
+      link.target='_blank';link.rel='noopener noreferrer';link.textContent=item.title;
+      link.title=item.title;
+      copy.append(tag,link);card.append(thumb,copy);fragment.appendChild(card);
+    }
+    grid.replaceChildren(fragment);
+    const counter=holder.querySelector('.ace-news-page');
+    if(counter) {
+      counter.textContent=`${page+1} de ${pages()}`;
+      counter.setAttribute('aria-label',`Página ${page+1} de ${pages()}`);
+    }
+    holder.querySelectorAll('.ace-news-control').forEach(button=>{button.disabled=pages()<=1;});
+  }
+
+  async function getJson(url, milliseconds=7000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(),milliseconds);
+    try {
+      const response=await fetch(url,{signal:controller.signal,credentials:'omit',cache:'no-store'});
+      if(!response.ok) throw new Error('HTTP '+response.status);
+      return await response.json();
+    } finally {clearTimeout(timeout);}
+  }
+
+  function normalize(records) {
+    if(!Array.isArray(records)) return [];
+    return records.map(post=>{
+      const url=secureLink(post?.link);
+      const title=cleanText(post?.title?.rendered);
+      if(!title || !url || !/\bfeec\.org\.br\b/.test(url))return null;
+      return {title,link:url,source:'FEEC',image:extractImage(post),date:post?.date||''};
+    }).filter(Boolean).slice(0,9);
+  }
+
+  async function fetchNews() {
+    if(!desktop.matches || loading) return;
+    loading=true;
+    try {
+      let cached=null;
+      try{cached=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{}
+      if(cached?.items?.length) {
+        news=cached.items;page=0;render();play();
+        if(Date.now()-Number(cached.at||0)<CACHE_MS) return;
+      }
+      let records;
+      try {records=await getJson(FEED);}catch {records=await getJson(FEED_SIMPLE);}
+      const fetched=normalize(records);
+      if(!fetched.length)throw new Error('Sem notícias na fonte');
+      news=fetched;page=0;lastLoadedAt=Date.now();
+      render();play();
+      try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:lastLoadedAt,items:fetched}));}catch{}
+    } catch(error) {
+      console.info('ACE: notícias oficiais temporariamente indisponíveis; conteúdo salvo/padrão mantido.',error?.message||'');
+    } finally {loading=false;}
+  }
+
+  function mount() {
+    if(!desktop.matches || section() || document.getElementById('loginScreen'))return;
     const header=document.querySelector('.ace-header-v6');if(!header)return;
-    const section=document.createElement('section');section.id='aceDesktopNews';section.setAttribute('aria-label','Notícias espíritas');
-    section.innerHTML='<div class="ace-news-top"><div class="ace-news-ident"><span class="ace-news-symbol" aria-hidden="true">🕊️</span><div><span class="ace-news-heading">Notícias do Movimento Espírita</span><div class="ace-news-caption">Informações de fontes oficiais • Atualização econômica</div></div></div><div class="ace-news-controls"><button type="button" class="ace-news-control" data-ace-news-prev aria-label="Notícia anterior">‹</button><button type="button" class="ace-news-control" data-ace-news-next aria-label="Próxima notícia">›</button></div></div><div class="ace-news-track" role="list" aria-label="Notícias em destaque"></div><div class="ace-news-footer"><span>Deslize ou use as setas para explorar</span><span><a href="https://feec.org.br/noticias/" target="_blank" rel="noopener noreferrer">FEEC ↗</a> &nbsp; <a href="https://www.febnet.org.br/portal/" target="_blank" rel="noopener noreferrer">FEB ↗</a></span></div>';
-    header.insertAdjacentElement('afterend',section);
-    section.querySelector('[data-ace-news-prev]').addEventListener('click',()=>{move(-1);play();});
-    section.querySelector('[data-ace-news-next]').addEventListener('click',()=>{move(1);play();});
-    section.addEventListener('mouseenter',stop);section.addEventListener('mouseleave',play);
-    section.addEventListener('focusin',stop);section.addEventListener('focusout',()=>setTimeout(play,0));
-    draw(articles);fetchNews();
+    const area=document.createElement('section');area.id=SECTION_ID;
+    area.setAttribute('aria-label','Notícias do Movimento Espírita');
+    area.innerHTML=`<div class="ace-news-top">
+      <div class="ace-news-ident"><strong class="ace-news-heading">Notícias do Movimento Espírita</strong>
+        <div class="ace-news-caption">Fontes oficiais · Atualização a cada 6 horas · Miniaturas leves</div></div>
+      <div class="ace-news-controls">
+        <button class="ace-news-control" data-ace-news-prev type="button" aria-label="Notícias anteriores">‹</button>
+        <button class="ace-news-control" data-ace-news-next type="button" aria-label="Próximas notícias">›</button>
+      </div></div>
+      <div class="ace-news-grid" role="group" aria-label="Três notícias em destaque"></div>
+      <div class="ace-news-footer"><span>As notícias mudam automaticamente ou pelas setas</span>
+        <span class="ace-news-page" aria-live="polite">1 de 1</span></div>`;
+    header.insertAdjacentElement('afterend',area);
+    // Ao contrário da V119, não há ícones clicáveis nem link de fonte no rodapé.
+    area.querySelector('[data-ace-news-prev]').addEventListener('click',()=>{changePage(-1);play();});
+    area.querySelector('[data-ace-news-next]').addEventListener('click',()=>{changePage(1);play();});
+    area.addEventListener('mouseenter',stop);
+    area.addEventListener('mouseleave',play);
+    area.addEventListener('focusin',stop);
+    area.addEventListener('focusout',()=>setTimeout(play,0));
+    render();fetchNews();
   }
-  function refresh(){if(desktop.matches){mount();}else{stop();document.getElementById('aceDesktopNews')?.remove();}}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
-  desktop.addEventListener?.('change',refresh);document.addEventListener('visibilitychange',play);
-  // Inicialização tardia após autenticação: não interfere no fluxo de login.
-  let checks=0;const probe=setInterval(()=>{if(document.getElementById('aceDesktopNews')||++checks>180){clearInterval(probe);}else refresh();},1000);
+
+  function refresh() {
+    if(!desktop.matches) {stop();section()?.remove();return;}
+    ensureStyle();mount();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});
+  else refresh();
+  desktop.addEventListener?.('change',refresh);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stop();else play();});
+  // A tela principal pode nascer depois da autenticação; aguarda só a montagem.
+  let checks=0;
+  const mountProbe=setInterval(()=>{
+    if(section() || ++checks>180){clearInterval(mountProbe);return;}
+    refresh();
+  },1000);
 })();
