@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-desktop-noticias-v121";
+  "2026.10.20-desktop-noticias-v122";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -66006,13 +66006,14 @@ function openAceAccessibility() {
     const style=document.createElement('style');style.id=CSS_ID;
     style.textContent=`
       @media(min-width:851px){
-        /* Controle branco estreito no canto do cabeçalho: botão flutuante
-           da equipe/chat. Desativa APENAS o botão problemático no PC;
-           toda a estrutura original do chat permanece no código. */
-        html[data-ace-font-level] body .ace-header-v6 > #aceTeamStatusButton,
-        html body .ace-header-v6 > #aceTeamStatusButton,
-        html body #aceTeamStatusButton.ace-team-floating{
-          display:none!important;visibility:hidden!important;pointer-events:none!important;
+        /* Esconde SOMENTE o botão de menu antigo do celular que foi
+           movido para fora do cabeçalho e ficou sobrando no desktop.
+           O botão Online/Equipe e a janela do chat NÃO são alterados. */
+        html body #aceMenuOutsideHost,
+        html body #aceMobileMenuButton{
+          display:none!important;
+          visibility:hidden!important;
+          pointer-events:none!important;
         }
         #aceDesktopNews{box-sizing:border-box;margin:14px 16px 17px;padding:18px 20px 15px;
           width:calc(100% - 32px);border:1px solid #d4e7f0;border-radius:19px;
