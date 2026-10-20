@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-desktop-noticias-v122";
+  "2026.10.20-desktop-noticias-v123";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -65884,17 +65884,17 @@ function openAceAccessibility() {
 
 
 // =============================================================
-// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V121
+// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V123
 // 3 notícias por vez, alternância FEEC/FEB, fotos quando disponíveis,
 // ilustração local quando não existir foto e correção do botão residual.
 // NÃO usa Supabase; NÃO modifica layout do celular ou APK.
 // =============================================================
-(function installAceDesktopNewsV121() {
+(function installAceDesktopNewsV123() {
   'use strict';
   const desktop = window.matchMedia('(min-width: 851px)');
   const SECTION_ID = 'aceDesktopNews';
   const CSS_ID = 'aceDesktopNewsStylesV121';
-  const CACHE_KEY = 'ace_desktop_news_v121';
+  const CACHE_KEY = 'ace_desktop_news_v123';
   const CACHE_MS = 6 * 60 * 60 * 1000;
   const ROTATE_MS = 7500;
   const PER_PAGE = 3;
@@ -65915,7 +65915,7 @@ function openAceAccessibility() {
   // não liberar acesso CORS no navegador. Não é apresentada como feed ao vivo.
   const curatedFEB = [
     {source:'FEB',title:'Viver é uma escolha: ore pelos suicidas',link:'https://febnet.org.br/viver-e-uma-escolha-ore-pelos-suicidas/',date:'2026-09-18'},
-    {source:'FEB',title:'Revista Espírita na atualidade: divulgação das comunicações',link:'https://febnet.org.br/revista-espirita-na-atualidade-divulgacao-das-comunicacoes/',date:'2026-09-16'},
+    {source:'FEB',title:'Revista Espírita na atualidade: divulgação das comunicações',link:'https://febnet.org.br/revista-espirita-na-atualidade-divulgacao-das-comunicacoes/',date:'2026-09-16',image:'https://febnet.org.br/wp-content/uploads/2026/09/15-de-setembro.jpg'},
     {source:'FEB',title:'Você sabia? A missão evangelizadora do Brasil',link:'https://febnet.org.br/voce-sabia-a-missao-evangelizadora-do-brasil/',date:'2026-09-10'}
   ];
   const curatedFEEC = [
@@ -65927,19 +65927,23 @@ function openAceAccessibility() {
   let timer = null;
   let loading = false;
   let lastCheck = 0;
+  const failedImages = new Set(); // Evita repetir imagens quebradas a cada rotação.
 
-  function secureLink(raw, image=false) {
+  function secureLink(raw, image=false, source='FEEC') {
     try {
-      const url = new URL(String(raw || ''), FEEC_SITE);
-      if (url.protocol !== 'https:') return null;
+      // Links relativos da FEB devem apontar à FEB, nunca ao domínio da FEEC.
+      const url = new URL(String(raw || '').trim(), source==='FEB'?FEB_SITE:FEEC_SITE);
+      if (url.protocol !== 'https:' || url.username || url.password) return null;
       const host = url.hostname.toLowerCase();
       const official = /(^|\.)(?:feec\.org\.br|febnet\.org\.br)$/.test(host);
       if (!image) return official ? url.href : null;
-      const wpCdn = /^i\d?\.wp\.com$/.test(host) || host === 's0.wp.com';
-      const imageHost = official || wpCdn;
-      if (!imageHost) return null;
-      const ext = /\.(?:png|jpe?g|webp|gif|avif)(?:$|[?#])/i.test(url.pathname + url.search);
-      return ext ? url.href : null;
+      // Autoriza somente domínios oficiais e o CDN de imagens do WordPress.
+      const wpCdn = /^(?:i[0-3]\.wp\.com|s0\.wp\.com)$/.test(host);
+      if (!official && !wpCdn) return null;
+      const path = url.pathname.toLowerCase();
+      const imageFile = /\.(?:png|jpe?g|webp|gif|avif)$/.test(path);
+      const wpMedia = official && /\/wp-content\/uploads\//.test(path);
+      return imageFile || wpMedia ? url.href : null;
     } catch { return null; }
   }
 
@@ -65948,24 +65952,74 @@ function openAceAccessibility() {
     return (node.textContent||'').replace(/\s+/g,' ').trim().slice(0,220);
   }
 
-  function extractImage(post) {
-    const media=post?._embedded?.['wp:featuredmedia']?.[0];
-    const sizes=media?.media_details?.sizes||{};
-    const candidates=[sizes.thumbnail?.source_url,sizes.medium?.source_url,sizes.medium_large?.source_url,media?.source_url];
-    for(const candidate of candidates) {const url=secureLink(candidate,true);if(url)return url;}
-    const rendered=String(post?.content?.rendered||'');
-    if(!rendered)return null;
-    const documentCopy=new DOMParser().parseFromString(rendered,'text/html');
-    for(const img of documentCopy.querySelectorAll('img')) {
-      const srcset=img.getAttribute('srcset')||img.getAttribute('data-srcset')||'';
-      const choices=srcset.split(',').map(part=>{
-        const a=part.trim().split(/\s+/);
-        return {url:a[0],size:Number((a[1]||'').replace(/w$/,''))};
-      }).filter(row=>row.url&&row.size>=120&&row.size<=640).sort((a,b)=>a.size-b.size);
-      const imgUrls=[...choices.map(i=>i.url),img.getAttribute('data-src'),img.getAttribute('src')];
-      for(const candidate of imgUrls) {const url=secureLink(candidate,true);if(url)return url;}
+  function extractImage(post, source) {
+    // 1. Miniaturas de mídia destacada do WordPress: primeiro as versões pequenas.
+    const media = post?._embedded?.['wp:featuredmedia']?.[0] || {};
+    const sizes = media.media_details?.sizes || post?.media_details?.sizes || {};
+    const candidates = [
+      sizes.medium?.source_url, sizes.thumbnail?.source_url,
+      sizes.medium_large?.source_url, sizes['post-thumbnail']?.source_url,
+      sizes.large?.source_url, media.source_url,
+      post?.jetpack_featured_media_url, post?.featured_image_url,
+      post?.better_featured_image?.media_details?.sizes?.medium?.source_url,
+      post?.better_featured_image?.source_url,
+      post?.yoast_head_json?.og_image?.[0]?.url,
+      post?.og_image, post?.image
+    ];
+    for(const candidate of candidates) {
+      const url=secureLink(candidate,true,source); if(url)return url;
+    }
+
+    // 2. Alguns artigos inserem a foto no HTML em vez de marcar mídia destacada.
+    const html=String(post?.content?.rendered||'')+' '+String(post?.excerpt?.rendered||'');
+    if(!html.trim())return null;
+    const parsed=new DOMParser().parseFromString(html,'text/html');
+    for(const el of parsed.querySelectorAll('img, picture source')) {
+      const rawSets=[el.getAttribute('srcset'),el.getAttribute('data-srcset'),el.getAttribute('data-lazy-srcset')].filter(Boolean);
+      const sizesFromSets=[];
+      for(const set of rawSets) for(const part of set.split(',')) {
+        const fields=part.trim().split(/\s+/);
+        const width=Number((fields[1]||'').replace(/w$/,''));
+        if(fields[0] && width >= 180 && width <= 640) sizesFromSets.push({url:fields[0],width});
+      }
+      // Prefere ~320 px: nitidez em telas comuns, sem baixar a foto original.
+      sizesFromSets.sort((a,b)=>Math.abs(a.width-320)-Math.abs(b.width-320));
+      const urls=[...sizesFromSets.map(item=>item.url),
+        el.getAttribute('data-lazy-src'), el.getAttribute('data-original'),
+        el.getAttribute('data-src'), el.getAttribute('src')];
+      for(const candidate of urls){
+        const url=secureLink(candidate,true,source);
+        if(!url || /(?:logo|avatar|placeholder|spacer|loading|sprite)/i.test(new URL(url).pathname))continue;
+        return url;
+      }
     }
     return null;
+  }
+
+  function withPhotosFirst(items) {
+    // Mantém a ordem original entre as notícias com foto e, depois, sem foto.
+    // A alternância entre FEEC e FEB continua sendo feita em interleave().
+    return [...items.filter(item=>secureLink(item.image,true,item.source)),
+            ...items.filter(item=>!secureLink(item.image,true,item.source))];
+  }
+
+  async function enrichMissingFeaturedImages(items, source) {
+    // Busca extra SOMENTE para as primeiras 2 notícias sem foto que tenham
+    // mídia destacada; nenhuma requisição ao Supabase nem a servidores terceiros.
+    let attempts=0;
+    const base=source==='FEB'?FEB_SITE:FEEC_SITE;
+    for(const item of items) {
+      if(item.image || !Number.isSafeInteger(item.featuredMediaId) ||
+         item.featuredMediaId<=0 || attempts>=2)continue;
+      attempts++;
+      try {
+        const data=await getJson(base+'wp-json/wp/v2/media/'+item.featuredMediaId+
+          '?_fields=source_url,media_details',3000);
+        const found=extractImage({_embedded:{'wp:featuredmedia':[data]}},source);
+        if(found)item.image=found;
+      }catch{/* O site pode não permitir CORS; conserva o cartão sem foto. */}
+    }
+    return items;
   }
 
   function illustration(source) {
@@ -66080,11 +66134,11 @@ function openAceAccessibility() {
     for(const item of shown){
       const card=document.createElement('article');card.className='ace-news-card';
       const thumb=document.createElement('div');thumb.className='ace-news-thumb';thumb.setAttribute('aria-hidden','true');
-      const imageUrl=secureLink(item.image,true);
-      if(imageUrl){
-        const pic=document.createElement('img');pic.src=imageUrl;pic.alt='';pic.loading='lazy';pic.decoding='async';
+      const imageUrl=secureLink(item.image,true,item.source);
+      if(imageUrl && !failedImages.has(imageUrl)){
+        const pic=document.createElement('img');pic.src=imageUrl;pic.alt='';pic.loading='lazy';pic.decoding='async';pic.fetchPriority='low';
         // Alguns sites recusam hotlink sem referer: não suprime o cabeçalho.
-        pic.addEventListener('error',()=>{pic.remove();thumb.replaceChildren(illustration(item.source));},{once:true});
+        pic.addEventListener('error',()=>{failedImages.add(imageUrl);pic.remove();thumb.replaceChildren(illustration(item.source));},{once:true});
         thumb.appendChild(pic);
       } else thumb.appendChild(illustration(item.source));
       const copy=document.createElement('div');copy.className='ace-news-copy';
@@ -66108,19 +66162,28 @@ function openAceAccessibility() {
   }
   async function getFromOfficial(source){
     for(const url of FEEDS[source]){
-      try {const list=await getJson(url,4500);if(Array.isArray(list)&&list.length)return normalize(list,source);}
-      catch{/* Falha de CORS, indisponibilidade ou rede: passa à próxima tentativa. */}
+      try {
+        const list=await getJson(url,4500);
+        if(Array.isArray(list)&&list.length){
+          const clean=normalize(list,source);
+          if(clean.length){
+            await enrichMissingFeaturedImages(clean,source);
+            return withPhotosFirst(clean);
+          }
+        }
+      }catch{/* CORS/indisponibilidade: tenta outra URL ou usa a seleção de reserva. */}
     }
     return [];
   }
   function normalize(records,source){
     if(!Array.isArray(records))return [];
     return records.map(post=>{
-      const link=secureLink(post?.link),title=cleanText(post?.title?.rendered);
+      const link=secureLink(post?.link,false,source),title=cleanText(post?.title?.rendered);
       const host=link?new URL(link).hostname:'';
       const expected=source==='FEB'?/(^|\.)febnet\.org\.br$/:/(^|\.)feec\.org\.br$/;
       if(!link||!title||!expected.test(host))return null;
-      return {title,link,source,image:extractImage(post),date:post?.date||''};
+      return {title,link,source,image:extractImage(post,source),
+        featuredMediaId:Number(post?.featured_media)||0,date:post?.date||''};
     }).filter(Boolean).slice(0,9);
   }
 
@@ -66134,8 +66197,8 @@ function openAceAccessibility() {
       }
       // As duas fontes são consultadas em paralelo; cache é local ao aparelho.
       const [feecResult,febResult]=await Promise.all([getFromOfficial('FEEC'),getFromOfficial('FEB')]);
-      const feec=feecResult.length?feecResult:curatedFEEC;
-      const feb=febResult.length?febResult:curatedFEB;
+      const feec=withPhotosFirst(feecResult.length?feecResult:curatedFEEC);
+      const feb=withPhotosFirst(febResult.length?febResult:curatedFEB);
       news=interleave(feec,feb);page=0;lastCheck=Date.now();render();play();
       try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:lastCheck,items:news}));}catch{}
     }catch(error){console.info('ACE: notícias temporariamente indisponíveis; seleção salva mantida.',error?.message||'');}
