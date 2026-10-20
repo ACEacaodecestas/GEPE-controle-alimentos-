@@ -79,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v119",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-menu-grupos-visiveis-v117";
+  "2026.10.20-desktop-noticias-v119";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -42269,7 +42269,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v119",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -65880,4 +65880,100 @@ function openAceAccessibility() {
     document.addEventListener('click', event => { if (event.target.closest?.('[data-ace-accessibility]')) { event.preventDefault(); openAceAccessibility(); } });
   }
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start, {once:true});
+})();
+
+
+// =============================================================
+// ACE — EXPERIÊNCIA DESKTOP E NOTÍCIAS ESPÍRITAS · v119
+// Escopo: >=851px, nenhum acesso Supabase, sem mexer no mobile/APK.
+// =============================================================
+(() => {
+  'use strict';
+  const desktop = window.matchMedia('(min-width: 851px)');
+  const KEY = 'ace_desktop_news_v119';
+  const TTL = 6 * 60 * 60 * 1000;
+  const FEEC = 'https://feec.org.br/noticias/';
+  const FEB = 'https://www.febnet.org.br/portal/';
+  const API = 'https://feec.org.br/wp-json/wp/v2/posts?per_page=5&_fields=date,link,title,featured_media';
+  const safe = raw => { try {const u=new URL(String(raw));return u.protocol==='https:'?u.href:null;}catch{return null;} };
+  const clean = raw => {const el=document.createElement('span');el.innerHTML=String(raw||'');return (el.textContent||'').trim().slice(0,160);};
+  const fallback = [
+    {title:'Notícias e atividades da Federação Espírita do Estado do Ceará',link:FEEC,source:'FEEC',emoji:'📰'},
+    {title:'Conteúdos e publicações da Federação Espírita Brasileira',link:FEB,source:'FEB',emoji:'📖'},
+    {title:'Confira os encontros e eventos do movimento espírita cearense',link:'https://feec.org.br/',source:'FEEC',emoji:'✨'}
+  ];
+  const css=document.createElement('style'); css.id='aceDesktopNewsStylesV119';
+  css.textContent=`
+  @media(min-width:851px){
+    html body .ace-header-v6{box-shadow:0 9px 25px rgba(7,50,80,.13)!important}
+    #aceDesktopNews{box-sizing:border-box;margin:12px 16px 16px;padding:14px 16px 11px;max-width:calc(100% - 32px);border:1px solid #d5e5ee;border-radius:18px;background:linear-gradient(112deg,#f8fcff 0%,#edf7fd 65%,#eff9f5 100%);box-shadow:0 5px 20px rgba(19,64,91,.08);color:#193e59;font-family:inherit}
+    #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+    #aceDesktopNews .ace-news-ident{display:flex;gap:11px;align-items:center;min-width:0}
+    #aceDesktopNews .ace-news-symbol{height:41px;width:41px;flex:none;display:grid;place-items:center;background:#e0f0fa;border:1px solid #cbe4f3;border-radius:12px;font-size:23px}
+    #aceDesktopNews .ace-news-heading{display:block;font-size:16px;font-weight:850;line-height:1.25;color:#113e5f}
+    #aceDesktopNews .ace-news-caption{font-size:12px;color:#517087;line-height:1.3;margin-top:3px}
+    #aceDesktopNews .ace-news-controls{display:flex;align-items:center;gap:6px;flex:none}
+    #aceDesktopNews button.ace-news-control{display:grid;place-items:center;width:32px;height:32px;min-width:32px;padding:0;border:1px solid #c5dce9;border-radius:10px;background:#fff;color:#145b83;cursor:pointer;font:800 20px/1 inherit}
+    #aceDesktopNews button.ace-news-control:focus-visible,#aceDesktopNews a:focus-visible{outline:3px solid #168bc5;outline-offset:2px}
+    #aceDesktopNews button.ace-news-control:hover{background:#dceffa}
+    #aceDesktopNews .ace-news-track{display:flex;gap:11px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:thin;padding:2px 2px 9px;scroll-behavior:smooth}
+    #aceDesktopNews .ace-news-item{box-sizing:border-box;display:flex;align-items:center;gap:11px;flex:0 0 clamp(245px,27vw,355px);min-width:0;min-height:82px;padding:10px 12px;border:1px solid #dbe8f1;border-radius:13px;background:#fff;text-decoration:none;color:#173c57;scroll-snap-align:start;transition:box-shadow .2s,border-color .2s}
+    #aceDesktopNews .ace-news-item:hover{border-color:#9dc8df;box-shadow:0 5px 16px rgba(10,55,93,.13)}
+    #aceDesktopNews .ace-news-thumb{display:grid;place-items:center;flex:0 0 56px;width:56px;height:56px;overflow:hidden;border-radius:11px;background:#eaf4fa;font-size:25px}
+    #aceDesktopNews .ace-news-thumb img{width:100%;height:100%;object-fit:cover}
+    #aceDesktopNews .ace-news-copy{display:block;min-width:0}
+    #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;font-weight:900;color:#187194;margin-bottom:5px}
+    #aceDesktopNews .ace-news-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:13px;line-height:1.4;font-weight:750}
+    #aceDesktopNews .ace-news-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:4px;font-size:11px;color:#607d8d}
+    #aceDesktopNews .ace-news-footer a{color:#176289;font-weight:800;text-decoration:none}
+    #aceDesktopNews .ace-news-footer a:hover{text-decoration:underline}
+    @media(prefers-reduced-motion:reduce){#aceDesktopNews .ace-news-track{scroll-behavior:auto!important}}
+  }
+  @media(max-width:850px){#aceDesktopNews{display:none!important}}
+  `;
+  (document.head||document.documentElement).appendChild(css);
+  let interval=null, busy=false, articles=fallback;
+  const canRotate=()=>desktop.matches && document.visibilityState==='visible' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function move(dir=1){const track=document.querySelector('#aceDesktopNews .ace-news-track');if(!track)return;const item=track.querySelector('.ace-news-item');const step=(item?.getBoundingClientRect().width||285)+11;const nearEnd=track.scrollLeft+track.clientWidth>=track.scrollWidth-12;if(dir>0&&nearEnd){track.scrollTo({left:0,behavior:'smooth'});}else{track.scrollBy({left:dir*step,behavior:'smooth'});}}
+  function stop(){if(interval){clearInterval(interval);interval=null;}}
+  function play(){stop();const section=document.getElementById('aceDesktopNews');if(!section||section.matches(':hover')||section.contains(document.activeElement)||!canRotate())return;interval=setInterval(()=>{if(canRotate())move(1);},6500);}
+  function draw(items){const track=document.querySelector('#aceDesktopNews .ace-news-track');if(!track)return;articles=items;track.replaceChildren();items.forEach(item=>{
+    const url=safe(item.link);if(!url)return;
+    const a=document.createElement('a');a.className='ace-news-item';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.setAttribute('role','listitem');a.setAttribute('aria-label',item.source+': '+item.title);
+    const pic=document.createElement('span');pic.className='ace-news-thumb';pic.setAttribute('aria-hidden','true');pic.textContent=item.emoji||'📰';
+    // Imagem remota só é requisitada quando efetivamente há URL de miniatura HTTPS.
+    if(item.image&&safe(item.image)){const img=document.createElement('img');img.loading='lazy';img.decoding='async';img.alt='';img.referrerPolicy='no-referrer';img.addEventListener('load',()=>pic.replaceChildren(img),{once:true});img.src=item.image;}
+    const copy=document.createElement('span');copy.className='ace-news-copy';
+    const src=document.createElement('span');src.className='ace-news-source';src.textContent=item.source;
+    const title=document.createElement('span');title.className='ace-news-title';title.textContent=item.title;
+    copy.append(src,title);a.append(pic,copy);track.appendChild(a);
+  });play();}
+  async function getJson(url,ms=5500){const ctrl=new AbortController();const timeout=setTimeout(()=>ctrl.abort(),ms);try{const r=await fetch(url,{signal:ctrl.signal,credentials:'omit',cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}finally{clearTimeout(timeout);}}
+  async function fetchNews(){if(busy||!desktop.matches)return;busy=true;try{
+    let saved;try{saved=JSON.parse(localStorage.getItem(KEY)||'null');}catch{}
+    if(saved&&Array.isArray(saved.items)&&saved.items.length){draw([...saved.items,fallback[1]]);if(Date.now()-saved.at<TTL)return;}
+    const records=await getJson(API);if(!Array.isArray(records))throw Error('Fonte sem formato esperado');
+    const items=records.map(p=>({title:clean(p?.title?.rendered),link:safe(p?.link),source:'FEEC',emoji:'📰',mediaId:Number(p?.featured_media)||0})).filter(p=>p.title&&p.link&&new URL(p.link).hostname.endsWith('feec.org.br')).slice(0,5);
+    if(!items.length)throw Error('Nenhum artigo disponível');
+    // Apenas duas miniaturas pequenas por atualização (demais cartões usam ícones leves).
+    await Promise.all(items.slice(0,2).map(async item=>{if(!item.mediaId)return;try{const media=await getJson('https://feec.org.br/wp-json/wp/v2/media/'+item.mediaId+'?_fields=media_details',3500);const thumb=media?.media_details?.sizes?.thumbnail?.source_url;if(safe(thumb)&&new URL(thumb).hostname.endsWith('feec.org.br'))item.image=thumb;}catch{}}));
+    const cleaned=items.map(({mediaId,...rest})=>rest);draw([...cleaned,fallback[1]]);
+    try{localStorage.setItem(KEY,JSON.stringify({at:Date.now(),items:cleaned}));}catch{}
+  }catch(e){console.info('ACE notícias: conteúdo padrão mantido.',e?.message||'');}finally{busy=false;}}
+  function mount(){if(!desktop.matches||document.getElementById('aceDesktopNews')||document.getElementById('loginScreen'))return;
+    const header=document.querySelector('.ace-header-v6');if(!header)return;
+    const section=document.createElement('section');section.id='aceDesktopNews';section.setAttribute('aria-label','Notícias espíritas');
+    section.innerHTML='<div class="ace-news-top"><div class="ace-news-ident"><span class="ace-news-symbol" aria-hidden="true">🕊️</span><div><span class="ace-news-heading">Notícias do Movimento Espírita</span><div class="ace-news-caption">Informações de fontes oficiais • Atualização econômica</div></div></div><div class="ace-news-controls"><button type="button" class="ace-news-control" data-ace-news-prev aria-label="Notícia anterior">‹</button><button type="button" class="ace-news-control" data-ace-news-next aria-label="Próxima notícia">›</button></div></div><div class="ace-news-track" role="list" aria-label="Notícias em destaque"></div><div class="ace-news-footer"><span>Deslize ou use as setas para explorar</span><span><a href="https://feec.org.br/noticias/" target="_blank" rel="noopener noreferrer">FEEC ↗</a> &nbsp; <a href="https://www.febnet.org.br/portal/" target="_blank" rel="noopener noreferrer">FEB ↗</a></span></div>';
+    header.insertAdjacentElement('afterend',section);
+    section.querySelector('[data-ace-news-prev]').addEventListener('click',()=>{move(-1);play();});
+    section.querySelector('[data-ace-news-next]').addEventListener('click',()=>{move(1);play();});
+    section.addEventListener('mouseenter',stop);section.addEventListener('mouseleave',play);
+    section.addEventListener('focusin',stop);section.addEventListener('focusout',()=>setTimeout(play,0));
+    draw(articles);fetchNews();
+  }
+  function refresh(){if(desktop.matches){mount();}else{stop();document.getElementById('aceDesktopNews')?.remove();}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
+  desktop.addEventListener?.('change',refresh);document.addEventListener('visibilitychange',play);
+  // Inicialização tardia após autenticação: não interfere no fluxo de login.
+  let checks=0;const probe=setInterval(()=>{if(document.getElementById('aceDesktopNews')||++checks>180){clearInterval(probe);}else refresh();},1000);
 })();
