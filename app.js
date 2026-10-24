@@ -65912,7 +65912,7 @@ function openAceAccessibility() {
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start, {once:true});
 })();
 
-// ACE v119 — espaço de trabalho exclusivo do computador.
+// ACE v122 — espaço de trabalho exclusivo do computador.
 // A faixa de notícias foi removida do PWA para PC a pedido do usuário.
 (function installAceDesktopWorkspace118(){
   'use strict';
@@ -66028,8 +66028,11 @@ function openAceAccessibility() {
   function makeSidebar(){
     sidebar=document.createElement('aside');sidebar.id='aceDesktopSidebar118';sidebar.setAttribute('aria-label','Menu principal');
     const movements='<div class="ace-desk-subtitle">Alimentos</div>'+button('entrada','Entradas')+button('saida','Saídas e perdas')+'<div class="ace-desk-subtitle">Sacos</div>'+button('sacosEntrada','Entradas')+button('sacosSaida','Saídas')+'<div class="ace-desk-subtitle">Cestas</div>'+button('cestas','Montagem de cestas');
-    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements,true)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}</nav><div class="ace-desk-foot">Amor que alimenta e acolhe.<br>Grupo Espírita Paulo e Estevão</div>`;
+    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}</nav><div class="ace-desk-foot">Amor que alimenta e acolhe.<br>Grupo Espírita Paulo e Estevão</div>`;
     document.body.appendChild(sidebar);
+    // Ao iniciar/recarregar no computador, todos os grupos começam recolhidos.
+    // A abertura da navegação completa fica sob controle do botão de três traços.
+    sidebar.querySelectorAll('details').forEach(detail=>{detail.open=false;});
     sidebar.querySelector('.ace-desk-collapse').onclick=()=>setCollapsed(!document.body.classList.contains('ace-desktop-collapsed'));
     sidebar.addEventListener('click',event=>{
       const summary=event.target.closest('summary');if(summary&&document.body.classList.contains('ace-desktop-collapsed')){event.preventDefault();setCollapsed(false);summary.parentElement.open=true;return;}
@@ -66040,7 +66043,7 @@ function openAceAccessibility() {
       else {activateAceOriginalTab(target);}
       setTimeout(syncActive,80);
     });
-    setCollapsed(read(COLLAPSE_KEY)==='true',false);
+    setCollapsed(true,false);
   }
   function syncActive(){
     if(!sidebar||!eligible())return;
