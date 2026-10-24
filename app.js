@@ -46,6 +46,101 @@ let aceStockFilters = {status:'positive', query:'', sort:'name', pdfScope:'filte
   (document.head || document.documentElement).appendChild(style);
 })();
 
+// ============================================================
+// LOGO ACE COM MAIS DESTAQUE — V125
+// Aumenta discretamente a marca sem aumentar de forma exagerada
+// o cabeçalho nem deslocar o título, inclusive com acessibilidade.
+// ============================================================
+(function installAceLogoEmphasisV125(){
+  const mount = () => {
+    if (document.getElementById("aceLogoEmphasisV125")) return;
+
+    const style = document.createElement("style");
+    style.id = "aceLogoEmphasisV125";
+    style.textContent = `
+      /* Tela de abertura e login */
+      #aceStartupShield .ace-startup-logo{
+        width:96px !important;
+        height:96px !important;
+      }
+
+      #loginScreen .login-logo img{
+        width:165px !important;
+      }
+
+      /* Computador: aumento aproximado de 12%, sem deixar o cabeçalho alto. */
+      @media screen and (min-width:851px){
+        html body.ace-desktop-workspace .ace-header-v6 .ace-logo-v6{
+          flex:0 0 72px !important;
+          width:72px !important;
+          height:72px !important;
+        }
+
+        html body.ace-desktop-workspace .ace-header-v6 .ace-logo-v6 img{
+          width:72px !important;
+          height:72px !important;
+          max-width:72px !important;
+          max-height:72px !important;
+        }
+      }
+
+      /* Celular: logo um pouco maior, preservando o espaço do título. */
+      @media screen and (max-width:850px){
+        html body #aceMobileHeader{
+          grid-template-columns:62px minmax(0,1fr) 36px !important;
+          grid-template-rows:58px 42px !important;
+        }
+
+        html body #aceMobileHeader .ace-mobile-logo{
+          width:58px !important;
+          height:58px !important;
+          max-width:58px !important;
+          max-height:58px !important;
+        }
+      }
+
+      @media screen and (max-width:390px){
+        html body #aceMobileHeader{
+          grid-template-columns:60px minmax(0,1fr) 36px !important;
+        }
+
+        html body #aceMobileHeader .ace-mobile-logo{
+          width:56px !important;
+          height:56px !important;
+          max-width:56px !important;
+          max-height:56px !important;
+        }
+      }
+
+      /* O mesmo ajuste permanece ativo quando o usuário aumenta as letras. */
+      @media screen and (max-width:850px){
+        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-logo{
+          width:58px !important;
+          height:58px !important;
+          max-width:58px !important;
+          max-height:58px !important;
+        }
+      }
+
+      @media screen and (max-width:390px){
+        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-logo{
+          width:56px !important;
+          height:56px !important;
+          max-width:56px !important;
+          max-height:56px !important;
+        }
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(mount, 0), {once:true});
+  } else {
+    setTimeout(mount, 0);
+  }
+})();
+
 
 
 // Inventário de sacos: ajustes independentes, contagem persistida e histórico auditável.
@@ -50446,7 +50541,8 @@ function normalizeAceChatMessage(row) {
     sender_name:
       String(row?.sender_name || "Usuário").trim().slice(0, 80) ||
       "Usuário",
-    // A foto fica vinculada à própria mensagem e não depende da presença online.
+    // A foto fica vinculada à própria mensagem e continua visível
+    // mesmo depois que o usuário sai do sistema.
     avatar_url: getAceSafeRemoteAvatar(row?.avatar_url).slice(0, 2048),
     message,
     created_at: String(row?.created_at || new Date().toISOString())
