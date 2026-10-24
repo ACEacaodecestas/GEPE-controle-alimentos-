@@ -29813,6 +29813,36 @@ function openDefaultMuralAcePage() {
 
 }
 
+// No computador, o sistema começa no painel Início.
+// Em telas menores, preserva o Mural como tela inicial.
+function openDefaultInicioAcePage() {
+
+  const inicioTab =
+    findAceOriginalTab("inicio") ||
+    document.querySelector('.tabs .tab[data-page="dashboard"]');
+
+  const page = inicioTab?.dataset?.page || "dashboard";
+
+  document
+    .querySelectorAll(".tab")
+    .forEach(
+      x =>
+        x.classList.toggle(
+          "active",
+          x === inicioTab || x.dataset.page === page
+        )
+    );
+
+  document
+    .querySelectorAll(".page")
+    .forEach(x => x.classList.remove("active"));
+
+  document
+    .getElementById(page)
+    ?.classList.add("active");
+
+}
+
 
 function nav() {
 
@@ -52736,8 +52766,8 @@ async function initApp() {
 
     setupAceInventoryRealtime();
 
-    // Sempre abre o aplicativo diretamente no Mural ACE.
-    openDefaultMuralAcePage();
+    // PWA: inicia no menu Início em computadores e celulares.
+    openDefaultInicioAcePage();
 
     bindEvents();
 
