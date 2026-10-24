@@ -50446,6 +50446,8 @@ function normalizeAceChatMessage(row) {
     sender_name:
       String(row?.sender_name || "Usuário").trim().slice(0, 80) ||
       "Usuário",
+    // A foto fica vinculada à própria mensagem e não depende da presença online.
+    avatar_url: getAceSafeRemoteAvatar(row?.avatar_url).slice(0, 2048),
     message,
     created_at: String(row?.created_at || new Date().toISOString())
   };
@@ -51604,7 +51606,7 @@ function renderAceTeamChat({ scrollToBottom = false } = {}) {
       <div class="ace-chat-row ${mine ? "mine" : ""}" data-ace-chat-id="${row.id}">
         ${aceTeamAvatarHtml(
           row.sender_name,
-          onlineUser?.avatar_url || (mine ? getAceTeamAvatarUrl() : "")
+          row.avatar_url || onlineUser?.avatar_url || (mine ? getAceTeamAvatarUrl() : "")
         )}
         <div class="ace-chat-bubble">
           <div class="ace-chat-name">${esc(row.sender_name)}</div>
@@ -51759,7 +51761,7 @@ async function loadAceTeamChatMessages(force = false) {
   try {
     const { data, error } = await supabaseClient
       .from(ACE_TEAM_CHAT_TABLE)
-      .select("id,user_id,sender_name,message,created_at")
+      .select("id,user_id,sender_name,avatar_url,message,created_at")
       .order("created_at", { ascending: false })
       .limit(30);
 
@@ -51807,9 +51809,10 @@ async function sendAceTeamChatMessage() {
         user_id: currentUser.id,
         sender_name:
           String(getCurrentDisplayName()).trim().slice(0, 80),
+        avatar_url: getAceTeamAvatarUrl() || null,
         message
       })
-      .select("id,user_id,sender_name,message,created_at")
+      .select("id,user_id,sender_name,avatar_url,message,created_at")
       .single();
 
     if (error) throw error;
@@ -52033,7 +52036,7 @@ async function loadAceChatManagementScreen(
             ACE_TEAM_CHAT_TABLE
           )
           .select(
-            "id,user_id,sender_name,message,created_at"
+            "id,user_id,sender_name,avatar_url,message,created_at"
           )
           .order(
             "created_at",
@@ -52119,6 +52122,7 @@ async function loadAceChatManagementScreen(
 
               ${aceTeamAvatarHtml(
                 row.sender_name,
+                row.avatar_url ||
                 getAceOnlineUserById(
                   row.user_id
                 )?.avatar_url ||
