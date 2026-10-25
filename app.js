@@ -46,101 +46,6 @@ let aceStockFilters = {status:'positive', query:'', sort:'name', pdfScope:'filte
   (document.head || document.documentElement).appendChild(style);
 })();
 
-// ============================================================
-// LOGO ACE COM MAIS DESTAQUE — V125
-// Aumenta discretamente a marca sem aumentar de forma exagerada
-// o cabeçalho nem deslocar o título, inclusive com acessibilidade.
-// ============================================================
-(function installAceLogoEmphasisV125(){
-  const mount = () => {
-    if (document.getElementById("aceLogoEmphasisV125")) return;
-
-    const style = document.createElement("style");
-    style.id = "aceLogoEmphasisV125";
-    style.textContent = `
-      /* Tela de abertura e login */
-      #aceStartupShield .ace-startup-logo{
-        width:96px !important;
-        height:96px !important;
-      }
-
-      #loginScreen .login-logo img{
-        width:165px !important;
-      }
-
-      /* Computador: aumento aproximado de 12%, sem deixar o cabeçalho alto. */
-      @media screen and (min-width:851px){
-        html body.ace-desktop-workspace .ace-header-v6 .ace-logo-v6{
-          flex:0 0 72px !important;
-          width:72px !important;
-          height:72px !important;
-        }
-
-        html body.ace-desktop-workspace .ace-header-v6 .ace-logo-v6 img{
-          width:72px !important;
-          height:72px !important;
-          max-width:72px !important;
-          max-height:72px !important;
-        }
-      }
-
-      /* Celular: logo um pouco maior, preservando o espaço do título. */
-      @media screen and (max-width:850px){
-        html body #aceMobileHeader{
-          grid-template-columns:62px minmax(0,1fr) 36px !important;
-          grid-template-rows:58px 42px !important;
-        }
-
-        html body #aceMobileHeader .ace-mobile-logo{
-          width:58px !important;
-          height:58px !important;
-          max-width:58px !important;
-          max-height:58px !important;
-        }
-      }
-
-      @media screen and (max-width:390px){
-        html body #aceMobileHeader{
-          grid-template-columns:60px minmax(0,1fr) 36px !important;
-        }
-
-        html body #aceMobileHeader .ace-mobile-logo{
-          width:56px !important;
-          height:56px !important;
-          max-width:56px !important;
-          max-height:56px !important;
-        }
-      }
-
-      /* O mesmo ajuste permanece ativo quando o usuário aumenta as letras. */
-      @media screen and (max-width:850px){
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-logo{
-          width:58px !important;
-          height:58px !important;
-          max-width:58px !important;
-          max-height:58px !important;
-        }
-      }
-
-      @media screen and (max-width:390px){
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-logo{
-          width:56px !important;
-          height:56px !important;
-          max-width:56px !important;
-          max-height:56px !important;
-        }
-      }
-    `;
-    (document.head || document.documentElement).appendChild(style);
-  };
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(mount, 0), {once:true});
-  } else {
-    setTimeout(mount, 0);
-  }
-})();
-
 
 
 // Inventário de sacos: ajustes independentes, contagem persistida e histórico auditável.
@@ -174,7 +79,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v120",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -562,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.20-menu-grupos-visiveis-v117";
+  "2026.10.25-texto-lateral-verde-v125";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -29908,36 +29813,6 @@ function openDefaultMuralAcePage() {
 
 }
 
-// No computador, o sistema começa no painel Início.
-// Em telas menores, preserva o Mural como tela inicial.
-function openDefaultInicioAcePage() {
-
-  const inicioTab =
-    findAceOriginalTab("inicio") ||
-    document.querySelector('.tabs .tab[data-page="dashboard"]');
-
-  const page = inicioTab?.dataset?.page || "dashboard";
-
-  document
-    .querySelectorAll(".tab")
-    .forEach(
-      x =>
-        x.classList.toggle(
-          "active",
-          x === inicioTab || x.dataset.page === page
-        )
-    );
-
-  document
-    .querySelectorAll(".page")
-    .forEach(x => x.classList.remove("active"));
-
-  document
-    .getElementById(page)
-    ?.classList.add("active");
-
-}
-
 
 function nav() {
 
@@ -42394,7 +42269,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v120",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -50541,9 +50416,6 @@ function normalizeAceChatMessage(row) {
     sender_name:
       String(row?.sender_name || "Usuário").trim().slice(0, 80) ||
       "Usuário",
-    // A foto fica vinculada à própria mensagem e continua visível
-    // mesmo depois que o usuário sai do sistema.
-    avatar_url: getAceSafeRemoteAvatar(row?.avatar_url).slice(0, 2048),
     message,
     created_at: String(row?.created_at || new Date().toISOString())
   };
@@ -51702,7 +51574,7 @@ function renderAceTeamChat({ scrollToBottom = false } = {}) {
       <div class="ace-chat-row ${mine ? "mine" : ""}" data-ace-chat-id="${row.id}">
         ${aceTeamAvatarHtml(
           row.sender_name,
-          row.avatar_url || onlineUser?.avatar_url || (mine ? getAceTeamAvatarUrl() : "")
+          onlineUser?.avatar_url || (mine ? getAceTeamAvatarUrl() : "")
         )}
         <div class="ace-chat-bubble">
           <div class="ace-chat-name">${esc(row.sender_name)}</div>
@@ -51857,7 +51729,7 @@ async function loadAceTeamChatMessages(force = false) {
   try {
     const { data, error } = await supabaseClient
       .from(ACE_TEAM_CHAT_TABLE)
-      .select("id,user_id,sender_name,avatar_url,message,created_at")
+      .select("id,user_id,sender_name,message,created_at")
       .order("created_at", { ascending: false })
       .limit(30);
 
@@ -51905,10 +51777,9 @@ async function sendAceTeamChatMessage() {
         user_id: currentUser.id,
         sender_name:
           String(getCurrentDisplayName()).trim().slice(0, 80),
-        avatar_url: getAceTeamAvatarUrl() || null,
         message
       })
-      .select("id,user_id,sender_name,avatar_url,message,created_at")
+      .select("id,user_id,sender_name,message,created_at")
       .single();
 
     if (error) throw error;
@@ -52132,7 +52003,7 @@ async function loadAceChatManagementScreen(
             ACE_TEAM_CHAT_TABLE
           )
           .select(
-            "id,user_id,sender_name,avatar_url,message,created_at"
+            "id,user_id,sender_name,message,created_at"
           )
           .order(
             "created_at",
@@ -52218,7 +52089,6 @@ async function loadAceChatManagementScreen(
 
               ${aceTeamAvatarHtml(
                 row.sender_name,
-                row.avatar_url ||
                 getAceOnlineUserById(
                   row.user_id
                 )?.avatar_url ||
@@ -52866,8 +52736,9 @@ async function initApp() {
 
     setupAceInventoryRealtime();
 
-    // PWA: inicia no menu Início em computadores e celulares.
-    openDefaultInicioAcePage();
+    // Abre sempre no Início, no PWA (PC e celular) e no APK.
+    // Usa a mesma navegação do botão Início já existente.
+    activateAceOriginalTab("inicio");
 
     bindEvents();
 
@@ -66012,175 +65883,466 @@ function openAceAccessibility() {
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start, {once:true});
 })();
 
-// ACE v122 — espaço de trabalho exclusivo do computador.
-// A faixa de notícias foi removida do PWA para PC a pedido do usuário.
-(function installAceDesktopWorkspace118(){
+
+// =============================================================
+// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V123
+// 3 notícias por vez, alternância FEEC/FEB, fotos quando disponíveis,
+// ilustração local quando não existir foto e correção do botão residual.
+// NÃO usa Supabase; NÃO modifica layout do celular ou APK.
+// =============================================================
+(function installAceDesktopNewsV123() {
   'use strict';
-  if(window.aceDesktopWorkspace118) return;
-  const desktop=matchMedia('(min-width:851px)');
-  const COLLAPSE_KEY='ace_desktop_nav_collapsed_v1';
-  let sidebar,scheduled=false,tabObserver,watchedTabs,activePage='';
-  const icon=(name)=>{
-    const paths={menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',home:'<path d="m3 10 9-7 9 7v11H3zM9 21v-8h6v8"/>',mural:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h5"/>',people:'<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v2"/>',move:'<path d="M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4"/>',chart:'<path d="M3 3v18h18M7 16v-5m5 5V6m5 10v-8"/>',box:'<path d="m3 7 9-4 9 4v11l-9 4-9-4zM3 7l9 5 9-5M12 12v10"/>',gear:'<circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/>',left:'<path d="m14 6-6 6 6 6"/>',right:'<path d="m10 6 6 6-6 6"/>',pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 4 12 8-12 8z"/>',leaf:'<path d="M20 3C5 1 2 11 8 17s16-2 12-14ZM4 21 16 9"/>',link:'<path d="M14 3h7v7M21 3 10 14M10 3H3v18h18v-7"/>'};
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.box}</svg>`;
+  const desktop = window.matchMedia('(min-width: 851px)');
+  const SECTION_ID = 'aceDesktopNews';
+  const CSS_ID = 'aceDesktopNewsStylesV121';
+  const CACHE_KEY = 'ace_desktop_news_v123';
+  const CACHE_MS = 6 * 60 * 60 * 1000;
+  const ROTATE_MS = 7500;
+  const PER_PAGE = 3;
+  const FEEC_SITE = 'https://feec.org.br/';
+  const FEB_SITE = 'https://febnet.org.br/';
+  const FEEC_NEWS = FEEC_SITE + 'noticias/';
+  const FEEDS = {
+    FEEC: [
+      FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded',
+      FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_fields=id,date,link,title,content,featured_media'
+    ],
+    FEB: [
+      FEB_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded',
+      'https://www.febnet.org.br/portal/wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded'
+    ]
   };
-  function save(key,value){try{localStorage.setItem(key,value);}catch{}}
-  function read(key){try{return localStorage.getItem(key);}catch{return null;}}
-  function authenticated(){return typeof currentUser!=='undefined'&&!!currentUser&&!document.getElementById('loginScreen');}
-  function eligible(){return desktop.matches&&authenticated();}
-  function installStyle(){
-    if(document.getElementById('aceDesktopWorkspaceStyle118'))return;
-    const style=document.createElement('style');style.id='aceDesktopWorkspaceStyle118';style.textContent=`
-      #aceDesktopSidebar118,#aceDesktopNews118{display:none}
-      #aceDesktopSidebar118 [hidden],#aceDesktopNews118 [hidden]{display:none!important}
-      @media screen and (min-width:851px){
-        html body.ace-desktop-workspace{--ace-side:246px}
-        html body.ace-desktop-workspace.ace-desktop-collapsed{--ace-side:78px}
-        html body.ace-desktop-workspace > .tabs,html body.ace-desktop-workspace #aceMenuOutsideHost,html body.ace-desktop-workspace #aceDesktopGroupedPopup{display:none!important}
-        html body.ace-desktop-workspace .ace-header-v6{display:flex!important;align-items:center!important;gap:18px!important;position:relative!important;height:auto!important;min-height:104px!important;width:calc(100% - var(--ace-side))!important;margin:0 0 0 var(--ace-side)!important;padding:18px 28px!important;box-sizing:border-box!important;background:linear-gradient(110deg,#10486c,#096a93)!important;border:0!important;border-bottom:3px solid #2eb28b!important;box-shadow:none!important;isolation:auto!important;overflow:visible!important}
-        html body.ace-desktop-workspace .ace-header-v6::before,html body.ace-desktop-workspace .ace-header-v6::after{display:none!important}
-        html body.ace-desktop-workspace .ace-header-v6 .ace-logo-v6{position:static!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 64px!important;width:64px!important;height:64px!important;min-width:0!important;padding:0!important;margin:0!important;transform:none!important;background:transparent!important;border:0!important}
-        html body.ace-desktop-workspace .ace-header-v6 .ace-logo-v6 img{width:64px!important;height:64px!important;max-width:64px!important;max-height:64px!important;object-fit:contain!important;margin:0!important;transform:none!important;filter:none!important}
-        html body.ace-desktop-workspace .ace-header-v6 .ace-title-v6{position:static!important;display:block!important;flex:1 1 260px!important;min-width:0!important;margin:0!important;padding:0!important;text-align:left!important;transform:none!important}
-        html body.ace-desktop-workspace .ace-header-v6 .ace-name-v6{font-size:13px!important;font-weight:650!important;line-height:1.3!important;letter-spacing:.03em!important;color:#d6edf6!important;margin:0 0 5px!important;white-space:normal!important}
-        html body.ace-desktop-workspace .ace-header-v6 h1{font-size:25px!important;font-weight:800!important;line-height:1.2!important;letter-spacing:-.5px!important;color:#fff!important;margin:0!important;white-space:normal!important;overflow-wrap:break-word!important;text-shadow:none!important}
-        html body.ace-desktop-workspace .ace-header-v6 #userBar{position:relative!important;inset:auto!important;order:4!important;display:flex!important;align-items:center!important;flex:0 1 auto!important;gap:8px!important;margin:0!important;padding:0!important;max-width:270px!important;min-width:0!important}
-        html body.ace-desktop-workspace #userBar .user-email{font-size:13px!important;font-weight:600!important;max-width:140px!important;white-space:normal!important;overflow-wrap:break-word!important;text-align:right!important}
-        html body.ace-desktop-workspace #aceDesktopAvatarButton{width:40px!important;height:40px!important;flex:0 0 40px!important}
-        html body.ace-desktop-workspace #aceDesktopLogoutVisible,html body.ace-desktop-workspace .ace-header-v6 #installBtn{display:none!important}
-        html body.ace-desktop-workspace #aceDesktopAccountDropdown{top:50px!important;max-height:70vh!important;overflow:auto!important}
-        html body.ace-desktop-workspace .ace-header-v6 #aceTeamStatusButton:not(.ace-team-floating){position:relative!important;inset:auto!important;order:3!important;flex:0 0 auto!important;margin:0!important;font-size:12px!important;min-height:36px!important;padding:7px 10px!important;box-shadow:none!important;transform:none!important}
-        html body.ace-desktop-workspace > main{width:calc(100% - var(--ace-side))!important;max-width:none!important;margin:0 0 0 var(--ace-side)!important;padding:26px 30px 40px!important;box-sizing:border-box!important}
-        html body.ace-desktop-workspace #dashboard .cards{gap:14px!important;max-width:none!important}
-        html body.ace-desktop-workspace #dashboard .cards > .card{box-shadow:0 4px 14px rgba(19,71,107,.06)!important;border-radius:15px!important;min-width:0!important}
-        html body.ace-desktop-workspace #aceDesktopSidebar118{display:flex!important;flex-direction:column!important;position:fixed!important;inset:0 auto 0 0!important;width:var(--ace-side)!important;height:100vh!important;height:100dvh!important;padding:20px 14px 16px!important;box-sizing:border-box!important;z-index:1000500!important;background:linear-gradient(180deg,#113d5b,#0b2c46)!important;color:#d8e8f2!important;border-right:1px solid rgba(255,255,255,.09)!important;overflow:hidden!important;font-size:14px!important}
-        #aceDesktopSidebar118 *{box-sizing:border-box}
-        #aceDesktopSidebar118 .ace-desk-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 5px 20px;border-bottom:1px solid #31526b}
-        #aceDesktopSidebar118 .ace-desk-wordmark{font-size:22px;font-weight:850;letter-spacing:2px;color:#fff}
-        #aceDesktopSidebar118 .ace-desk-wordmark small{display:block;font-size:10px;letter-spacing:1px;font-weight:650;color:#80d5bb;margin-top:3px}
-        #aceDesktopSidebar118 button,#aceDesktopSidebar118 summary{font:inherit;color:inherit;cursor:pointer}
-        #aceDesktopSidebar118 .ace-desk-collapse{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border:1px solid #3a607a;border-radius:10px;background:#204b67;color:#fff}
-        #aceDesktopSidebar118 svg{width:20px;height:20px;flex:0 0 20px}
-        #aceDesktopSidebar118 nav{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;margin-top:16px;padding:0 2px;scrollbar-width:thin;scrollbar-color:#43657e transparent}
-        #aceDesktopSidebar118 .ace-desk-navitem,#aceDesktopSidebar118 summary{display:flex;align-items:center;gap:11px;width:100%;min-height:43px;padding:10px 12px;margin:3px 0;border:0;border-radius:9px;text-align:left;line-height:1.3;background:transparent;list-style:none;font-weight:600}
-        #aceDesktopSidebar118 summary::-webkit-details-marker{display:none}
-        #aceDesktopSidebar118 summary::after{content:'›';margin-left:auto;font-size:18px;transform:rotate(0deg)}
-        #aceDesktopSidebar118 details[open]>summary::after{transform:rotate(90deg)}
-        #aceDesktopSidebar118 .ace-desk-navitem:hover,#aceDesktopSidebar118 summary:hover{background:#214e6b;color:#fff}
-        #aceDesktopSidebar118 button:focus-visible,#aceDesktopSidebar118 summary:focus-visible{outline:2px solid #7ee2c4;outline-offset:2px}
-        #aceDesktopSidebar118 .ace-desk-navitem.active{color:#fff;background:#236381;box-shadow:inset 3px 0 #5cdbb4}
-        #aceDesktopSidebar118 .ace-desk-sub{margin:4px 0 10px 21px;padding-left:10px;border-left:1px solid #3b5d74}
-        #aceDesktopSidebar118 .ace-desk-sub .ace-desk-navitem{font-size:13px;min-height:38px;padding:9px 10px;font-weight:500}
-        #aceDesktopSidebar118 .ace-desk-subtitle{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#86b3ca;padding:13px 10px 3px}
-        #aceDesktopSidebar118 .ace-desk-divider{height:1px;background:#31526b;margin:15px 10px}
-        #aceDesktopSidebar118 .ace-desk-logo-visual{display:flex;align-items:center;justify-content:center;min-height:180px;margin:auto 0;padding:24px 8px;pointer-events:none}
-        #aceDesktopSidebar118 .ace-desk-logo-visual img{display:block;width:150px;height:150px;object-fit:contain;opacity:.94;filter:drop-shadow(0 9px 18px rgba(0,12,28,.30))}
-        #aceDesktopSidebar118 .ace-desk-foot{font-size:11px;line-height:1.6;color:#8db3c9;padding:16px 8px 0;border-top:1px solid #31526b;margin-top:12px}
-        html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-label,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-wordmark,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-foot,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-sub,html body.ace-desktop-collapsed #aceDesktopSidebar118 summary::after{display:none!important}
-        html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-top{padding-left:0;padding-right:0;justify-content:center}
-        html body.ace-desktop-collapsed #aceDesktopSidebar118 summary,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-navitem{justify-content:center;padding:11px 0}
-        html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-logo-visual{min-height:0;padding:22px 0 10px}
-        html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-logo-visual img{width:42px;height:42px;opacity:.86}
-        html body.ace-desktop-workspace #aceDesktopNews118{display:flex!important;align-items:center!important;gap:18px!important;width:calc(100% - var(--ace-side))!important;margin:0 0 0 var(--ace-side)!important;padding:15px 30px!important;box-sizing:border-box!important;min-height:113px!important;background:#f6fbfe!important;border-bottom:1px solid #c8deec!important;color:#143c56!important}
-        #aceDesktopNews118 .ace-news-heading{flex:0 0 125px;padding-right:17px;border-right:1px solid #d0e2ec}
-        #aceDesktopNews118 .ace-news-heading strong{display:block;font-size:13px;line-height:1.4;font-weight:800}
-        #aceDesktopNews118 .ace-news-heading small{display:block;font-size:10px;line-height:1.4;color:#658198;margin-top:5px}
-        #aceDesktopNews118 .ace-news-card{display:flex;align-items:center;gap:16px;flex:1;min-width:0;color:inherit;text-decoration:none}
-        #aceDesktopNews118 .ace-news-card:hover .ace-news-title{text-decoration:underline;text-underline-offset:3px}
-        #aceDesktopNews118 .ace-news-image{position:relative;display:grid;place-items:center;width:132px;height:76px;flex:0 0 132px;overflow:hidden;border-radius:10px;background:#e4f0f6;color:#3d829c}
-        #aceDesktopNews118 .ace-news-image>svg{width:28px;height:28px}
-        #aceDesktopNews118 .ace-news-image img{width:100%;height:100%;object-fit:cover;display:block}
-        #aceDesktopNews118 .ace-news-video{position:absolute;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:rgba(10,40,65,.85);color:white;bottom:5px;right:5px}
-        #aceDesktopNews118 .ace-news-video svg{width:15px;height:15px}
-        #aceDesktopNews118 .ace-news-copy{min-width:0;flex:1}
-        #aceDesktopNews118 .ace-news-meta{display:block;font-size:10px;font-weight:750;letter-spacing:.04em;color:#25745f;margin-bottom:6px}
-        #aceDesktopNews118 .ace-news-title{display:block;font-size:15px;font-weight:700;line-height:1.4;overflow-wrap:break-word}
-        #aceDesktopNews118 .ace-news-controls{display:flex;flex:0 0 auto;align-items:center;gap:2px}
-        #aceDesktopNews118 button{display:grid;place-items:center;width:34px;height:40px;border:0;border-radius:8px;background:transparent;color:#315c78;cursor:pointer}
-        #aceDesktopNews118 button:hover{background:#e1edf5}
-        #aceDesktopNews118 button:disabled{opacity:.4;cursor:default}
-        #aceDesktopNews118 button svg{width:17px;height:17px}
-        #aceDesktopNews118 .ace-news-count{font-size:10px;color:#57798d;min-width:28px;text-align:center}
-        #aceDesktopNews118 a:focus-visible,#aceDesktopNews118 button:focus-visible{outline:2px solid #1779ae;outline-offset:3px}
-        #aceDesktopNews118 .ace-news-empty{font-size:14px;line-height:1.6;flex:1}
-        #aceDesktopNews118 .ace-news-empty a{color:#126b93;font-weight:700;margin-right:15px}
-        @media(max-width:1150px){
-          html body.ace-desktop-workspace .ace-header-v6{gap:12px!important;padding:16px 20px!important;flex-wrap:wrap!important}
-          html body.ace-desktop-workspace .ace-header-v6 .ace-title-v6{flex-basis:calc(100% - 90px)!important}
-          html body.ace-desktop-workspace .ace-header-v6 #userBar{margin-left:auto!important}
-          html body.ace-desktop-workspace > main{padding:22px!important}
-          html body.ace-desktop-workspace #aceDesktopNews118{padding:14px 20px!important;gap:12px!important;flex-wrap:wrap!important}
-          #aceDesktopNews118 .ace-news-heading{flex-basis:100%;border-right:0;padding:0;display:flex;justify-content:space-between;gap:12px}
-          #aceDesktopNews118 .ace-news-heading small{margin:0}
-          #aceDesktopNews118 .ace-news-image{width:100px;flex-basis:100px;height:64px}
-          html body.ace-desktop-workspace #dashboard .cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  // Seleção verificada de publicações da FEB: é exibida se a API oficial
+  // não liberar acesso CORS no navegador. Não é apresentada como feed ao vivo.
+  const curatedFEB = [
+    {source:'FEB',title:'Viver é uma escolha: ore pelos suicidas',link:'https://febnet.org.br/viver-e-uma-escolha-ore-pelos-suicidas/',date:'2026-09-18'},
+    {source:'FEB',title:'Revista Espírita na atualidade: divulgação das comunicações',link:'https://febnet.org.br/revista-espirita-na-atualidade-divulgacao-das-comunicacoes/',date:'2026-09-16',image:'https://febnet.org.br/wp-content/uploads/2026/09/15-de-setembro.jpg'},
+    {source:'FEB',title:'Você sabia? A missão evangelizadora do Brasil',link:'https://febnet.org.br/voce-sabia-a-missao-evangelizadora-do-brasil/',date:'2026-09-10'}
+  ];
+  const curatedFEEC = [
+    {source:'FEEC',title:'Notícias e eventos da Federação Espírita do Ceará',link:FEEC_NEWS,date:''},
+    {source:'FEEC',title:'Confira a programação e as atividades espíritas no Ceará',link:FEEC_SITE,date:''}
+  ];
+  let news = interleave(curatedFEEC,curatedFEB);
+  let page = 0;
+  let timer = null;
+  let loading = false;
+  let lastCheck = 0;
+  const failedImages = new Set(); // Evita repetir imagens quebradas a cada rotação.
+
+  function secureLink(raw, image=false, source='FEEC') {
+    try {
+      // Links relativos da FEB devem apontar à FEB, nunca ao domínio da FEEC.
+      const url = new URL(String(raw || '').trim(), source==='FEB'?FEB_SITE:FEEC_SITE);
+      if (url.protocol !== 'https:' || url.username || url.password) return null;
+      const host = url.hostname.toLowerCase();
+      const official = /(^|\.)(?:feec\.org\.br|febnet\.org\.br)$/.test(host);
+      if (!image) return official ? url.href : null;
+      // Autoriza somente domínios oficiais e o CDN de imagens do WordPress.
+      const wpCdn = /^(?:i[0-3]\.wp\.com|s0\.wp\.com)$/.test(host);
+      if (!official && !wpCdn) return null;
+      const path = url.pathname.toLowerCase();
+      const imageFile = /\.(?:png|jpe?g|webp|gif|avif)$/.test(path);
+      const wpMedia = official && /\/wp-content\/uploads\//.test(path);
+      return imageFile || wpMedia ? url.href : null;
+    } catch { return null; }
+  }
+
+  function cleanText(html) {
+    const node=document.createElement('span'); node.innerHTML=String(html||'');
+    return (node.textContent||'').replace(/\s+/g,' ').trim().slice(0,220);
+  }
+
+  function extractImage(post, source) {
+    // 1. Miniaturas de mídia destacada do WordPress: primeiro as versões pequenas.
+    const media = post?._embedded?.['wp:featuredmedia']?.[0] || {};
+    const sizes = media.media_details?.sizes || post?.media_details?.sizes || {};
+    const candidates = [
+      sizes.medium?.source_url, sizes.thumbnail?.source_url,
+      sizes.medium_large?.source_url, sizes['post-thumbnail']?.source_url,
+      sizes.large?.source_url, media.source_url,
+      post?.jetpack_featured_media_url, post?.featured_image_url,
+      post?.better_featured_image?.media_details?.sizes?.medium?.source_url,
+      post?.better_featured_image?.source_url,
+      post?.yoast_head_json?.og_image?.[0]?.url,
+      post?.og_image, post?.image
+    ];
+    for(const candidate of candidates) {
+      const url=secureLink(candidate,true,source); if(url)return url;
+    }
+
+    // 2. Alguns artigos inserem a foto no HTML em vez de marcar mídia destacada.
+    const html=String(post?.content?.rendered||'')+' '+String(post?.excerpt?.rendered||'');
+    if(!html.trim())return null;
+    const parsed=new DOMParser().parseFromString(html,'text/html');
+    for(const el of parsed.querySelectorAll('img, picture source')) {
+      const rawSets=[el.getAttribute('srcset'),el.getAttribute('data-srcset'),el.getAttribute('data-lazy-srcset')].filter(Boolean);
+      const sizesFromSets=[];
+      for(const set of rawSets) for(const part of set.split(',')) {
+        const fields=part.trim().split(/\s+/);
+        const width=Number((fields[1]||'').replace(/w$/,''));
+        if(fields[0] && width >= 180 && width <= 640) sizesFromSets.push({url:fields[0],width});
+      }
+      // Prefere ~320 px: nitidez em telas comuns, sem baixar a foto original.
+      sizesFromSets.sort((a,b)=>Math.abs(a.width-320)-Math.abs(b.width-320));
+      const urls=[...sizesFromSets.map(item=>item.url),
+        el.getAttribute('data-lazy-src'), el.getAttribute('data-original'),
+        el.getAttribute('data-src'), el.getAttribute('src')];
+      for(const candidate of urls){
+        const url=secureLink(candidate,true,source);
+        if(!url || /(?:logo|avatar|placeholder|spacer|loading|sprite)/i.test(new URL(url).pathname))continue;
+        return url;
+      }
+    }
+    return null;
+  }
+
+  function withPhotosFirst(items) {
+    // Mantém a ordem original entre as notícias com foto e, depois, sem foto.
+    // A alternância entre FEEC e FEB continua sendo feita em interleave().
+    return [...items.filter(item=>secureLink(item.image,true,item.source)),
+            ...items.filter(item=>!secureLink(item.image,true,item.source))];
+  }
+
+  async function enrichMissingFeaturedImages(items, source) {
+    // Busca extra SOMENTE para as primeiras 2 notícias sem foto que tenham
+    // mídia destacada; nenhuma requisição ao Supabase nem a servidores terceiros.
+    let attempts=0;
+    const base=source==='FEB'?FEB_SITE:FEEC_SITE;
+    for(const item of items) {
+      if(item.image || !Number.isSafeInteger(item.featuredMediaId) ||
+         item.featuredMediaId<=0 || attempts>=2)continue;
+      attempts++;
+      try {
+        const data=await getJson(base+'wp-json/wp/v2/media/'+item.featuredMediaId+
+          '?_fields=source_url,media_details',3000);
+        const found=extractImage({_embedded:{'wp:featuredmedia':[data]}},source);
+        if(found)item.image=found;
+      }catch{/* O site pode não permitir CORS; conserva o cartão sem foto. */}
+    }
+    return items;
+  }
+
+  function illustration(source) {
+    // Vetor gerado localmente: custo de rede ZERO, sem imagem falsa.
+    // A alternativa visual identifica a fonte, não se passa por foto.
+    const feb=source==='FEB';
+    const accent=feb?'#216e87':'#258d78';
+    const secondary=feb?'#d5eaf3':'#d7efe5';
+    const holder=document.createElement('span');
+    holder.className='ace-news-illustration';
+    holder.innerHTML=`<svg viewBox="0 0 130 100" width="130" height="100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <rect width="130" height="100" rx="12" fill="${secondary}"/>
+      <circle cx="110" cy="9" r="54" fill="white" opacity=".45"/>
+      <path d="M29 62 Q47 51 63 65 Q80 52 100 62 L100 78 Q79 68 63 80 Q46 68 29 78 Z" fill="white" opacity=".9"/>
+      <path d="M64 60 L64 81 M30 62 Q47 54 63 65 M65 65 Q84 54 99 62" stroke="${accent}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="65" cy="34" r="13" fill="${accent}" opacity=".16"/>
+      <path d="M65 16 V26 M48 24 L55 30 M82 24 L75 30" stroke="${accent}" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="65" y="96" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="2" fill="${accent}">${feb?'FEB':'FEEC'}</text>
+    </svg>`;
+    return holder;
+  }
+
+  function interleave(feec,feb) {
+    // A primeira página terá SEMPRE 2 notícias FEEC + 1 FEB quando disponíveis.
+    // Isso evita que a FEEC ocupe as três primeiras posições sozinha.
+    const a=feec.slice(0,9),b=feb.slice(0,9),out=[];
+    let i=0,j=0;
+    while(i<a.length||j<b.length) {
+      if(i<a.length)out.push(a[i++]);
+      if(j<b.length)out.push(b[j++]);
+      if(i<a.length)out.push(a[i++]);
+    }
+    return out.slice(0,18);
+  }
+
+  function ensureStyle() {
+    if(document.getElementById(CSS_ID))return;
+    const style=document.createElement('style');style.id=CSS_ID;
+    style.textContent=`
+      @media(min-width:851px){
+        /* Esconde SOMENTE o botão de menu antigo do celular que foi
+           movido para fora do cabeçalho e ficou sobrando no desktop.
+           O botão Online/Equipe e a janela do chat NÃO são alterados. */
+        html body #aceMenuOutsideHost,
+        html body #aceMobileMenuButton{
+          display:none!important;
+          visibility:hidden!important;
+          pointer-events:none!important;
+        }
+        #aceDesktopNews{box-sizing:border-box;margin:14px 16px 17px;padding:18px 20px 15px;
+          width:calc(100% - 32px);border:1px solid #d4e7f0;border-radius:19px;
+          background:linear-gradient(110deg,#f8fcff,#ebf6fd 70%,#eaf7f2);
+          box-shadow:0 8px 28px rgba(12,62,94,.09);color:#173b55;font-family:inherit;}
+        #aceDesktopNews *{box-sizing:border-box;}
+        #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;}
+        #aceDesktopNews .ace-news-ident{min-width:0;}
+        #aceDesktopNews .ace-news-heading{display:block;font-size:19px;font-weight:900;letter-spacing:-.2px;color:#113f61;line-height:1.3;}
+        #aceDesktopNews .ace-news-caption{margin-top:3px;color:#527184;font-size:12px;}
+        #aceDesktopNews .ace-news-controls{display:flex;flex:none;align-items:center;gap:7px;}
+        #aceDesktopNews .ace-news-control{display:grid;place-items:center;min-height:38px;width:40px;height:38px;padding:0;
+          border:1px solid #c5dce9;border-radius:11px;background:#fff;color:#155e86;cursor:pointer;
+          font-size:24px;font-weight:800;line-height:1;transition:background .2s ease;}
+        #aceDesktopNews .ace-news-control:hover:not(:disabled){background:#e2f1fb;}
+        #aceDesktopNews .ace-news-control:disabled{opacity:.35;cursor:default;}
+        #aceDesktopNews :is(.ace-news-control,.ace-news-link):focus-visible{outline:3px solid #168bc5;outline-offset:3px;}
+        #aceDesktopNews .ace-news-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+        #aceDesktopNews .ace-news-card{display:flex;align-items:center;min-width:0;min-height:130px;gap:15px;padding:12px;
+          border:1px solid #d6e8f2;border-radius:15px;background:#fff;box-shadow:0 3px 10px rgba(14,67,98,.045);}
+        #aceDesktopNews .ace-news-card:hover{border-color:#acd1e5;box-shadow:0 8px 20px rgba(12,62,94,.09);}
+        #aceDesktopNews .ace-news-thumb{display:grid;place-items:center;flex:0 0 124px;width:124px;height:97px;
+          border-radius:10px;overflow:hidden;background:linear-gradient(140deg,#dceef6,#e5f2fb 68%,#d7e8e2);pointer-events:none;}
+        #aceDesktopNews .ace-news-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
+        #aceDesktopNews .ace-news-illustration{display:block;width:100%;height:100%;}
+        #aceDesktopNews .ace-news-illustration svg{width:100%;height:100%;display:block;}
+        #aceDesktopNews .ace-news-copy{min-width:0;flex:1;}
+        #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.75px;
+          font-weight:900;color:#17769b;margin-bottom:8px;}
+        #aceDesktopNews .ace-news-link{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;
+          color:#17405b;text-decoration:none;font-size:clamp(13px,1vw,15px);font-weight:850;line-height:1.43;overflow-wrap:anywhere;}
+        #aceDesktopNews .ace-news-link:hover{color:#0872b9;text-decoration:underline;}
+        #aceDesktopNews .ace-news-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;
+          margin-top:12px;min-height:18px;color:#57788d;font-size:12px;}
+        #aceDesktopNews .ace-news-page{font-weight:800;font-variant-numeric:tabular-nums;}
+      }
+      @media(min-width:851px) and (max-width:1150px){
+        #aceDesktopNews{padding:14px 14px 12px;}
+        #aceDesktopNews .ace-news-grid{gap:9px;}
+        #aceDesktopNews .ace-news-card{padding:9px;gap:9px;min-height:112px;}
+        #aceDesktopNews .ace-news-thumb{flex-basis:74px;width:74px;height:84px;}
+        #aceDesktopNews .ace-news-link{font-size:12px;line-height:1.35;}
+      }
+      @media(max-width:850px){#aceDesktopNews{display:none!important;}}
+      @media(prefers-reduced-motion:reduce){
+        #aceDesktopNews *,#aceDesktopNews *::before,#aceDesktopNews *::after{animation:none!important;transition:none!important;}
+      }
+    `;
+    (document.head||document.documentElement).appendChild(style);
+  }
+
+  const section=()=>document.getElementById(SECTION_ID);
+  const pages=()=>Math.max(1,Math.ceil(news.length/PER_PAGE));
+  function stop(){if(timer){clearInterval(timer);timer=null;}}
+  function mayRotate(){return desktop.matches&&!!section()&&pages()>1&&document.visibilityState==='visible'&&
+    !window.matchMedia('(prefers-reduced-motion:reduce)').matches;}
+  function play(){stop();const holder=section();if(!holder||holder.matches(':hover')||!mayRotate())return;
+    timer=setInterval(()=>{if(!mayRotate()){stop();return;}if(!holder.matches(':hover'))changePage(1);},ROTATE_MS);}
+  function changePage(direction){page=(page+direction+pages())%pages();render();}
+  function render(){
+    const holder=section(),grid=holder?.querySelector('.ace-news-grid');if(!grid)return;
+    const shown=news.slice(page*PER_PAGE,(page+1)*PER_PAGE);
+    const fragment=document.createDocumentFragment();
+    for(const item of shown){
+      const card=document.createElement('article');card.className='ace-news-card';
+      const thumb=document.createElement('div');thumb.className='ace-news-thumb';thumb.setAttribute('aria-hidden','true');
+      const imageUrl=secureLink(item.image,true,item.source);
+      if(imageUrl && !failedImages.has(imageUrl)){
+        const pic=document.createElement('img');pic.src=imageUrl;pic.alt='';pic.loading='lazy';pic.decoding='async';pic.fetchPriority='low';
+        // Alguns sites recusam hotlink sem referer: não suprime o cabeçalho.
+        pic.addEventListener('error',()=>{failedImages.add(imageUrl);pic.remove();thumb.replaceChildren(illustration(item.source));},{once:true});
+        thumb.appendChild(pic);
+      } else thumb.appendChild(illustration(item.source));
+      const copy=document.createElement('div');copy.className='ace-news-copy';
+      const source=document.createElement('span');source.className='ace-news-source';source.textContent=item.source==='FEB'?'FEB':'FEEC';
+      const link=document.createElement('a');link.className='ace-news-link';
+      link.href=secureLink(item.link)||(item.source==='FEB'?FEB_SITE:FEEC_NEWS);
+      link.target='_blank';link.rel='noopener noreferrer';link.textContent=item.title;link.title=item.title;
+      copy.append(source,link);card.append(thumb,copy);fragment.appendChild(card);
+    }
+    grid.replaceChildren(fragment);
+    const counter=holder.querySelector('.ace-news-page');if(counter){counter.textContent=`${page+1} de ${pages()}`;
+      counter.setAttribute('aria-label',`Página ${page+1} de ${pages()}`);}
+    holder.querySelectorAll('.ace-news-control').forEach(btn=>{btn.disabled=pages()<=1;});
+  }
+
+  async function getJson(url,timeoutMs=5000){
+    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),timeoutMs);
+    try {const response=await fetch(url,{signal:controller.signal,credentials:'omit',cache:'no-store'});
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      return await response.json();}finally{clearTimeout(timeout);}
+  }
+  async function getFromOfficial(source){
+    for(const url of FEEDS[source]){
+      try {
+        const list=await getJson(url,4500);
+        if(Array.isArray(list)&&list.length){
+          const clean=normalize(list,source);
+          if(clean.length){
+            await enrichMissingFeaturedImages(clean,source);
+            return withPhotosFirst(clean);
+          }
+        }
+      }catch{/* CORS/indisponibilidade: tenta outra URL ou usa a seleção de reserva. */}
+    }
+    return [];
+  }
+  function normalize(records,source){
+    if(!Array.isArray(records))return [];
+    return records.map(post=>{
+      const link=secureLink(post?.link,false,source),title=cleanText(post?.title?.rendered);
+      const host=link?new URL(link).hostname:'';
+      const expected=source==='FEB'?/(^|\.)febnet\.org\.br$/:/(^|\.)feec\.org\.br$/;
+      if(!link||!title||!expected.test(host))return null;
+      return {title,link,source,image:extractImage(post,source),
+        featuredMediaId:Number(post?.featured_media)||0,date:post?.date||''};
+    }).filter(Boolean).slice(0,9);
+  }
+
+  async function fetchNews(){
+    if(!desktop.matches||loading)return;loading=true;
+    try{
+      let cached=null;try{cached=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{}
+      if(cached?.items?.length){
+        news=cached.items;page=0;render();play();
+        if(Date.now()-Number(cached.at||0)<CACHE_MS)return;
+      }
+      // As duas fontes são consultadas em paralelo; cache é local ao aparelho.
+      const [feecResult,febResult]=await Promise.all([getFromOfficial('FEEC'),getFromOfficial('FEB')]);
+      const feec=withPhotosFirst(feecResult.length?feecResult:curatedFEEC);
+      const feb=withPhotosFirst(febResult.length?febResult:curatedFEB);
+      news=interleave(feec,feb);page=0;lastCheck=Date.now();render();play();
+      try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:lastCheck,items:news}));}catch{}
+    }catch(error){console.info('ACE: notícias temporariamente indisponíveis; seleção salva mantida.',error?.message||'');}
+    finally{loading=false;}
+  }
+
+  function mount(){
+    if(!desktop.matches||section()||document.getElementById('loginScreen'))return;
+    const header=document.querySelector('.ace-header-v6');if(!header)return;
+    const area=document.createElement('section');area.id=SECTION_ID;
+    area.setAttribute('aria-label','Notícias do Movimento Espírita');
+    area.innerHTML=`<div class="ace-news-top"><div class="ace-news-ident">
+      <strong class="ace-news-heading">Notícias do Movimento Espírita</strong>
+      <div class="ace-news-caption">FEEC e FEB · Atualização periódica · Fotos quando disponíveis</div></div>
+      <div class="ace-news-controls">
+        <button class="ace-news-control" data-ace-news-prev type="button" aria-label="Notícias anteriores">‹</button>
+        <button class="ace-news-control" data-ace-news-next type="button" aria-label="Próximas notícias">›</button>
+      </div></div><div class="ace-news-grid" role="group" aria-label="Três notícias em destaque"></div>
+      <div class="ace-news-footer"><span>Mais notícias pelas setas ou automaticamente</span>
+      <span class="ace-news-page" aria-live="polite">1 de 1</span></div>`;
+    header.insertAdjacentElement('afterend',area);
+    area.querySelector('[data-ace-news-prev]').addEventListener('click',()=>{changePage(-1);play();});
+    area.querySelector('[data-ace-news-next]').addEventListener('click',()=>{changePage(1);play();});
+    area.addEventListener('mouseenter',stop);area.addEventListener('mouseleave',play);
+    area.addEventListener('focusin',stop);area.addEventListener('focusout',()=>setTimeout(play,0));
+    render();fetchNews();
+  }
+  function refresh(){if(!desktop.matches){stop();section()?.remove();return;}ensureStyle();mount();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
+  desktop.addEventListener?.('change',refresh);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stop();else play();});
+  let tries=0;const probe=setInterval(()=>{if(section()||++tries>180){clearInterval(probe);return;}refresh();},1000);
+  // Persistindo na mesma aba por horas, revalida a cada 20 min sem gasto em banco.
+  setInterval(()=>{if(desktop.matches&&section()&&document.visibilityState==='visible')fetchNews();},20*60*1000);
+})();
+
+// =============================================================
+// ACE PWA - RODAPÉ DA BARRA LATERAL (SOMENTE COMPUTADOR) - V125
+// Aumenta e destaca em verde o lema do GEPE e o nome da instituição.
+// Não altera login, Mural, Início, chat, APK ou telas móveis.
+// O texto é definido no HTML e localizado aqui pelo seu conteúdo.
+// =============================================================
+(function installAceDesktopSidebarSignatureV125() {
+  'use strict';
+  const CSS_ID = 'aceDesktopSidebarSignatureV125';
+  const MARKER = 'ace-desktop-gepe-signature';
+  const FIRST = 'Amor que alimenta e acolhe.';
+  const SECOND = 'Grupo Espírita Paulo e Estevão';
+  const desktop = window.matchMedia('(min-width: 851px)');
+  const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
+  let selected = null;
+
+  if (!document.getElementById(CSS_ID)) {
+    const style = document.createElement('style');
+    style.id = CSS_ID;
+    style.textContent = `
+      @media screen and (min-width: 851px) {
+        /* Somente o bloco que contém as duas frases do rodapé lateral. */
+        html body .${MARKER} {
+          box-sizing: border-box !important;
+          width: 100% !important;
+          max-width: none !important;
+          min-width: 0 !important;
+          padding-left: 12px !important;
+          padding-right: 8px !important;
+          margin-right: 0 !important;
+          text-align: left !important;
+          white-space: normal !important;
+          color: #65e5a3 !important;
+          font-size: 19px !important;
+          font-weight: 750 !important;
+          line-height: 1.42 !important;
+          overflow-wrap: break-word !important;
+          text-shadow: 0 1px 2px rgba(0, 21, 34, .16) !important;
+        }
+        html body .${MARKER} :is(p, span, small, strong, div) {
+          box-sizing: border-box !important;
+          max-width: 100% !important;
+          color: #65e5a3 !important;
+          font-size: 18px !important;
+          line-height: 1.42 !important;
+          white-space: normal !important;
+          overflow-wrap: break-word !important;
+          text-align: left !important;
+        }
+        html body .${MARKER} [data-ace-gepe-line="slogan"] {
+          color: #72ecad !important;
+          font-size: 20px !important;
+          font-weight: 850 !important;
+          line-height: 1.35 !important;
+        }
+        html body .${MARKER} [data-ace-gepe-line="institution"] {
+          color: #65e5a3 !important;
+          font-size: 18px !important;
+          font-weight: 700 !important;
+          line-height: 1.4 !important;
         }
       }
-      @media print{#aceDesktopSidebar118,#aceDesktopNews118{display:none!important}html body.ace-desktop-workspace>main{margin:0!important;width:100%!important}}
-      /* Garantia de compatibilidade: se uma versão antiga estiver na memória,
-         a faixa de notícias permanece oculta. */
-      #aceDesktopNews118{display:none!important}
-    `;document.head.appendChild(style);
+    `;
+    (document.head || document.documentElement).appendChild(style);
   }
-  function button(target,label,glyph){return `<button type="button" class="ace-desk-navitem" data-ace-desk-target="${target}" title="${label}">${glyph?icon(glyph):''}<span class="ace-desk-label">${label}</span></button>`;}
-  function group(title,glyph,content,open=false){return `<details ${open?'open':''}><summary title="${title}">${icon(glyph)}<span class="ace-desk-label">${title}</span></summary><div class="ace-desk-sub">${content}</div></details>`;}
-  function setCollapsed(value,persist=true){
-    document.body.classList.toggle('ace-desktop-collapsed',value);
-    const b=sidebar?.querySelector('.ace-desk-collapse');if(b){b.setAttribute('aria-expanded',String(!value));b.setAttribute('aria-label',value?'Expandir menu lateral':'Recolher menu lateral');b.title=value?'Expandir menu':'Recolher menu';}
-    if(persist)save(COLLAPSE_KEY,String(value));
+
+  function locate() {
+    if (!desktop.matches || !document.body) return;
+    if (selected?.isConnected && selected.classList.contains(MARKER)) return;
+    selected = null;
+
+    // O menor ancestral com AMBAS as frases: não colore os demais menus.
+    let target = null;
+    let smallest = Infinity;
+    const elements = document.body.querySelectorAll(
+      'aside, footer, section, div, p, small, span'
+    );
+    for (const el of elements) {
+      if (el.closest('#aceAccessibilityModal')) continue;
+      const text = normalize(el.textContent);
+      if (text.length > 320 || !text.includes(FIRST) || !text.includes(SECOND)) continue;
+      if (text.length < smallest || (text.length === smallest && target?.contains(el))) {
+        target = el;
+        smallest = text.length;
+      }
+    }
+    if (!target) return;
+
+    target.classList.add(MARKER);
+    selected = target;
+    // Quando o HTML usa elementos distintos para as duas linhas,
+    // permite destacar o lema sem alterar o texto institucional.
+    for (const el of target.querySelectorAll('p, small, span, strong, div')) {
+      const text = normalize(el.textContent);
+      if (text === FIRST) el.setAttribute('data-ace-gepe-line', 'slogan');
+      else if (text === SECOND) el.setAttribute('data-ace-gepe-line', 'institution');
+    }
   }
-  function makeSidebar(){
-    sidebar=document.createElement('aside');sidebar.id='aceDesktopSidebar118';sidebar.setAttribute('aria-label','Menu principal');
-    const movements='<div class="ace-desk-subtitle">Alimentos</div>'+button('entrada','Entradas')+button('saida','Saídas e perdas')+'<div class="ace-desk-subtitle">Sacos</div>'+button('sacosEntrada','Entradas')+button('sacosSaida','Saídas')+'<div class="ace-desk-subtitle">Cestas</div>'+button('cestas','Montagem de cestas');
-    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}<div class="ace-desk-logo-visual" aria-hidden="true"><img src="ace-cesta.png" alt=""></div></nav><div class="ace-desk-foot">Amor que alimenta e acolhe.<br>Grupo Espírita Paulo e Estevão</div>`;
-    document.body.appendChild(sidebar);
-    // Ao iniciar/recarregar no computador, todos os grupos começam recolhidos.
-    // A abertura da navegação completa fica sob controle do botão de três traços.
-    sidebar.querySelectorAll('details').forEach(detail=>{detail.open=false;});
-    sidebar.querySelector('.ace-desk-collapse').onclick=()=>setCollapsed(!document.body.classList.contains('ace-desktop-collapsed'));
-    sidebar.addEventListener('click',event=>{
-      const summary=event.target.closest('summary');if(summary&&document.body.classList.contains('ace-desktop-collapsed')){event.preventDefault();setCollapsed(false);summary.parentElement.open=true;return;}
-      const b=event.target.closest('[data-ace-desk-target]');if(!b)return;
-      const target=b.dataset.aceDeskTarget;
-      if(target.startsWith('config:')){openAceConfigurationDestination(target.slice(7));}
-      else if(target==='inventarioSacos'){openAceSackInventory().catch(e=>showAceMessage(e.message,'Inventário de sacos'));}
-      else {activateAceOriginalTab(target);}
-      setTimeout(syncActive,80);
+
+  function start() {
+    locate();
+    // A lateral pode ser construída depois do login; sem intervalos ativos.
+    new MutationObserver(locate).observe(document.body, {
+      childList: true,
+      subtree: true
     });
-    setCollapsed(true,false);
   }
-  function syncActive(){
-    if(!sidebar||!eligible())return;
-    const original=document.querySelector('.tabs .tab.active'), current=original?.dataset.page||'';
-    const config=typeof aceConfigurationDestination==='string'?aceConfigurationDestination:'cadastros';
-    const signature=current+'|'+config;
-    sidebar.querySelectorAll('[data-ace-desk-target]').forEach(b=>{
-      const target=b.dataset.aceDeskTarget;
-      const lookup=target.startsWith('config:')?'cadastro':target;
-      const tab=typeof findAceOriginalTab==='function'?findAceOriginalTab(lookup):null;
-      const active=!!original&&tab===original&&(!target.startsWith('config:')||target.slice(7)===config);
-      b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
-      if(active&&signature!==activePage){const details=b.closest('details');if(details)details.open=true;}
-    });activePage=signature;
-    const admin=typeof isAceSecurityAdmin==='function'&&isAceSecurityAdmin();sidebar.querySelector('[data-ace-desk-admin]').hidden=!admin;
-  }
-  function refresh(){
-    scheduled=false;const active=eligible();document.body.classList.toggle('ace-desktop-workspace',active);
-    if(!active)return;
-    const header=document.querySelector('.ace-header-v6');if(!header)return;
-    if(!sidebar)makeSidebar();
-    // Não cria nem carrega a antiga faixa de notícias.
-    document.getElementById('aceDesktopNews118')?.remove();
-    syncActive();
-    const tabs=document.querySelector('.tabs');if(tabs&&tabs!==watchedTabs){tabObserver?.disconnect();tabObserver=new MutationObserver(syncActive);tabObserver.observe(tabs,{subtree:true,attributes:true,attributeFilter:['class']});watchedTabs=tabs;}
-  }
-  function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}
-  function start(){
-    installStyle();refresh();
-    new MutationObserver(mutations=>{if(!desktop.matches)return;if(mutations.some(m=>!m.target.closest?.('#aceDesktopSidebar118')))schedule();}).observe(document.body,{subtree:true,childList:true});
-    desktop.addEventListener('change',()=>{schedule();});
-    document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
-  }
-  window.aceDesktopWorkspace118={refresh,version:'118'};
-  if(document.body)start();else document.addEventListener('DOMContentLoaded',start,{once:true});
+  if (document.body) start();
+  else document.addEventListener('DOMContentLoaded', start, { once: true });
 })();
