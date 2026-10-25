@@ -66075,7 +66075,7 @@ function openAceAccessibility() {
         #aceDesktopSidebar118 .ace-desk-divider{height:1px;background:#31526b;margin:15px 10px}
         #aceDesktopSidebar118 .ace-desk-logo-visual{display:flex;align-items:center;justify-content:center;min-height:180px;margin:auto 0;padding:24px 8px;pointer-events:none}
         #aceDesktopSidebar118 .ace-desk-logo-visual img{display:block;width:150px;height:150px;object-fit:contain;opacity:.94;filter:drop-shadow(0 9px 18px rgba(0,12,28,.30))}
-        #aceDesktopSidebar118 .ace-desk-foot{font-size:17px;line-height:1.75;color:#58c98d;font-weight:700;padding:16px 8px 0;border-top:1px solid #31526b;margin-top:12px}
+        #aceDesktopSidebar118 .ace-desk-foot{font-size:13px;line-height:1.7;color:#58c98d;font-weight:600;white-space:nowrap;padding:16px 8px 0;border-top:1px solid #31526b;margin-top:12px}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-label,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-wordmark,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-foot,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-sub,html body.ace-desktop-collapsed #aceDesktopSidebar118 summary::after{display:none!important}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-top{padding-left:0;padding-right:0;justify-content:center}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 summary,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-navitem{justify-content:center;padding:11px 0}
