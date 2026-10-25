@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.25-texto-lateral-seguro-v126";
+  "2026.10.20-inicio-padrao-v124";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -66234,120 +66234,4 @@ function openAceAccessibility() {
   let tries=0;const probe=setInterval(()=>{if(section()||++tries>180){clearInterval(probe);return;}refresh();},1000);
   // Persistindo na mesma aba por horas, revalida a cada 20 min sem gasto em banco.
   setInterval(()=>{if(desktop.matches&&section()&&document.visibilityState==='visible')fetchNews();},20*60*1000);
-})();
-
-
-// =============================================================
-// ACE PWA V126 - SOMENTE O TEXTO DO RODAPÉ LATERAL NO COMPUTADOR
-// NUNCA altera largura, posição, visibilidade, navegação ou telas.
-// Corrige a regra V125 que poderia ampliar a barra lateral.
-// =============================================================
-(function aceDecorateOnlySidebarPhrasesV126() {
-  'use strict';
-  const desktop = window.matchMedia('(min-width: 851px)');
-  if (!desktop.matches) return;
-  const cssId = 'aceGepeFooterTextOnlyV126';
-  const first = 'Amor que alimenta e acolhe.';
-  const second = 'Grupo Espírita Paulo e Estevão';
-  const pattern = /(Amor que alimenta e acolhe\.|Grupo Espírita Paulo e Estevão)/g;
-
-  if (!document.getElementById(cssId)) {
-    const style = document.createElement('style');
-    style.id = cssId;
-    // Estes seletores atingem SOMENTE os próprios textos.
-    // Nenhum elemento estrutural tem suas dimensões ou posição alteradas.
-    style.textContent = `
-      @media screen and (min-width:851px) {
-        .ace-gepe-slogan-text-v126 {
-          color:#76efb3 !important;
-          font-size:20px !important;
-          font-weight:800 !important;
-          line-height:1.35 !important;
-        }
-        .ace-gepe-group-text-v126 {
-          color:#65e7a6 !important;
-          font-size:18px !important;
-          font-weight:750 !important;
-          line-height:1.4 !important;
-        }
-      }
-    `;
-    (document.head || document.documentElement).appendChild(style);
-  }
-
-  function norm(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim();
-  }
-
-  function signatureContainer() {
-    if (!document.body) return null;
-    let best = null;
-    let bestLength = Infinity;
-    const candidates = document.body.querySelectorAll('aside, footer, nav, section, div, p, span, small');
-    for (const el of candidates) {
-      if (el.closest('#aceAccessibilityModal, #loginScreen')) continue;
-      const content = norm(el.textContent);
-      if (content.length > 260 || !content.includes(first) || !content.includes(second)) continue;
-      // O menor bloco contendo AS DUAS frases é o rodapé desejado.
-      if (content.length < bestLength || (content.length === bestLength && best?.contains(el))) {
-        best = el;
-        bestLength = content.length;
-      }
-    }
-    return best;
-  }
-
-  function apply() {
-    if (!desktop.matches || !document.body) return;
-    const root = signatureContainer();
-    if (!root) return;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const toEdit = [];
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (!node.nodeValue?.includes(first) && !node.nodeValue?.includes(second)) continue;
-      if (node.parentElement?.closest('.ace-gepe-slogan-text-v126, .ace-gepe-group-text-v126')) continue;
-      toEdit.push(node);
-    }
-    for (const node of toEdit) {
-      // Apenas envolve as palavras em spans, sem modificar o container,
-      // menu, pai, grid, largura, altura ou qualquer outro componente.
-      const pieces = String(node.nodeValue).split(pattern);
-      const frag = document.createDocumentFragment();
-      for (const piece of pieces) {
-        if (piece === first || piece === second) {
-          const span = document.createElement('span');
-          span.className = piece === first
-            ? 'ace-gepe-slogan-text-v126'
-            : 'ace-gepe-group-text-v126';
-          span.textContent = piece;
-          frag.appendChild(span);
-        } else if (piece) {
-          frag.appendChild(document.createTextNode(piece));
-        }
-      }
-      node.parentNode?.replaceChild(frag, node);
-    }
-  }
-
-  let scheduled = false;
-  function scheduleApply() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
-      apply();
-    });
-  }
-  function start() {
-    scheduleApply();
-    // O rodapé aparece após o login, então reconhecemos só os novos nós.
-    // Não alteramos atributos nem classes de qualquer contêiner.
-    new MutationObserver(scheduleApply).observe(document.body, {
-      childList:true,
-      subtree:true
-    });
-  }
-  if (document.body) start();
-  else document.addEventListener('DOMContentLoaded', start, {once:true});
 })();
