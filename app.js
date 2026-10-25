@@ -467,7 +467,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.25-texto-lateral-verde-v125";
+  "2026.10.25-texto-lateral-seguro-v126";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -66236,113 +66236,118 @@ function openAceAccessibility() {
   setInterval(()=>{if(desktop.matches&&section()&&document.visibilityState==='visible')fetchNews();},20*60*1000);
 })();
 
-// =============================================================
-// ACE PWA - RODAPÉ DA BARRA LATERAL (SOMENTE COMPUTADOR) - V125
-// Aumenta e destaca em verde o lema do GEPE e o nome da instituição.
-// Não altera login, Mural, Início, chat, APK ou telas móveis.
-// O texto é definido no HTML e localizado aqui pelo seu conteúdo.
-// =============================================================
-(function installAceDesktopSidebarSignatureV125() {
-  'use strict';
-  const CSS_ID = 'aceDesktopSidebarSignatureV125';
-  const MARKER = 'ace-desktop-gepe-signature';
-  const FIRST = 'Amor que alimenta e acolhe.';
-  const SECOND = 'Grupo Espírita Paulo e Estevão';
-  const desktop = window.matchMedia('(min-width: 851px)');
-  const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
-  let selected = null;
 
-  if (!document.getElementById(CSS_ID)) {
+// =============================================================
+// ACE PWA V126 - SOMENTE O TEXTO DO RODAPÉ LATERAL NO COMPUTADOR
+// NUNCA altera largura, posição, visibilidade, navegação ou telas.
+// Corrige a regra V125 que poderia ampliar a barra lateral.
+// =============================================================
+(function aceDecorateOnlySidebarPhrasesV126() {
+  'use strict';
+  const desktop = window.matchMedia('(min-width: 851px)');
+  if (!desktop.matches) return;
+  const cssId = 'aceGepeFooterTextOnlyV126';
+  const first = 'Amor que alimenta e acolhe.';
+  const second = 'Grupo Espírita Paulo e Estevão';
+  const pattern = /(Amor que alimenta e acolhe\.|Grupo Espírita Paulo e Estevão)/g;
+
+  if (!document.getElementById(cssId)) {
     const style = document.createElement('style');
-    style.id = CSS_ID;
+    style.id = cssId;
+    // Estes seletores atingem SOMENTE os próprios textos.
+    // Nenhum elemento estrutural tem suas dimensões ou posição alteradas.
     style.textContent = `
-      @media screen and (min-width: 851px) {
-        /* Somente o bloco que contém as duas frases do rodapé lateral. */
-        html body .${MARKER} {
-          box-sizing: border-box !important;
-          width: 100% !important;
-          max-width: none !important;
-          min-width: 0 !important;
-          padding-left: 12px !important;
-          padding-right: 8px !important;
-          margin-right: 0 !important;
-          text-align: left !important;
-          white-space: normal !important;
-          color: #65e5a3 !important;
-          font-size: 19px !important;
-          font-weight: 750 !important;
-          line-height: 1.42 !important;
-          overflow-wrap: break-word !important;
-          text-shadow: 0 1px 2px rgba(0, 21, 34, .16) !important;
+      @media screen and (min-width:851px) {
+        .ace-gepe-slogan-text-v126 {
+          color:#76efb3 !important;
+          font-size:20px !important;
+          font-weight:800 !important;
+          line-height:1.35 !important;
         }
-        html body .${MARKER} :is(p, span, small, strong, div) {
-          box-sizing: border-box !important;
-          max-width: 100% !important;
-          color: #65e5a3 !important;
-          font-size: 18px !important;
-          line-height: 1.42 !important;
-          white-space: normal !important;
-          overflow-wrap: break-word !important;
-          text-align: left !important;
-        }
-        html body .${MARKER} [data-ace-gepe-line="slogan"] {
-          color: #72ecad !important;
-          font-size: 20px !important;
-          font-weight: 850 !important;
-          line-height: 1.35 !important;
-        }
-        html body .${MARKER} [data-ace-gepe-line="institution"] {
-          color: #65e5a3 !important;
-          font-size: 18px !important;
-          font-weight: 700 !important;
-          line-height: 1.4 !important;
+        .ace-gepe-group-text-v126 {
+          color:#65e7a6 !important;
+          font-size:18px !important;
+          font-weight:750 !important;
+          line-height:1.4 !important;
         }
       }
     `;
     (document.head || document.documentElement).appendChild(style);
   }
 
-  function locate() {
-    if (!desktop.matches || !document.body) return;
-    if (selected?.isConnected && selected.classList.contains(MARKER)) return;
-    selected = null;
+  function norm(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
 
-    // O menor ancestral com AMBAS as frases: não colore os demais menus.
-    let target = null;
-    let smallest = Infinity;
-    const elements = document.body.querySelectorAll(
-      'aside, footer, section, div, p, small, span'
-    );
-    for (const el of elements) {
-      if (el.closest('#aceAccessibilityModal')) continue;
-      const text = normalize(el.textContent);
-      if (text.length > 320 || !text.includes(FIRST) || !text.includes(SECOND)) continue;
-      if (text.length < smallest || (text.length === smallest && target?.contains(el))) {
-        target = el;
-        smallest = text.length;
+  function signatureContainer() {
+    if (!document.body) return null;
+    let best = null;
+    let bestLength = Infinity;
+    const candidates = document.body.querySelectorAll('aside, footer, nav, section, div, p, span, small');
+    for (const el of candidates) {
+      if (el.closest('#aceAccessibilityModal, #loginScreen')) continue;
+      const content = norm(el.textContent);
+      if (content.length > 260 || !content.includes(first) || !content.includes(second)) continue;
+      // O menor bloco contendo AS DUAS frases é o rodapé desejado.
+      if (content.length < bestLength || (content.length === bestLength && best?.contains(el))) {
+        best = el;
+        bestLength = content.length;
       }
     }
-    if (!target) return;
+    return best;
+  }
 
-    target.classList.add(MARKER);
-    selected = target;
-    // Quando o HTML usa elementos distintos para as duas linhas,
-    // permite destacar o lema sem alterar o texto institucional.
-    for (const el of target.querySelectorAll('p, small, span, strong, div')) {
-      const text = normalize(el.textContent);
-      if (text === FIRST) el.setAttribute('data-ace-gepe-line', 'slogan');
-      else if (text === SECOND) el.setAttribute('data-ace-gepe-line', 'institution');
+  function apply() {
+    if (!desktop.matches || !document.body) return;
+    const root = signatureContainer();
+    if (!root) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const toEdit = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!node.nodeValue?.includes(first) && !node.nodeValue?.includes(second)) continue;
+      if (node.parentElement?.closest('.ace-gepe-slogan-text-v126, .ace-gepe-group-text-v126')) continue;
+      toEdit.push(node);
+    }
+    for (const node of toEdit) {
+      // Apenas envolve as palavras em spans, sem modificar o container,
+      // menu, pai, grid, largura, altura ou qualquer outro componente.
+      const pieces = String(node.nodeValue).split(pattern);
+      const frag = document.createDocumentFragment();
+      for (const piece of pieces) {
+        if (piece === first || piece === second) {
+          const span = document.createElement('span');
+          span.className = piece === first
+            ? 'ace-gepe-slogan-text-v126'
+            : 'ace-gepe-group-text-v126';
+          span.textContent = piece;
+          frag.appendChild(span);
+        } else if (piece) {
+          frag.appendChild(document.createTextNode(piece));
+        }
+      }
+      node.parentNode?.replaceChild(frag, node);
     }
   }
 
+  let scheduled = false;
+  function scheduleApply() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      apply();
+    });
+  }
   function start() {
-    locate();
-    // A lateral pode ser construída depois do login; sem intervalos ativos.
-    new MutationObserver(locate).observe(document.body, {
-      childList: true,
-      subtree: true
+    scheduleApply();
+    // O rodapé aparece após o login, então reconhecemos só os novos nós.
+    // Não alteramos atributos nem classes de qualquer contêiner.
+    new MutationObserver(scheduleApply).observe(document.body, {
+      childList:true,
+      subtree:true
     });
   }
   if (document.body) start();
-  else document.addEventListener('DOMContentLoaded', start, { once: true });
+  else document.addEventListener('DOMContentLoaded', start, {once:true});
 })();
