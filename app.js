@@ -1,60 +1,3 @@
-// Preferência de leitura local ao aparelho, compartilhada pelas telas do aplicativo.
-const ACE_ACCESSIBILITY_KEY = 'ace_accessibility_text_size_v1';
-const ACE_ACCESSIBILITY_LEVELS = [
-  {name:'Padrão', scale:1}, {name:'Grande', scale:1.2}, {name:'Muito grande', scale:1.4}
-];
-let aceAccessibilityLevel = 0;
-let aceAccessibilityReturnFocus = null;
-
-let aceMobileDrawerReturnFocus = null;
-let aceMobileDrawerScrollLock = null;
-// Estado local dos filtros do Estoque geral (PWA).
-let aceBasketMountDate = null;
-let aceStockFilters = {status:'positive', query:'', sort:'name', pdfScope:'filtered'};
-
-// GEPE: fundo geral independente das variáveis e dos temas anteriores.
-// Instalado antes da inicialização para também cobrir login e uso offline.
-(function installGepePageBackground() {
-  const id = "aceGepePageBackgroundV91";
-  document.documentElement.setAttribute("data-ace-gepe-background", "v91");
-  if (document.getElementById(id)) return;
-  const style = document.createElement("style");
-  style.id = id;
-  style.textContent = `
-    @media screen {
-      html[data-ace-gepe-background="v91"]:root {
-        background:#c9e0f2 !important;
-      }
-      html[data-ace-gepe-background="v91"]:root body {
-        background-color:#c9e0f2 !important;
-        background-image:linear-gradient(135deg,#bdd8ed 0%,#d0e5f5 55%,#c4deef 100%) !important;
-        background-repeat:no-repeat !important;
-        background-size:100% 100% !important;
-      }
-      html[data-ace-gepe-background="v91"]:root body > main,
-      html[data-ace-gepe-background="v91"]:root body > .container,
-      html[data-ace-gepe-background="v91"]:root main > .page,
-      html[data-ace-gepe-background="v91"]:root main > .tab-content {
-        background:transparent !important;
-      }
-      /* Preserva a tela de abertura enquanto ela estiver visível. */
-      html[data-ace-gepe-background="v91"].ace-startup-loading body {
-        background:#064b7d !important;
-      }
-    }
-  `;
-  (document.head || document.documentElement).appendChild(style);
-})();
-
-
-
-// Inventário de sacos: ajustes independentes, contagem persistida e histórico auditável.
-let aceSackInvView = null;
-let aceSackInvDrafts = new Map();
-let aceSackInvTimers = new Map();
-let aceSackInvSaveChain = Promise.resolve();
-let aceSackInvBusy = false;
-const ACE_SACK_INV_COLUMNS = 'id,status,usuario_id,usuario_nome,iniciado_em,finalizado_em,cancelado_em,cancelado_nome,motivo_cancelamento,estornado_em,estornado_nome,motivo_estorno,excluido_em,excluido_nome,motivo_exclusao,responsavel_nome,conferente_nome,total_sistema,total_contado,total_ajuste';
 
 // ============================================================
 // ACE - CONTROLE DE ALIMENTOS
@@ -73,13 +16,17 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 (function updateAceServiceWorkerBeforeStartup() {
 
   if (!("serviceWorker" in navigator)) {
-    return;
+    return {
+      movementId,
+      historyId,
+      online: false
+    };
   }
 
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v120",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -467,7 +414,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 // ============================================================
 
 const ACE_APP_BUILD_VERSION =
-  "2026.10.25-texto-lateral-seguro-v126";
+  "2026.09.27-cabecalho-aurora-visivel-v78";
 
 window.ACE_APP_BUILD_VERSION =
   ACE_APP_BUILD_VERSION;
@@ -889,14 +836,12 @@ function showAceNetworkNotice(
       class="ace-modal-box"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="aceNetworkNoticeTitle"
-      aria-describedby="aceNetworkNoticeMessage"
     >
-      <div id="aceNetworkNoticeTitle" class="ace-modal-title">
+      <div class="ace-modal-title">
         ${esc(title)}
       </div>
 
-      <div id="aceNetworkNoticeMessage" class="ace-modal-message">
+      <div class="ace-modal-message">
         ${esc(message).replace(/\n/g, "<br>")}
       </div>
 
@@ -920,11 +865,9 @@ function showAceNetworkNotice(
 
   style.textContent = `
     #aceNetworkNoticeModal{
-      position:fixed !important;
-      inset:0 !important;
-      z-index:2147483646 !important;
-      isolation:isolate;
-      box-sizing:border-box;
+      position:fixed;
+      inset:0;
+      z-index:1000002;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -936,14 +879,12 @@ function showAceNetworkNotice(
     #aceNetworkNoticeModal .ace-modal-box{
       width:min(520px,calc(100vw - 40px));
       max-height:calc(100vh - 40px);
-      max-height:calc(100dvh - 40px);
-      overscroll-behavior:contain;
       overflow:auto;
       box-sizing:border-box;
       padding:28px 30px 24px;
       border-radius:18px;
-      background:#fff !important;
-      color:#173a55 !important;
+      background:#5da5e6;
+      color:#fff;
       box-shadow:0 18px 50px rgba(0,0,0,.35);
       text-align:center;
       font-family:inherit;
@@ -951,16 +892,16 @@ function showAceNetworkNotice(
 
     #aceNetworkNoticeModal .ace-modal-title{
       margin-bottom:18px;
-      font-size:clamp(21px,3vw,25px);
+      font-size:25px;
       font-weight:900;
-      color:#173a55 !important;
+      color:#fff;
     }
 
     #aceNetworkNoticeModal .ace-modal-message{
-      font-size:16px;
+      font-size:17px;
       line-height:1.55;
       text-align:left;
-      color:#173a55 !important;
+      color:#fff;
     }
 
     #aceNetworkNoticeModal .ace-modal-actions{
@@ -974,22 +915,11 @@ function showAceNetworkNotice(
       padding:11px 24px;
       border:1px solid #0756a0;
       border-radius:9px;
-      background:#0756a0 !important;
-      color:#fff !important;
+      background:#0756a0;
+      color:#fff;
       font-size:16px;
       font-weight:800;
       cursor:pointer;
-    }
-
-    #aceNetworkNoticeModal .ace-network-notice-ok:focus-visible{
-      outline:3px solid #66a9dd;
-      outline-offset:3px;
-    }
-
-    @media(max-width:600px){
-      #aceNetworkNoticeModal .ace-modal-box{
-        padding:23px 20px 20px;
-      }
     }
   `;
 
@@ -2728,7 +2658,6 @@ function applyLocalAttendance(
 
 
 function applyLocalBasketOutput({
-  date = isoToday(),
   basketId,
   basketName,
   basketImage = "",
@@ -2749,7 +2678,8 @@ function applyLocalBasketOutput({
   }
 
 
-  const mountDate = validateAceBasketMountDate(date);
+  const today =
+    isoToday();
 
   const userId =
     currentUser?.id ||
@@ -2806,7 +2736,7 @@ function applyLocalBasketOutput({
             basketId
           ) &&
         item.date ===
-          mountDate &&
+          today &&
         Number(
           item.originId
         ) ===
@@ -2872,7 +2802,7 @@ function applyLocalBasketOutput({
           ? receivedBy || ""
           : "",
       date:
-        mountDate,
+        today,
       usuarioId:
         userId,
       composition,
@@ -2914,7 +2844,7 @@ function applyLocalBasketOutput({
     status:
       "disponivel",
     date:
-      mountDate,
+      today,
     usuarioId:
       userId,
     createdAt:
@@ -2950,7 +2880,7 @@ function applyLocalBasketOutput({
             movement.type ===
               "saida" &&
             movement.date ===
-              mountDate &&
+              today &&
             Number(
               movement.foodId
             ) ===
@@ -2996,7 +2926,7 @@ function applyLocalBasketOutput({
           sourceTable:
             "saídas",
           date:
-            mountDate,
+            today,
           type:
             "saida",
           foodId:
@@ -3030,7 +2960,7 @@ function applyLocalBasketOutput({
           id:
             newNumericId(),
           date:
-            mountDate,
+            today,
           type:
             "saida",
           originId:
@@ -4288,9 +4218,7 @@ async function aceLoadFromSupabaseNetwork(
     movementAuditResult,
     sackTypesResult,
     sackMovementsResult,
-    lossEvidenceResult,
-    sackAdjustmentsResult,
-    sackInventoriesResult
+    lossEvidenceResult
   ] = await Promise.all([
 
     aceEconomicSelect(
@@ -4453,9 +4381,7 @@ async function aceLoadFromSupabaseNetwork(
         "created_at",
         { ascending: false }
       )
-    ),
-    aceEconomicSelect("sacos_ajustes_inventario", "id,inventario_id,saco_tipo_id,quantidade,tipo,created_at", query => query.order("id")),
-    aceEconomicSelect("sacos_inventarios", ACE_SACK_INV_COLUMNS, query => query.order("iniciado_em", { ascending:false }))
+    )
 
   ]);
 
@@ -4713,12 +4639,6 @@ async function aceLoadFromSupabaseNetwork(
       lossEvidenceResult?.error
     );
   }
-
-  // Falhas de rede/permissão não podem omitir ajustes e mostrar saldo incorreto.
-  for (const result of [sackAdjustmentsResult,sackInventoriesResult]) {
-    if (result?.error && !["42P01","PGRST205"].includes(result.error.code)) throw result.error;
-  }
-  const sackInventoryReady = !sackAdjustmentsResult?.error && !sackInventoriesResult?.error;
 
   const reasons =
     loadLocalReasons();
@@ -5135,12 +5055,6 @@ async function aceLoadFromSupabaseNetwork(
         editedAt:
           row.editado_em || ""
       })),
-
-    sackInventoryReady,
-    sackInventories: sackInventoriesResult?.data || [],
-    sackInventoryAdjustments: (sackAdjustmentsResult?.data || []).map(row => ({
-      id:Number(row.id), inventoryId:Number(row.inventario_id), sackTypeId:Number(row.saco_tipo_id), qty:Number(row.quantidade), type:row.tipo
-    })),
 
     sackTypes:
       sackTypeRows.map(row => ({
@@ -13943,8 +13857,6 @@ function setDates() {
 
 function refreshSelects() {
 
-  const entryDraftContext = captureAceBulkEntryDraftContext();
-
   populateSelect(
     "entryOrigin",
     getAceOperationalOrigins()
@@ -13988,8 +13900,6 @@ function refreshSelects() {
         .join("");
 
   }
-
-  restoreAceBulkEntryDraftContext(entryDraftContext);
 
 }
 
@@ -14806,16 +14716,22 @@ function renderDashboard() {
       .length;
 
 
-  // Saldo atual de todos os lotes, independente das datas selecionadas.
-  // Usa availableQty, a mesma fonte do estoque de cestas montadas.
-  const cestasDisponiveis =
-    getMountedBasketAvailableTotal(true);
-
-  // Produção da data selecionada; não altera o saldo disponível.
-  const cestasMontadasNaData =
+  const cestasMontadas =
     (db.basketStock || [])
-      .filter(row => !row.hiddenHistory && String(row.date || "") === String(date))
-      .reduce((total, row) => total + Number(row.mountedQty || 0), 0);
+      .filter(
+        x =>
+          String(x.date || "") ===
+            String(date || "") &&
+          !x.hiddenHistory
+      )
+      .reduce(
+        (total, x) =>
+          total +
+          Number(
+            x.mountedQty || 0
+          ),
+        0
+      );
 
 
   const cestasSaidas =
@@ -14835,58 +14751,38 @@ function renderDashboard() {
       );
 
 
-  // O valor e os motivos usam exclusivamente as saídas da data escolhida.
-  const sackOutputsInDate = (db.sackMovements || [])
-    .filter(item => item.type === 'saida' && String(item.date || '') === String(date));
-  const sacosSaidas = sackOutputsInDate.reduce((total,item) => total + Number(item.qty || 0),0);
-  const sackReasonsInDate = new Map();
-  sackOutputsInDate.forEach(item => {
-    const reason = String(item.purpose ?? item.finalidade ?? '').replace(/\s+/g,' ').trim() || 'Finalidade não informada';
-    const key = reason.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
-    const group = sackReasonsInDate.get(key) || {reason,qty:0};
-    group.qty += Number(item.qty || 0);
-    sackReasonsInDate.set(key,group);
-  });
+  const cestasEstornadas =
+    (db.basketAdjustments || [])
+      .filter(
+        x =>
+          String(x.date || "") ===
+            String(date || "") &&
+          x.type === "estorno"
+      )
+      .reduce(
+        (total, x) =>
+          total +
+          Number(
+            x.qty || 0
+          ),
+        0
+      );
 
-  const sackPurposeText = !sackOutputsInDate.length
-    ? 'Sem saídas nesta data.'
-    : (sackReasonsInDate.size === 1
-      ? Array.from(sackReasonsInDate.values())[0].reason
-      : Array.from(sackReasonsInDate.values()).map(group => `${group.reason}: ${fmt(group.qty)}`).join('\n'));
 
-  // Substitui também cartões legados identificados pelo título, sem criar duplicatas.
-  const legacySackCards = Array.from(document.querySelectorAll('#dashboard .cards .card')).filter(card => {
-    const label = String(card.querySelector('span')?.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-    return card.querySelector('#kpiCestasEstornadas') || (label.includes('estorno') && label.includes('cesta'));
-  });
-  let sackKpi = document.getElementById('kpiSacosSaidas');
-  for (const legacyCard of legacySackCards) {
-    if (!sackKpi) {
-      sackKpi = legacyCard.querySelector('strong');
-      if (sackKpi) sackKpi.id = 'kpiSacosSaidas';
-    } else if (sackKpi.closest('.card') !== legacyCard) {
-      legacyCard.remove();
-    }
-  }
-
-  // Cria e mantém os indicadores de cestas e sacos no Resumo do dia.
+  // Cria e mantém os três indicadores de cestas no Resumo do dia.
   // Cada cartão usa os mesmos efeitos profissionais dos demais KPIs.
   const basketKpiCards = [
     {
       id: "kpiCestas",
-      label: "🧺 Cestas disponíveis",
-      unit: "prontas para entrega",
-      description: "Saldo atual de cestas prontas para entrega, independente do filtro de data."
+      label: "🧺 Cestas montadas"
     },
     {
       id: "kpiCestasSaidas",
       label: "🚚 Saídas de cestas"
     },
     {
-      id: "kpiSacosSaidas",
-      label: "🛍️ Saída de sacos",
-      unit: sackPurposeText,
-      description: "Quantidade de sacos com saída registrada na data selecionada."
+      id: "kpiCestasEstornadas",
+      label: "↩️ Estornos de cestas"
     }
   ];
 
@@ -14920,7 +14816,7 @@ function renderDashboard() {
       card.innerHTML = `
         <span>${item.label}</span>
         <strong id="${item.id}">0</strong>
-        <small>${esc(item.unit || "cestas")}</small>
+        <small>cestas</small>
       `;
 
 
@@ -14960,35 +14856,7 @@ function renderDashboard() {
 
       if (unit) {
         unit.textContent =
-          item.unit || "cestas";
-      }
-
-      if (item.description) {
-        card.title = item.description;
-      }
-
-      if (item.id === 'kpiSacosSaidas') {
-        // A finalidade ocupa a própria linha que antes dizia somente "sacos".
-        if (unit) {
-          unit.className = 'ace-kpi-sack-purpose';
-          unit.setAttribute('aria-live','polite');
-        }
-        card.querySelector('.ace-kpi-sack-reasons')?.remove();
-        card.title = `Saída de sacos em ${fmtDate(date)}. Finalidade: ${sackPurposeText}`;
-      }
-
-      if (item.id === "kpiCestas") {
-        let mountedNote = card.querySelector(".ace-kpi-mounted-note");
-        if (!mountedNote) {
-          mountedNote = document.createElement("div");
-          mountedNote.className = "ace-kpi-mounted-note";
-          mountedNote.setAttribute("aria-live", "polite");
-          card.appendChild(mountedNote);
-        }
-        mountedNote.hidden = cestasMontadasNaData <= 0;
-        mountedNote.textContent = cestasMontadasNaData > 0
-          ? `Montadas em ${fmtDate(date)}: ${fmt(cestasMontadasNaData)}`
-          : "";
+          "cestas";
       }
 
     }
@@ -15002,9 +14870,9 @@ function renderDashboard() {
     ["kpiPerda", per],
     ["kpiEstoque", estoque],
     ["kpiPresentes", pres],
-    ["kpiCestas", cestasDisponiveis],
+    ["kpiCestas", cestasMontadas],
     ["kpiCestasSaidas", cestasSaidas],
-    ["kpiSacosSaidas", sacosSaidas]
+    ["kpiCestasEstornadas", cestasEstornadas]
   ];
 
 
@@ -15024,8 +14892,6 @@ function renderDashboard() {
 
 
   applyAceDashboardRewardCards();
-
-  renderAceDashboardQuickCharts();
 
 
   const originSummary =
@@ -19830,30 +19696,6 @@ function renderAttendance() {
 
   ensureAttendancePersonActionsStyle();
 
-  // Lista compacta com busca e contador fixos acima da rolagem.
-  if (!document.getElementById("aceAttendanceCompactStyle")) {
-    const style = document.createElement("style");
-    style.id = "aceAttendanceCompactStyle";
-    style.textContent = `
-      #presenca #attendanceList {
-        width:100%; box-sizing:border-box; max-height:min(46vh,440px);
-        min-height:170px; overflow-y:auto; overflow-x:hidden;
-        overscroll-behavior:contain; scrollbar-gutter:stable;
-        padding:3px 7px 3px 2px;
-        scrollbar-width:thin; scrollbar-color:#88aec7 #edf4f8;
-      }
-      #presenca #attendanceList::-webkit-scrollbar { width:9px; }
-      #presenca #attendanceList::-webkit-scrollbar-track { background:#edf4f8; border-radius:12px; }
-      #presenca #attendanceList::-webkit-scrollbar-thumb { background:#88aec7; border-radius:12px; }
-      #presenca #attendanceList .attendance-row { min-height:57px; padding:9px 13px; margin-bottom:7px; box-sizing:border-box; }
-      @media(max-width:600px) {
-        #presenca #attendanceList { max-height:min(48dvh,390px); }
-        #presenca #attendanceList .attendance-row { min-height:56px; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
 
   const date =
     document.getElementById(
@@ -20078,15 +19920,38 @@ function getAceUnifiedStockDisplayRows(
 // PDF PROFISSIONAL DO ESTOQUE
 // ============================================================
 
-function getStockPdfData(scope = 'full') {
-  const allItems = getAceUnifiedStockDisplayRows();
-  const view = getAceStockFilterView(allItems);
-  const filtered = scope === 'filtered';
-  const items = (filtered ? view.items : allItems).map(item => ({name:item.name, qty:Number(item.qty || 0)}));
-  return {items, total:items.reduce((sum, item) => sum + item.qty, 0), globalTotal:view.globalTotal,
-    scope:filtered ? 'filtered' : 'full',
-    description:filtered ? view.description : 'Estoque completo · Todos os alimentos cadastrados, incluindo os sem saldo · Ordem: nome (A–Z)',
-    allCount:allItems.length};
+function getStockPdfData() {
+
+  const items =
+    getAceUnifiedStockDisplayRows()
+      .map(
+        item => ({
+          name:
+            item.name,
+          qty:
+            Number(
+              item.qty || 0
+            )
+        })
+      );
+
+
+  const total =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.qty || 0
+        ),
+      0
+    );
+
+
+  return {
+    items,
+    total
+  };
+
 }
 
 
@@ -20140,13 +20005,13 @@ function getStockPdfDateTime() {
 }
 
 
-function buildStockPdfElement(pdfData = getStockPdfData()) {
+function buildStockPdfElement() {
 
   const {
     items,
     total
   } =
-    pdfData;
+    getStockPdfData();
 
 
   const {
@@ -20284,12 +20149,6 @@ function buildStockPdfElement(pdfData = getStockPdfData()) {
       </div>
 
 
-      <div style="padding:12px 14px;margin-bottom:16px;border:1px solid #d8e3ec;border-radius:10px;color:#173750;font-size:12px;line-height:1.5;overflow-wrap:anywhere;">
-        <strong>${pdfData.scope === 'filtered' ? 'Visualização filtrada' : 'Estoque completo'}</strong><br>
-        ${esc(pdfData.description)}<br>
-        ${fmt(items.length)} de ${fmt(pdfData.allCount)} alimentos · Total geral do estoque: ${fmt(pdfData.globalTotal)} itens.
-      </div>
-
       <div
         style="
           display:grid;
@@ -20353,7 +20212,7 @@ function buildStockPdfElement(pdfData = getStockPdfData()) {
               font-weight:700;
             "
           >
-            ${pdfData.scope === 'filtered' ? 'SUBTOTAL DA VISUALIZAÇÃO' : 'QUANTIDADE TOTAL'}
+            QUANTIDADE TOTAL
           </div>
 
           <div
@@ -20469,7 +20328,7 @@ function buildStockPdfElement(pdfData = getStockPdfData()) {
         </thead>
 
         <tbody>
-          ${rows || '<tr><td colspan="3" style="padding:16px;text-align:center;">Nenhum alimento nesta visualização.</td></tr>'}
+          ${rows}
         </tbody>
 
       </table>
@@ -20551,13 +20410,6 @@ function buildStockPdfElement(pdfData = getStockPdfData()) {
 
 async function generateStockPDF() {
 
-  const pdfData = getStockPdfData(aceStockFilters.pdfScope);
-  if (!pdfData.items.length) {
-    await showAceMessage('Não há alimentos para gerar o PDF. Ajuste os filtros ou escolha Estoque completo.', 'PDF do estoque');
-    return;
-  }
-
-
   const button =
     document.getElementById(
       "generateStockPDF"
@@ -20590,7 +20442,7 @@ async function generateStockPDF() {
 
 
     const element =
-      buildStockPdfElement(pdfData);
+      buildStockPdfElement();
 
 
     host =
@@ -20706,7 +20558,7 @@ async function generateStockPDF() {
         [6, 6, 6, 6],
 
       filename:
-        `estoque_${pdfData.scope === 'filtered' ? 'filtrado' : 'completo'}_${fileDate}.pdf`,
+        `estoque_${fileDate}.pdf`,
 
       image: {
         type:
@@ -21018,11 +20870,6 @@ function renderStock() {
     getAceUnifiedStockDisplayRows();
 
 
-  ensureAceStockFilters(stockItems);
-  const stockView = getAceStockFilterView(stockItems);
-  const count = document.getElementById('aceStockFilterCount');
-  if (count) count.textContent = `Mostrando ${fmt(stockView.items.length)} de ${fmt(stockItems.length)} alimentos cadastrados · ${fmt(stockView.total)} unidades na visualização.`;
-
   const totalEstoque =
     stockItems.reduce(
       (sum, item) =>
@@ -21055,7 +20902,6 @@ function renderStock() {
         </div>
 
       </div>
-      ${stockView.active ? `<div class="panel"><h3>🔎 Subtotal da seleção</h3><div class="origin-value">${fmt(stockView.total)} itens</div><p class="ace-sf-subtotal-note">${fmt(stockView.items.length)} alimentos nesta visualização. O total geral inclui todos os alimentos.</p></div>` : ''}
 
     `;
 
@@ -21063,7 +20909,7 @@ function renderStock() {
 
 
   const rows =
-    stockView.items
+    stockItems
       .map(
         item => `
 
@@ -21112,7 +20958,7 @@ function renderStock() {
           </thead>
 
           <tbody>
-            ${rows || '<tr><td colspan="2" style="padding:22px;text-align:center;color:#526a7d;">Nenhum alimento corresponde aos filtros. Ajuste a seleção ou clique em Limpar filtros.</td></tr>'}
+            ${rows}
           </tbody>
 
         </table>
@@ -23719,12 +23565,6 @@ async function openAceConfigurationDestination(
 
   }
 
-
-  // Fecha o menu e libera a rolagem antes de abrir a página de destino,
-  // inclusive quando a aba Cadastros já estava ativa atrás do menu.
-  if (typeof closeAceMobileDrawer === "function") {
-    closeAceMobileDrawer();
-  }
 
   aceConfigurationDestination =
     selected;
@@ -29938,104 +29778,6 @@ let aceBulkEntryDraft = [];
 let aceBulkEntryEditingId = null;
 
 
-const ACE_BULK_ENTRY_DRAFT_PREFIX = 'ace_bulk_entry_draft_v1:';
-let aceBulkEntryDraftOwner = null;
-let aceBulkEntryDraftContext = null;
-let aceBulkEntryDraftLastSaved = null;
-let aceBulkEntryDraftRecovered = false;
-let aceBulkEntryDraftStorageError = '';
-let aceBulkEntryDraftLoadFailed = false;
-
-function ensureAceBulkEntryDraftLoaded() {
-  const owner = currentUser?.id ? String(currentUser.id) : null;
-  if (aceBulkEntryDraftOwner === owner) return false;
-  aceBulkEntryDraftOwner = owner;
-  aceBulkEntryDraft = [];
-  aceBulkEntryEditingId = null;
-  aceBulkEntryDraftContext = null;
-  aceBulkEntryDraftLastSaved = null;
-  aceBulkEntryDraftRecovered = false;
-  aceBulkEntryDraftStorageError = '';
-  aceBulkEntryDraftLoadFailed = false;
-  if (!owner) return true;
-  try {
-    const raw = localStorage.getItem(ACE_BULK_ENTRY_DRAFT_PREFIX + encodeURIComponent(owner));
-    if (!raw) return true;
-    const record = JSON.parse(raw);
-    if (record.version !== 1 || record.userId !== owner || !Array.isArray(record.items) ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || typeof record.originId !== 'string' ||
-        !record.items.every(item => item && ['string','number'].includes(typeof item.id) && String(item.id) &&
-          ['string','number'].includes(typeof item.foodId) && String(item.foodId) &&
-          Number.isInteger(item.qty) && item.qty > 0 && typeof item.foodName === 'string' && typeof item.note === 'string')) {
-      throw new Error('Rascunho de entrada inválido.');
-    }
-    aceBulkEntryDraft = record.items;
-    aceBulkEntryDraftContext = {date:record.date,originId:record.originId};
-    aceBulkEntryDraftLastSaved = JSON.stringify({version:1,userId:owner,...aceBulkEntryDraftContext,items:record.items});
-    aceBulkEntryDraftRecovered = record.items.length > 0;
-  } catch (error) {
-    aceBulkEntryDraftLoadFailed = true;
-    aceBulkEntryDraftStorageError = 'Não foi possível recuperar o rascunho neste aparelho. Mantenha a página aberta enquanto confere os dados.';
-    console.warn('ACE: falha ao recuperar rascunho da entrada.',error);
-  }
-  return true;
-}
-
-function restoreAceBulkEntryDraftContext(context = aceBulkEntryDraftContext) {
-  if (!context) return;
-  for (const [id,key] of [['entryDate','date'],['entryOrigin','originId']]) {
-    const field = document.getElementById(id);
-    if (field) field.value = context[key] || '';
-  }
-}
-
-function captureAceBulkEntryDraftContext() {
-  if (ensureAceBulkEntryDraftLoaded()) restoreAceBulkEntryDraftContext();
-  return {
-    date:document.getElementById('entryDate')?.value || aceBulkEntryDraftContext?.date || isoToday(),
-    originId:document.getElementById('entryOrigin')?.value ?? aceBulkEntryDraftContext?.originId ?? ''
-  };
-}
-
-function updateAceBulkEntryDraftStatus() {
-  const status = document.getElementById('aceBulkEntryDraftStatus');
-  if (!status) return;
-  status.textContent = aceBulkEntryDraftStorageError || (aceBulkEntryDraft.length
-    ? (aceBulkEntryDraftRecovered
-      ? 'Rascunho recuperado. Confira a data e a origem antes de registrar.'
-      : 'Rascunho salvo automaticamente neste aparelho.')
-    : '');
-  status.style.color = aceBulkEntryDraftStorageError ? '#9a5800' : '#526d80';
-}
-
-function saveAceBulkEntryDraft() {
-  const context = captureAceBulkEntryDraftContext();
-  if (!aceBulkEntryDraftOwner) return;
-  aceBulkEntryDraftContext = context;
-  // Um erro de leitura nunca apaga automaticamente o conteúdo ainda não recuperado.
-  if (aceBulkEntryDraftLoadFailed && !aceBulkEntryDraft.length) { updateAceBulkEntryDraftStatus(); return; }
-  const payload = JSON.stringify({version:1,userId:aceBulkEntryDraftOwner,...context,items:aceBulkEntryDraft});
-  const key = ACE_BULK_ENTRY_DRAFT_PREFIX + encodeURIComponent(aceBulkEntryDraftOwner);
-  try {
-    if (!aceBulkEntryDraft.length) {
-      if (aceBulkEntryDraftLastSaved !== '') localStorage.removeItem(key);
-      aceBulkEntryDraftLastSaved = '';
-      aceBulkEntryDraftRecovered = false;
-    } else if (payload !== aceBulkEntryDraftLastSaved) {
-      localStorage.setItem(key,JSON.stringify({...JSON.parse(payload),savedAt:new Date().toISOString()}));
-      aceBulkEntryDraftLastSaved = payload;
-      aceBulkEntryDraftRecovered = false;
-    }
-    aceBulkEntryDraftStorageError = '';
-    aceBulkEntryDraftLoadFailed = false;
-  } catch (error) {
-    aceBulkEntryDraftStorageError = 'Não foi possível salvar o rascunho neste aparelho. Mantenha a página aberta até concluir o registro.';
-    console.warn('ACE: falha ao salvar rascunho da entrada.',error);
-  }
-  updateAceBulkEntryDraftStatus();
-}
-
-
 function ensureBulkEntryStyles() {
 
   if (
@@ -30584,8 +30326,6 @@ function setupBulkEntryForm() {
         ></div>
 
 
-        <p id="aceBulkEntryDraftStatus" role="status" aria-live="polite" style="font-size:12px;line-height:1.5;margin:10px 0;color:#526d80;"></p>
-
         <div
           id="bulkEntryTotal"
           class="ace-bulk-total"
@@ -30643,8 +30383,6 @@ function setupBulkEntryForm() {
   }
 
 
-  ensureAceBulkEntryDraftLoaded();
-  restoreAceBulkEntryDraftContext();
   renderBulkEntryDraft();
 
   // Liga os comandos imediatamente aos elementos recém-criados.
@@ -30678,8 +30416,6 @@ function getBulkEntryFoodName(
 
 
 function renderBulkEntryDraft() {
-
-  if (ensureAceBulkEntryDraftLoaded()) restoreAceBulkEntryDraftContext();
 
   const list =
     document.getElementById(
@@ -30822,7 +30558,6 @@ function renderBulkEntryDraft() {
   // botões recebem eventos DIRETOS após toda renderização, sem depender
   // do listener delegado do painel (que falhava em alguns navegadores).
   bindBulkEntryDraftItemActions();
-  saveAceBulkEntryDraft();
 
 }
 
@@ -32122,13 +31857,6 @@ function bindBulkEntryFormEvents() {
   form.dataset.aceBulkBound =
     "1";
 
-  for (const id of ['entryDate','entryOrigin']) {
-    const field = document.getElementById(id);
-    field?.addEventListener('input',saveAceBulkEntryDraft);
-    field?.addEventListener('change',saveAceBulkEntryDraft);
-  }
-
-
 
   document
     .getElementById(
@@ -32312,13 +32040,6 @@ function bindBulkEntryFormEvents() {
       }
 
 
-      if (form.dataset.aceBulkSubmitting === '1') return;
-      const unavailable = aceBulkEntryDraft.find(item => !(db.foods || []).some(food => String(food.id) === String(item.foodId)));
-      if (unavailable || !getAceOperationalOrigins().some(origin => String(origin.id) === String(originId))) {
-        await showAceMessage('Um alimento ou a origem do rascunho não está mais disponível. Revise a lista e selecione a origem antes de registrar.','Revise a entrada');
-        return;
-      }
-
       const originName =
         getName(
           db.origins,
@@ -32352,11 +32073,6 @@ function bindBulkEntryFormEvents() {
         return;
       }
 
-
-      if (form.dataset.aceBulkSubmitting === '1') return;
-      form.dataset.aceBulkSubmitting = '1';
-      const wasInert = form.inert;
-      form.inert = true;
 
       const submit =
         document.getElementById(
@@ -32399,9 +32115,6 @@ function bindBulkEntryFormEvents() {
               item.note || ""
           });
 
-          aceBulkEntryDraft = aceBulkEntryDraft.filter(row => String(row.id) !== String(item.id));
-          saveAceBulkEntryDraft();
-
         }
 
 
@@ -32439,9 +32152,6 @@ function bindBulkEntryFormEvents() {
 
       } finally {
 
-        delete form.dataset.aceBulkSubmitting;
-        form.inert = wasInert;
-        renderBulkEntryDraft();
         if (submit) {
 
           submit.disabled =
@@ -33172,10 +32882,7 @@ function bindEvents() {
 
 
   const dashboardDate = document.getElementById("dashboardDate");
-  if (dashboardDate) {
-    dashboardDate.addEventListener("change", renderDashboard);
-    dashboardDate.addEventListener("input", renderDashboard);
-  }
+  if (dashboardDate) dashboardDate.addEventListener("change", renderDashboard);
 
   const entryDate = document.getElementById("entryDate");
   if (entryDate) entryDate.addEventListener("change", renderEntries);
@@ -33930,51 +33637,6 @@ function getBasketItems(basketId) {
 }
 
 
-// Soma das unidades de alimento na composição de UMA cesta, sem multiplicar pelo lote.
-function validateAceBasketMountDate(value) {
-  const date = String(value ?? '').trim();
-  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + 'T12:00:00') : null;
-  if (!parsed || !Number.isFinite(parsed.getTime()) ||
-      parsed.getFullYear() !== Number(date.slice(0,4)) ||
-      parsed.getMonth() + 1 !== Number(date.slice(5,7)) ||
-      parsed.getDate() !== Number(date.slice(8,10))) {
-    throw new Error('Informe uma data válida para a montagem das cestas.');
-  }
-  return date;
-}
-
-function getAceBasketMountDate() {
-  if (aceBasketMountDate === null) aceBasketMountDate = isoToday();
-  return aceBasketMountDate;
-}
-
-function readAceBasketMountDate(module) {
-  const field = module.querySelector('#basketMountDate');
-  try {
-    const date = validateAceBasketMountDate(field ? field.value : getAceBasketMountDate());
-    aceBasketMountDate = date;
-    return date;
-  } catch (error) {
-    toast(error.message);
-    field?.focus();
-    return null;
-  }
-}
-
-function getAceBasketItemTotal(items) {
-  return (Array.isArray(items) ? items : []).reduce((total,item) => {
-    const qty = Number(item?.qty);
-    return total + (Number.isFinite(qty) && qty > 0 ? qty : 0);
-  },0);
-}
-
-function renderAceBasketItemTotal(items, manual = false) {
-  return `<div class="ace-basket-item-total" ${manual ? 'id="manualBasketItemTotal" role="status" aria-live="polite" aria-atomic="true"' : ''}>
-    <span class="ace-basket-item-total-label">TOTAL DE ITENS</span>
-    <span class="ace-basket-item-total-value"><strong data-ace-basket-item-total>${fmt(getAceBasketItemTotal(items))}</strong><small>por cesta</small></span>
-  </div>`;
-}
-
 function ensureBasketStyles() {
 
   if (
@@ -34055,18 +33717,6 @@ function ensureBasketStyles() {
       background:#fff;
       box-shadow:0 8px 20px rgba(16,42,67,.07);
     }
-
-    .ace-basket-mount-date{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;margin:0 0 20px;padding:14px 16px;border:1px solid #d3e5ef;border-radius:12px;background:#f4f9fd;color:#124b73;}
-    .ace-basket-mount-date label{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:14px;font-weight:800;}
-    .ace-basket-mount-date input{min-height:44px;max-width:100%;padding:8px 12px;border:1px solid #adc8dc;border-radius:9px;background:#fff;color:#173750;font:inherit;box-sizing:border-box;}
-    .ace-basket-mount-date p{flex:1 1 220px;margin:0;font-size:12px;line-height:1.5;color:#526d80;}
-
-    .ace-basket-item-total{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #d3e5ef;background:#edf6fc;color:#124b73;box-sizing:border-box;min-width:0;}
-    .ace-basket-item-total-label{font-size:12px;font-weight:850;letter-spacing:.04em;line-height:1.4;}
-    .ace-basket-item-total-value{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;line-height:1.3;}
-    .ace-basket-item-total-value strong{font-size:20px;font-weight:900;color:#08785c;}
-    .ace-basket-item-total-value small{font-size:11px;font-weight:600;color:#526d80;}
-    .ace-manual-basket > .ace-basket-item-total{margin-bottom:16px;border:1px solid #d3e5ef;border-radius:12px;}
 
     .ace-basket-name{
       padding:16px 16px 10px;
@@ -35473,13 +35123,10 @@ function getFilteredMountedBasketStock() {
 }
 
 
-function getMountedBasketAvailableTotal(allDates = false) {
+function getMountedBasketAvailableTotal() {
 
-  const rows = allDates
-    ? (db?.basketStock || []).filter(row => !row.hiddenHistory)
-    : getFilteredMountedBasketStock();
-
-  return rows.reduce(
+  return getFilteredMountedBasketStock()
+    .reduce(
       (sum, row) =>
         sum +
         Number(
@@ -38220,13 +37867,6 @@ function renderBasketModule() {
       </span>
     </div>
 
-    <div class="ace-basket-mount-date">
-      <label for="basketMountDate">Data da montagem
-        <input id="basketMountDate" type="date" value="${esc(getAceBasketMountDate())}" required aria-describedby="basketMountDateHelp">
-      </label>
-      <p id="basketMountDateHelp">Escolha a data em que as cestas foram montadas. Válida para cestas padrão e personalizadas.</p>
-    </div>
-
     <div class="ace-basket-grid">
 
       ${
@@ -38258,8 +37898,6 @@ function renderBasketModule() {
                   class="ace-basket-card"
                   data-basket-card="${basket.id}"
                 >
-
-                  ${renderAceBasketItemTotal(items)}
 
                   <div class="ace-basket-name">
                     ${esc(basket.name)}
@@ -38399,8 +38037,6 @@ function renderBasketModule() {
     </div>
 
     <div class="ace-manual-basket">
-
-      ${renderAceBasketItemTotal([],true)}
 
       <h3 class="ace-manual-basket-title">
         <img
@@ -38669,11 +38305,6 @@ function renderBasketModule() {
 
 
   `;
-
-  const mountDateField = module.querySelector('#basketMountDate');
-  for (const eventName of ['input','change']) {
-    mountDateField?.addEventListener(eventName, () => { aceBasketMountDate = mountDateField.value; });
-  }
 
   // Mostra no máximo 10 linhas no Histórico de saída de cestas.
   requestAnimationFrame(() => {
@@ -38963,13 +38594,9 @@ function renderBasketModule() {
             return;
           }
 
-          const date = readAceBasketMountDate(module);
-          if (!date) return;
-
           const confirmed =
             await showAceConfirm(
               `Confirmar a montagem de ${qty} cesta(s) ${basket?.name || ""}?\n\n` +
-              `Data da montagem: ${fmtDate(date)}\n` +
               `Destino: ${destination}\n\n` +
               `Os alimentos serão debitados do estoque principal e as cestas entrarão no estoque de cestas montadas.`,
               "🧺 Confirmar montagem"
@@ -38988,7 +38615,6 @@ function renderBasketModule() {
           try {
 
             await registerBasketOutput({
-              date,
               basketId,
               basketQty: qty,
               destination,
@@ -39070,9 +38696,6 @@ function renderBasketModule() {
 
   const renderManualBasketItems =
     () => {
-
-      const total = module.querySelector('#manualBasketItemTotal [data-ace-basket-item-total]');
-      if (total) total.textContent = fmt(getAceBasketItemTotal(manualBasketItems));
 
       const list =
         module.querySelector(
@@ -39360,13 +38983,9 @@ function renderBasketModule() {
         }
 
 
-        const date = readAceBasketMountDate(module);
-        if (!date) return;
-
         const confirmed =
           await showAceConfirm(
             `Confirmar a montagem de ${basketQty} cesta(s) "${name}"?\n\n` +
-            `Data da montagem: ${fmtDate(date)}\n` +
             `Destino: ${destination}\n` +
             `Itens diferentes: ${manualBasketItems.length}\n\n` +
             `Os alimentos serão debitados do estoque principal e as cestas entrarão no estoque de cestas montadas.`,
@@ -39389,7 +39008,6 @@ function renderBasketModule() {
         try {
 
           await registerManualBasketOutput({
-            date,
             name,
             basketQty,
             destination,
@@ -40150,15 +39768,12 @@ function showBasketStockError({
 
 
 async function registerManualBasketOutput({
-  date = isoToday(),
   name,
   basketQty,
   destination,
   receivedBy,
   items
 }) {
-
-  date = validateAceBasketMountDate(date);
 
   const aguaFria =
     getAguaFriaOrigin();
@@ -40310,7 +39925,6 @@ async function registerManualBasketOutput({
 
 
     applyLocalBasketOutput({
-      date,
       basketId:
         localBasketId,
       basketName:
@@ -40329,7 +39943,6 @@ async function registerManualBasketOutput({
     enqueueOfflineOperation(
       "manualBasket",
       {
-        date,
         name,
         basketQty:
           qtyCestas,
@@ -40483,7 +40096,6 @@ async function registerManualBasketOutput({
   try {
 
     await registerBasketOutput({
-      date,
       basketId:
         manualBasketId,
       basketQty:
@@ -40533,14 +40145,11 @@ async function registerManualBasketOutput({
 
 
 async function registerBasketOutput({
-  date = isoToday(),
   basketId,
   basketQty,
   destination,
   receivedBy
 }) {
-
-  date = validateAceBasketMountDate(date);
 
   const basket =
     (db?.baskets || [])
@@ -40697,7 +40306,6 @@ async function registerBasketOutput({
 
 
     applyLocalBasketOutput({
-      date,
       basketId:
         basket.id,
       basketName:
@@ -40718,7 +40326,6 @@ async function registerBasketOutput({
     enqueueOfflineOperation(
       "basket",
       {
-        date,
         basketId:
           basket.id,
         basketQty:
@@ -40760,7 +40367,7 @@ async function registerBasketOutput({
     p_usuario_id:
       getCurrentUserId(),
     p_data:
-      date
+      isoToday()
   };
 
 
@@ -41019,46 +40626,36 @@ async function openBasketEditModal(basketId) {
   }
 
 
-  // ========================================================
-  // CORREÇÃO V127 - FARINHA DE MANDIOCA NA CESTA TIPO 2
+  // ==========================================================
+  // CORREÇÃO CESTA TIPO 2 - FARINHA DE MANDIOCA
   //
   // O carregamento geral do ACE traz somente alimentos ativos.
-  // Se a Farinha de Mandioca estiver inativa, a composição da
-  // Cesta Tipo 2 continua contendo o alimento_id, mas o editor
-  // não consegue resolver/exibir o nome do alimento.
-  //
-  // A correção é LOCAL ao editor da Tipo 2: busca também a
-  // Farinha de Mandioca no Supabase, sem reativá-la e sem fazer
-  // o alimento aparecer nas demais telas do sistema.
-  // ========================================================
+  // Se a Farinha de Mandioca estiver inativa, ela desaparecia do
+  // editor da Cesta Tipo 2. Aqui ela é consultada SOMENTE para este
+  // editor, sem reativar o cadastro e sem afetar as outras telas.
+  // ==========================================================
 
-  const basketEditorFoods =
-    (db?.foods || [])
-      .map(food => ({ ...food }));
-
-  const basketNameKey =
-    normalizeAceText(
-      basket?.name || ""
-    )
-      .replace(/[^a-z0-9]+/g, " " )
-      .replace(/\s+/g, " " )
-      .trim();
-
-  const isBasketType2 =
-    basketNameKey.includes(
-      "tipo 2"
+  const isType2Basket =
+    /tipo\s*-?\s*2/.test(
+      normalizeAceText(
+        basket.name
+      )
     );
 
-  if (
-    isBasketType2 &&
-    aceIsOnline()
-  ) {
+  let editorFoods =
+    (db?.foods || [])
+      .map(
+        food => ({ ...food })
+      );
+
+
+  if (isType2Basket) {
 
     try {
 
       const {
-        data: flourRows,
-        error: flourLookupError
+        data: farinhaRows,
+        error: farinhaError
       } =
         await supabaseClient
           .from("Alimentos")
@@ -41067,63 +40664,75 @@ async function openBasketEditModal(basketId) {
           )
           .ilike(
             "nome",
-            "%farinha%"
+            "%Farinha%"
           );
 
-      if (flourLookupError) {
-        throw flourLookupError;
+
+      if (farinhaError) {
+        throw farinhaError;
       }
 
-      (flourRows || [])
-        .filter(row => {
 
-          const foodKey =
-            normalizeAceText(
-              row?.nome || ""
+      (farinhaRows || [])
+        .filter(
+          food => {
+
+            const normalized =
+              normalizeAceText(
+                food?.nome || ""
+              );
+
+            return (
+              normalized.includes(
+                "farinha"
+              ) &&
+              normalized.includes(
+                "mandioca"
+              )
             );
 
-          return (
-            foodKey.includes(
-              "farinha"
-            ) &&
-            foodKey.includes(
-              "mandioca"
-            )
-          );
-
-        })
-        .forEach(row => {
-
-          const foodId =
-            Number(row.id);
-
-          if (
-            !foodId ||
-            basketEditorFoods.some(
-              food =>
-                Number(food.id) ===
-                foodId
-            )
-          ) {
-            return;
           }
+        )
+        .forEach(
+          food => {
 
-          basketEditorFoods.push({
-            id: foodId,
-            name: row.nome,
-            unit:
-              row.unidade ||
-              "unidade",
-            active:
-              row.ativo !== false
-          });
+            const id =
+              Number(
+                food.id
+              );
 
-        });
+
+            if (
+              !editorFoods.some(
+                current =>
+                  Number(
+                    current.id
+                  ) ===
+                  id
+              )
+            ) {
+
+              editorFoods.push({
+                id,
+                name:
+                  food.nome,
+                unit:
+                  food.unidade ||
+                  "unidade",
+                active:
+                  food.ativo !== false
+              });
+
+            }
+
+          }
+        );
+
 
     } catch (error) {
 
       console.warn(
-        "ACE: não foi possível localizar a Farinha de Mandioca para o editor da Cesta Tipo 2:",
+        "ACE: não foi possível carregar a Farinha de Mandioca no editor da Cesta Tipo 2:",
         error
       );
 
@@ -41132,26 +40741,14 @@ async function openBasketEditModal(basketId) {
   }
 
 
-  const getBasketEditorFoodName =
-    foodId => {
-
-      const food =
-        basketEditorFoods.find(
-          item =>
-            Number(item.id) ===
-            Number(foodId)
-        );
-
-      return (
-        food?.name ||
-        getName(
-          db.foods,
-          Number(foodId)
-        ) ||
-        "Alimento"
+  const getEditorFoodName =
+    foodId =>
+      getName(
+        editorFoods,
+        Number(
+          foodId
+        )
       );
-
-    };
 
 
   const sourceItems =
@@ -41266,10 +40863,10 @@ async function openBasketEditModal(basketId) {
         ? draftItems
             .sort(
               (a, b) =>
-                getBasketEditorFoodName(
+                getEditorFoodName(
                   a.foodId
                 ).localeCompare(
-                  getBasketEditorFoodName(
+                  getEditorFoodName(
                     b.foodId
                   ),
                   "pt-BR"
@@ -41284,7 +40881,7 @@ async function openBasketEditModal(basketId) {
 
                 <div class="ace-basket-edit-food">
                   ${esc(
-                    getBasketEditorFoodName(
+                    getEditorFoodName(
                       item.foodId
                     )
                   )}
@@ -41451,7 +41048,7 @@ async function openBasketEditModal(basketId) {
       );
 
     const available =
-      basketEditorFoods
+      editorFoods
         .filter(
           food =>
             !selected.has(
@@ -42402,7 +41999,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-desktop-noticias-v120",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20260927-cabecalho-aurora-visivel-v78",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -46533,105 +46130,53 @@ function setupAceAccountMenuEvents() {
 // DRAWER LATERAL
 // ------------------------------------------------------------
 
-// Congela a página sem perder o ponto de leitura; o menu mantém sua rolagem própria.
-function lockAceMobileDrawerScroll() {
-  if (aceMobileDrawerScrollLock) return;
-  const root = document.documentElement;
-  const body = document.body;
-  const remember = (element, properties) => properties.map(name => ({
-    name, value:element.style.getPropertyValue(name), priority:element.style.getPropertyPriority(name)
-  }));
-  aceMobileDrawerScrollLock = {
-    x:window.scrollX, y:window.scrollY,
-    root:remember(root, ['overflow','overscroll-behavior','scroll-behavior']),
-    body:remember(body, ['position','top','left','right','width','overflow','overscroll-behavior','scroll-behavior'])
-  };
-  for (const element of [root,body]) {
-    element.style.setProperty('overflow','hidden','important');
-    element.style.setProperty('overscroll-behavior','none','important');
-    element.style.setProperty('scroll-behavior','auto','important');
-  }
-  body.style.setProperty('position','fixed','important');
-  body.style.setProperty('top',`${-aceMobileDrawerScrollLock.y}px`,'important');
-  body.style.setProperty('left',`${-aceMobileDrawerScrollLock.x}px`,'important');
-  body.style.setProperty('right','0','important');
-  body.style.setProperty('width','100%','important');
-}
-
-function unlockAceMobileDrawerScroll() {
-  const state = aceMobileDrawerScrollLock;
-  if (!state) return;
-  aceMobileDrawerScrollLock = null;
-  const restore = (element, properties, behavior = false) => {
-    for (const property of properties) {
-      if ((property.name === 'scroll-behavior') !== behavior) continue;
-      if (property.value) element.style.setProperty(property.name,property.value,property.priority);
-      else element.style.removeProperty(property.name);
-    }
-  };
-  restore(document.body,state.body);
-  restore(document.documentElement,state.root);
-  // scroll-behavior continua em auto até a posição ter sido reposta.
-  window.scrollTo(state.x,state.y);
-  restore(document.body,state.body,true);
-  restore(document.documentElement,state.root,true);
-}
-
-// Contém o gesto nas bordas, inclusive em WebViews sem overscroll-behavior.
-function installAceDrawerScrollGuards() {
-  let lastY = 0;
-  document.addEventListener('touchstart', event => {
-    if (aceMobileDrawerScrollLock && event.touches.length === 1) lastY = event.touches[0].clientY;
-  }, {passive:true,capture:true});
-  document.addEventListener('touchmove', event => {
-    if (!aceMobileDrawerScrollLock || event.touches.length !== 1) return;
-    const currentY = event.touches[0].clientY;
-    const delta = currentY - lastY;
-    lastY = currentY;
-    const list = document.getElementById('aceMobileDrawerList');
-    let node = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
-    if (list?.contains(node)) {
-      for (; node && list.contains(node); node = node.parentElement) {
-        if (node.scrollHeight <= node.clientHeight + 1) continue;
-        if (!/^(auto|scroll)$/.test(getComputedStyle(node).overflowY)) continue;
-        const canMoveUp = delta > 0 && node.scrollTop > 0;
-        const canMoveDown = delta < 0 && node.scrollTop < node.scrollHeight - node.clientHeight - 1;
-        if (!delta || canMoveUp || canMoveDown) return;
-      }
-    }
-    if (event.cancelable) event.preventDefault();
-  }, {passive:false,capture:true});
-}
-
 function closeAceMobileDrawer() {
-  const drawer = document.getElementById('aceMobileDrawer');
-  const wasOpen = drawer?.classList.contains('open');
-  document.body.classList.remove('ace-mobile-drawer-open');
-  drawer?.classList.remove('open');
-  unlockAceMobileDrawerScroll();
-  document.getElementById('aceMobileDrawerBackdrop')?.classList.remove('open');
-  document.querySelector('#aceMobileBottomNav [data-ace-mobile-more]')?.setAttribute('aria-expanded', 'false');
-  if (wasOpen && aceMobileDrawerReturnFocus?.isConnected) aceMobileDrawerReturnFocus.focus({preventScroll:true});
-  if (drawer) { drawer.setAttribute('aria-hidden', 'true'); drawer.inert = true; }
-  aceMobileDrawerReturnFocus = null;
+
+  document.body.classList.remove(
+    "ace-mobile-drawer-open"
+  );
+
+  document
+    .getElementById(
+      "aceMobileDrawer"
+    )
+    ?.classList.remove(
+      "open"
+    );
+
+  document
+    .getElementById(
+      "aceMobileDrawerBackdrop"
+    )
+    ?.classList.remove(
+      "open"
+    );
+
 }
+
 
 function openAceMobileDrawer() {
-  const drawer = document.getElementById('aceMobileDrawer');
-  if (!drawer || drawer.classList.contains('open')) return;
-  closeAceAccountMenu();
-  lockAceMobileDrawerScroll();
-  aceMobileDrawerReturnFocus = document.activeElement;
-  drawer.inert = false;
-  drawer.setAttribute('role', 'dialog');
-  drawer.setAttribute('aria-modal', 'true');
-  drawer.setAttribute('aria-label', 'Menu completo');
-  drawer.setAttribute('aria-hidden', 'false');
-  document.body.classList.add('ace-mobile-drawer-open');
-  drawer.classList.add('open');
-  document.getElementById('aceMobileDrawerBackdrop')?.classList.add('open');
-  document.querySelector('#aceMobileBottomNav [data-ace-mobile-more]')?.setAttribute('aria-expanded', 'true');
-  document.getElementById('aceMobileDrawerClose')?.focus({preventScroll:true});
+
+  document.body.classList.add(
+    "ace-mobile-drawer-open"
+  );
+
+  document
+    .getElementById(
+      "aceMobileDrawer"
+    )
+    ?.classList.add(
+      "open"
+    );
+
+  document
+    .getElementById(
+      "aceMobileDrawerBackdrop"
+    )
+    ?.classList.add(
+      "open"
+    );
+
 }
 
 
@@ -46784,10 +46329,10 @@ function activateAceOriginalTab(
   }
 
 
-  closeAceMobileDrawer();
-
-
   original.click();
+
+
+  closeAceMobileDrawer();
 
 
   setTimeout(
@@ -48291,8 +47836,6 @@ function setupProfessionalMobileLayout() {
 
     drawer.id =
       "aceMobileDrawer";
-    drawer.inert = true;
-    drawer.setAttribute('aria-hidden', 'true');
 
 
     drawer.innerHTML = `
@@ -48360,7 +47903,8 @@ function setupProfessionalMobileLayout() {
       .getElementById(
         "aceDrawerLogout"
       )
-      .onclick = () => { closeAceMobileDrawer(); logoutUser(); };
+      .onclick =
+        logoutUser;
 
   }
 
@@ -49035,9 +48579,6 @@ function calcAceSackStock() {
     const id = Number(item.sackTypeId);
     if (!Object.prototype.hasOwnProperty.call(stock, id)) stock[id] = 0;
     stock[id] += item.type === "entrada" ? Number(item.qty || 0) : -Number(item.qty || 0);
-  });
-  (db?.sackInventoryAdjustments || []).forEach(item => {
-    const id=Number(item.sackTypeId); stock[id]=(stock[id]||0)+Number(item.qty||0);
   });
   return stock;
 }
@@ -49770,17 +49311,13 @@ async function deleteAceSackType(
       );
 
 
-  let hasHistory = linkedMovements.length > 0;
-  if (!hasHistory && db?.sackInventoryReady && aceIsOnline()) {
-    const linkedInventory = await supabaseClient.from("sacos_inventario_itens").select("id").eq("saco_tipo_id",Number(item.id)).limit(1);
-    if (linkedInventory.error) return showAceMessage(linkedInventory.error.message,"Cadastro de sacos");
-    hasHistory = Boolean(linkedInventory.data?.length);
-  }
+  const hasHistory =
+    linkedMovements.length > 0;
 
 
   const message =
     hasHistory
-      ? `O tipo "${item.name}" possui histórico de movimentações ou inventários.\n\nPara preservar o histórico, ele será DESATIVADO e deixará de aparecer em novos lançamentos.\n\nDeseja continuar?`
+      ? `O tipo "${item.name}" possui ${linkedMovements.length} movimentação(ões) registrada(s).\n\nPara preservar o histórico, ele será DESATIVADO e deixará de aparecer em novos lançamentos.\n\nDeseja continuar?`
       : `Excluir definitivamente o tipo de saco "${item.name}"?\n\nComo ele nunca foi usado em movimentações, o cadastro pode ser removido sem afetar o histórico.`;
 
 
@@ -49931,7 +49468,6 @@ async function reactivateAceSackType(
 
 
 async function saveAceSackMovement(form) {
-  if (aceSackInvActive()) throw new Error("Inventário de sacos em andamento. Finalize ou cancele antes de movimentar.");
   if (!window.aceSackModuleReady) throw new Error("Execute o SQL do módulo de sacos antes de registrar movimentações.");
   if (!aceIsOnline()) throw new Error("A movimentação de sacos precisa de conexão com o Supabase.");
   const data = new FormData(form);
@@ -50169,7 +49705,6 @@ function renderAceSackModule() {
   renderAceSackHistory("saida");
   renderAceSackStock();
   renderAceSackTypeList();
-  ensureAceSackInventoryUI();
 }
 
 
@@ -50217,7 +49752,6 @@ function restoreAceMovementFormDraft(draft) {
 
 
 function openAceSackEditModal(id) {
-  if (aceSackInvActive()) return showAceMessage("Inventário de sacos em andamento. Finalize ou cancele antes de alterar movimentações.", "Inventário de sacos");
   const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
   if (!item) return;
   document.getElementById("aceSackEditModal")?.remove();
@@ -50251,7 +49785,6 @@ function openAceSackEditModal(id) {
 
 
 async function deleteAceSackMovement(id) {
-  if (aceSackInvActive()) return showAceMessage("Inventário de sacos em andamento. Finalize ou cancele antes de alterar movimentações.", "Inventário de sacos");
   const item = (db?.sackMovements || []).find(row => Number(row.id) === Number(id));
   if (!item) return;
   const ok = await showAceConfirm(`Excluir esta ${item.type === "entrada" ? "entrada" : "saída"} de ${fmt(item.qty)} saco(s)?\n\nO saldo será recalculado automaticamente.`, "🗑️ Excluir movimentação de sacos");
@@ -50413,14 +49946,6 @@ let aceTeamUnread = 0;
 let aceTeamPanelOpen = false;
 let aceTeamActiveTab = "online";
 let aceTeamConnecting = false;
-let aceChatReadRows = new Map();
-let aceChatReadObserver = null;
-let aceChatReadDwellTimers = new Map();
-let aceChatVisibleReadRows = new Map();
-let aceChatPendingReadIds = new Set();
-let aceChatReadFlushTimer = null;
-let aceChatReadFlushing = false;
-let aceChatReadEpoch = 0;
 
 const ACE_TEAM_SOUND_PREF_KEY =
   "ace_team_chat_sound_enabled_v1";
@@ -51309,10 +50834,6 @@ function ensureAceTeamStyles() {
       font-size:9px;
     }
 
-    .ace-chat-meta{flex-wrap:wrap;}
-    .ace-chat-receipt{border:0;background:transparent;padding:2px 0;color:#677e8f;font:inherit;font-size:10px;cursor:pointer;white-space:nowrap;}
-    .ace-chat-receipt.is-read{color:#087cc4;font-weight:800;}
-    .ace-chat-receipt:focus-visible{outline:2px solid #1689d0;outline-offset:3px;border-radius:3px;}
     .ace-chat-delete{
       padding:0;
       border:0;
@@ -51679,14 +51200,9 @@ function renderAceTeamOnlineUsers() {
 }
 
 
-function renderAceTeamChat({ scrollToBottom = false } = {}) {
+function renderAceTeamChat() {
   const target = document.getElementById("aceTeamChatMessages");
   if (!target) return;
-  const scrollTopBefore = target.scrollTop;
-  const nearBottom = target.scrollHeight - target.clientHeight - target.scrollTop < 65;
-  aceChatStopReadObserver();
-  const retainedIds = new Set(aceTeamChatMessages.map(row => Number(row.id)));
-  aceChatReadRows.forEach((row,key) => { if (!retainedIds.has(Number(row.message_id))) aceChatReadRows.delete(key); });
 
   if (!aceTeamChatMessages.length) {
     target.innerHTML = `
@@ -51714,7 +51230,6 @@ function renderAceTeamChat({ scrollToBottom = false } = {}) {
           <div class="ace-chat-text">${esc(row.message)}</div>
           <div class="ace-chat-meta">
             <span>${esc(formatAceChatTime(row.created_at))}</span>
-            ${aceChatReceiptHtml(row)}
             ${canDelete ? `
               <button class="ace-chat-delete" type="button"
                 data-ace-chat-delete="${row.id}">Excluir</button>
@@ -51731,9 +51246,7 @@ function renderAceTeamChat({ scrollToBottom = false } = {}) {
   });
 
   requestAnimationFrame(() => {
-    target.scrollTop = scrollToBottom || nearBottom ? target.scrollHeight : scrollTopBefore;
-    aceChatUpdateReceiptButtons();
-    aceChatScheduleReadObserver();
+    target.scrollTop = target.scrollHeight;
   });
 }
 
@@ -51845,7 +51358,7 @@ function receiveAceTeamChatMessage(row, countUnread = true) {
 
   saveAceTeamChatCache();
   renderAceTeamStatus();
-  renderAceTeamChat({ scrollToBottom: mine });
+  renderAceTeamChat();
 }
 
 
@@ -51876,7 +51389,6 @@ async function loadAceTeamChatMessages(force = false) {
     aceTeamChatLoaded = true;
     saveAceTeamChatCache();
     renderAceTeamChat();
-    await loadAceChatReadReceipts();
   } catch (error) {
     console.warn("ACE Chat: não foi possível carregar:", error);
     aceTeamChatMessages = loadAceTeamChatCache();
@@ -52002,7 +51514,6 @@ function removeAceTeamChatMessage(id) {
 
 
 function clearAceTeamChatLocalState() {
-  resetAceChatReadReceipts();
 
   aceTeamChatMessages =
     [];
@@ -52483,7 +51994,6 @@ async function clearAllAceTeamChats() {
 
 
 function setAceTeamTab(tab) {
-  aceChatStopReadObserver();
   aceTeamActiveTab = tab === "chat" ? "chat" : "online";
 
   document.querySelectorAll("[data-ace-team-tab]").forEach(button => {
@@ -52511,8 +52021,6 @@ function setAceTeamTab(tab) {
     setTimeout(() => {
       const target = document.getElementById("aceTeamChatMessages");
       if (target) target.scrollTop = target.scrollHeight;
-      aceChatScheduleReadObserver();
-      loadAceChatReadReceipts();
     }, 60);
   }
 }
@@ -52528,7 +52036,6 @@ function openAceTeamPanel(tab = "online") {
 
 
 function closeAceTeamPanel() {
-  aceChatStopReadObserver();
   aceTeamPanelOpen = false;
   document.getElementById("aceTeamBackdrop")?.classList.remove("open");
   document.getElementById("aceTeamPanel")?.classList.remove("open");
@@ -52536,7 +52043,6 @@ function closeAceTeamPanel() {
 
 
 async function teardownAceTeamRealtime() {
-  resetAceChatReadReceipts();
   const oldChannel = aceTeamChannel;
 
   aceTeamChannel = null;
@@ -52596,9 +52102,6 @@ async function setupAceTeamRealtime() {
       .on("presence", { event: "sync" }, syncAceTeamPresenceState)
       .on("presence", { event: "join" }, syncAceTeamPresenceState)
       .on("presence", { event: "leave" }, syncAceTeamPresenceState)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ace_chat_message_reads" }, event => {
-        receiveAceChatReadReceipt(event.new);
-      })
       .on("broadcast", { event: "chat-message" }, event => {
         receiveAceTeamChatMessage(event?.payload, true);
       })
@@ -52725,10 +52228,7 @@ function setupAceTeamEvents() {
   });
 
   document.addEventListener("visibilitychange", () => {
-    aceChatStopReadObserver();
     if (document.visibilityState === "visible" && aceIsOnline()) {
-      aceChatScheduleReadObserver();
-      loadAceChatReadReceipts();
       if (aceTeamChannel) {
         aceTrackCurrentPresence();
       } else {
@@ -52737,11 +52237,7 @@ function setupAceTeamEvents() {
     }
   });
 
-  window.addEventListener("focus", () => { aceChatScheduleReadObserver(); });
-  window.addEventListener("blur", aceChatStopReadObserver);
-
   window.addEventListener("beforeunload", () => {
-    aceChatStopReadObserver();
     try { aceTeamChannel?.untrack(); } catch {}
   });
 }
@@ -52869,8 +52365,7 @@ async function initApp() {
 
     setupAceInventoryRealtime();
 
-    // Abre sempre no Início, no PWA (PC e celular) e no APK.
-    // Usa a mesma navegação do botão Início já existente.
+    // Sempre abre o aplicativo diretamente no Mural ACE.
     activateAceOriginalTab("inicio");
 
     bindEvents();
@@ -53941,7 +53436,7 @@ startAuth();
         "aceMobileBottomNav"
       );
 
-    if (!bottom || bottom.dataset.aceModernNav === "1") return;
+    if (!bottom) return;
 
     const icons = {
       mural:"📣",
@@ -54033,7 +53528,7 @@ startAuth();
 
 
 // ============================================================
-// ACE VISUAL PROFISSIONAL — IDENTIDADE GEPE: AZUL E VERDE
+// ACE VISUAL PROFISSIONAL — AZUL E BRANCO
 // Camada exclusivamente visual. Não altera regras, dados,
 // Supabase, inventário, chat, Gemini ou funcionamento offline.
 // ============================================================
@@ -54041,7 +53536,7 @@ startAuth();
 (function installAceProfessionalBlueWhiteTheme() {
   "use strict";
 
-  const STYLE_ID = "aceProfessionalGepeThemeV3";
+  const STYLE_ID = "aceProfessionalBlueWhiteThemeV1";
   if (document.getElementById(STYLE_ID)) return;
 
   const style = document.createElement("style");
@@ -54049,7 +53544,7 @@ startAuth();
   style.textContent = `
     :root{
       --ace-blue-950:#032f52;
-      --ace-blue-900:#124b73;
+      --ace-blue-900:#063b63;
       --ace-blue-800:#064b7d;
       --ace-blue-700:#075a94;
       --ace-blue-600:#0872b9;
@@ -54057,16 +53552,11 @@ startAuth();
       --ace-blue-300:#8bc8ed;
       --ace-blue-200:#c6e4f6;
       --ace-blue-100:#eaf5fc;
-      --ace-blue-50:#edf3f8;
-      --ace-gepe-page-bg:#d8e9f5;
-      --ace-gepe-page-background:linear-gradient(145deg,#cbdff0 0%,#d8e9f5 55%,#d2e5f2 100%);
-      --ace-gepe-green:#159d78;
-      --ace-gepe-green-dark:#08785b;
-      --ace-gepe-green-bg:#e7f5ef;
+      --ace-blue-50:#f4f9fd;
       --ace-white:#ffffff;
       --ace-ink:#102f49;
       --ace-muted:#647b8f;
-      --ace-line:#d8e3ec;
+      --ace-line:#d9e7f1;
       --ace-success:#16834d;
       --ace-success-bg:#eaf8f0;
       --ace-warning:#a86408;
@@ -54086,29 +53576,17 @@ startAuth();
     html{
       color-scheme:light;
       scroll-behavior:smooth;
-      background:var(--ace-gepe-page-bg);
+      background:var(--ace-blue-50);
     }
 
     body{
       color:var(--ace-ink);
-      background:var(--ace-gepe-page-background) !important;
+      background:
+        radial-gradient(circle at 7% 0%,rgba(22,137,208,.09),transparent 25rem),
+        radial-gradient(circle at 96% 16%,rgba(139,200,237,.10),transparent 28rem),
+        var(--ace-blue-50) !important;
       -webkit-font-smoothing:antialiased;
       text-rendering:optimizeLegibility;
-    }
-
-    /* O fundo comum aparece por trás dos módulos em todas as telas. */
-    main, .container, .content{
-      background:transparent !important;
-    }
-
-    .tabs .tab.active,
-    .ace-desktop-group-trigger.active,
-    .ace-desktop-group-trigger.open{
-      box-shadow:inset 0 -3px 0 var(--ace-gepe-green),0 5px 14px rgba(18,75,115,.08) !important;
-    }
-
-    #aceMobileBottomNav .ace-bottom-item.active::before{
-      background:var(--ace-gepe-green) !important;
     }
 
     *{
@@ -54192,7 +53670,7 @@ startAuth();
 
     .ace-header-v6{
       isolation:isolate;
-      border-bottom:2px solid var(--ace-gepe-green) !important;
+      border-bottom:1px solid rgba(255,255,255,.18) !important;
       background:
         radial-gradient(circle at 18% 20%,rgba(255,255,255,.12),transparent 18rem),
         linear-gradient(125deg,var(--ace-blue-950) 0%,var(--ace-blue-800) 48%,var(--ace-blue-600) 100%) !important;
@@ -54244,6 +53722,7 @@ startAuth();
       border-color:var(--ace-blue-200) !important;
       background:linear-gradient(180deg,#f4faff,#e4f2fb) !important;
       color:var(--ace-blue-700) !important;
+      box-shadow:inset 0 0 0 1px rgba(22,137,208,.12),0 5px 14px rgba(4,90,148,.08) !important;
     }
 
     #aceDesktopGroupedPopup{
@@ -54278,7 +53757,7 @@ startAuth();
     .ace-admin-info-card{
       border:1px solid var(--ace-line) !important;
       border-radius:var(--ace-radius-md) !important;
-      background:#fff !important;
+      background:rgba(255,255,255,.98) !important;
       box-shadow:var(--ace-shadow-sm) !important;
     }
 
@@ -54319,7 +53798,7 @@ startAuth();
       height:4px;
       margin-top:9px;
       border-radius:999px;
-      background:linear-gradient(90deg,var(--ace-blue-700),var(--ace-gepe-green));
+      background:linear-gradient(90deg,var(--ace-blue-600),var(--ace-blue-300));
     }
 
     .ace-mural-card{
@@ -54348,12 +53827,11 @@ startAuth();
     .ace-report-share-btn,
     .ace-basket-save-btn,
     .ace-stock-confirm,
-    .login-button,
-    .ace-si-box button.ace-si-primary{
+    .login-button{
       border-color:transparent !important;
-      background:linear-gradient(135deg,#09694f,var(--ace-gepe-green-dark)) !important;
+      background:linear-gradient(135deg,var(--ace-blue-800),var(--ace-blue-600)) !important;
       color:#fff !important;
-      box-shadow:0 8px 20px rgba(8,120,91,.20) !important;
+      box-shadow:0 8px 20px rgba(7,90,148,.20) !important;
     }
 
     .ace-mural-admin-btn:hover,
@@ -54363,9 +53841,8 @@ startAuth();
     .ace-report-share-btn:hover,
     .ace-basket-save-btn:hover,
     .ace-stock-confirm:hover,
-    .login-button:hover,
-    .ace-si-box button.ace-si-primary:hover{
-      box-shadow:0 11px 26px rgba(8,120,91,.28) !important;
+    .login-button:hover{
+      box-shadow:0 11px 26px rgba(7,90,148,.28) !important;
       transform:translateY(-2px);
     }
 
@@ -54579,7 +54056,7 @@ startAuth();
     }
 
     #aceChatSend{
-      background:linear-gradient(135deg,#09694f,var(--ace-gepe-green-dark)) !important;
+      background:linear-gradient(135deg,var(--ace-blue-800),var(--ace-blue-600)) !important;
       box-shadow:0 7px 17px rgba(7,90,148,.18);
     }
 
@@ -54696,7 +54173,7 @@ startAuth();
     @media(max-width:850px){
       body{
         background:
-          var(--ace-gepe-page-background) !important;
+          linear-gradient(180deg,#edf7fd 0,#f7fbfe 250px,#f4f9fd 100%) !important;
       }
 
       .ace-header-v6{
@@ -54837,10 +54314,6 @@ startAuth();
         transition-duration:.01ms !important;
       }
     }
-    @media print{
-      html, body{background:#fff !important;}
-    }
-
   `;
 
   document.head.appendChild(style);
@@ -55317,7 +54790,7 @@ async function refreshAceInventoryState(render = true) {
   if (aceInventoryActive) {
     const itemsResult = await aceEconomicSelect(
       "inventario_itens",
-      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca,incluido_durante_contagem,observacao_encontrado,incluido_por_nome",
+      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
       query => query
         .eq("inventario_id", aceInventoryActive.id)
         .order("alimento_nome")
@@ -55383,7 +54856,7 @@ async function refreshAceInventoryState(render = true) {
   if (aceInventoryLast) {
     const lastItemsResult = await aceEconomicSelect(
       "inventario_itens",
-      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca,incluido_durante_contagem,observacao_encontrado,incluido_por_nome",
+      "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
       query => query
         .eq("inventario_id", aceInventoryLast.id)
         .order("alimento_nome")
@@ -55825,7 +55298,7 @@ function renderAceLastInventorySummary() {
 
           return `
             <tr class="${difference !== 0 ? "ace-inventory-adjusted-row" : ""}">
-              <td>${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
+              <td>${esc(item.alimento_nome)}</td>
               <td>${fmt(systemQuantity)}</td>
               <td><b>${fmt(countedQuantity)}</b></td>
               <td>
@@ -56603,7 +56076,7 @@ function renderAceInventory() {
 
       return `
         <tr>
-          <td>${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
+          <td>${esc(item.alimento_nome)}</td>
           <td><b>${fmt(item.estoque_sistema || 0)}</b></td>
           <td>
             <div class="ace-inventory-count-control">
@@ -56661,8 +56134,7 @@ function renderAceInventory() {
         </div>
         <div class="ace-inventory-actions">
           ${owner ? `<button id="aceInventoryFinish" class="ace-inventory-btn ace-inventory-finish" type="button" ${!total || counted !== total || aceInventorySnapshotSyncError ? "disabled" : ""}>✍️ Assinar e finalizar inventário</button>` : ""}
-          ${owner || isAceOperationalAdmin() ? `<button id="aceInventoryFound" class="ace-inventory-btn ace-inventory-start" type="button" ${!online ? "disabled" : ""}>➕ Adicionar alimento encontrado</button>` : ""}
-          <button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button" ${!online ? "disabled" : ""}>🗑️ Cancelar inventário</button>
+          ${typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin() ? '<button id="aceInventoryCancel" class="ace-inventory-btn ace-inventory-cancel" type="button">🗑️ Cancelar inventário</button>' : ""}
         </div>
       </div>`;
   }
@@ -56858,7 +56330,7 @@ async function saveAceInventoryCount(itemId, quantity) {
 }
 
 
-function requestAceInventorySignatures(options = {}) {
+function requestAceInventorySignatures() {
   return new Promise(resolve => {
     document
       .getElementById("aceInventorySignatureModal")
@@ -56866,7 +56338,6 @@ function requestAceInventorySignatures(options = {}) {
 
     const responsibleDefault =
       String(
-        options.responsibleName ||
         aceInventoryActive?.usuario_nome ||
         getCurrentDisplayName() ||
         ""
@@ -57173,9 +56644,7 @@ async function finishAceInventory() {
 
 
 async function cancelAceInventory() {
-  if (!currentUser?.id || !isAceInventoryInProgress()) return;
-  if (!aceIsOnline()) return showAceMessage("Conecte-se à internet para cancelar o inventário para todos os usuários.", "Operação online");
-  const inventoryId = Number(aceInventoryActive.id);
+  if (!(typeof isAceOperationalAdmin === "function" && isAceOperationalAdmin())) return;
 
   const confirmed = await showAceConfirm(
     "Cancelar o inventário em andamento?\n\nNenhum ajuste será aplicado ao estoque.",
@@ -57184,7 +56653,7 @@ async function cancelAceInventory() {
   if (!confirmed) return;
 
   const { error } = await supabaseClient.rpc("ace_cancelar_inventario", {
-    p_inventario_id: inventoryId
+    p_inventario_id: Number(aceInventoryActive.id)
   });
   if (error) throw error;
 
@@ -57334,7 +56803,7 @@ function buildAceInventoryPdfElement(inventory, items) {
     return `
       <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;color:#667085;text-align:center">${index + 1}</td>
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;font-weight:700">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
+        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;font-weight:700">${esc(item.alimento_nome)}</td>
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right">${fmt(system)}</td>
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900">${fmt(counted)}</td>
         <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor}">${difference > 0 ? "+" : ""}${fmt(difference)}</td>
@@ -57436,7 +56905,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
           ),
           aceEconomicSelect(
             "inventario_itens",
-            "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca,incluido_durante_contagem,observacao_encontrado,incluido_por_nome",
+            "id,inventario_id,alimento_id,alimento_nome,estoque_sistema,quantidade_contada,diferenca",
             query => query
               .eq("inventario_id", Number(inventoryId))
               .order("alimento_nome")
@@ -57567,7 +57036,6 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
 
 
 function bindAceInventoryPageEvents() {
-  document.getElementById("aceInventoryFound")?.addEventListener("click", showAceInventoryFoundDialog);
   document.getElementById("aceInventoryAdjustedToggle")?.addEventListener("click", () => {
     aceInventoryShowOnlyAdjusted = !aceInventoryShowOnlyAdjusted;
     renderAceInventory();
@@ -60737,228 +60205,6 @@ function aceStatsTopTieLabel(
 }
 
 
-// Painel mensal com filtros locais. Consulta somente os dados já carregados.
-let aceMonthlyState = {mode:'food',foodId:'',search:'',month:'',anchor:'',span:6,visible:{a:true,b:true,c:true}};
-let aceMonthlyModel = null;
-let aceMonthlyModal = null;
-
-function aceMonthlyShift(month, delta) {
-  const [year,number] = month.split('-').map(Number);
-  const index = year * 12 + number - 1 + delta;
-  return `${String(Math.floor(index/12)).padStart(4,'0')}-${String(index%12+1).padStart(2,'0')}`;
-}
-function aceMonthlyMonthLabel(month) {
-  if (!aceMonthlyValidMonth(month)) return '';
-  const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  return `${names[Number(month.slice(5,7))-1]}/${month.slice(0,4)}`;
-}
-function aceMonthlyValidMonth(month) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && Number(month.slice(0,4))>0; }
-function aceMonthlyQty(value) { const n=Number(value); return Number.isFinite(n) && n>0 ? n : 0; }
-function aceMonthlyFoods(source) {
-  const map=new Map((source.foods||[]).map(food=>[String(food.id),{id:String(food.id),name:String(food.name||'Alimento sem nome')}]));
-  [...(source.entries||[]),...(source.movements||[])].forEach(row=>{
-    if(row.foodId!=null && !map.has(String(row.foodId))) map.set(String(row.foodId),{id:String(row.foodId),name:String(row.foodName||`Alimento #${row.foodId}`)});
-  });
-  return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-}
-function aceMonthlyBuildModel(source,state) {
-  const month=aceMonthlyValidMonth(state.month)?state.month:aceStatsIsoToday().slice(0,7);
-  const anchor=aceMonthlyValidMonth(state.anchor)?state.anchor:month;
-  const span=[3,6,12].includes(Number(state.span))?Number(state.span):6;
-  const months=Array.from({length:span},(_,i)=>aceMonthlyShift(anchor,i-span+1));
-  const foodMode=state.mode!=='basket';
-  const series=foodMode
-    ? [{key:'a',label:'Entradas',color:'#11966f'},{key:'b',label:'Saídas',color:'#1689d0'},{key:'c',label:'Perdas',color:'#dc3b35'}]
-    : [{key:'a',label:'Montadas',color:'#7b68c9'},{key:'b',label:'Saídas',color:'#1689d0'},{key:'c',label:'Estornos',color:'#c75284'}];
-  const foodMatch=row=>!state.foodId||String(row.foodId)===String(state.foodId);
-  const rows=foodMode ? {
-    a:(source.entries||[]).filter(foodMatch),
-    b:(source.movements||[]).filter(row=>row.type==='saida'&&foodMatch(row)),
-    c:(source.movements||[]).filter(row=>row.type==='perda'&&foodMatch(row))
-  } : {
-    a:(source.basketStock||[]).filter(row=>!row.hiddenHistory),
-    b:source.basketWithdrawals||[],
-    c:(source.basketAdjustments||[]).filter(row=>row.type==='estorno')
-  };
-  const qty=(row,key)=>aceMonthlyQty(!foodMode&&key==='a'?row.mountedQty:row.qty);
-  const monthly=months.map(key=>({month:key,a:0,b:0,c:0}));
-  const byMonth=new Map(monthly.map(item=>[item.month,item]));
-  const totals={a:0,b:0,c:0};
-  const dailyKey=foodMode?'a':'b';
-  const date=new Date(month+'-01T12:00:00');date.setMonth(date.getMonth()+1);date.setDate(0);
-  const days=Array.from({length:date.getDate()},(_,i)=>({date:`${month}-${String(i+1).padStart(2,'0')}`,value:0,count:0}));
-  const byDay=new Map(days.map(item=>[item.date,item]));
-  const ranking=new Map();
-  for(const key of ['a','b','c']) rows[key].forEach(row=>{
-    const day=String(row.date||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return;
-    const value=qty(row,key),item=byMonth.get(day.slice(0,7));
-    if(item)item[key]+=value;
-    if(day.slice(0,7)!==month)return;
-    totals[key]+=value;
-    if(key===dailyKey&&byDay.has(day)){byDay.get(day).value+=value;byDay.get(day).count++;}
-    if((foodMode&&key==='c')||(!foodMode&&key==='b')){
-      const label=foodMode?aceStatsName(source.reasons,row.reasonId,row.reason||'Motivo não informado'):String(row.destination||'Destino não informado');
-      ranking.set(label,(ranking.get(label)||0)+value);
-    }
-  });
-  const foods=aceMonthlyFoods(source);
-  return {mode:foodMode?'food':'basket',month,anchor,span,months:monthly,series,totals,days,dailyKey,
-    ranking:[...ranking].map(([label,value])=>({label,value})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value||a.label.localeCompare(b.label,'pt-BR')),
-    unit:foodMode?'unidades':'cestas',foodName:foodMode?(foods.find(food=>food.id===String(state.foodId))?.name||(state.foodId?`Alimento #${state.foodId}`:'Todos os alimentos')):'Cestas',foods};
-}
-function aceMonthlyFoodOptions(model) {
-  const query=aceStatsNormalize(aceMonthlyState.search);
-  const foods=model.foods.filter(food=>food.id===String(aceMonthlyState.foodId)||!query||aceStatsNormalize(food.name).includes(query));
-  return '<option value="">Todos os alimentos</option>'+foods.map(food=>`<option value="${aceStatsEsc(food.id)}" ${food.id===String(aceMonthlyState.foodId)?'selected':''}>${aceStatsEsc(food.name)}</option>`).join('');
-}
-function aceMonthlyGraph(model,kind) {
-  const e=aceStatsEsc,f=aceStatsFmt;
-  if(kind==='monthly'){
-    const visible=model.series.filter(item=>aceMonthlyState.visible[item.key]!==false);
-    const max=Math.max(4,Math.ceil(Math.max(0,...model.months.flatMap(item=>visible.map(series=>item[series.key])))/4)*4);
-    const width=Math.max(620,model.months.length*105),height=290,left=64,right=18,top=30,bottom=55;
-    const plot=width-left-right,plotHeight=height-top-bottom,step=plot/model.months.length;
-    const grid=Array.from({length:5},(_,i)=>{const y=top+plotHeight*i/4;return `<line x1="${left}" x2="${width-right}" y1="${y}" y2="${y}" stroke="#dce7ef"/><text x="${left-9}" y="${y+4}" text-anchor="end">${f(max*(1-i/4))}</text>`;}).join('');
-    const bars=model.months.map((item,i)=>{
-      const tip=`${aceMonthlyMonthLabel(item.month)}: ${model.series.map(series=>`${series.label} ${f(item[series.key])}`).join(' · ')}`;
-      const groupWidth=Math.min(step*.75,72),barWidth=groupWidth/visible.length;
-      return `<g role="button" tabindex="0" data-amp-month="${item.month}" data-amp-tip="${e(tip)}" aria-label="${e(tip)}. Abrir detalhes deste mês." aria-pressed="${item.month===model.month}"><title>${e(tip)}</title><rect x="${left+i*step}" y="${top}" width="${step}" height="${plotHeight+35}" fill="${item.month===model.month?'#eaf5fb':'#fff'}" fill-opacity="${item.month===model.month?1:0}" pointer-events="all" rx="7"/>${visible.map((series,j)=>{
-        const value=item[series.key],h=value/max*plotHeight,x=left+i*step+(step-groupWidth)/2+j*barWidth;
-        return `<rect x="${x+2}" y="${top+plotHeight-h}" width="${Math.max(3,barWidth-4)}" height="${h}" rx="3" fill="${series.color}"/>`;
-      }).join('')}<text x="${left+(i+.5)*step}" y="${height-22}" text-anchor="middle">${e(aceMonthlyMonthLabel(item.month))}</text></g>`;
-    }).join('');
-    return `<div class="ace-amp-legend" role="group" aria-label="Séries do comparativo mensal">${model.series.map(item=>`<button type="button" id="aceMonthlySeries${item.key}" data-amp-series="${item.key}" aria-pressed="${aceMonthlyState.visible[item.key]!==false}" ${visible.length===1&&visible[0].key===item.key?'disabled':''}><i style="background:${item.color}"></i>${e(item.label)}</button>`).join('')}</div><div class="ace-amp-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="min-width:${width}px" aria-label="Comparativo mensal em ${model.unit}. Selecione um mês para detalhar." role="group">${grid}${bars}</svg></div>`;
-  }
-  if(kind==='daily'){
-    const width=Math.max(680,model.days.length*27),height=260,left=58,top=28,bottom=42,plotHeight=height-top-bottom,step=(width-left-15)/model.days.length;
-    const max=Math.max(4,Math.ceil(Math.max(0,...model.days.map(day=>day.value))/4)*4);
-    const grid=Array.from({length:5},(_,i)=>{const y=top+plotHeight*i/4;return `<line x1="${left}" x2="${width-15}" y1="${y}" y2="${y}" stroke="#dce7ef"/><text x="${left-8}" y="${y+4}" text-anchor="end">${f(max*(1-i/4))}</text>`;}).join('');
-    const bars=model.days.map((day,i)=>{
-      const tip=`${fmtDate(day.date)}: ${f(day.value)} ${model.unit} · ${day.count} lançamento(s)`,h=day.value/max*plotHeight,x=left+i*step;
-      return `<g role="button" tabindex="0" data-amp-day="${day.date}" data-amp-tip="${e(tip)}" aria-label="${e(tip)}"><title>${e(tip)}</title><rect x="${x}" y="${top}" width="${step}" height="${plotHeight}" fill="#fff" fill-opacity="0" pointer-events="all"/><rect x="${x+3}" y="${top+plotHeight-h}" width="${Math.max(3,step-6)}" height="${h}" fill="${model.mode==='food'?'#11966f':'#1689d0'}" rx="3"/><text x="${x+step/2}" y="${height-18}" text-anchor="middle">${Number(day.date.slice(-2))}</text></g>`;
-    }).join('');
-    return `${model.days.every(day=>!day.value)?'<p class="ace-amp-empty">Nenhuma movimentação deste tipo no mês selecionado.</p>':''}<div class="ace-amp-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="min-width:${width}px" role="group" aria-label="${model.mode==='food'?'Entradas':'Saídas de cestas'} por dia, em ${model.unit}. Toque em um dia para consultar.">${grid}${bars}</svg></div>`;
-  }
-  const total=model.ranking.reduce((sum,item)=>sum+item.value,0),max=Math.max(1,...model.ranking.map(item=>item.value));
-  return model.ranking.length?`<div class="ace-amp-ranking">${model.ranking.map(item=>{
-    const tip=`${item.label}: ${f(item.value)} ${model.unit} (${(item.value/total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%)`;
-    return `<button type="button" class="ace-amp-rank" data-amp-tip="${e(tip)}" aria-label="${e(tip)}"><span>${e(item.label)}</span><strong>${f(item.value)} <small>${(item.value/total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</small></strong><i><b style="width:${item.value/max*100}%"></b></i></button>`;
-  }).join('')}</div>`:`<div class="ace-amp-empty">${model.mode==='food'?'Nenhuma perda registrada para esta seleção.':'Nenhuma saída de cesta registrada para esta seleção.'}</div>`;
-}
-function aceMonthlyGraphTitle(model,kind) {
-  return kind==='monthly'?'Comparativo mensal':kind==='daily'?(model.mode==='food'?'Entradas por dia do mês':'Saídas de cestas por dia'):(model.mode==='food'?'Perdas por motivo':'Destinos das saídas de cestas');
-}
-function aceMonthlyChartCard(model,kind) {
-  return `<article class="ace-amp-chart" data-amp-chart="${kind}"><div class="ace-amp-chart-head"><h4>${aceMonthlyGraphTitle(model,kind)}</h4><button type="button" data-amp-expand="${kind}" aria-label="Ampliar ${aceMonthlyGraphTitle(model,kind)}">⛶ Ampliar</button></div>${aceMonthlyGraph(model,kind)}<p class="ace-amp-tip" data-amp-detail role="status" aria-live="polite">${kind==='monthly'?'Clique ou toque em um mês para abrir seu detalhamento.':kind==='daily'?'Passe o mouse, use o teclado ou toque nas colunas para consultar data e quantidade.':'Consulte as quantidades e os percentuais desta seleção.'}</p></article>`;
-}
-function aceMonthlyEnsureStyles() {
-  if(document.getElementById('aceMonthlyPanelStyle111'))return;
-  const style=document.createElement('style');style.id='aceMonthlyPanelStyle111';
-  style.textContent=`
-    #aceMonthlyExplorer,.ace-amp-modal{--amp-blue:#124b73;--amp-green:#11966f;color:#173750}
-    .ace-amp-mode,.ace-amp-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-    .ace-amp-mode button,.ace-amp-legend button,.ace-amp-chart-head button,.ace-amp-reset,.ace-amp-modal button[data-amp-close]{font:inherit;font-size:13px;min-height:44px;padding:9px 13px;border:1px solid #bfd4e4;border-radius:10px;color:#124b73;background:#fff;cursor:pointer}
-    .ace-amp-mode button[aria-pressed=true]{background:#124b73;color:#fff;border-color:#124b73}
-    .ace-amp-legend button{display:flex;align-items:center;gap:6px;min-height:38px}
-    .ace-amp-legend button[aria-pressed=false]{opacity:.5;text-decoration:line-through}
-    .ace-amp-legend i{display:block;width:9px;height:9px;border-radius:50%}
-    .ace-amp-legend button:disabled{cursor:default}
-    .ace-amp-filters{display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.4fr) minmax(145px,1fr) minmax(125px,.8fr) auto;gap:12px;align-items:end;padding:16px;background:#eff7fc;border:1px solid #d5e6f0;border-radius:14px}
-    .ace-amp-filters label{display:grid;gap:6px;min-width:0;font-size:13px;font-weight:750}
-    .ace-amp-filters input,.ace-amp-filters select{box-sizing:border-box;width:100%;min-width:0;min-height:44px;border:1px solid #b7cfdf;border-radius:9px;padding:9px 10px;background:#fff;color:#173750;font:inherit;font-size:14px}
-    .ace-amp-filters :disabled{opacity:.6}
-    .ace-amp-context{font-size:13px;line-height:1.5;margin:12px 0;color:#526d80}
-    .ace-amp-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}
-    .ace-amp-kpi{padding:14px;border:1px solid #d5e5ef;border-top:3px solid var(--amp-color);border-radius:12px;background:#fff;min-width:0}
-    .ace-amp-kpi span,.ace-amp-kpi small{display:block;font-size:12px;color:#526d80;line-height:1.5}.ace-amp-kpi strong{display:block;font-size:26px;color:var(--amp-color);overflow-wrap:anywhere}
-    .ace-amp-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ace-amp-charts>.ace-amp-chart:first-child{grid-column:1/-1}
-    .ace-amp-chart{min-width:0;padding:16px;background:#fff;border:1px solid #d3e3ee;border-radius:14px;box-sizing:border-box}
-    .ace-amp-chart-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}.ace-amp-chart-head h4{margin:0;font-size:16px;line-height:1.4;color:#124b73}
-    .ace-amp-scroll{overflow-x:auto;overscroll-behavior-x:contain;max-width:100%}.ace-amp-scroll svg{display:block;width:100%;height:auto;max-height:380px;overflow:visible}.ace-amp-scroll text{font-size:12px;font-family:Arial,sans-serif;fill:#526d80}
-    .ace-amp-scroll g[role=button]{cursor:pointer}.ace-amp-scroll g[role=button]:focus{outline:2px solid #0b74ad;outline-offset:-2px}.ace-amp-scroll g[role=button]:hover>rect:first-of-type{fill:#e5f3fa;fill-opacity:1}
-    .ace-amp-tip{margin:12px 0 0;padding:10px;border-radius:9px;background:#f2f7fa;color:#425d72;font-size:12px;line-height:1.5;min-height:18px}
-    .ace-amp-empty{padding:20px;color:#6b8192;font-size:14px;line-height:1.5;text-align:center}
-    .ace-amp-ranking{max-height:300px;overflow:auto;overscroll-behavior:contain}.ace-amp-rank{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;width:100%;padding:10px 0;border:0;border-bottom:1px solid #e7eef3;background:#fff;color:#173750;text-align:left;font:inherit;font-size:13px;cursor:pointer}.ace-amp-rank>span{overflow-wrap:anywhere}.ace-amp-rank>strong{font-size:13px;white-space:nowrap}.ace-amp-rank small{color:#61798a;font-size:11px}.ace-amp-rank>i{grid-column:1/-1;display:block;height:8px;background:#edf2f6;border-radius:5px;overflow:hidden}.ace-amp-rank b{display:block;height:100%;background:#c75284;border-radius:5px}
-    #aceMonthlyExplorer :is(button,input,select):focus-visible,.ace-amp-modal button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
-    .ace-amp-modal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.66);box-sizing:border-box;overscroll-behavior:none}
-    .ace-amp-modal-box{width:min(1180px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;background:#fff;border-radius:18px;padding:20px;box-sizing:border-box}.ace-amp-modal-head{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:15px}.ace-amp-modal-head h3{margin:0;font-size:18px;line-height:1.4;color:#124b73}.ace-amp-modal .ace-amp-chart{padding:10px;border:0}.ace-amp-modal .ace-amp-scroll svg{max-height:65vh}
-    @media(max-width:850px){.ace-amp-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.ace-amp-reset{grid-column:1/-1}.ace-amp-charts{grid-template-columns:1fr}.ace-amp-chart{padding:12px}.ace-amp-kpi{padding:10px}.ace-amp-kpi strong{font-size:23px}.ace-amp-modal{padding:8px}.ace-amp-modal-box{padding:14px;max-height:calc(100dvh - 16px)}}
-    @media(max-width:380px){.ace-amp-filters{grid-template-columns:1fr}.ace-amp-kpis{gap:6px}.ace-amp-kpi strong{font-size:20px}}
-  `;
-  document.head.appendChild(style);
-}
-function renderAceMonthlyPanel() {
-  const host=document.getElementById('aceMonthlyExplorer');if(!host)return;
-  aceMonthlyEnsureStyles();
-  if(!aceMonthlyValidMonth(aceMonthlyState.month))aceMonthlyState.month=aceStatsIsoToday().slice(0,7);
-  if(!aceMonthlyValidMonth(aceMonthlyState.anchor))aceMonthlyState.anchor=aceMonthlyState.month;
-  const model=aceMonthlyBuildModel(db,aceMonthlyState);aceMonthlyModel=model;
-  const e=aceStatsEsc,foodMode=model.mode==='food';
-  host.innerHTML=`<div class="ace-amp-mode" role="group" aria-label="Análise mensal"><button type="button" data-amp-mode="food" aria-pressed="${foodMode}">Alimentos</button><button type="button" data-amp-mode="basket" aria-pressed="${!foodMode}">Cestas</button></div>
-    <div class="ace-amp-filters"><label>Buscar alimento<input id="aceMonthlyFoodSearch" type="search" value="${e(aceMonthlyState.search)}" placeholder="Digite o nome" ${foodMode?'':'disabled'}></label><label>Alimento<select id="aceMonthlyFood" ${foodMode?'':'disabled'}>${aceMonthlyFoodOptions(model)}</select></label><label>Mês e ano<input id="aceMonthlyMonth" type="month" value="${model.month}"></label><label>Comparar<select id="aceMonthlySpan">${[3,6,12].map(n=>`<option value="${n}" ${model.span===n?'selected':''}>${n} meses</option>`).join('')}</select></label><button type="button" class="ace-amp-reset" data-amp-reset>Limpar filtros</button></div>
-    <p class="ace-amp-context"><strong>${e(model.foodName)} · ${e(aceMonthlyMonthLabel(model.month))}</strong><br>Filtros exclusivos deste painel. Quantidades em ${model.unit}${foodMode?', conforme o cadastro dos alimentos':''}. Meses sem movimentação aparecem com zero.</p>
-    <div class="ace-amp-kpis">${model.series.map(item=>`<div class="ace-amp-kpi" style="--amp-color:${item.color}"><span>${item.label} no mês</span><strong>${aceStatsFmt(model.totals[item.key])}</strong><small>${model.unit}</small></div>`).join('')}</div>
-    <div class="ace-amp-charts">${['monthly','daily','ranking'].map(kind=>aceMonthlyChartCard(model,kind)).join('')}</div>`;
-  host.querySelector('#aceMonthlyFoodSearch').addEventListener('input',event=>{aceMonthlyState.search=event.target.value;host.querySelector('#aceMonthlyFood').innerHTML=aceMonthlyFoodOptions(model);});
-  host.querySelector('#aceMonthlyFood').addEventListener('change',event=>{aceMonthlyState.foodId=event.target.value;aceMonthlyRepaint('aceMonthlyFood');});
-  host.querySelector('#aceMonthlyMonth').addEventListener('change',event=>{if(!aceMonthlyValidMonth(event.target.value))return;aceMonthlyState.month=event.target.value;aceMonthlyState.anchor=event.target.value;aceMonthlyRepaint('aceMonthlyMonth');});
-  host.querySelector('#aceMonthlySpan').addEventListener('change',event=>{aceMonthlyState.span=Number(event.target.value);aceMonthlyState.anchor=aceMonthlyState.month;aceMonthlyRepaint('aceMonthlySpan');});
-  host.querySelector('[data-amp-reset]').addEventListener('click',()=>{aceMonthlyState={mode:aceMonthlyState.mode,foodId:'',search:'',month:aceStatsIsoToday().slice(0,7),anchor:'',span:6,visible:{a:true,b:true,c:true}};aceMonthlyRepaint();});
-  aceMonthlyBindCharts(host,model);
-}
-function aceMonthlyRepaint(focusId) {renderAceMonthlyPanel();if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});}
-function aceMonthlyBindCharts(host,model) {
-  host.aceMonthlyModel = model;
-  if (host.aceMonthlyEventsBound) return;
-  host.aceMonthlyEventsBound = true;
-  const details=target=>{
-    const point=target.closest?.('[data-amp-tip]');if(!point)return;
-    point.closest('[data-amp-chart]')?.querySelector('[data-amp-detail]')?.replaceChildren(document.createTextNode(point.dataset.ampTip));
-  };
-  host.addEventListener('mouseover',event=>details(event.target));host.addEventListener('focusin',event=>details(event.target));
-  host.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches?.('g[role=button]')){event.preventDefault();event.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
-  host.addEventListener('click',event=>{
-    const target=event.target.closest?.('button,[data-amp-month],[data-amp-day]');if(!target)return;
-    details(target);
-    if(target.hasAttribute('data-amp-mode')){aceMonthlyState.mode=target.dataset.ampMode;aceMonthlyState.visible={a:true,b:true,c:true};aceMonthlyRepaint();document.getElementById('aceMonthlyExplorer')?.querySelector(`[data-amp-mode="${aceMonthlyState.mode}"]`)?.focus({preventScroll:true});return;}
-    if(target.hasAttribute('data-amp-series')){
-      const key=target.dataset.ampSeries;if(aceMonthlyState.visible[key]!==false&&host.aceMonthlyModel.series.filter(item=>aceMonthlyState.visible[item.key]!==false).length===1)return;
-      aceMonthlyState.visible[key]=aceMonthlyState.visible[key]===false;
-      const kind=aceMonthlyModal?.kind;if(kind){aceMonthlyCloseExpanded();renderAceMonthlyPanel();aceMonthlyOpenExpanded(kind);aceMonthlyModal?.overlay.querySelector(`[data-amp-series="${key}"]`)?.focus({preventScroll:true});}else aceMonthlyRepaint('aceMonthlySeries'+key);return;
-    }
-    if(target.hasAttribute('data-amp-month')){aceMonthlyState.month=target.dataset.ampMonth;const expanded=!!aceMonthlyModal;if(expanded)aceMonthlyCloseExpanded();aceMonthlyRepaint('aceMonthlyMonth');return;}
-    if(target.hasAttribute('data-amp-expand'))aceMonthlyOpenExpanded(target.dataset.ampExpand);
-  });
-}
-function aceMonthlyOpenExpanded(kind) {
-  if(!aceMonthlyModel||aceMonthlyModal)return;
-  const model=aceMonthlyModel,overlay=document.createElement('div');overlay.className='ace-amp-modal';overlay.id='aceMonthlyExpanded';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-labelledby','aceMonthlyExpandedTitle');
-  overlay.innerHTML=`<div class="ace-amp-modal-box"><div class="ace-amp-modal-head"><h3 id="aceMonthlyExpandedTitle">${aceStatsEsc(aceMonthlyGraphTitle(model,kind))} · ${aceStatsEsc(model.foodName)} · ${aceStatsEsc(aceMonthlyMonthLabel(model.month))}</h3><button type="button" data-amp-close aria-label="Fechar gráfico ampliado">× Fechar</button></div>${aceMonthlyChartCard(model,kind).replace(/<button type="button" data-amp-expand="[^"]+"[^>]*>[^<]*<\/button>/,'')}</div>`;
-  overlay.innerHTML=overlay.innerHTML.replace(/id="aceMonthlySeries([abc])"/g,'id="aceMonthlyExpandedSeries$1"');
-  const properties=['position','top','left','right','width','overflow','scroll-behavior'];
-  const save=element=>properties.map(name=>({name,value:element.style.getPropertyValue(name),priority:element.style.getPropertyPriority(name)}));
-  aceMonthlyModal={kind,overlay,focus:document.activeElement,x:window.scrollX,y:window.scrollY,body:save(document.body),root:save(document.documentElement)};
-  document.body.style.setProperty('position','fixed','important');document.body.style.setProperty('top',`${-aceMonthlyModal.y}px`,'important');document.body.style.setProperty('left','0','important');document.body.style.setProperty('right','0','important');document.body.style.setProperty('width','100%','important');
-  document.body.style.setProperty('overflow','hidden','important');document.documentElement.style.setProperty('overflow','hidden','important');
-  document.body.appendChild(overlay);aceMonthlyBindCharts(overlay,model);
-  overlay.addEventListener('click',event=>{if(event.target===overlay||event.target.closest('[data-amp-close]'))aceMonthlyCloseExpanded();});
-  overlay.addEventListener('keydown',event=>{
-    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();aceMonthlyCloseExpanded();return;}
-    if(event.key!=='Tab')return;
-    const controls=[...overlay.querySelectorAll('button:not(:disabled),[tabindex="0"]')].filter(node=>node.getClientRects().length);
-    const first=controls[0],last=controls[controls.length-1];if(!first)return;
-    if(event.shiftKey&&(document.activeElement===first||!overlay.contains(document.activeElement))){event.preventDefault();last.focus();}else if(!event.shiftKey&&(document.activeElement===last||!overlay.contains(document.activeElement))){event.preventDefault();first.focus();}
-  });
-  overlay.querySelector('[data-amp-close]').focus({preventScroll:true});
-}
-function aceMonthlyCloseExpanded() {
-  const state=aceMonthlyModal;if(!state)return;aceMonthlyModal=null;state.overlay.remove();
-  const restore=(element,properties,behavior=false)=>properties.forEach(item=>{if((item.name==='scroll-behavior')!==behavior)return;if(item.value)element.style.setProperty(item.name,item.value,item.priority);else element.style.removeProperty(item.name);});
-  document.body.style.setProperty('scroll-behavior','auto','important');document.documentElement.style.setProperty('scroll-behavior','auto','important');restore(document.body,state.body);restore(document.documentElement,state.root);window.scrollTo(state.x,state.y);restore(document.body,state.body,true);restore(document.documentElement,state.root,true);
-  if(state.focus?.isConnected)state.focus.focus({preventScroll:true});else document.getElementById('aceMonthlyMonth')?.focus({preventScroll:true});
-}
-
-
 function renderAceStatistics() {
   const page =
     document.getElementById(
@@ -61384,17 +60630,61 @@ function renderAceStatistics() {
     </section>
 
     <section class="ace-stats-section">
-      <div class="ace-stats-section-head"><div>
-        <h3>📈 Painel mensal interativo</h3>
-        <p>Explore alimentos e cestas por mês. Selecione um mês no gráfico para detalhar.</p>
-      </div></div>
-      <div id="aceMonthlyExplorer"></div>
+
+      <div class="ace-stats-section-head">
+        <div>
+          <h3>📈 Evolução mensal</h3>
+          <p>
+            Comparativo dos últimos meses com movimentação registrada.
+          </p>
+        </div>
+      </div>
+
+      <div class="ace-stats-grid">
+        ${aceStatsEvolutionChart(
+          entries,
+          movements,
+          baskets
+        )}
+      </div>
+
     </section>
   `;
 
 
-  renderAceMonthlyPanel();
+  body
+    .querySelectorAll(
+      "[data-ace-stats-evolution-metric]"
+    )
+    .forEach(button => {
 
+      button.addEventListener(
+        "click",
+        () => {
+
+          const metric =
+            String(
+              button.dataset
+                .aceStatsEvolutionMetric ||
+              ""
+            );
+
+
+          if (!metric) {
+            return;
+          }
+
+
+          aceStatsEvolutionMetric =
+            metric;
+
+
+          renderAceStatistics();
+
+        }
+      );
+
+    });
 }
 
 
@@ -61911,8 +61201,7 @@ window.aceBuildStatisticsReportHtml =
     management: {
       label: "📈 Gestão",
       items: [
-        { target: "inventario", label: "📦 Inventário de alimentos" },
-        { target: "inventarioSacos", label: "🛍️ Inventário de sacos" }
+        { target: "inventario", label: "📦 Inventário" }
       ]
     },
     settings: {
@@ -61933,7 +61222,6 @@ window.aceBuildStatisticsReportHtml =
       );
 
   const directDesktop = [
-    { target: "mural", order: 10 },
     { target: "inicio", order: 20 },
     { target: "presenca", order: 30 }
   ];
@@ -62042,6 +61330,11 @@ window.aceBuildStatisticsReportHtml =
     closeDesktopPopup();
     closeMobileSheet();
 
+    if (destination === "publicacoes") {
+      if (!canUseAceAdminSettings()) return;
+      openOriginal("mural");
+      return;
+    }
 
     if (
       typeof openAceConfigurationDestination ===
@@ -62074,11 +61367,6 @@ window.aceBuildStatisticsReportHtml =
   function openOriginal(target) {
     closeDesktopPopup();
     closeMobileSheet();
-    if (target === "inventarioSacos") {
-      if (typeof closeAceMobileDrawer === "function") closeAceMobileDrawer();
-      openAceSackInventory().catch(error => showAceMessage(error.message, "Inventário de sacos"));
-      return;
-    }
 
     try {
       if (typeof activateAceOriginalTab === "function") {
@@ -62339,10 +61627,6 @@ window.aceBuildStatisticsReportHtml =
 
         #aceMobileBottomNav .ace-bottom-item[data-ace-color="movimentos"] .icon {
           background: #edf7ff;
-        }
-
-        #aceMobileBottomNav .ace-bottom-item[data-ace-color="gestao"] .icon {
-          background: #eaf8ef;
         }
 
         #aceMobileBottomNav .ace-bottom-item[data-ace-color="mais"] .icon {
@@ -62814,6 +62098,8 @@ window.aceBuildStatisticsReportHtml =
         >
           📁 Cadastros
         </button>
+
+        ${canUseAceAdminSettings() ? `<button type="button" data-ace-config-destination="publicacoes">📰 Publicações</button>` : ""}
 
         ${adminOptions}
 
@@ -63288,11 +62574,6 @@ window.aceBuildStatisticsReportHtml =
         <h3 class="ace-group-sheet-title">🔄 Movimentações</h3>
         ${groups.movements.items.map(renderMobileSheetItem).join("")}
       `;
-    } else if (kind === "management") {
-      content.innerHTML = `
-        <h3 class="ace-group-sheet-title">📈 Gestão</h3>
-        ${groups.management.items.map(renderMobileSheetItem).join("")}
-      `;
     } else {
       const accordionSection = (key, icon, title, items) => `
         <div class="ace-more-accordion-section" data-ace-more-section="${key}">
@@ -63316,7 +62597,7 @@ window.aceBuildStatisticsReportHtml =
 
         <div class="ace-more-accordion">
           ${accordionSection("queries", "🗂️", "Consultas", groups.queries.items)}
-          ${renderMobileSheetItem({target:"presenca",label:"👥 Presença"})}
+          ${accordionSection("management", "📈", "Gestão", groups.management.items)}
           <div
             class="ace-more-accordion-section"
             data-ace-more-section="settings"
@@ -63350,6 +62631,8 @@ window.aceBuildStatisticsReportHtml =
               >
                 📁 Cadastros
               </button>
+
+              ${canUseAceAdminSettings() ? `<button class="ace-group-sheet-item" type="button" data-ace-config-destination="publicacoes">📰 Publicações</button>` : ""}
 
               ${
                 canUseAceAdminSettings()
@@ -63572,31 +62855,24 @@ window.aceBuildStatisticsReportHtml =
     const bottom = document.getElementById("aceMobileBottomNav");
     if (!bottom) return;
 
-    bottom.dataset.aceModernNav = "1";
-    bottom.setAttribute('aria-label', 'Navegação principal');
     bottom.innerHTML = `
-      <button class="ace-bottom-item" type="button" data-ace-target="mural" data-ace-color="mural" title="Mural ACE">
-        <span class="icon">${getAceModernMobileIcon("mural")}</span>
-        <span class="label">Mural</span>
-      </button>
-
       <button class="ace-bottom-item" type="button" data-ace-target="inicio" data-ace-color="inicio" title="Início">
-        <span class="icon">${getAceModernMobileIcon("inicio")}</span>
+        <span class="icon">🏠</span>
         <span class="label">Início</span>
       </button>
 
+      <button class="ace-bottom-item" type="button" data-ace-target="presenca" data-ace-color="presenca" title="Presença">
+        <span class="icon">👥</span>
+        <span class="label">Presença</span>
+      </button>
+
       <button class="ace-bottom-item" type="button" data-ace-mobile-group="movements" data-ace-color="movimentos" title="Movimentações">
-        <span class="icon">${getAceModernMobileIcon("movimentos")}</span>
+        <span class="icon">🔄</span>
         <span class="label">Moviment.</span>
       </button>
 
-      <button class="ace-bottom-item" type="button" data-ace-mobile-group="management" data-ace-color="gestao" title="Gestão">
-        <span class="icon">${getAceModernMobileIcon("gestao")}</span>
-        <span class="label">Gestão</span>
-      </button>
-
-      <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Menu completo" aria-label="Mais: abrir menu completo" aria-controls="aceMobileDrawer" aria-expanded="false" aria-haspopup="dialog">
-        <span class="icon">${getAceModernMobileIcon("mais")}</span>
+      <button class="ace-bottom-item" type="button" data-ace-mobile-more="1" data-ace-color="mais" title="Mais opções">
+        <span class="icon">☰</span>
         <span class="label">Mais</span>
       </button>
     `;
@@ -63615,10 +62891,7 @@ window.aceBuildStatisticsReportHtml =
     });
 
     const more = bottom.querySelector("[data-ace-mobile-more]");
-    if (more) more.onclick = () => {
-      document.getElementById(MOBILE_SHEET_ID)?.classList.remove('open');
-      openAceMobileDrawer();
-    };
+    if (more) more.onclick = () => openMobileSheet("more");
 
     updateAceGroupedMobileNavigationState();
   }
@@ -63634,18 +62907,16 @@ window.aceBuildStatisticsReportHtml =
 
       if (button.dataset.aceTarget) {
         matches = targetMatchesTab(button.dataset.aceTarget, active);
-      } else if (button.dataset.aceMobileGroup) {
-        matches = groupContainsActive(button.dataset.aceMobileGroup);
+      } else if (button.dataset.aceMobileGroup === "movements") {
+        matches = groupContainsActive("movements");
       } else if (button.dataset.aceMobileMore) {
         matches =
           groupContainsActive("queries") ||
-          targetMatchesTab("presenca", active) ||
+          groupContainsActive("management") ||
           targetMatchesTab("cadastro", active);
       }
 
       button.classList.toggle("active", matches);
-      if (matches) button.setAttribute('aria-current', 'page');
-      else button.removeAttribute('aria-current');
     });
   }
 
@@ -63690,7 +62961,6 @@ window.aceBuildStatisticsReportHtml =
             ${title}
           </div>
 
-          <div class="ace-drawer-section-items">
           ${
             items
               .map(
@@ -63726,7 +62996,6 @@ window.aceBuildStatisticsReportHtml =
               )
               .join("")
           }
-          </div>
 
         </div>
       `;
@@ -63784,11 +63053,6 @@ window.aceBuildStatisticsReportHtml =
     drawerList.innerHTML = `
 
       ${directButton(
-        "mural",
-        "📣 Mural ACE"
-      )}
-
-      ${directButton(
         "inicio",
         "🏠 Início"
       )}
@@ -63814,13 +63078,12 @@ window.aceBuildStatisticsReportHtml =
       )}
 
 
-      <div class="ace-drawer-section ace-drawer-config-section">
+      <div class="ace-drawer-section">
 
         <div class="ace-drawer-section-title">
           Configurações
         </div>
 
-        <div class="ace-drawer-section-items">
         <button
           class="ace-drawer-item"
           type="button"
@@ -63831,8 +63094,9 @@ window.aceBuildStatisticsReportHtml =
           </span>
         </button>
 
+        ${canUseAceAdminSettings() ? `<button class="ace-drawer-item" type="button" data-ace-config-destination="publicacoes"><span>📰 Publicações</span></button>` : ""}
+
         ${settingsAdmin}
-        </div>
 
       </div>
 
@@ -64116,8 +63380,8 @@ const ACE_DASHBOARD_KPI_CONFIG = [
     rgb: "12,145,166"
   },
   {
-    id: "kpiSacosSaidas",
-    key: "sacos-saidas",
+    id: "kpiCestasEstornadas",
+    key: "cestas-estornadas",
     accent: "#c75284",
     rgb: "199,82,132"
   }
@@ -64143,12 +63407,6 @@ function installAceDashboardRewardStyle() {
 
   style.textContent = `
 
-    #dashboard .cards .card > small.ace-kpi-sack-purpose{
-      display:block;font-size:12px;line-height:1.5;font-weight:500;color:#526d80;
-      white-space:pre-line;overflow-wrap:anywhere;text-align:left;
-      height:auto;max-height:none;overflow:visible;
-    }
-
     #dashboard .cards{
       width:min(100%,1440px) !important;
       display:grid !important;
@@ -64159,20 +63417,6 @@ function installAceDashboardRewardStyle() {
       margin-left:auto !important;
       margin-right:auto !important;
     }
-
-    #dashboard .cards .ace-kpi-mounted-note{
-      position:relative;
-      z-index:1;
-      margin-top:8px;
-      padding-top:7px;
-      border-top:1px solid rgba(229,138,23,.22);
-      color:#86500d;
-      font-size:12px;
-      font-weight:700;
-      line-height:1.4;
-      overflow-wrap:anywhere;
-    }
-    #dashboard .cards .ace-kpi-mounted-note[hidden]{display:none !important;}
 
     #dashboard .cards > .card{
       width:auto !important;
@@ -65042,1445 +64286,119 @@ function bindAceDashboardTouchFeedback() {
 
 })();
 
-// Visão rápida do início: percentuais calculados sobre todo o histórico.
-function renderAceDashboardQuickCharts() {
-  const cards = document.querySelector("#dashboard .cards");
-  if (!cards || !db) return;
-
-  let section = document.getElementById("aceDashboardQuickCharts");
-  if (!section) {
-    section = document.createElement("section");
-    section.id = "aceDashboardQuickCharts";
-    section.setAttribute("aria-label", "Principais estatísticas de alimentos");
-    cards.insertAdjacentElement("afterend", section);
-  }
-
-  if (!document.getElementById("aceDashboardQuickChartsStyle")) {
-    const style = document.createElement("style");
-    style.id = "aceDashboardQuickChartsStyle";
-    style.textContent = `
-      #aceDashboardQuickCharts { width:min(100%,1440px); box-sizing:border-box; margin:18px auto 22px; }
-      #aceDashboardQuickCharts .ace-qc-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
-      #aceDashboardQuickCharts h2 { margin:0; color:#123b59; font-size:clamp(18px,2vw,23px); }
-      #aceDashboardQuickCharts .ace-qc-sub { margin:4px 0 0; color:#657b8c; font-size:13px; }
-      #aceDashboardQuickCharts .ace-qc-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
-      #aceDashboardQuickCharts .ace-qc-card { min-width:0; padding:18px; border:1px solid #dce8ef; border-radius:17px; background:#fff; box-shadow:0 8px 23px #173f5812; }
-      #aceDashboardQuickCharts .ace-qc-card h3 { margin:0 0 4px; color:#1d4660; font-size:16px; }
-      #aceDashboardQuickCharts .ace-qc-card p { margin:0 0 16px; color:#748696; font-size:12px; }
-      #aceDashboardQuickCharts .ace-qc-rows { display:grid; gap:12px; }
-      #aceDashboardQuickCharts .ace-qc-row { min-width:0; }
-      #aceDashboardQuickCharts .ace-qc-line { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:5px; color:#40546a; font-size:13px; }
-      #aceDashboardQuickCharts .ace-qc-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      #aceDashboardQuickCharts .ace-qc-line strong { color:#243f54; white-space:nowrap; }
-      #aceDashboardQuickCharts .ace-qc-track { height:8px; overflow:hidden; border-radius:9px; background:#e9f0f4; }
-      #aceDashboardQuickCharts .ace-qc-fill { height:100%; border-radius:9px; background:var(--bar-color); }
-      #aceDashboardQuickCharts .ace-qc-empty { padding:24px 4px; color:#748696; font-size:13px; text-align:center; }
-      @media(max-width:1000px) { #aceDashboardQuickCharts .ace-qc-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-      @media(max-width:680px) { #aceDashboardQuickCharts .ace-qc-grid { grid-template-columns:1fr; } #aceDashboardQuickCharts .ace-qc-head { align-items:flex-start; } }
-    `;
-    document.head.appendChild(style);
-  }
-
-  const entries = db.entries || [];
-  const losses = (db.movements || []).filter(row => row.type === "perda");
-  const byFood = rows => aceStatsAggregate(rows, row => aceStatsName(db.foods, row.foodId), row => row.qty);
-  const byReason = aceStatsAggregate(losses, row => aceStatsName(db.reasons, row.reasonId, "Não informado"), row => row.qty);
-  const charts = [
-    { title:"Alimentos mais recebidos", data:byFood(entries), color:"#169776" },
-    { title:"Alimentos com maior perda", data:byFood(losses), color:"#df6660" },
-    { title:"Motivos das perdas", data:byReason, color:"#d58c2d" }
-  ];
-  const barCard = chart => {
-    const rows = chart.data.filter(item => Number(item.value) > 0).slice(0, 5);
-    const total = chart.data.reduce((sum, item) => sum + Math.max(0, Number(item.value) || 0), 0);
-    const percent = value => (Number(value) / total * 100).toLocaleString("pt-BR", {minimumFractionDigits:1, maximumFractionDigits:1});
-    return `<article class="ace-qc-card" style="--bar-color:${chart.color}">
-      <h3>${esc(chart.title)}</h3><p>Top 5 · percentual do total de ${fmt(total)} unidades</p>
-      <div class="ace-qc-rows">${rows.length ? rows.map(item => `
-        <div class="ace-qc-row" title="${esc(item.label)}: ${fmt(item.value)} unidades (${percent(item.value)}%)" tabindex="0" aria-label="${esc(item.label)}: ${fmt(item.value)} unidades, ${percent(item.value)} por cento do total">
-          <div class="ace-qc-line"><span class="ace-qc-label">${esc(item.label)}</span><strong>${percent(item.value)}% · ${fmt(item.value)}</strong></div>
-          <div class="ace-qc-track"><div class="ace-qc-fill" style="width:${Number(item.value) / total * 100}%"></div></div>
-        </div>`).join("") : '<div class="ace-qc-empty">Ainda não há registros.</div>'}</div>
-    </article>`;
-  };
-
-  section.innerHTML = `<div class="ace-qc-head"><div><h2>Estatísticas em destaque</h2>
-    <p class="ace-qc-sub">Todo o histórico registrado · percentuais atualizados automaticamente</p></div></div>
-    <div class="ace-qc-grid">${charts.map(barCard).join("")}</div>`;
-}
-
-// Alimentos encontrados durante a conferência: saldo aplicado apenas na finalização.
-function aceInventoryFoundDetails(item) {
-  if (!item?.incluido_durante_contagem) return "";
-  return `<small style="display:block;margin-top:5px;color:#526d80;font-size:11px;white-space:normal">Encontrado na conferência · ${esc(item.incluido_por_nome || "Usuário")}<br>${esc(item.observacao_encontrado || "")}</small>`;
-}
-
-function showAceInventoryFoundDialog() {
-  if (!isAceInventoryInProgress() || !aceIsOnline()) {
-    return showAceMessage("Abra um inventário e conecte-se à internet para incluir o alimento.", "Inventário");
-  }
-  const admin = isAceOperationalAdmin();
-  if (!isCurrentUserInventoryOwner() && !admin) return;
-  if (document.getElementById("aceInventoryFoundModal")) return;
-  const inventoryId = Number(aceInventoryActive.id);
-  const foods = (db.foods || []).slice().sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
-  const overlay = document.createElement("div");
-  overlay.id = "aceInventoryFoundModal";
-  overlay.innerHTML = `<style>
-    #aceInventoryFoundModal{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;background:rgba(3,32,55,.65);backdrop-filter:blur(5px)}
-    #aceInventoryFoundModal .ace-found-box{width:min(560px,100%);max-height:calc(100vh - 36px);max-height:calc(100dvh - 36px);overflow:auto;padding:24px;box-sizing:border-box;border-radius:18px;background:#fff;color:#173a55;box-shadow:0 20px 60px #001a3540}
-    #aceInventoryFoundModal h3{margin:0 0 10px;color:#173a55}#aceInventoryFoundModal p{font-size:14px;line-height:1.5;color:#526d80}
-    #aceInventoryFoundModal label{display:block;margin-top:14px;font-weight:700;font-size:14px}#aceInventoryFoundModal input,#aceInventoryFoundModal select,#aceInventoryFoundModal textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:11px;border:1px solid #cbdce8;border-radius:10px;background:#fff;color:#173a55;font:inherit}
-    #aceInventoryFoundModal .ace-found-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:20px}#aceInventoryFoundModal button{padding:11px 15px;border-radius:10px;border:1px solid #cbdce8;font:inherit;font-weight:700;cursor:pointer}#aceInventoryFoundModal button[type=submit]{background:#0b659b;color:#fff}#aceInventoryFoundModal [role=alert]{color:#b42318;font-size:14px;margin-top:12px}
-  </style><div class="ace-found-box" role="dialog" aria-modal="true" aria-labelledby="aceFoundTitle">
-    <h3 id="aceFoundTitle">Adicionar alimento encontrado</h3>
-    <p>Procure primeiro um alimento cadastrado, inclusive com saldo zero. Informe a quantidade total encontrada. O estoque será ajustado somente após a finalização e as assinaturas.</p>
-    <form id="aceFoundForm">
-      <label>Procurar alimento<input id="aceFoundSearch" type="search" placeholder="Nome do alimento" autocomplete="off"></label>
-      <label>Alimento cadastrado<select id="aceFoundFood" required><option value="">Selecione o alimento</option>${foods.map(f=>`<option value="${Number(f.id)}">${esc(f.name)} · saldo ${fmt(getAceGlobalStockQty(f.id))}</option>`).join("")}${admin?'<option value="new">+ Cadastrar alimento novo</option>':""}</select></label>
-      ${admin?'<label id="aceFoundNameLabel" hidden>Nome do novo alimento<input id="aceFoundName" maxlength="160" placeholder="Ex.: Arroz 1 kg"></label>':""}
-      <label>Quantidade física total<input id="aceFoundQty" type="number" min="1" step="1" required inputmode="numeric"></label>
-      <label>Observação<textarea id="aceFoundNote" required maxlength="1000" rows="3">Encontrado na conferência, sem registro no sistema.</textarea></label>
-      <div id="aceFoundError" role="alert"></div>
-      <div class="ace-found-actions"><button type="button" id="aceFoundClose">Cancelar</button><button type="submit" id="aceFoundSave">Salvar na contagem</button></div>
-    </form></div>`;
-  document.body.appendChild(overlay);
-  const form=overlay.querySelector("form"), select=overlay.querySelector("#aceFoundFood");
-  const errorBox=overlay.querySelector("#aceFoundError"), save=overlay.querySelector("#aceFoundSave");
-  const closeButton=overlay.querySelector("#aceFoundClose");
-  let busy=false;
-  closeButton.onclick=()=>{if(!busy)overlay.remove();};
-  overlay.querySelector("#aceFoundSearch").oninput=e=>{
-    const q=normalizeAceText(e.target.value);
-    Array.from(select.options).forEach(option=>{option.hidden=Boolean(option.value && option.value!=="new" && !normalizeAceText(option.textContent).includes(q));});
-  };
-  select.onchange=()=>{
-    const label=overlay.querySelector("#aceFoundNameLabel"), input=overlay.querySelector("#aceFoundName");
-    if(label)label.hidden=select.value!=="new";
-    if(input)input.required=select.value==="new";
-    errorBox.textContent="";
-  };
-  form.onsubmit=async e=>{
-    e.preventDefault();if(busy)return;
-    const qty=Number(overlay.querySelector("#aceFoundQty").value);
-    const note=overlay.querySelector("#aceFoundNote").value.trim();
-    const newName=overlay.querySelector("#aceFoundName")?.value.trim() || "";
-    let foodId=select.value==="new"?null:Number(select.value);
-    if(!Number.isSafeInteger(qty)||qty<1||!note){errorBox.textContent="Informe uma quantidade inteira positiva e a observação.";return;}
-    if(select.value==="new"){
-      if(!admin||newName.length<2){errorBox.textContent="Informe o nome do alimento.";return;}
-      const match=foods.find(f=>normalizeAceText(f.name)===normalizeAceText(newName));
-      if(match){foodId=Number(match.id);select.value=String(match.id);select.onchange();}
-    }
-    if(foodId!==null && (!Number.isSafeInteger(foodId)||foodId<=0)){errorBox.textContent="Selecione o alimento.";return;}
-    const previous=aceInventoryItems.find(item=>Number(item.alimento_id)===foodId);
-    busy=true;save.disabled=true;closeButton.disabled=true;save.textContent="Salvando…";
-    try{
-      if(!isAceInventoryInProgress()||Number(aceInventoryActive.id)!==inventoryId)throw new Error("O inventário foi encerrado. Atualize a página.");
-      if(previous?.quantidade_contada!=null){
-        const confirmed=await showAceConfirm(`Este alimento já tem ${fmt(previous.quantidade_contada)} unidade(s) contada(s). Substituir pela quantidade física total de ${fmt(qty)}?`,"Atualizar contagem");
-        if(!confirmed)return;
-      }
-      const {error}=await supabaseClient.rpc("ace_incluir_alimento_inventario",{
-        p_inventario_id:inventoryId,p_alimento_id:foodId,p_nome_novo:foodId===null?newName:null,
-        p_novo_id:foodId===null?newNumericId():null,p_quantidade:qty,p_observacao:note,
-        p_contagem_anterior:previous?.quantidade_contada ?? null
-      });
-      if(error){
-        if(error.code==="PGRST202")throw new Error("Execute primeiro o SQL de atualização do inventário enviado com este script.");
-        throw error;
-      }
-      overlay.remove();
-      db=await loadFromSupabase(false);
-      await saveOfflineSnapshot(db);
-      await refreshAceInventoryState(false);
-      renderAll();
-      showAceSuccess("Alimento salvo na contagem. O saldo será ajustado ao finalizar o inventário.");
-    }catch(error){errorBox.textContent=error?.message||"Não foi possível incluir o alimento.";}
-    finally{busy=false;save.disabled=false;closeButton.disabled=false;save.textContent="Salvar na contagem";}
-  };
-  overlay.querySelector("#aceFoundSearch").focus();
-}
-
-// Confirmações de leitura: somente mensagens visíveis no Chat aberto.
-function aceChatCanMarkRead() {
-  return Boolean(currentUser?.id && aceIsOnline() && aceTeamPanelOpen &&
-    aceTeamActiveTab === "chat" && document.visibilityState === "visible" &&
-    (typeof document.hasFocus !== "function" || document.hasFocus()));
-}
-
-function aceChatReceiptsFor(messageId) {
-  const message=aceTeamChatMessages.find(row=>Number(row.id)===Number(messageId));
-  return Array.from(aceChatReadRows.values())
-    .filter(row=>Number(row.message_id)===Number(messageId) && String(row.user_id)!==String(message?.user_id))
-    .sort((a,b)=>String(a.read_at).localeCompare(String(b.read_at)));
-}
-
-function aceChatReceiptHtml(row) {
-  if(String(row.user_id)!==String(currentUser?.id||""))return "";
-  const count=aceChatReceiptsFor(row.id).length;
-  return `<button type="button" class="ace-chat-receipt ${count?"is-read":""}" data-ace-chat-receipt="${Number(row.id)}" title="${count?"Ver quem leu e o horário":"Mensagem salva no chat"}">${count?`✓✓ Lida por ${count}`:"✓ Enviada"}</button>`;
-}
-
-function aceChatUpdateReceiptButtons() {
-  document.querySelectorAll("[data-ace-chat-receipt]").forEach(button=>{
-    const id=Number(button.dataset.aceChatReceipt);
-    const count=aceChatReceiptsFor(id).length;
-    button.classList.toggle("is-read",count>0);
-    button.textContent=count?`✓✓ Lida por ${count}`:"✓ Enviada";
-    button.title=count?"Ver quem leu e o horário":"Mensagem salva no chat";
-    button.onclick=()=>{
-      const readers=aceChatReceiptsFor(id);
-      const details=readers.length?readers.map(row=>`${row.reader_name || "Usuário"} — ${new Date(row.read_at).toLocaleString("pt-BR")}`).join("\n"):"Ainda não há confirmação de leitura de outros usuários.";
-      showAceMessage(details,readers.length?"Quem leu a mensagem":"Mensagem enviada");
-    };
-  });
-}
-
-function receiveAceChatReadReceipt(row) {
-  const id=Number(row?.message_id), user=String(row?.user_id||"");
-  if(!Number.isSafeInteger(id)||id<=0||!user||!row?.read_at)return;
-  if(!aceTeamChatMessages.some(message=>Number(message.id)===id))return;
-  aceChatReadRows.set(`${id}:${user}`,{message_id:id,user_id:user,reader_name:String(row.reader_name||"Usuário"),read_at:row.read_at});
-  aceChatUpdateReceiptButtons();
-}
-
-async function loadAceChatReadReceipts() {
-  if(!currentUser?.id||!aceIsOnline()||!aceTeamChatMessages.length)return;
-  const epoch=aceChatReadEpoch, user=String(currentUser.id);
-  const ids=aceTeamChatMessages.map(row=>Number(row.id));
-  try{
-    const {data,error}=await supabaseClient.from("ace_chat_message_reads")
-      .select("message_id,user_id,reader_name,read_at").in("message_id",ids);
-    if(error)throw error;
-    if(epoch!==aceChatReadEpoch||String(currentUser?.id)!==user)return;
-    (data||[]).forEach(receiveAceChatReadReceipt);
-    aceChatScheduleReadObserver();
-  }catch(error){console.warn("ACE Chat: confirmações de leitura indisponíveis:",error?.message||error);}
-}
-
-function aceChatStopReadObserver() {
-  aceChatReadObserver?.disconnect();aceChatReadObserver=null;
-  aceChatReadDwellTimers.forEach(timer=>clearTimeout(timer));aceChatReadDwellTimers.clear();
-  aceChatVisibleReadRows.clear();
-}
-
-function aceChatRowReallyVisible(element) {
-  if(!aceChatCanMarkRead()||!element?.isConnected)return false;
-  const root=document.getElementById("aceTeamChatMessages");
-  if(!root)return false;
-  const r=element.getBoundingClientRect(), box=root.getBoundingClientRect();
-  const left=Math.max(r.left,box.left,0),right=Math.min(r.right,box.right,window.innerWidth);
-  const top=Math.max(r.top,box.top,0),bottom=Math.min(r.bottom,box.bottom,window.innerHeight);
-  if(r.width<=0||r.height<=0||right<=left||bottom<=top)return false;
-  if((right-left)*(bottom-top)/(r.width*r.height)<0.6)return false;
-  const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);
-  return Boolean(hit && element.contains(hit));
-}
-
-function aceChatScheduleReadObserver() {
-  aceChatStopReadObserver();
-  if(!aceChatCanMarkRead()||typeof IntersectionObserver!=="function")return;
-  const root=document.getElementById("aceTeamChatMessages");
-  if(!root)return;
-  aceChatReadObserver=new IntersectionObserver(entries=>{
-    entries.forEach(entry=>{
-      const id=Number(entry.target.dataset.aceChatId);
-      if(!entry.isIntersecting||entry.intersectionRatio<0.6){
-        clearTimeout(aceChatReadDwellTimers.get(id));aceChatReadDwellTimers.delete(id);
-        aceChatVisibleReadRows.delete(id);return;
-      }
-      aceChatVisibleReadRows.set(id,entry.target);
-      if(aceChatReadRows.has(`${id}:${currentUser?.id}`)||aceChatReadDwellTimers.has(id))return;
-      aceChatReadDwellTimers.set(id,setTimeout(()=>{
-        aceChatReadDwellTimers.delete(id);
-        if(!aceChatRowReallyVisible(entry.target))return;
-        aceChatPendingReadIds.add(id);
-        clearTimeout(aceChatReadFlushTimer);
-        aceChatReadFlushTimer=setTimeout(flushAceChatReadReceipts,160);
-      },700));
-    });
-  },{root,threshold:[0,0.6,1]});
-  root.querySelectorAll("[data-ace-chat-id]").forEach(element=>{
-    const message=aceTeamChatMessages.find(row=>Number(row.id)===Number(element.dataset.aceChatId));
-    if(message && String(message.user_id)!==String(currentUser.id))aceChatReadObserver.observe(element);
-  });
-}
-
-async function flushAceChatReadReceipts() {
-  if(aceChatReadFlushing||!aceChatCanMarkRead())return;
-  const ids=Array.from(aceChatPendingReadIds).filter(id=>
-    !aceChatReadRows.has(`${id}:${currentUser.id}`) && aceChatRowReallyVisible(aceChatVisibleReadRows.get(id)));
-  aceChatPendingReadIds.clear();if(!ids.length)return;
-  const epoch=aceChatReadEpoch, user=String(currentUser.id);
-  aceChatReadFlushing=true;
-  try{
-    const {data,error}=await supabaseClient.rpc("ace_marcar_mensagens_lidas",{p_message_ids:ids});
-    if(error)throw error;
-    if(epoch!==aceChatReadEpoch||String(currentUser?.id)!==user)return;
-    (Array.isArray(data)?data:[]).forEach(receiveAceChatReadReceipt);
-  }catch(error){console.warn("ACE Chat: não foi possível confirmar leitura:",error?.message||error);}
-  finally{
-    if(epoch===aceChatReadEpoch){aceChatReadFlushing=false;
-      if(aceChatPendingReadIds.size)aceChatReadFlushTimer=setTimeout(flushAceChatReadReceipts,160);
-    }
-  }
-}
-
-function resetAceChatReadReceipts() {
-  aceChatReadEpoch++;
-  aceChatStopReadObserver();clearTimeout(aceChatReadFlushTimer);
-  aceChatPendingReadIds.clear();aceChatReadRows.clear();aceChatReadFlushing=false;
-}
-
-function aceSackInvActive() { return (db?.sackInventories || []).find(row => row.status === 'em_andamento' && !row.excluido_em); }
-function aceSackInvCanCount(row) { return Boolean(row && (String(row.usuario_id) === String(currentUser?.id) || isAceOperationalAdmin())); }
-function aceSackInvStatus(row) { return ({em_andamento:'Em andamento',finalizado:'Finalizado',cancelado:'Cancelado',estornado:'Estornado'})[row.status] || row.status; }
-function ensureAceSackInventoryUI() {
-  if (!document.getElementById('aceSackInventoryStyles')) {
-    const style=document.createElement('style');style.id='aceSackInventoryStyles';
-    style.textContent=`
-      #aceSackInventoryModal,#aceSackInvReasonModal{position:fixed;inset:0;z-index:2147483640;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(3,31,52,.7);backdrop-filter:blur(4px)}
-      #aceSackInvReasonModal{z-index:2147483645}
-      .ace-si-box{background:#fff;color:#173750;border-radius:18px;padding:22px;width:min(1050px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;box-shadow:0 18px 60px #001c3940}
-      .ace-si-box h3{margin:0;color:#0b4b7a}.ace-si-head,.ace-si-actions{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}.ace-si-actions{justify-content:flex-end;margin-top:18px}
-      .ace-si-box button,.ace-si-banner button{padding:10px 14px;border:1px solid #b9d0df;border-radius:9px;background:#fff;color:#0b4b7a;font:inherit;font-weight:800;cursor:pointer;min-height:42px}
-      .ace-si-box button.ace-si-primary{background:#0b659b;color:#fff;border-color:#0b659b}.ace-si-box button.ace-si-danger{color:#b42318;border-color:#ecb0ad}
-      .ace-si-box button:disabled{opacity:.5;cursor:default}.ace-si-note{color:#526d80;font-size:14px;line-height:1.5}.ace-si-scroll{overflow:auto;max-height:52vh;border:1px solid #d6e3ec;border-radius:10px}
-      .ace-si-table{width:100%;border-collapse:collapse;font-size:14px}.ace-si-table th{position:sticky;top:0;background:#edf5fa;color:#173750;text-align:left;z-index:1}.ace-si-table td,.ace-si-table th{padding:11px;border-bottom:1px solid #e1eaf0;vertical-align:top}
-      .ace-si-table input,.ace-si-box textarea{box-sizing:border-box;padding:10px;border:1px solid #c7d8e5;border-radius:8px;background:#fff;color:#173750;font:inherit}.ace-si-table input[type=number]{width:100px}.ace-si-table input[type=text]{width:220px}.ace-si-box textarea{width:100%}
-      .ace-si-difference{font-weight:900;white-space:nowrap}.ace-si-save{display:block;font-size:11px;color:#526d80;margin-top:5px}.ace-si-error{color:#b42318;font-weight:700;margin-top:10px;white-space:pre-line}.ace-si-banner{padding:12px;margin:14px 0;background:#fff4d7;border:1px solid #e9cd85;border-radius:11px;color:#704707;line-height:1.5}
-      .ace-si-history-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:24px 0 12px}
-      #aceSackInventoryModal #aceSackInvShowDeleted{width:auto!important;flex:0 0 auto;min-height:34px;padding:6px 11px;font-size:12px;font-weight:700;background:#f4f8fb;color:#526d80;border:1px solid #d6e3ec;white-space:nowrap;box-shadow:none}
-      #aceSackInventoryModal #aceSackInvShowDeleted[aria-pressed="true"]{background:#e7f3fc;color:#075985;border-color:#97c7e5}
-      .ace-si-history{padding:14px 0;border-bottom:1px solid #dce7ef}.ace-si-history .ace-si-actions{justify-content:flex-start;margin:10px 0 0}.ace-si-meta{font-size:13px;color:#526d80;margin-top:5px;line-height:1.5}
-      #aceCustomModal,#aceMessageModal{z-index:2147483647!important}
-      @media(max-width:600px){.ace-si-box{padding:16px}.ace-si-head{align-items:flex-start}.ace-si-table td,.ace-si-table th{padding:9px}.ace-si-actions button{flex:1}.ace-si-scroll{max-height:48dvh}}
-    `;
-    document.head.appendChild(style);
-  }
-  const page=document.getElementById('sacosEstoque'); if(!page)return;
-  let controls=document.getElementById('aceSackInventoryControls');
-  if(!controls){controls=document.createElement('div');controls.id='aceSackInventoryControls';page.querySelector('.ace-sack-title')?.after(controls);}
-  const active=aceSackInvActive();
-  controls.innerHTML=active?`<div class="ace-si-banner"><b>Inventário de sacos em andamento</b><br>Iniciado por ${esc(active.usuario_nome)}. Entradas, saídas e alterações de sacos estão bloqueadas até finalizar ou cancelar.<br><button type="button" id="aceSackInventoryContinue" style="margin-top:8px">Continuar contagem</button></div>`:'';
-  document.getElementById('aceSackInventoryContinue')?.addEventListener('click',()=>openAceSackInventory().catch(error=>showAceMessage(error.message,'Inventário de sacos')));
-  for(const id of ['sacosEntrada','sacosSaida']){
-    const target=document.getElementById(id);if(!target)continue;
-    let banner=target.querySelector('[data-ace-si-banner]');
-    if(!banner){banner=document.createElement('div');banner.dataset.aceSiBanner='1';target.prepend(banner);}
-    banner.innerHTML=active?`<div class="ace-si-banner"><b>Inventário de sacos em andamento.</b> Finalize ou cancele a conferência para movimentar o estoque.</div>`:'';
-  }
-}
-async function aceSackInvRPC(action,data={}) {
-  if(!aceIsOnline())throw new Error('Conecte-se à internet para realizar esta operação.');
-  const result=await supabaseClient.rpc('ace_inventario_sacos',{p_acao:action,p_dados:data});
-  if(result.error){if(['PGRST202','42P01'].includes(result.error.code))throw new Error('Execute primeiro o SQL do inventário de sacos enviado com este script.');throw new Error(result.error.message || 'Não foi possível salvar.');}
-  return result.data;
-}
-async function openAceSackInventory() {
-  if(aceSackInvBusy)return;
-  if(aceSackInvDrafts.size)await aceSackInvFlush();
-  ensureAceSackInventoryUI();
-  if(aceIsOnline())await reloadFromSupabase();
-  if(!db?.sackInventoryReady)throw new Error('Execute o SQL do inventário de sacos para ativar esta função.');
-  const active=aceSackInvActive();
-  if(active){
-    if(!aceIsOnline())throw new Error('Conecte-se à internet para continuar a contagem salva.');
-    const result=await supabaseClient.from('sacos_inventario_itens').select('*').eq('inventario_id',active.id).order('saco_nome');
-    if(result.error)throw new Error(result.error.message);
-    aceSackInvView={inventory:active,items:result.data||[]};
-  }else aceSackInvView={inventory:null,items:[]};
-  aceSackInvDrafts.clear();aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();
-  renderAceSackInventoryModal();
-}
-function renderAceSackInventoryModal() {
-  document.getElementById('aceSackInventoryModal')?.remove();
-  const modal=document.createElement('div');modal.id='aceSackInventoryModal';
-  const inv=aceSackInvView?.inventory,items=aceSackInvView?.items||[],can=aceSackInvCanCount(inv)&&aceIsOnline();
-  const counted=items.filter(x=>x.quantidade_contada!=null).length;
-  modal.innerHTML=`<div class="ace-si-box" role="dialog" aria-modal="true" aria-labelledby="aceSackInvTitle"><div class="ace-si-head"><h3 id="aceSackInvTitle">📋 Inventário de sacos</h3><button type="button" data-si-close>Fechar</button></div>
-    ${inv?`<p class="ace-si-note">Responsável: <b>${esc(inv.usuario_nome)}</b> · Início: ${esc(new Date(inv.iniciado_em).toLocaleString('pt-BR'))}<br>Informe a quantidade física total de cada tamanho, inclusive zero. Justifique as diferenças. O saldo só será ajustado após as duas assinaturas.</p>
-    <p id="aceSackInvProgress" class="ace-si-note">${counted} de ${items.length} tipo(s) contado(s).</p>
-    <div class="ace-si-scroll"><table class="ace-si-table"><thead><tr><th>Tipo / tamanho</th><th>Sistema</th><th>Quantidade física</th><th>Diferença</th><th>Justificativa</th></tr></thead><tbody>${items.map(x=>`<tr data-si-item="${Number(x.id)}"><td>${esc(x.saco_nome)}</td><td>${fmt(x.estoque_sistema)}</td><td><input type="number" aria-label="Quantidade física de ${esc(x.saco_nome)}" data-si-qty min="0" max="2147483647" step="1" inputmode="numeric" value="${x.quantidade_contada==null?'':Number(x.quantidade_contada)}" ${!can?'disabled':''}><small class="ace-si-save">${x.quantidade_contada==null?'Não contado':'Salvo'}</small></td><td class="ace-si-difference">${x.quantidade_contada==null?'—':aceSackInvDiff(Number(x.quantidade_contada)-Number(x.estoque_sistema))}</td><td><input type="text" aria-label="Justificativa de ${esc(x.saco_nome)}" data-si-note maxlength="1000" value="${esc(x.justificativa||'')}" placeholder="Obrigatória se houver diferença" ${!can?'disabled':''}></td></tr>`).join('')}</tbody></table></div>
-    <div class="ace-si-actions"><button type="button" data-si-cancel class="ace-si-danger" ${!aceIsOnline()?'disabled':''}>Cancelar inventário</button>${can?'<button type="button" data-si-reload>Recarregar contagem</button><button type="button" data-si-save>Salvar contagem</button><button type="button" data-si-finish class="ace-si-primary">✍️ Assinar e finalizar</button>':''}</div>`:
-    `<p class="ace-si-note">Faça a conferência por tipo e tamanho. Durante a contagem, as movimentações de sacos ficam bloqueadas para todos os usuários.</p><button type="button" data-si-start class="ace-si-primary" ${!aceIsOnline()?'disabled':''}>Iniciar inventário de sacos</button>`}
-    <div id="aceSackInvError" class="ace-si-error" role="alert"></div>
-    <div class="ace-si-history-heading"><h3 style="font-size:19px">Histórico de inventários</h3>
-    ${isAceOperationalAdmin()?'<button type="button" id="aceSackInvShowDeleted" aria-pressed="false" aria-controls="aceSackInvHistory" title="Consultar inventários excluídos para auditoria">Ver excluídos</button>':''}</div>
-    <div id="aceSackInvHistory"></div></div>`;
-  document.body.appendChild(modal);renderAceSackInvHistory();
-  modal.querySelector('#aceSackInvShowDeleted')?.addEventListener('click',toggleAceSackInvDeleted);
-  modal.querySelectorAll('[data-si-item] input').forEach(input=>input.addEventListener('input',()=>aceSackInvDraft(input.closest('[data-si-item]'))));
-  modal.addEventListener('click',async event=>{
-    const button=event.target.closest('button');if(!button||button.disabled||aceSackInvBusy)return;
-    aceSackInvBusy=true;button.disabled=true;
-    try{
-      if(button.matches('[data-si-close]')){
-        try { await aceSackInvFlush(); }
-        catch(error){
-          if(!await showAceConfirm(`${error.message}\n\nFechar e descartar somente as alterações ainda não salvas neste aparelho? A contagem já salva será preservada.`, 'Alterações pendentes'))throw error;
-          aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();aceSackInvDrafts.clear();
-        }
-        modal.remove();aceSackInvView=null;
-      }
-      else if(button.matches('[data-si-reload]')){
-        if(aceSackInvDrafts.size && !await showAceConfirm('Descartar as alterações ainda não salvas e carregar a contagem atual do servidor?', 'Recarregar contagem'))return;
-        aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();await aceSackInvSaveChain.catch(()=>{});aceSackInvDrafts.clear();aceSackInvBusy=false;await openAceSackInventory();
-      }
-      else if(button.matches('[data-si-save]')){await aceSackInvFlush();aceSackInvError('');}
-      else if(button.matches('[data-si-start]')){
-        if(await showAceConfirm('Iniciar a conferência? As movimentações de sacos ficarão bloqueadas para todos até finalizar ou cancelar.','Iniciar inventário de sacos')){await aceSackInvRPC('iniciar');aceSackInvBusy=false;await openAceSackInventory();}
-      }else if(button.matches('[data-si-finish]'))await finishAceSackInventory();
-      else if(button.matches('[data-si-cancel]'))await aceSackInvHistoryAction('cancelar',inv.id);
-      else if(button.dataset.siAction)await aceSackInvHistoryAction(button.dataset.siAction,Number(button.dataset.siId));
-    }catch(error){aceSackInvError(error.message);}
-    finally{aceSackInvBusy=false;if(button.isConnected)button.disabled=false;}
-  });
-}
-function aceSackInvError(message) {const el=document.getElementById('aceSackInvError');if(el)el.textContent=message;}
-function aceSackInvDiff(value){return `${value>0?'+':''}${fmt(value)}`;}
-function aceSackInvDraft(row){
-  const id=Number(row.dataset.siItem),item=aceSackInvView.items.find(x=>Number(x.id)===id);
-  const qty=row.querySelector('[data-si-qty]').value,note=row.querySelector('[data-si-note]').value.trim();
-  const draft={qty,note};aceSackInvDrafts.set(id,draft);
-  row.querySelector('.ace-si-difference').textContent=qty===''?'—':aceSackInvDiff(Number(qty)-Number(item.estoque_sistema));
-  row.querySelector('.ace-si-save').textContent='Alteração pendente';
-  clearTimeout(aceSackInvTimers.get(id));
-  aceSackInvTimers.set(id,setTimeout(()=>{aceSackInvTimers.delete(id);aceSackInvQueueSave(id).catch(error=>aceSackInvError(error.message));},750));
-}
-function aceSackInvQueueSave(id){
-  const task=aceSackInvSaveChain.catch(()=>{}).then(async()=>{
-    const draft=aceSackInvDrafts.get(id);if(!draft)return;
-    const inv=aceSackInvView?.inventory,item=aceSackInvView?.items.find(x=>Number(x.id)===id);
-    if(!inv||!item)throw new Error('Reabra o inventário antes de salvar.');
-    if(draft.qty===''||!Number.isSafeInteger(Number(draft.qty))||Number(draft.qty)<0||Number(draft.qty)>2147483647)throw new Error('Informe uma quantidade inteira igual ou maior que zero.');
-    if(Number(draft.qty)!==Number(item.estoque_sistema)&&draft.note.length<3)throw new Error('Justifique a diferença para salvar a contagem.');
-    const result=await aceSackInvRPC('contar',{inventario_id:inv.id,item_id:id,quantidade:Number(draft.qty),justificativa:draft.note,versao:item.versao});
-    Object.assign(item,result);
-    if(aceSackInvDrafts.get(id)===draft){aceSackInvDrafts.delete(id);const row=document.querySelector(`[data-si-item="${id}"] .ace-si-save`);if(row)row.textContent='Salvo';}
-    const p=document.getElementById('aceSackInvProgress');if(p)p.textContent=`${aceSackInvView.items.filter(x=>x.quantidade_contada!=null).length} de ${aceSackInvView.items.length} tipo(s) contado(s).`;
-    aceSackInvError('');
-  });
-  aceSackInvSaveChain=task;return task;
-}
-async function aceSackInvFlush(){
-  aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();await aceSackInvSaveChain.catch(()=>{});
-  for(const id of Array.from(aceSackInvDrafts.keys()))await aceSackInvQueueSave(id);
-}
-async function finishAceSackInventory(){
-  await aceSackInvFlush();const inv=aceSackInvView.inventory,items=aceSackInvView.items;
-  if(!items.length||items.some(x=>x.quantidade_contada==null))throw new Error('Conte todos os tipos de saco antes de finalizar.');
-  ensureAceInventoryStyles();
-  const signatures=await requestAceInventorySignatures({responsibleName:inv.usuario_nome});if(!signatures)return;
-  const diff=items.reduce((sum,x)=>sum+Number(x.quantidade_contada)-Number(x.estoque_sistema),0);
-  if(!await showAceConfirm(`Finalizar o inventário de sacos?\nAjuste total: ${aceSackInvDiff(diff)} saco(s).\nAs diferenças por tamanho serão aplicadas ao estoque e as assinaturas serão registradas.`,'Finalizar inventário de sacos'))return;
-  await aceSackInvRPC('finalizar',{inventario_id:inv.id,responsavel_nome:signatures.responsibleName,responsavel_assinatura:signatures.responsibleSignature,conferente_nome:signatures.checkerName,conferente_assinatura:signatures.checkerSignature});
-  aceSackInvBusy=false;await openAceSackInventory();showAceSuccess('Inventário de sacos finalizado. Estoque atualizado.');
-}
-function toggleAceSackInvDeleted(){
-  if(!isAceOperationalAdmin())return;
-  const button=document.getElementById('aceSackInvShowDeleted');if(!button)return;
-  const show=button.getAttribute('aria-pressed')!=='true';
-  button.setAttribute('aria-pressed',String(show));
-  button.textContent=show?'Ocultar excluídos':'Ver excluídos';
-  renderAceSackInvHistory();
-}
-function renderAceSackInvHistory(){
-  const target=document.getElementById('aceSackInvHistory');if(!target)return;
-  const showDeleted=isAceOperationalAdmin() && document.getElementById('aceSackInvShowDeleted')?.getAttribute('aria-pressed')==='true';
-  const rows=(db.sackInventories||[]).filter(x=>x.status!=='em_andamento'&&(!x.excluido_em||showDeleted));
-  const admin=isAceOperationalAdmin();
-  target.innerHTML=rows.map(x=>`<section class="ace-si-history"><b>#${Number(x.id)} · ${esc(aceSackInvStatus(x))}${x.excluido_em?' · Excluído da lista principal':''}</b><div class="ace-si-meta">${esc(new Date(x.iniciado_em).toLocaleString('pt-BR'))} · ${esc(x.usuario_nome)}<br>Sistema: ${fmt(x.total_sistema||0)} · Físico: ${x.total_contado==null?'—':fmt(x.total_contado)} · Ajuste: ${x.total_ajuste==null?'—':aceSackInvDiff(Number(x.total_ajuste))}
-    ${x.cancelado_em?`<br>Cancelado por ${esc(x.cancelado_nome)} em ${esc(new Date(x.cancelado_em).toLocaleString('pt-BR'))}: ${esc(x.motivo_cancelamento)}`:''}
-    ${x.estornado_em?`<br>Estornado por ${esc(x.estornado_nome)} em ${esc(new Date(x.estornado_em).toLocaleString('pt-BR'))}: ${esc(x.motivo_estorno)}`:''}
-    ${x.excluido_em?`<br>Excluído por ${esc(x.excluido_nome)} em ${esc(new Date(x.excluido_em).toLocaleString('pt-BR'))}: ${esc(x.motivo_exclusao)}`:''}</div>
-    <div class="ace-si-actions"><button type="button" data-si-action="pdf" data-si-id="${Number(x.id)}">📄 PDF</button>${!x.excluido_em&&admin&&x.status==='finalizado'?`<button type="button" data-si-action="estornar" data-si-id="${Number(x.id)}">↩️ Estornar ajuste</button>`:''}${!x.excluido_em&&admin&&['cancelado','estornado'].includes(x.status)?`<button type="button" class="ace-si-danger" data-si-action="excluir" data-si-id="${Number(x.id)}">Excluir do histórico</button>`:''}</div></section>`).join('')||'<p class="ace-si-note">Nenhum inventário encerrado.</p>';
-}
-function aceSackInvAskReason(action){
-  return new Promise(resolve=>{
-    const title={cancelar:'Cancelar inventário',estornar:'Estornar ajuste do inventário',excluir:'Excluir da lista principal'}[action];
-    const modal=document.createElement('div');modal.id='aceSackInvReasonModal';modal.innerHTML=`<form class="ace-si-box" style="max-width:520px"><h3>${title}</h3><p class="ace-si-note">${action==='estornar'?'O sistema reverterá apenas o ajuste deste inventário. As movimentações posteriores serão preservadas.':action==='excluir'?'O registro ficará disponível em “Mostrar excluídos para auditoria”. O estoque não será alterado.':'A contagem será encerrada sem aplicar ajustes ao estoque.'}</p><label>Motivo<textarea required minlength="3" maxlength="1000" rows="3"></textarea></label><div class="ace-si-actions"><button type="button">Voltar</button><button type="submit" class="ace-si-danger">Confirmar</button></div></form>`;
-    document.body.appendChild(modal);modal.querySelector('textarea').focus();
-    modal.querySelector('button[type=button]').onclick=()=>{modal.remove();resolve(null);};
-    modal.querySelector('form').onsubmit=e=>{e.preventDefault();const reason=modal.querySelector('textarea').value.trim();if(reason.length<3)return;modal.remove();resolve(reason);};
-  });
-}
-async function aceSackInvHistoryAction(action,id){
-  if(action==='pdf')return generateAceSackInventoryPDF(id);
-  if(action==='cancelar'){
-    // O cancelamento descarta apenas os rascunhos locais ainda não salvos.
-    await aceSackInvSaveChain.catch(()=>{});
-  }
-  const reason=await aceSackInvAskReason(action);if(!reason)return;
-  aceSackInvTimers.forEach(clearTimeout);aceSackInvTimers.clear();
-  await aceSackInvRPC(action,{inventario_id:id,motivo:reason});
-  aceSackInvDrafts.clear();aceSackInvBusy=false;await openAceSackInventory();
-  showAceSuccess(({cancelar:'Inventário cancelado. Estoque preservado.',estornar:'Ajuste estornado. Estoque atualizado.',excluir:'Inventário excluído da lista principal. Registro preservado para auditoria.'})[action]);
-}
-async function generateAceSackInventoryPDF(id){
-  if(!aceIsOnline())throw new Error('Conecte-se à internet para carregar o relatório e as assinaturas.');
-  const [r,i]=await Promise.all([
-    aceEconomicSelect('sacos_inventarios','*',query=>query.eq('id',id)),
-    aceEconomicSelect('sacos_inventario_itens','*',query=>query.eq('inventario_id',id).order('saco_nome'))
-  ]);
-  if(r.error||i.error)throw new Error((r.error||i.error).message);
-  const inv=r.data?.[0],items=i.data||[];
-  if(!inv||!items.length)throw new Error('Inventário ou itens não encontrados.');
-  await ensureHtml2PdfLibrary();
-  // Obtemos o jsPDF já incluído na biblioteca usando um canvas branco.
-  // O relatório é desenhado diretamente em milímetros, sem captura do DOM.
-  const seed=document.createElement('canvas');seed.width=740;seed.height=1;
-  const seedContext=seed.getContext('2d');seedContext.fillStyle='#fff';seedContext.fillRect(0,0,740,1);
-  const worker=window.html2pdf().set({margin:0,jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(seed,'canvas').toPdf();
-  const pdf=await worker.get('pdf');
-  buildAceSackInventoryDirectPDF(pdf,inv,items);
-  const filename=`inventario_sacos_${id}_${String(inv.iniciado_em).slice(0,10)}.pdf`;
-  const cap=window.Capacitor,fs=cap?.Plugins?.Filesystem,share=cap?.Plugins?.Share;
-  if(cap?.isNativePlatform?.()&&fs&&share){
-    const blob=pdf.output('blob');if(!blob||blob.size<1000)throw new Error('PDF sem conteúdo.');
-    const saved=await fs.writeFile({path:filename,data:await blobToBase64ForAce(blob),directory:'CACHE',recursive:true});
-    if(!saved?.uri)throw new Error('Não foi possível salvar o PDF no Android.');
-    await share.share({title:'Inventário de sacos ACE',files:[saved.uri],dialogTitle:'Compartilhar PDF'});
-  }else pdf.save(filename);
-}
-function buildAceSackInventoryDirectPDF(pdf,inv,items){
-  const left=14,right=196,width=182,bottom=277;
-  let y=0;
-  const clean=value=>String(value??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');
-  const date=value=>value?new Date(value).toLocaleString('pt-BR'):'—';
-  const font=(size=10,bold=false)=>{pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);pdf.setTextColor(23,55,80);};
-  const header=()=>{
-    font(19,true);pdf.text('ACE - Inventário de sacos',left,20);
-    font(9);pdf.text('GEPE - Grupo Espírita Paulo e Estevão',left,27);
-    pdf.text(`Inventário #${Number(inv.id)} | ${clean(aceSackInvStatus(inv))}${inv.excluido_em?' | Excluído da lista principal':''}`,left,33);
-    pdf.setDrawColor(190,211,226);pdf.line(left,37,right,37);y=44;
-  };
-  const next=()=>{pdf.addPage();header();};
-  const room=height=>{if(y+height>bottom)next();};
-  const paragraph=(value,{bold=false,size=10}={})=>{
-    font(size,bold);
-    const lines=pdf.splitTextToSize(clean(value),width);
-    for(const line of lines){room(5);font(size,bold);pdf.text(line,left,y);y+=5;}
-    y+=2;
-  };
-  header();
-  paragraph(`Responsável pela abertura: ${inv.usuario_nome}`);
-  paragraph(`Início: ${date(inv.iniciado_em)} | Finalização: ${date(inv.finalizado_em)}`);
-  const total=items.reduce((sum,x)=>sum+Number(x.estoque_sistema||0),0);
-  const counted=items.filter(x=>x.quantidade_contada!=null);
-  const physical=counted.reduce((sum,x)=>sum+Number(x.quantidade_contada),0);
-  paragraph(`Sistema: ${fmt(inv.total_sistema??total)} | Físico: ${inv.total_contado==null?'Não finalizado':fmt(inv.total_contado)} | Ajuste aplicado: ${inv.total_ajuste==null?'—':aceSackInvDiff(Number(inv.total_ajuste))}`,{bold:true});
-  if(inv.total_contado==null)paragraph(`Contagem parcial: ${counted.length}/${items.length} tipo(s), ${fmt(physical)} saco(s). Nenhum ajuste aplicado.`);
-  y+=3;
-  const columns=[{x:14,w:58,label:'Tipo / tamanho'},{x:72,w:22,label:'Sistema'},{x:94,w:22,label:'Físico'},{x:116,w:24,label:'Diferença'},{x:140,w:56,label:'Justificativa'}];
-  const tableHeader=()=>{
-    room(12);pdf.setFillColor(232,242,249);pdf.rect(left,y-4,width,10,'F');font(9,true);
-    columns.forEach(c=>pdf.text(c.label,c.x+2,y+2));y+=10;
-  };
-  tableHeader();
-  items.forEach((item,index)=>{
-    font(9);
-    const values=[item.saco_nome,fmt(item.estoque_sistema),item.quantidade_contada==null?'—':fmt(item.quantidade_contada),item.quantidade_contada==null?'—':aceSackInvDiff(Number(item.quantidade_contada)-Number(item.estoque_sistema)),item.justificativa||'—'];
-    const lines=values.map((value,n)=>pdf.splitTextToSize(clean(value),columns[n].w-4));
-    const count=Math.max(...lines.map(x=>x.length));let offset=0;
-    const rowHeight=count*4.5+6;
-    if(rowHeight<=bottom-54 && y+rowHeight>bottom){next();tableHeader();}
-    while(offset<count){
-      let capacity=Math.floor((bottom-y-6)/4.5);
-      if(capacity<1){next();tableHeader();capacity=Math.floor((bottom-y-6)/4.5);}
-      const take=Math.min(capacity,count-offset),height=take*4.5+6;
-      if(index%2===0){pdf.setFillColor(248,251,253);pdf.rect(left,y-3,width,height,'F');}
-      font(9);
-      columns.forEach((c,n)=>{const part=lines[n].slice(offset,offset+take);part.forEach((line,k)=>pdf.text(line,c.x+2,y+2+k*4.5));});
-      y+=height;pdf.setDrawColor(216,230,239);pdf.line(left,y-3,right,y-3);offset+=take;
-      if(offset<count){next();tableHeader();}
-    }
-  });
-  y+=8;
-  const signed=Boolean(inv.finalizado_em);
-  if(signed){
-    room(60);const top=y;
-    const signature=(label,name,value,x)=>{
-      font(10,true);pdf.text(label,x+42,top,{align:'center'});
-      font(9);const names=pdf.splitTextToSize(clean(name||'—'),80);
-      names.forEach((line,k)=>pdf.text(line,x+42,top+6+k*4,{align:'center'}));
-      const safe=getAceSafeInventorySignature(value);
-      if(safe){const props=pdf.getImageProperties(safe);const scale=Math.min(80/props.width,30/props.height);const w=props.width*scale,h=props.height*scale;pdf.addImage(safe,props.fileType||'PNG',x+(84-w)/2,top+17,w,h);}
-      else {font(9);pdf.text('Assinatura não disponível',x+42,top+30,{align:'center'});}
-      pdf.setDrawColor(190,211,226);pdf.line(x,top+49,x+84,top+49);
-    };
-    signature('Responsável',inv.responsavel_nome,inv.responsavel_assinatura,14);
-    signature('Conferente',inv.conferente_nome,inv.conferente_assinatura,112);y=top+58;
-  }
-  if(inv.cancelado_em)paragraph(`Cancelado por ${inv.cancelado_nome} em ${date(inv.cancelado_em)}. Motivo: ${inv.motivo_cancelamento}`);
-  if(inv.estornado_em)paragraph(`AJUSTE ESTORNADO por ${inv.estornado_nome} em ${date(inv.estornado_em)}. Motivo: ${inv.motivo_estorno}. A tabela preserva a contagem original.`,{bold:true});
-  if(inv.excluido_em)paragraph(`Excluído da lista principal por ${inv.excluido_nome} em ${date(inv.excluido_em)}. Motivo: ${inv.motivo_exclusao}`);
-  paragraph(`Gerado por ${getCurrentDisplayName()} em ${new Date().toLocaleString('pt-BR')}. Ajustes registrados separadamente das entradas e saídas.`,{size:8});
-  const pages=pdf.internal.getNumberOfPages();
-  for(let page=1;page<=pages;page++){pdf.setPage(page);font(8);pdf.setDrawColor(216,230,239);pdf.line(left,283,right,283);pdf.text('ACE - Controle de alimentos | Inventário de sacos',left,289);pdf.text(`Página ${page} de ${pages}`,right,289,{align:'right'});}
-  return pdf;
-}
 
 
-// Filtros da consulta: não modificam os alimentos nem os saldos.
-function normalizeAceStockFilterText(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
 
-function getAceStockFilterView(allItems = getAceUnifiedStockDisplayRows()) {
-  const query = normalizeAceStockFilterText(aceStockFilters.query).trim();
-  const compareNames = (a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR', { sensitivity: 'base' }) || Number(a.id) - Number(b.id);
-  const items = allItems.filter(item => {
-    const qty = Number(item.qty || 0);
-    if (aceStockFilters.status === 'positive' && qty <= 0) return false;
-    if (aceStockFilters.status === 'zero' && qty !== 0) return false;
-    if (query && !normalizeAceStockFilterText(item.name).includes(query)) return false;
-    return true;
-  }).slice().sort((a, b) => {
-    if (aceStockFilters.sort === 'qty-desc') return Number(b.qty || 0) - Number(a.qty || 0) || compareNames(a, b);
-    if (aceStockFilters.sort === 'qty-asc') return Number(a.qty || 0) - Number(b.qty || 0) || compareNames(a, b);
-    return compareNames(a, b);
-  });
-  const sum = rows => rows.reduce((total, row) => total + Number(row.qty || 0), 0);
-  const statusLabel = { positive: 'Com estoque (quantidade maior que zero)', zero: 'Sem estoque (quantidade zero)', all: 'Todos os saldos' }[aceStockFilters.status] || 'Todos os saldos';
-  const sortLabel = { name: 'Nome (A–Z)', 'qty-desc': 'Maior quantidade', 'qty-asc': 'Menor quantidade' }[aceStockFilters.sort] || 'Nome (A–Z)';
-  return {
-    allItems, items, total: sum(items), globalTotal: sum(allItems),
-    active: aceStockFilters.status !== 'all' || !!query,
-    description: [statusLabel, query ? `Busca: ${aceStockFilters.query.trim()}` : '',
-      `Ordem: ${sortLabel}`].filter(Boolean).join(' · ')
-  };
-}
-
-function ensureAceStockFilters(allItems) {
-  const table = document.getElementById('stockTable');
-  if (!table) return;
-  if (!document.getElementById('aceStockFiltersStyle')) {
-    const style = document.createElement('style');
-    style.id = 'aceStockFiltersStyle';
-    style.textContent = `
-      #aceStockFilters{margin:0 0 18px;padding:18px;border:1px solid #d8e3ec;border-radius:17px;background:#fff;box-shadow:0 4px 14px rgba(4,59,99,.07)}
-      #aceStockFilters .ace-sf-grid{display:grid;grid-template-columns:1fr 1.4fr 1fr auto;gap:12px;align-items:end}
-      #aceStockFilters .ace-sf-field{display:flex;flex-direction:column;gap:6px;min-width:0;font-weight:700;font-size:13px;color:#124b73}
-      #aceStockFilters input[type=search],#aceStockFilters select{box-sizing:border-box;width:100%;min-height:44px;padding:9px 11px;font:inherit}
-      #aceStockFilters button{min-height:42px;padding:9px 13px;border:1px solid #bdd2e2;border-radius:10px;background:#f5f9fc;color:#124b73;font:inherit;font-weight:700;cursor:pointer}
-      #aceStockFilters button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
-      #aceStockFilters .ace-sf-bottom{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:flex-end;gap:14px;margin-top:14px}
-      #aceStockFilters .ace-sf-pdf{flex:0 1 260px}
-      #aceStockFilterCount{margin:14px 0 0;color:#526a7d;font-size:13px;line-height:1.5}
-      #stockCards .ace-sf-subtotal-note{margin:6px 0 0;color:#526a7d;font-size:12px}
-      @media(max-width:850px){#aceStockFilters .ace-sf-grid{grid-template-columns:1fr 1fr}#aceStockFilters .ace-sf-bottom{display:block}#aceStockFilters .ace-sf-pdf{margin-top:12px}}
-      @media(max-width:480px){#aceStockFilters .ace-sf-grid{grid-template-columns:1fr}#aceStockFilters{padding:14px}}
-    `;
-    document.head.appendChild(style);
-  }
-  let panel = document.getElementById('aceStockFilters');
-  if (!panel) {
-    panel = document.createElement('section');
-    panel.id = 'aceStockFilters';
-    panel.setAttribute('aria-label', 'Filtros do estoque geral');
-    panel.innerHTML = `
-      <div class="ace-sf-grid">
-        <label class="ace-sf-field">Situação do estoque<select id="aceStockStatus"><option value="positive">Com estoque</option><option value="zero">Sem estoque</option><option value="all">Todos</option></select></label>
-        <label class="ace-sf-field">Buscar alimento<input id="aceStockSearch" type="search" placeholder="Ex.: arroz, leite, feijão" autocomplete="off"></label>
-        <label class="ace-sf-field">Ordenar por<select id="aceStockSort"><option value="name">Nome (A–Z)</option><option value="qty-desc">Maior quantidade</option><option value="qty-asc">Menor quantidade</option></select></label>
-        <button id="aceStockClear" type="button">Limpar filtros</button>
-      </div>
-      <div class="ace-sf-bottom">
-        <label class="ace-sf-field ace-sf-pdf">Conteúdo do PDF<select id="aceStockPdfScope"><option value="filtered">Visualização filtrada</option><option value="full">Estoque completo</option></select></label>
-      </div>
-      <p id="aceStockFilterCount" role="status" aria-live="polite"></p>`;
-    const consolidated = table.closest('.panel') || table;
-    consolidated.parentNode.insertBefore(panel, consolidated);
-    const bind = (id, event, fn) => document.getElementById(id).addEventListener(event, fn);
-    bind('aceStockStatus', 'change', event => { aceStockFilters.status = event.target.value; renderStock(); });
-    bind('aceStockSearch', 'input', event => { aceStockFilters.query = event.target.value; renderStock(); });
-    bind('aceStockSort', 'change', event => { aceStockFilters.sort = event.target.value; renderStock(); });
-    bind('aceStockPdfScope', 'change', event => { aceStockFilters.pdfScope = event.target.value; });
-    bind('aceStockClear', 'click', () => { Object.assign(aceStockFilters, {status:'positive', query:'', sort:'name', pdfScope:'filtered'}); renderStock(); });
-
-  }
-  const fields = {aceStockStatus:'status', aceStockSearch:'query', aceStockSort:'sort', aceStockPdfScope:'pdfScope'};
-  Object.entries(fields).forEach(([id, key]) => { const field = document.getElementById(id); if (field.value !== aceStockFilters[key]) field.value = aceStockFilters[key]; });
-
-}
-
-// Ícones vetoriais locais e consistentes; sem dependências de rede.
-function getAceModernMobileIcon(kind) {
-  const paths = {
-    mural: '<path d="m3 10 13-5v14L3 14z"/><path d="m6 15 1 6h4l-2-5M16 9h2a3 3 0 0 1 0 6h-2"/>',
-    inicio: '<path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9"/>',
-    movimentos: '<path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>',
-    gestao: '<path d="M4 3v18h17M8 16v-5m5 5V7m5 9v-8"/>',
-    mais: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'
-  };
-  return `<svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[kind] || paths.mais}</svg>`;
-}
-
-(function installAceModernMobileLayout() {
-  const id = 'aceModernMobileLayoutV95';
-  if (document.getElementById(id)) return;
-  const style = document.createElement('style');
-  style.id = id;
-  style.textContent = `
-    @media(max-width:850px){
-      html body #aceMenuOutsideHost,html body #aceMobileMenuButton{display:none!important}
-      html body .ace-header-v6{height:128px!important;min-height:128px!important;padding:0!important;position:relative!important}
-      html body #aceMobileHeader{position:absolute!important;inset:0!important;display:grid!important;grid-template-columns:54px minmax(0,1fr) 36px!important;grid-template-rows:56px 44px!important;gap:4px 10px!important;padding:10px 12px!important;height:128px!important;min-height:0!important;box-sizing:border-box!important;align-items:center!important}
-      html body #aceMobileHeader .ace-mobile-logo{grid-column:1!important;grid-row:1!important;width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;margin:0!important;object-fit:contain!important}
-      html body #aceMobileHeader .ace-mobile-brand{grid-column:2/4!important;grid-row:1!important;min-width:0!important;padding:0!important;margin:0!important}
-      html body #aceMobileHeader .ace-mobile-brand-title{font-size:clamp(16px,4.4vw,20px)!important;font-weight:850!important;line-height:1.2!important;letter-spacing:-.3px!important;white-space:normal!important;overflow-wrap:break-word!important;color:#fff!important;margin:0!important}
-      html body #aceMobileHeader .ace-mobile-brand-subtitle{font-size:12px!important;font-weight:550!important;line-height:1.3!important;margin:4px 0 0!important;white-space:normal!important;color:rgba(255,255,255,.9)!important}
-      html body #aceMobileHeader .ace-mobile-user{grid-column:2!important;grid-row:2!important;position:relative!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;min-width:0!important;gap:7px!important;padding:0!important;margin:0!important}
-      html body #aceMobileHeader .ace-mobile-user-name{font-size:11.5px!important;line-height:1.25!important;font-weight:650!important;max-width:calc(100vw - 244px)!important;min-width:0!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important}
-      html body #aceMobileHeader .ace-mobile-avatar-button{width:40px!important;height:40px!important;flex:0 0 40px!important;border:2px solid rgba(255,255,255,.85)!important}
-      html body #aceMobileHeader .ace-mobile-more{grid-column:3!important;grid-row:2!important;width:36px!important;min-height:44px!important;height:44px!important;justify-self:end!important;font-size:24px!important}
-      html body .ace-header-v6 > #aceTeamStatusButton:not(.ace-team-floating){display:inline-flex!important;position:absolute!important;left:12px!important;top:auto!important;bottom:16px!important;right:auto!important;max-width:110px!important;min-height:40px!important;padding:7px 9px!important;gap:5px!important;font-size:11px!important;box-sizing:border-box!important}
-      html body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating{bottom:calc(86px + env(safe-area-inset-bottom,0px))!important;right:12px!important}
-      html body #aceMobileBottomNav{min-height:72px!important;height:auto!important;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px))!important;gap:2px!important;background:rgba(255,255,255,.98)!important;border-top:1px solid #d8e3ec!important;box-shadow:0 -5px 20px rgba(18,75,115,.09)!important}
-      html body #aceMobileBottomNav .ace-bottom-item{flex:1 1 20%!important;min-width:0!important;width:20%!important;min-height:58px!important;padding:5px 1px!important;border-radius:12px!important;color:#526c80!important;gap:4px!important}
-      html body #aceMobileBottomNav .ace-bottom-item .icon{display:flex!important;align-items:center!important;justify-content:center!important;width:34px!important;height:28px!important;min-height:28px!important;background:transparent!important;box-shadow:none!important;border:0!important;filter:none!important;transform:none!important;color:inherit!important}
-      html body #aceMobileBottomNav .ace-bottom-item .icon svg{display:block;width:25px;height:25px;flex:none}
-      html body #aceMobileBottomNav .ace-bottom-item .label{font-size:10.5px!important;font-weight:700!important;line-height:1.2!important;letter-spacing:0!important}
-      html body #aceMobileBottomNav .ace-bottom-item.active{background:#e7f2fa!important;color:#124b73!important;box-shadow:none!important}
-      html body #aceMobileBottomNav .ace-bottom-item.active::before{background:#159d78!important;width:22px!important;height:3px!important;top:1px!important}
-      html body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
-      html body #aceMobileDrawer{width:min(88vw,350px)!important;border-radius:0 20px 20px 0!important;padding:16px 12px calc(18px + env(safe-area-inset-bottom,0px))!important}
-      html body #aceMobileDrawer{height:100vh!important;height:100dvh!important;max-height:100dvh!important;overflow:hidden!important;overscroll-behavior:none!important}
-      html body #aceMobileDrawerList{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch;touch-action:pan-y pinch-zoom}
-      html body #aceMobileDrawerList > *{flex-shrink:0!important}
-      html body #aceMobileDrawer :is(.ace-drawer-head,.ace-drawer-footer){flex-shrink:0!important}
-      html body #aceMobileDrawerBackdrop{overscroll-behavior:none!important;touch-action:none!important}
-      html body #aceMobileDrawer .ace-drawer-close{width:44px!important;height:44px!important;flex:0 0 44px!important}
-      /* Títulos em destaque e opções discretas com recuo por nível. */
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){min-height:48px!important;height:auto!important;font-size:15.5px!important;font-weight:600!important;line-height:1.35!important;white-space:normal!important;text-align:left!important;padding:9px 12px!important;box-sizing:border-box!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span{font-size:inherit!important;font-weight:inherit!important;line-height:inherit!important;min-width:0!important;white-space:normal!important;overflow-wrap:break-word!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle) > span:last-child{flex:0 0 auto!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-level2,.ace-drawer-settings-level2){margin:3px 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){border:0!important;border-radius:12px!important;background:transparent!important;box-shadow:none!important;color:#28445e!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle):hover{background:#edf5fb!important;color:#0756a0!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-title{font-size:15px!important;font-weight:900!important;line-height:1.35!important;color:#124b73!important;letter-spacing:.04em;margin:16px 8px 7px!important;white-space:normal!important;overflow-wrap:break-word!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section :is(.ace-drawer-item,.ace-drawer-sacks-toggle,.ace-drawer-settings-toggle){padding-left:12px!important}
-      html body #aceMobileDrawer #aceMobileDrawerList :is(.ace-drawer-sacks-panel,.ace-drawer-settings-panel){padding:0 0 3px 12px!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section{padding:0 0 8px!important;margin:0!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-items{display:flex!important;flex-direction:column!important;gap:0!important;margin-left:20px!important;padding-left:8px!important;border-left:2px solid #d7e7f2!important;min-width:0!important}
-      html body #aceMobileDrawer #aceMobileDrawerList .ace-drawer-section-items > *{flex-shrink:0!important}
-      html body main{padding-top:18px!important}
-      html body #mural .ace-mural-title{font-size:26px!important;line-height:1.2!important}
-      html body #mural .ace-mural-subtitle{font-size:14px!important;line-height:1.5!important;margin-top:8px!important}
-      html body #mural .ace-mural-admin-btn{min-height:44px!important;font-size:14px!important;padding:10px 14px!important}
-      html body .page > .page-head h2{font-size:23px!important;line-height:1.25!important}
-      html body .page > .page-head p{font-size:14px!important;line-height:1.5!important}
-    }
-  `;
-  (document.head || document.documentElement).appendChild(style);
-  document.addEventListener('keydown', event => {
-    const drawer = document.getElementById('aceMobileDrawer');
-    if (!drawer?.classList.contains('open')) return;
-    if (event.key === 'Escape') { event.preventDefault(); closeAceMobileDrawer(); return; }
-    if (event.key !== 'Tab') return;
-    const focusable = Array.from(drawer.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex="0"]')).filter(node => node.getClientRects().length);
-    if (!focusable.length) return;
-    const first = focusable[0], last = focusable[focusable.length - 1];
-    if (event.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-  });
-  installAceDrawerScrollGuards();
-  window.addEventListener('resize', () => { if (window.innerWidth > 850) closeAceMobileDrawer(); });
-})();
-
-
-function scaleAceFontDeclaration(style) {
-  if (!style) return;
-  const value = style.getPropertyValue('font-size');
-  // Tamanhos relativos ao pai já acompanham a herança. rem se refere à raiz fixa.
-  if (!value || value.includes('--ace-text-scale') || /^(inherit|initial|unset|revert|revert-layer)$/i.test(value)) return;
-  if (!/(?:px|rem|vw|vh|pt)\b/i.test(value) || /(?:\d*\.?\d+em\b|%)/i.test(value)) return;
-  style.setProperty('font-size', `calc(${value} * var(--ace-text-scale, 1))`, style.getPropertyPriority('font-size'));
-}
-
-function scaleAceAccessibilityStyles() {
-  const visit = rules => {
-    for (const rule of Array.from(rules || [])) {
-      // A raiz deve manter sua medida original para não multiplicar unidades rem.
-      const rootRule = rule.selectorText?.split(',').some(selector => /^(html|:root)$/.test(selector.trim()));
-      if (!rootRule && rule.style) scaleAceFontDeclaration(rule.style);
-      try { if (rule.cssRules) visit(rule.cssRules); } catch {}
-    }
-  };
-  for (const sheet of Array.from(document.styleSheets || [])) {
-    try { visit(sheet.cssRules); } catch { /* Folhas externas podem bloquear CSSOM. */ }
-  }
-  document.body?.querySelectorAll('[style]').forEach(element => scaleAceFontDeclaration(element.style));
-}
-
-function ensureAceAccessibilityButtons() {
-  const icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="butt" stroke-linejoin="round" aria-hidden="true" focusable="false">  <path d="M7 18A28 28 0 0 1 57 18M4 30A28 28 0 0 0 12 52M60 30A28 28 0 0 1 52 52M22 60Q32 63 42 60"/>  <path d="M5 26Q32 42 59 26M32 34L17 55M32 34L47 55" stroke-linecap="round"/>  <g fill="#43c5ef">    <circle cx="32" cy="18.5" r="7.4"/>    <circle cx="5" cy="24.5" r="3.5"/>    <circle cx="59" cy="24.5" r="3.5"/>    <circle cx="17" cy="55" r="3.5"/>    <circle cx="47" cy="55" r="3.5"/>  </g></svg>';
-  // Acessibilidade nos menus: sem controles sobre o conteúdo ou no cabeçalho.
-  for (const id of ['aceAccessibilityFloatingButton','aceAccessibilityHeaderButton','aceAccessibilityDesktopButton']) document.getElementById(id)?.remove();
-  for (const menuId of ['aceMobileDrawerList','aceDesktopAccountDropdown']) {
-    const menu = document.getElementById(menuId);
-    if (!menu || menu.querySelector('[data-ace-accessibility]')) continue;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'ace-drawer-item ace-accessibility-menu-item';
-    button.setAttribute('data-ace-accessibility', 'open');
-    button.setAttribute('aria-label', 'Acessibilidade: ajustar tamanho das letras');
-    button.setAttribute('aria-haspopup', 'dialog');
-    button.setAttribute('aria-controls', 'aceAccessibilityModal');
-    button.setAttribute('aria-expanded', String(!!document.getElementById('aceAccessibilityModal')));
-    button.innerHTML = `${icon}<span>Acessibilidade</span>`;
-    const host = menuId === 'aceMobileDrawerList' ? (menu.querySelector('.ace-drawer-config-section .ace-drawer-section-items') || menu) : menu;
-    host.insertBefore(button, host.querySelector('.logout'));
-  }
-  ensureAceCompactOnline();
-}
-
-// A área de toque continua confortável; somente a cápsula interna tem fundo branco.
-function ensureAceCompactOnline() {
-  const button = document.getElementById('aceTeamStatusButton');
-  if (!button) return;
-  if (button.querySelector('.ace-team-compact-pill')) { syncAceCompactOnlineWidth(); return; }
-  const pill = document.createElement('span');
-  pill.className = 'ace-team-compact-pill';
-  while (button.firstChild) pill.appendChild(button.firstChild);
-  const chat = pill.querySelector('.ace-team-chat-symbol');
-  if (chat) chat.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></svg>';
-  button.appendChild(pill);
-  if (typeof ResizeObserver === 'function') {
-    const observer = new ResizeObserver(syncAceCompactOnlineWidth);
-    observer.observe(pill);
-  }
-  syncAceCompactOnlineWidth();
-}
-
-function syncAceCompactOnlineWidth() {
-  if (window.innerWidth > 850) return;
-  const header = document.getElementById('aceMobileHeader');
-  const pill = document.querySelector('#aceTeamStatusButton .ace-team-compact-pill');
-  if (!header || !pill) return;
-  const width = Math.ceil(pill.getBoundingClientRect().width);
-  if (!width) return;
-  const value = `${width}px`;
-  if (header.style.getPropertyValue('--ace-team-slot') !== value) header.style.setProperty('--ace-team-slot', value);
-}
-
-function setAceAccessibilityLevel(value, persist = true) {
-  const number = Number(value);
-  aceAccessibilityLevel = Number.isInteger(number) && number >= 0 && number < ACE_ACCESSIBILITY_LEVELS.length ? number : 0;
-  const level = ACE_ACCESSIBILITY_LEVELS[aceAccessibilityLevel];
-  const root = document.documentElement;
-  root.setAttribute('data-ace-font-level', String(aceAccessibilityLevel));
-  root.style.setProperty('--ace-text-scale', String(level.scale));
-  if (persist) { try { localStorage.setItem(ACE_ACCESSIBILITY_KEY, String(aceAccessibilityLevel)); } catch {} }
-  const modal = document.getElementById('aceAccessibilityModal');
-  if (modal) {
-    modal.querySelectorAll('[data-ace-font-level]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.aceFontLevel) === aceAccessibilityLevel)));
-    const status = modal.querySelector('[data-ace-font-status]');
-    if (status) status.textContent = `Tamanho atual: ${level.name} (${Math.round(level.scale * 100)}%)`;
-    modal.querySelector('[data-ace-font-decrease]').disabled = aceAccessibilityLevel === 0;
-    modal.querySelector('[data-ace-font-increase]').disabled = aceAccessibilityLevel === ACE_ACCESSIBILITY_LEVELS.length - 1;
-  }
-}
-
-function closeAceAccessibility() {
-  const modal = document.getElementById('aceAccessibilityModal');
-  if (!modal) return;
-  modal.remove();
-  document.querySelectorAll('[data-ace-accessibility]').forEach(button => button.setAttribute('aria-expanded', 'false'));
-  document.body.classList.remove('ace-accessibility-open');
-  if (aceAccessibilityReturnFocus?.isConnected) aceAccessibilityReturnFocus.focus({preventScroll:true});
-  aceAccessibilityReturnFocus = null;
-}
-
-function openAceAccessibility() {
-  if (document.getElementById('aceAccessibilityModal')) return;
-  if (typeof closeAceMobileDrawer === 'function') closeAceMobileDrawer();
-  if (typeof closeAceAccountMenu === 'function') closeAceAccountMenu();
-  if (typeof closeAceDesktopAccountMenu === 'function') closeAceDesktopAccountMenu();
-  aceAccessibilityReturnFocus = document.activeElement;
-  const modal = document.createElement('div');
-  modal.id = 'aceAccessibilityModal';
-  modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true');
-  modal.setAttribute('aria-labelledby', 'aceAccessibilityTitle');
-  modal.innerHTML = `
-    <div class="ace-accessibility-box">
-      <div class="ace-accessibility-title-row"><h2 id="aceAccessibilityTitle">Acessibilidade</h2><button type="button" data-ace-font-close aria-label="Fechar acessibilidade">×</button></div>
-      <p>Ajuste o tamanho das letras para uma leitura mais confortável.</p>
-      <div class="ace-accessibility-stepper" role="group" aria-label="Ajustar tamanho das letras"><button type="button" data-ace-font-decrease aria-label="Diminuir letras">A−</button><strong data-ace-font-status role="status" aria-live="polite"></strong><button type="button" data-ace-font-increase aria-label="Aumentar letras">A+</button></div>
-      <div class="ace-accessibility-presets" role="group" aria-label="Tamanhos disponíveis">${ACE_ACCESSIBILITY_LEVELS.map((level,index)=>`<button type="button" data-ace-font-level="${index}" aria-pressed="false">${level.name}</button>`).join('')}</div>
-      <div class="ace-accessibility-preview">Amor que alimenta e acolhe.<br>Escolha o tamanho que fica melhor para você.</div>
-      <p class="ace-accessibility-save-note">Sua preferência fica salva neste aparelho.</p>
-      <button type="button" class="ace-accessibility-reset" data-ace-font-reset>Restaurar padrão</button>
-    </div>`;
-  modal.addEventListener('click', event => {
-    if (event.target === modal || event.target.closest('[data-ace-font-close]')) { closeAceAccessibility(); return; }
-    const preset = event.target.closest('[data-ace-font-level]');
-    if (preset) setAceAccessibilityLevel(preset.dataset.aceFontLevel);
-    else if (event.target.closest('[data-ace-font-decrease]')) setAceAccessibilityLevel(Math.max(0, aceAccessibilityLevel - 1));
-    else if (event.target.closest('[data-ace-font-increase]')) setAceAccessibilityLevel(Math.min(2, aceAccessibilityLevel + 1));
-    else if (event.target.closest('[data-ace-font-reset]')) setAceAccessibilityLevel(0);
-  });
-  modal.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAceAccessibility(); return; }
-    if (event.key !== 'Tab') return;
-    const controls = Array.from(modal.querySelectorAll('button:not(:disabled)')).filter(button => button.getClientRects().length);
-    const first = controls[0], last = controls[controls.length - 1];
-    if (!first) return;
-    if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-  });
-  document.body.appendChild(modal); document.body.classList.add('ace-accessibility-open');
-  document.querySelectorAll('[data-ace-accessibility]').forEach(button => button.setAttribute('aria-expanded', 'true'));
-  setAceAccessibilityLevel(aceAccessibilityLevel, false);
-  scaleAceAccessibilityStyles();
-  modal.querySelector('[data-ace-font-close]').focus({preventScroll:true});
-}
-
-(function installAceAccessibility() {
-  function start() {
-    if (document.getElementById('aceAccessibilityStyleV96')) return;
-    const root = document.documentElement;
-    root.style.setProperty('--ace-body-font-base', getComputedStyle(document.body).fontSize || '16px');
-    const style = document.createElement('style'); style.id = 'aceAccessibilityStyleV96';
-    style.textContent = `
-      html[data-ace-font-level] body{font-size:calc(var(--ace-body-font-base,16px) * var(--ace-text-scale,1))!important}
-      html body :is(#aceAccessibilityFloatingButton,#aceAccessibilityHeaderButton,#aceAccessibilityDesktopButton){display:none!important}
-      .ace-accessibility-menu-item{display:flex;align-items:center;gap:10px}
-      .ace-accessibility-menu-item svg{width:20px!important;height:20px!important;flex:0 0 20px!important;color:#124b73}
-      #aceTeamStatusButton .ace-team-compact-pill{display:contents}
-      body.ace-accessibility-open{overflow:hidden!important}
-      #aceAccessibilityModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.62);box-sizing:border-box}
-      #aceAccessibilityModal .ace-accessibility-box{width:min(480px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;padding:22px;box-sizing:border-box;border-radius:20px;background:#fff;color:#173750;box-shadow:0 22px 70px rgba(0,31,58,.3)}
-      #aceAccessibilityModal .ace-accessibility-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-      #aceAccessibilityModal h2{margin:0;font-size:22px;color:#124b73}
-      #aceAccessibilityModal p{font-size:14px;line-height:1.5}
-      #aceAccessibilityModal button{min-height:44px;border:1px solid #bdd2e2;border-radius:10px;background:#f4f8fb;color:#124b73;font:inherit;font-weight:750;padding:9px 12px;cursor:pointer;white-space:normal}
-      #aceAccessibilityModal button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
-      #aceAccessibilityModal [data-ace-font-close]{flex:0 0 44px;font-size:25px;padding:0}
-      #aceAccessibilityModal .ace-accessibility-stepper{display:grid;grid-template-columns:54px minmax(0,1fr) 54px;align-items:center;gap:10px;margin:20px 0}
-      #aceAccessibilityModal [data-ace-font-status]{font-size:14px;text-align:center;line-height:1.5}
-      #aceAccessibilityModal .ace-accessibility-presets{display:flex;flex-wrap:wrap;gap:8px}
-      #aceAccessibilityModal .ace-accessibility-presets button{flex:1 1 110px}
-      #aceAccessibilityModal button[aria-pressed=true]{background:#08785b;color:#fff;border-color:#08785b}
-      #aceAccessibilityModal .ace-accessibility-preview{margin-top:18px;padding:15px;border:1px solid #d8e3ec;border-radius:12px;background:#edf6fc;font-size:16px;line-height:1.6}
-      #aceAccessibilityModal .ace-accessibility-save-note{font-size:12px;color:#526a7d}
-      #aceAccessibilityModal .ace-accessibility-reset{width:100%}
-      #aceStockPdfHost,#aceStockPdfDocument,#aceReportPdfHost{--ace-text-scale:1!important}
-      html[data-ace-font-level="1"] body :is(button,input,select,textarea),html[data-ace-font-level="2"] body :is(button,input,select,textarea){height:auto;min-height:44px;white-space:normal;overflow-wrap:anywhere}
-      html[data-ace-font-level="1"] body main :is(button,input,select,textarea),html[data-ace-font-level="2"] body main :is(button,input,select,textarea){height:auto!important;min-height:44px!important;white-space:normal!important;overflow-wrap:anywhere}
-      html[data-ace-font-level="1"] body :is(td,th),html[data-ace-font-level="2"] body :is(td,th){white-space:normal;overflow-wrap:anywhere}
-      html[data-ace-font-level="1"] body .table-wrap,html[data-ace-font-level="2"] body .table-wrap{overflow-x:auto}
-      @media(max-width:850px){
-        /* A identidade ocupa toda a largura. A conta e os comandos têm sua própria linha.
-           A altura acompanha o texto, sem colunas implícitas ou palavras cortadas. */
-        html[data-ace-font-level] body .ace-header-v6{height:auto!important;min-height:128px!important;display:block!important}
-        html[data-ace-font-level] body #aceMobileHeader{position:relative!important;inset:auto!important;width:100%!important;max-width:none!important;height:auto!important;min-height:128px!important;display:grid!important;grid-template-columns:var(--ace-team-slot,132px) minmax(0,1fr) 40px 36px!important;grid-template-rows:minmax(56px,auto) minmax(44px,auto)!important;gap:10px 4px!important;padding:10px 12px 12px!important;box-sizing:border-box!important;align-items:center!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-logo{grid-column:1!important;grid-row:1!important;width:52px!important;height:52px!important;align-self:center!important;justify-self:start!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-brand{grid-column:1/-1!important;grid-row:1!important;width:auto!important;max-width:none!important;min-width:0!important;padding:0 0 0 64px!important;box-sizing:border-box!important;align-items:flex-start!important;justify-self:stretch!important;text-align:left!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-brand-title{width:100%!important;max-width:none!important;font-size:clamp(17px,4.4vw,20px)!important;line-height:1.25!important;white-space:normal!important;word-break:normal!important;overflow-wrap:normal!important;text-align:left!important;letter-spacing:0!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-brand-subtitle{width:100%!important;font-size:12px!important;line-height:1.4!important;white-space:normal!important;word-break:normal!important;overflow-wrap:normal!important;text-align:left!important;margin-top:4px!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-user{grid-column:2/4!important;grid-row:2!important;display:flex!important;gap:5px!important;min-width:0!important;width:100%!important;justify-content:flex-end!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-user-name{max-width:none!important;min-width:0!important;flex:1 1 0!important;font-size:11.5px!important;line-height:1.3!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;word-break:normal!important;text-align:right!important}
-        html[data-ace-font-level] body #aceMobileHeader .ace-mobile-more{grid-column:4!important;grid-row:2!important;width:36px!important;min-width:36px!important;height:44px!important;min-height:44px!important;line-height:1!important;white-space:nowrap!important}
-        /* Cápsula de 28px dentro de botão transparente de 44px; largura acompanha o texto. */
-        html[data-ace-font-level] body .ace-header-v6 #aceTeamStatusButton{--ace-text-scale:1!important;display:inline-flex!important;align-items:center!important;justify-content:flex-start!important;width:max-content!important;max-width:none!important;min-width:0!important;height:44px!important;min-height:44px!important;padding:0!important;gap:0!important;font-size:12px!important;line-height:1!important;white-space:nowrap!important;overflow:visible!important;overflow-wrap:normal!important;box-sizing:border-box!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;transform:none!important}
-        html[data-ace-font-level] body .ace-header-v6 #aceTeamStatusButton:not(.ace-team-floating){position:absolute!important;left:12px!important;right:auto!important;top:auto!important;bottom:12px!important}
-        html[data-ace-font-level] body .ace-header-v6 #aceTeamStatusButton .ace-team-compact-pill{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:none!important;gap:5px!important;height:28px!important;min-height:28px!important;width:max-content!important;padding:0 8px!important;box-sizing:border-box!important;border:1px solid rgba(255,255,255,.8)!important;border-radius:999px!important;background:#fff!important;box-shadow:0 2px 6px rgba(0,26,54,.1)!important}
-        html[data-ace-font-level] body #aceTeamStatusText{flex:none!important;min-width:max-content!important;max-width:none!important;width:auto!important;font-size:12px!important;line-height:1!important;overflow:visible!important;text-overflow:clip!important;white-space:nowrap!important}
-        html[data-ace-font-level] body #aceTeamStatusButton .ace-team-chat-symbol{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:none!important;width:19px!important;height:16px!important;box-sizing:border-box!important;font-size:15px!important;line-height:1!important;padding:0 0 0 4px!important;border-left:1px solid #dbe4ea!important}
-        html[data-ace-font-level] body #aceTeamStatusButton .ace-team-chat-symbol svg{width:15px!important;height:15px!important;flex:none!important}
-        html[data-ace-font-level] body #aceTeamStatusButton .ace-team-status-dot{width:6px!important;height:6px!important;flex:0 0 6px!important;box-shadow:none!important}
-        html[data-ace-font-level] body #aceTeamUnreadBadge{flex:none!important;min-width:15px!important;height:15px!important;padding:0 3px!important;font-size:9px!important;line-height:1!important}
-        html[data-ace-font-level="1"] body #aceMobileBottomNav .ace-bottom-item,html[data-ace-font-level="2"] body #aceMobileBottomNav .ace-bottom-item{height:auto!important;min-height:68px!important;overflow:visible!important}
-        html[data-ace-font-level="1"] body #aceMobileBottomNav .ace-bottom-item .label,html[data-ace-font-level="2"] body #aceMobileBottomNav .ace-bottom-item .label{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
-        html[data-ace-font-level="1"] body,html[data-ace-font-level="2"] body{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))!important}
-        html[data-ace-font-level="1"] body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating,html[data-ace-font-level="2"] body .ace-header-v6 > #aceTeamStatusButton.ace-team-floating{bottom:calc(112px + env(safe-area-inset-bottom,0px))!important}
-        #aceAccessibilityModal .ace-accessibility-box{padding:18px}
-      }
-      @media print{html:root{--ace-text-scale:1!important}html body .ace-accessibility-header-button{display:none!important}}
-    `;
-    document.head.appendChild(style);
-    let stored = 0; try { stored = localStorage.getItem(ACE_ACCESSIBILITY_KEY); } catch {}
-    setAceAccessibilityLevel(stored, false);
-    let scheduled = false;
-    const refresh = () => { scheduled = false; scaleAceAccessibilityStyles(); ensureAceAccessibilityButtons(); };
-    const schedule = () => { if (!scheduled) { scheduled = true; requestAnimationFrame(refresh); } };
-    refresh();
-    new MutationObserver(schedule).observe(root, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['style']});
-    window.addEventListener('load', schedule);
-    window.addEventListener('storage', event => { if (event.key === ACE_ACCESSIBILITY_KEY) setAceAccessibilityLevel(event.newValue, false); });
-    document.addEventListener('click', event => { if (event.target.closest?.('[data-ace-accessibility]')) { event.preventDefault(); openAceAccessibility(); } });
-  }
-  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start, {once:true});
-})();
-
-
-// =============================================================
-// ACE — NOTÍCIAS ESPÍRITAS DESKTOP · V123
-// 3 notícias por vez, alternância FEEC/FEB, fotos quando disponíveis,
-// ilustração local quando não existir foto e correção do botão residual.
-// NÃO usa Supabase; NÃO modifica layout do celular ou APK.
-// =============================================================
-(function installAceDesktopNewsV123() {
-  'use strict';
-  const desktop = window.matchMedia('(min-width: 851px)');
-  const SECTION_ID = 'aceDesktopNews';
-  const CSS_ID = 'aceDesktopNewsStylesV121';
-  const CACHE_KEY = 'ace_desktop_news_v123';
-  const CACHE_MS = 6 * 60 * 60 * 1000;
-  const ROTATE_MS = 7500;
-  const PER_PAGE = 3;
-  const FEEC_SITE = 'https://feec.org.br/';
-  const FEB_SITE = 'https://febnet.org.br/';
-  const FEEC_NEWS = FEEC_SITE + 'noticias/';
-  const FEEDS = {
-    FEEC: [
-      FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded',
-      FEEC_SITE + 'wp-json/wp/v2/posts?per_page=9&_fields=id,date,link,title,content,featured_media'
-    ],
-    FEB: [
-      FEB_SITE + 'wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded',
-      'https://www.febnet.org.br/portal/wp-json/wp/v2/posts?per_page=9&_embed=wp:featuredmedia&_fields=id,date,link,title,content,featured_media,_embedded'
-    ]
-  };
-  // Seleção verificada de publicações da FEB: é exibida se a API oficial
-  // não liberar acesso CORS no navegador. Não é apresentada como feed ao vivo.
-  const curatedFEB = [
-    {source:'FEB',title:'Viver é uma escolha: ore pelos suicidas',link:'https://febnet.org.br/viver-e-uma-escolha-ore-pelos-suicidas/',date:'2026-09-18'},
-    {source:'FEB',title:'Revista Espírita na atualidade: divulgação das comunicações',link:'https://febnet.org.br/revista-espirita-na-atualidade-divulgacao-das-comunicacoes/',date:'2026-09-16',image:'https://febnet.org.br/wp-content/uploads/2026/09/15-de-setembro.jpg'},
-    {source:'FEB',title:'Você sabia? A missão evangelizadora do Brasil',link:'https://febnet.org.br/voce-sabia-a-missao-evangelizadora-do-brasil/',date:'2026-09-10'}
-  ];
-  const curatedFEEC = [
-    {source:'FEEC',title:'Notícias e eventos da Federação Espírita do Ceará',link:FEEC_NEWS,date:''},
-    {source:'FEEC',title:'Confira a programação e as atividades espíritas no Ceará',link:FEEC_SITE,date:''}
-  ];
-  let news = interleave(curatedFEEC,curatedFEB);
-  let page = 0;
+// ============================================================
+// ACE V79 — DESTAQUES DO MURAL / PUBLICAÇÕES ADMINISTRATIVAS
+// Preserva banco, uploads e gestão original de publicações.
+// ============================================================
+(() => {
+  const STYLE = "aceV79HighlightsStyles";
+  const BAR = "aceV79Highlights";
+  const MODAL = "aceV79HighlightsModal";
+  const escapeText = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   let timer = null;
-  let loading = false;
-  let lastCheck = 0;
-  const failedImages = new Set(); // Evita repetir imagens quebradas a cada rotação.
+  let index = 0;
 
-  function secureLink(raw, image=false, source='FEEC') {
-    try {
-      // Links relativos da FEB devem apontar à FEB, nunca ao domínio da FEEC.
-      const url = new URL(String(raw || '').trim(), source==='FEB'?FEB_SITE:FEEC_SITE);
-      if (url.protocol !== 'https:' || url.username || url.password) return null;
-      const host = url.hostname.toLowerCase();
-      const official = /(^|\.)(?:feec\.org\.br|febnet\.org\.br)$/.test(host);
-      if (!image) return official ? url.href : null;
-      // Autoriza somente domínios oficiais e o CDN de imagens do WordPress.
-      const wpCdn = /^(?:i[0-3]\.wp\.com|s0\.wp\.com)$/.test(host);
-      if (!official && !wpCdn) return null;
-      const path = url.pathname.toLowerCase();
-      const imageFile = /\.(?:png|jpe?g|webp|gif|avif)$/.test(path);
-      const wpMedia = official && /\/wp-content\/uploads\//.test(path);
-      return imageFile || wpMedia ? url.href : null;
-    } catch { return null; }
-  }
-
-  function cleanText(html) {
-    const node=document.createElement('span'); node.innerHTML=String(html||'');
-    return (node.textContent||'').replace(/\s+/g,' ').trim().slice(0,220);
-  }
-
-  function extractImage(post, source) {
-    // 1. Miniaturas de mídia destacada do WordPress: primeiro as versões pequenas.
-    const media = post?._embedded?.['wp:featuredmedia']?.[0] || {};
-    const sizes = media.media_details?.sizes || post?.media_details?.sizes || {};
-    const candidates = [
-      sizes.medium?.source_url, sizes.thumbnail?.source_url,
-      sizes.medium_large?.source_url, sizes['post-thumbnail']?.source_url,
-      sizes.large?.source_url, media.source_url,
-      post?.jetpack_featured_media_url, post?.featured_image_url,
-      post?.better_featured_image?.media_details?.sizes?.medium?.source_url,
-      post?.better_featured_image?.source_url,
-      post?.yoast_head_json?.og_image?.[0]?.url,
-      post?.og_image, post?.image
-    ];
-    for(const candidate of candidates) {
-      const url=secureLink(candidate,true,source); if(url)return url;
-    }
-
-    // 2. Alguns artigos inserem a foto no HTML em vez de marcar mídia destacada.
-    const html=String(post?.content?.rendered||'')+' '+String(post?.excerpt?.rendered||'');
-    if(!html.trim())return null;
-    const parsed=new DOMParser().parseFromString(html,'text/html');
-    for(const el of parsed.querySelectorAll('img, picture source')) {
-      const rawSets=[el.getAttribute('srcset'),el.getAttribute('data-srcset'),el.getAttribute('data-lazy-srcset')].filter(Boolean);
-      const sizesFromSets=[];
-      for(const set of rawSets) for(const part of set.split(',')) {
-        const fields=part.trim().split(/\s+/);
-        const width=Number((fields[1]||'').replace(/w$/,''));
-        if(fields[0] && width >= 180 && width <= 640) sizesFromSets.push({url:fields[0],width});
-      }
-      // Prefere ~320 px: nitidez em telas comuns, sem baixar a foto original.
-      sizesFromSets.sort((a,b)=>Math.abs(a.width-320)-Math.abs(b.width-320));
-      const urls=[...sizesFromSets.map(item=>item.url),
-        el.getAttribute('data-lazy-src'), el.getAttribute('data-original'),
-        el.getAttribute('data-src'), el.getAttribute('src')];
-      for(const candidate of urls){
-        const url=secureLink(candidate,true,source);
-        if(!url || /(?:logo|avatar|placeholder|spacer|loading|sprite)/i.test(new URL(url).pathname))continue;
-        return url;
-      }
-    }
-    return null;
-  }
-
-  function withPhotosFirst(items) {
-    // Mantém a ordem original entre as notícias com foto e, depois, sem foto.
-    // A alternância entre FEEC e FEB continua sendo feita em interleave().
-    return [...items.filter(item=>secureLink(item.image,true,item.source)),
-            ...items.filter(item=>!secureLink(item.image,true,item.source))];
-  }
-
-  async function enrichMissingFeaturedImages(items, source) {
-    // Busca extra SOMENTE para as primeiras 2 notícias sem foto que tenham
-    // mídia destacada; nenhuma requisição ao Supabase nem a servidores terceiros.
-    let attempts=0;
-    const base=source==='FEB'?FEB_SITE:FEEC_SITE;
-    for(const item of items) {
-      if(item.image || !Number.isSafeInteger(item.featuredMediaId) ||
-         item.featuredMediaId<=0 || attempts>=2)continue;
-      attempts++;
-      try {
-        const data=await getJson(base+'wp-json/wp/v2/media/'+item.featuredMediaId+
-          '?_fields=source_url,media_details',3000);
-        const found=extractImage({_embedded:{'wp:featuredmedia':[data]}},source);
-        if(found)item.image=found;
-      }catch{/* O site pode não permitir CORS; conserva o cartão sem foto. */}
-    }
-    return items;
-  }
-
-  function illustration(source) {
-    // Vetor gerado localmente: custo de rede ZERO, sem imagem falsa.
-    // A alternativa visual identifica a fonte, não se passa por foto.
-    const feb=source==='FEB';
-    const accent=feb?'#216e87':'#258d78';
-    const secondary=feb?'#d5eaf3':'#d7efe5';
-    const holder=document.createElement('span');
-    holder.className='ace-news-illustration';
-    holder.innerHTML=`<svg viewBox="0 0 130 100" width="130" height="100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-      <rect width="130" height="100" rx="12" fill="${secondary}"/>
-      <circle cx="110" cy="9" r="54" fill="white" opacity=".45"/>
-      <path d="M29 62 Q47 51 63 65 Q80 52 100 62 L100 78 Q79 68 63 80 Q46 68 29 78 Z" fill="white" opacity=".9"/>
-      <path d="M64 60 L64 81 M30 62 Q47 54 63 65 M65 65 Q84 54 99 62" stroke="${accent}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <circle cx="65" cy="34" r="13" fill="${accent}" opacity=".16"/>
-      <path d="M65 16 V26 M48 24 L55 30 M82 24 L75 30" stroke="${accent}" stroke-width="2.5" stroke-linecap="round"/>
-      <text x="65" y="96" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="2" fill="${accent}">${feb?'FEB':'FEEC'}</text>
-    </svg>`;
-    return holder;
-  }
-
-  function interleave(feec,feb) {
-    // A primeira página terá SEMPRE 2 notícias FEEC + 1 FEB quando disponíveis.
-    // Isso evita que a FEEC ocupe as três primeiras posições sozinha.
-    const a=feec.slice(0,9),b=feb.slice(0,9),out=[];
-    let i=0,j=0;
-    while(i<a.length||j<b.length) {
-      if(i<a.length)out.push(a[i++]);
-      if(j<b.length)out.push(b[j++]);
-      if(i<a.length)out.push(a[i++]);
-    }
-    return out.slice(0,18);
-  }
-
-  function ensureStyle() {
-    if(document.getElementById(CSS_ID))return;
-    const style=document.createElement('style');style.id=CSS_ID;
-    style.textContent=`
-      @media(min-width:851px){
-        /* Esconde SOMENTE o botão de menu antigo do celular que foi
-           movido para fora do cabeçalho e ficou sobrando no desktop.
-           O botão Online/Equipe e a janela do chat NÃO são alterados. */
-        html body #aceMenuOutsideHost,
-        html body #aceMobileMenuButton{
-          display:none!important;
-          visibility:hidden!important;
-          pointer-events:none!important;
-        }
-        #aceDesktopNews{box-sizing:border-box;margin:14px 16px 17px;padding:18px 20px 15px;
-          width:calc(100% - 32px);border:1px solid #d4e7f0;border-radius:19px;
-          background:linear-gradient(110deg,#f8fcff,#ebf6fd 70%,#eaf7f2);
-          box-shadow:0 8px 28px rgba(12,62,94,.09);color:#173b55;font-family:inherit;}
-        #aceDesktopNews *{box-sizing:border-box;}
-        #aceDesktopNews .ace-news-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;}
-        #aceDesktopNews .ace-news-ident{min-width:0;}
-        #aceDesktopNews .ace-news-heading{display:block;font-size:19px;font-weight:900;letter-spacing:-.2px;color:#113f61;line-height:1.3;}
-        #aceDesktopNews .ace-news-caption{margin-top:3px;color:#527184;font-size:12px;}
-        #aceDesktopNews .ace-news-controls{display:flex;flex:none;align-items:center;gap:7px;}
-        #aceDesktopNews .ace-news-control{display:grid;place-items:center;min-height:38px;width:40px;height:38px;padding:0;
-          border:1px solid #c5dce9;border-radius:11px;background:#fff;color:#155e86;cursor:pointer;
-          font-size:24px;font-weight:800;line-height:1;transition:background .2s ease;}
-        #aceDesktopNews .ace-news-control:hover:not(:disabled){background:#e2f1fb;}
-        #aceDesktopNews .ace-news-control:disabled{opacity:.35;cursor:default;}
-        #aceDesktopNews :is(.ace-news-control,.ace-news-link):focus-visible{outline:3px solid #168bc5;outline-offset:3px;}
-        #aceDesktopNews .ace-news-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
-        #aceDesktopNews .ace-news-card{display:flex;align-items:center;min-width:0;min-height:130px;gap:15px;padding:12px;
-          border:1px solid #d6e8f2;border-radius:15px;background:#fff;box-shadow:0 3px 10px rgba(14,67,98,.045);}
-        #aceDesktopNews .ace-news-card:hover{border-color:#acd1e5;box-shadow:0 8px 20px rgba(12,62,94,.09);}
-        #aceDesktopNews .ace-news-thumb{display:grid;place-items:center;flex:0 0 124px;width:124px;height:97px;
-          border-radius:10px;overflow:hidden;background:linear-gradient(140deg,#dceef6,#e5f2fb 68%,#d7e8e2);pointer-events:none;}
-        #aceDesktopNews .ace-news-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
-        #aceDesktopNews .ace-news-illustration{display:block;width:100%;height:100%;}
-        #aceDesktopNews .ace-news-illustration svg{width:100%;height:100%;display:block;}
-        #aceDesktopNews .ace-news-copy{min-width:0;flex:1;}
-        #aceDesktopNews .ace-news-source{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.75px;
-          font-weight:900;color:#17769b;margin-bottom:8px;}
-        #aceDesktopNews .ace-news-link{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;
-          color:#17405b;text-decoration:none;font-size:clamp(13px,1vw,15px);font-weight:850;line-height:1.43;overflow-wrap:anywhere;}
-        #aceDesktopNews .ace-news-link:hover{color:#0872b9;text-decoration:underline;}
-        #aceDesktopNews .ace-news-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;
-          margin-top:12px;min-height:18px;color:#57788d;font-size:12px;}
-        #aceDesktopNews .ace-news-page{font-weight:800;font-variant-numeric:tabular-nums;}
-      }
-      @media(min-width:851px) and (max-width:1150px){
-        #aceDesktopNews{padding:14px 14px 12px;}
-        #aceDesktopNews .ace-news-grid{gap:9px;}
-        #aceDesktopNews .ace-news-card{padding:9px;gap:9px;min-height:112px;}
-        #aceDesktopNews .ace-news-thumb{flex-basis:74px;width:74px;height:84px;}
-        #aceDesktopNews .ace-news-link{font-size:12px;line-height:1.35;}
-      }
-      @media(max-width:850px){#aceDesktopNews{display:none!important;}}
-      @media(prefers-reduced-motion:reduce){
-        #aceDesktopNews *,#aceDesktopNews *::before,#aceDesktopNews *::after{animation:none!important;transition:none!important;}
-      }
+  function installStyles() {
+    if (document.getElementById(STYLE)) return;
+    const el = document.createElement("style");
+    el.id = STYLE;
+    el.textContent = `
+      .tabs .tab[data-page="muralAce"]{display:none!important}
+      #${BAR}{position:relative;z-index:8;background:#f4f9fd;border-bottom:1px solid #dbeaf4;padding:10px max(16px,4vw);display:flex;align-items:center;gap:16px}
+      #${BAR} .ace-v79-heading{flex:none;color:#12486f;font-weight:850;font-size:14px;white-space:nowrap}
+      #${BAR} .ace-v79-viewport{overflow:hidden;flex:1;min-width:0;scroll-behavior:smooth;scrollbar-width:none}
+      #${BAR} .ace-v79-viewport::-webkit-scrollbar{display:none}
+      #${BAR} .ace-v79-track{display:flex;gap:10px;width:max-content}
+      #${BAR} .ace-v79-item{width:185px;height:95px;display:flex;align-items:center;gap:9px;padding:7px;border:1px solid #d4e5f1;border-radius:12px;background:#fff;color:#154467;cursor:pointer;text-align:left;box-shadow:0 2px 7px #0c41610a;overflow:hidden}
+      #${BAR} .ace-v79-item img{width:75px;height:79px;object-fit:cover;border-radius:8px;flex:none}
+      #${BAR} .ace-v79-item span{font-size:12px;line-height:1.3;font-weight:750;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+      #${BAR} .ace-v79-item:focus-visible{outline:3px solid #368ed0}
+      #${MODAL}{position:fixed;inset:0;z-index:2147483000;background:#061d35bd;display:flex;align-items:center;justify-content:center;padding:18px}
+      #${MODAL}[hidden]{display:none!important}
+      #${MODAL} .ace-v79-dialog{position:relative;background:white;border-radius:17px;padding:20px;max-width:min(94vw,850px);max-height:92vh;overflow:auto;box-shadow:0 20px 70px #0005}
+      #${MODAL} .ace-v79-close{position:sticky;top:0;float:right;border:0;border-radius:9px;background:#e9f3fa;color:#174a70;padding:8px 12px;font-size:20px;cursor:pointer}
+      #${MODAL} h2{font-size:21px;margin:10px 0;color:#123f64}
+      #${MODAL} img{display:block;max-width:100%;max-height:65vh;object-fit:contain;margin:auto}
+      #${MODAL} p{white-space:pre-wrap;overflow-wrap:anywhere}
+      @media(max-width:700px){#${BAR}{padding:8px 10px;gap:8px}#${BAR} .ace-v79-heading{font-size:12px}#${BAR} .ace-v79-item{width:148px;height:80px}#${BAR} .ace-v79-item img{width:56px;height:64px}}
+      @media(prefers-reduced-motion:reduce){#${BAR} .ace-v79-viewport{scroll-behavior:auto}}
     `;
-    (document.head||document.documentElement).appendChild(style);
+    document.head.appendChild(el);
   }
-
-  const section=()=>document.getElementById(SECTION_ID);
-  const pages=()=>Math.max(1,Math.ceil(news.length/PER_PAGE));
-  function stop(){if(timer){clearInterval(timer);timer=null;}}
-  function mayRotate(){return desktop.matches&&!!section()&&pages()>1&&document.visibilityState==='visible'&&
-    !window.matchMedia('(prefers-reduced-motion:reduce)').matches;}
-  function play(){stop();const holder=section();if(!holder||holder.matches(':hover')||!mayRotate())return;
-    timer=setInterval(()=>{if(!mayRotate()){stop();return;}if(!holder.matches(':hover'))changePage(1);},ROTATE_MS);}
-  function changePage(direction){page=(page+direction+pages())%pages();render();}
-  function render(){
-    const holder=section(),grid=holder?.querySelector('.ace-news-grid');if(!grid)return;
-    const shown=news.slice(page*PER_PAGE,(page+1)*PER_PAGE);
-    const fragment=document.createDocumentFragment();
-    for(const item of shown){
-      const card=document.createElement('article');card.className='ace-news-card';
-      const thumb=document.createElement('div');thumb.className='ace-news-thumb';thumb.setAttribute('aria-hidden','true');
-      const imageUrl=secureLink(item.image,true,item.source);
-      if(imageUrl && !failedImages.has(imageUrl)){
-        const pic=document.createElement('img');pic.src=imageUrl;pic.alt='';pic.loading='lazy';pic.decoding='async';pic.fetchPriority='low';
-        // Alguns sites recusam hotlink sem referer: não suprime o cabeçalho.
-        pic.addEventListener('error',()=>{failedImages.add(imageUrl);pic.remove();thumb.replaceChildren(illustration(item.source));},{once:true});
-        thumb.appendChild(pic);
-      } else thumb.appendChild(illustration(item.source));
-      const copy=document.createElement('div');copy.className='ace-news-copy';
-      const source=document.createElement('span');source.className='ace-news-source';source.textContent=item.source==='FEB'?'FEB':'FEEC';
-      const link=document.createElement('a');link.className='ace-news-link';
-      link.href=secureLink(item.link)||(item.source==='FEB'?FEB_SITE:FEEC_NEWS);
-      link.target='_blank';link.rel='noopener noreferrer';link.textContent=item.title;link.title=item.title;
-      copy.append(source,link);card.append(thumb,copy);fragment.appendChild(card);
+  function showPost(post) {
+    let modal = document.getElementById(MODAL);
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = MODAL;
+      modal.hidden = true;
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      document.body.appendChild(modal);
     }
-    grid.replaceChildren(fragment);
-    const counter=holder.querySelector('.ace-news-page');if(counter){counter.textContent=`${page+1} de ${pages()}`;
-      counter.setAttribute('aria-label',`Página ${page+1} de ${pages()}`);}
-    holder.querySelectorAll('.ace-news-control').forEach(btn=>{btn.disabled=pages()<=1;});
+    const url = String(post.arquivo_url || "");
+    const isVideo = String(post.tipo || "").toLowerCase() === "video" || /(?:youtube\.com|youtu\.be)/i.test(url);
+    modal.innerHTML = `<div class="ace-v79-dialog"><button type="button" class="ace-v79-close" aria-label="Fechar">×</button><h2>${escapeText(post.titulo || "Publicação")}</h2>${!isVideo && /^https:\/\//i.test(url) ? `<img src="${escapeText(url)}" alt="${escapeText(post.titulo || "Publicação")}">` : isVideo && /^https:\/\//i.test(url) ? `<p><a href="${escapeText(url)}" target="_blank" rel="noopener noreferrer">▶ Abrir vídeo externo</a></p>` : ""}<p>${escapeText(post.descricao || "")}</p></div>`;
+    modal.hidden = false;
+    const close = () => {modal.hidden = true;};
+    modal.querySelector(".ace-v79-close").onclick = close;
+    modal.onclick = e => {if (e.target === modal) close();};
   }
-
-  async function getJson(url,timeoutMs=5000){
-    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),timeoutMs);
-    try {const response=await fetch(url,{signal:controller.signal,credentials:'omit',cache:'no-store'});
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      return await response.json();}finally{clearTimeout(timeout);}
-  }
-  async function getFromOfficial(source){
-    for(const url of FEEDS[source]){
-      try {
-        const list=await getJson(url,4500);
-        if(Array.isArray(list)&&list.length){
-          const clean=normalize(list,source);
-          if(clean.length){
-            await enrichMissingFeaturedImages(clean,source);
-            return withPhotosFirst(clean);
-          }
-        }
-      }catch{/* CORS/indisponibilidade: tenta outra URL ou usa a seleção de reserva. */}
+  function refresh() {
+    const tabs = document.querySelector(".tabs");
+    if (!tabs || !Array.isArray(muralAcePosts)) return;
+    installStyles();
+    let bar = document.getElementById(BAR);
+    if (!bar) {
+      bar = document.createElement("section");
+      bar.id = BAR;
+      bar.setAttribute("aria-label", "Destaques das publicações");
+      const menuContainer = tabs.closest("nav") || tabs.parentElement;
+      if (!menuContainer?.parentElement) return;
+      menuContainer.parentElement.insertBefore(bar, menuContainer);
     }
-    return [];
-  }
-  function normalize(records,source){
-    if(!Array.isArray(records))return [];
-    return records.map(post=>{
-      const link=secureLink(post?.link,false,source),title=cleanText(post?.title?.rendered);
-      const host=link?new URL(link).hostname:'';
-      const expected=source==='FEB'?/(^|\.)febnet\.org\.br$/:/(^|\.)feec\.org\.br$/;
-      if(!link||!title||!expected.test(host))return null;
-      return {title,link,source,image:extractImage(post,source),
-        featuredMediaId:Number(post?.featured_media)||0,date:post?.date||''};
-    }).filter(Boolean).slice(0,9);
-  }
-
-  async function fetchNews(){
-    if(!desktop.matches||loading)return;loading=true;
-    try{
-      let cached=null;try{cached=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');}catch{}
-      if(cached?.items?.length){
-        news=cached.items;page=0;render();play();
-        if(Date.now()-Number(cached.at||0)<CACHE_MS)return;
+    const posts = muralAcePosts.filter(p => p.ativo !== false).slice(0,8);
+    if (!posts.length) {bar.hidden = true;return;}
+    bar.hidden = false;
+    bar.innerHTML = `<div class="ace-v79-heading">📰 Destaques</div><div class="ace-v79-viewport"><div class="ace-v79-track"></div></div>`;
+    const track = bar.querySelector(".ace-v79-track");
+    posts.forEach(post => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "ace-v79-item";
+      const url = String(post.arquivo_url || "");
+      const video = String(post.tipo || "").toLowerCase() === "video" || /(?:youtube\.com|youtu\.be)/i.test(url);
+      if (!video && /^https:\/\//i.test(url)) {
+        const img = document.createElement("img");
+        img.loading = "lazy";
+        img.decoding = "async";
+        // Usa miniatura dedicada se houver; nunca inicia vídeos na faixa.
+        img.src = post.miniatura_url || url;
+        img.alt = "";
+        button.appendChild(img);
       }
-      // As duas fontes são consultadas em paralelo; cache é local ao aparelho.
-      const [feecResult,febResult]=await Promise.all([getFromOfficial('FEEC'),getFromOfficial('FEB')]);
-      const feec=withPhotosFirst(feecResult.length?feecResult:curatedFEEC);
-      const feb=withPhotosFirst(febResult.length?febResult:curatedFEB);
-      news=interleave(feec,feb);page=0;lastCheck=Date.now();render();play();
-      try{localStorage.setItem(CACHE_KEY,JSON.stringify({at:lastCheck,items:news}));}catch{}
-    }catch(error){console.info('ACE: notícias temporariamente indisponíveis; seleção salva mantida.',error?.message||'');}
-    finally{loading=false;}
-  }
-
-  function mount(){
-    if(!desktop.matches||section()||document.getElementById('loginScreen'))return;
-    const header=document.querySelector('.ace-header-v6');if(!header)return;
-    const area=document.createElement('section');area.id=SECTION_ID;
-    area.setAttribute('aria-label','Notícias do Movimento Espírita');
-    area.innerHTML=`<div class="ace-news-top"><div class="ace-news-ident">
-      <strong class="ace-news-heading">Notícias do Movimento Espírita</strong>
-      <div class="ace-news-caption">FEEC e FEB · Atualização periódica · Fotos quando disponíveis</div></div>
-      <div class="ace-news-controls">
-        <button class="ace-news-control" data-ace-news-prev type="button" aria-label="Notícias anteriores">‹</button>
-        <button class="ace-news-control" data-ace-news-next type="button" aria-label="Próximas notícias">›</button>
-      </div></div><div class="ace-news-grid" role="group" aria-label="Três notícias em destaque"></div>
-      <div class="ace-news-footer"><span>Mais notícias pelas setas ou automaticamente</span>
-      <span class="ace-news-page" aria-live="polite">1 de 1</span></div>`;
-    header.insertAdjacentElement('afterend',area);
-    area.querySelector('[data-ace-news-prev]').addEventListener('click',()=>{changePage(-1);play();});
-    area.querySelector('[data-ace-news-next]').addEventListener('click',()=>{changePage(1);play();});
-    area.addEventListener('mouseenter',stop);area.addEventListener('mouseleave',play);
-    area.addEventListener('focusin',stop);area.addEventListener('focusout',()=>setTimeout(play,0));
-    render();fetchNews();
-  }
-  function refresh(){if(!desktop.matches){stop();section()?.remove();return;}ensureStyle();mount();}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
-  desktop.addEventListener?.('change',refresh);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stop();else play();});
-  let tries=0;const probe=setInterval(()=>{if(section()||++tries>180){clearInterval(probe);return;}refresh();},1000);
-  // Persistindo na mesma aba por horas, revalida a cada 20 min sem gasto em banco.
-  setInterval(()=>{if(desktop.matches&&section()&&document.visibilityState==='visible')fetchNews();},20*60*1000);
-})();
-
-
-// =============================================================
-// ACE PWA V126 - SOMENTE O TEXTO DO RODAPÉ LATERAL NO COMPUTADOR
-// NUNCA altera largura, posição, visibilidade, navegação ou telas.
-// Corrige a regra V125 que poderia ampliar a barra lateral.
-// =============================================================
-(function aceDecorateOnlySidebarPhrasesV126() {
-  'use strict';
-  const desktop = window.matchMedia('(min-width: 851px)');
-  if (!desktop.matches) return;
-  const cssId = 'aceGepeFooterTextOnlyV126';
-  const first = 'Amor que alimenta e acolhe.';
-  const second = 'Grupo Espírita Paulo e Estevão';
-  const pattern = /(Amor que alimenta e acolhe\.|Grupo Espírita Paulo e Estevão)/g;
-
-  if (!document.getElementById(cssId)) {
-    const style = document.createElement('style');
-    style.id = cssId;
-    // Estes seletores atingem SOMENTE os próprios textos.
-    // Nenhum elemento estrutural tem suas dimensões ou posição alteradas.
-    style.textContent = `
-      @media screen and (min-width:851px) {
-        .ace-gepe-slogan-text-v126 {
-          color:#76efb3 !important;
-          font-size:20px !important;
-          font-weight:800 !important;
-          line-height:1.35 !important;
-        }
-        .ace-gepe-group-text-v126 {
-          color:#65e7a6 !important;
-          font-size:18px !important;
-          font-weight:750 !important;
-          line-height:1.4 !important;
-        }
-      }
-    `;
-    (document.head || document.documentElement).appendChild(style);
-  }
-
-  function norm(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim();
-  }
-
-  function signatureContainer() {
-    if (!document.body) return null;
-    let best = null;
-    let bestLength = Infinity;
-    const candidates = document.body.querySelectorAll('aside, footer, nav, section, div, p, span, small');
-    for (const el of candidates) {
-      if (el.closest('#aceAccessibilityModal, #loginScreen')) continue;
-      const content = norm(el.textContent);
-      if (content.length > 260 || !content.includes(first) || !content.includes(second)) continue;
-      // O menor bloco contendo AS DUAS frases é o rodapé desejado.
-      if (content.length < bestLength || (content.length === bestLength && best?.contains(el))) {
-        best = el;
-        bestLength = content.length;
-      }
-    }
-    return best;
-  }
-
-  function apply() {
-    if (!desktop.matches || !document.body) return;
-    const root = signatureContainer();
-    if (!root) return;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const toEdit = [];
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (!node.nodeValue?.includes(first) && !node.nodeValue?.includes(second)) continue;
-      if (node.parentElement?.closest('.ace-gepe-slogan-text-v126, .ace-gepe-group-text-v126')) continue;
-      toEdit.push(node);
-    }
-    for (const node of toEdit) {
-      // Apenas envolve as palavras em spans, sem modificar o container,
-      // menu, pai, grid, largura, altura ou qualquer outro componente.
-      const pieces = String(node.nodeValue).split(pattern);
-      const frag = document.createDocumentFragment();
-      for (const piece of pieces) {
-        if (piece === first || piece === second) {
-          const span = document.createElement('span');
-          span.className = piece === first
-            ? 'ace-gepe-slogan-text-v126'
-            : 'ace-gepe-group-text-v126';
-          span.textContent = piece;
-          frag.appendChild(span);
-        } else if (piece) {
-          frag.appendChild(document.createTextNode(piece));
-        }
-      }
-      node.parentNode?.replaceChild(frag, node);
-    }
-  }
-
-  let scheduled = false;
-  function scheduleApply() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
-      apply();
+      const title = document.createElement("span");
+      title.textContent = (video ? "▶ " : "") + (post.titulo || "Publicação");
+      button.appendChild(title);
+      button.onclick = () => showPost(post);
+      track.appendChild(button);
     });
+    if (timer) clearInterval(timer);
+    const viewport = bar.querySelector(".ace-v79-viewport");
+    index = 0;
+    if (posts.length > 1 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      timer = setInterval(() => {
+        if (bar.matches(":hover") || document.getElementById(MODAL)?.hidden === false || document.hidden) return;
+        index = (index + 1) % posts.length;
+        const child = track.children[index];
+        if (child) viewport.scrollTo({left:child.offsetLeft - track.offsetLeft,behavior:"smooth"});
+      }, 5200);
+    }
   }
-  function start() {
-    scheduleApply();
-    // O rodapé aparece após o login, então reconhecemos só os novos nós.
-    // Não alteramos atributos nem classes de qualquer contêiner.
-    new MutationObserver(scheduleApply).observe(document.body, {
-      childList:true,
-      subtree:true
-    });
-  }
-  if (document.body) start();
-  else document.addEventListener('DOMContentLoaded', start, {once:true});
+  const originalRender = renderMuralAce;
+  renderMuralAce = function(...args) {const result = originalRender.apply(this,args); refresh(); return result;};
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",refresh,{once:true});
+  else refresh();
 })();
