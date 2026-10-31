@@ -174,7 +174,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261031-menu-lateral-farinha-v130",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261031-menu-lateral-v132-rodape",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -33768,7 +33768,7 @@ async function restoreCloudBackup(obj) {
 // - NÃO altera o formulário atual de Saída/Perda.
 // - Mostra as 3 cestas dentro da página de Saída/Perda.
 // - Origem é fixa: Água Fria.
-// - Destino: Messejana / Praia do Futuro / Comunidade.
+// - Destino: Água Fria / Piedade / Messejana / Praia do Futuro / Comunidade.
 // - Comunidade exibe o campo "Nome da pessoa que recebeu".
 // - Permite editar a composição da cesta e salvar no Supabase.
 // - O botão "Registrar saída" fica preparado para a próxima etapa.
@@ -38440,6 +38440,12 @@ function renderBasketModule() {
                           <option value="">
                             Selecione...
                           </option>
+                          <option value="Água Fria">
+                            Água Fria
+                          </option>
+                          <option value="Piedade">
+                            Piedade
+                          </option>
                           <option value="Messejana">
                             Messejana
                           </option>
@@ -42496,7 +42502,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261031-menu-lateral-v132-rodape",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
@@ -66177,7 +66183,7 @@ function openAceAccessibility() {
         #aceDesktopSidebar118 .ace-desk-divider{height:1px;background:#31526b;margin:15px 10px}
         #aceDesktopSidebar118 .ace-desk-logo-visual{display:flex;align-items:center;justify-content:center;min-height:180px;margin:auto 0;padding:24px 8px;pointer-events:none}
         #aceDesktopSidebar118 .ace-desk-logo-visual img{display:block;width:150px;height:150px;object-fit:contain;opacity:.94;filter:drop-shadow(0 9px 18px rgba(0,12,28,.30))}
-        #aceDesktopSidebar118 .ace-desk-foot{font-size:13px;line-height:1.7;color:#58c98d;font-weight:600;white-space:nowrap;padding:16px 8px 0;border-top:1px solid #31526b;margin-top:12px}
+        #aceDesktopSidebar118 .ace-desk-foot{font-size:20px;line-height:1.35;color:#76efb3;font-weight:800;white-space:normal;padding:16px 8px 0;border-top:1px solid #31526b;margin-top:12px}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-label,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-wordmark,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-foot,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-sub,html body.ace-desktop-collapsed #aceDesktopSidebar118 summary::after{display:none!important}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-top{padding-left:0;padding-right:0;justify-content:center}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 summary,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-navitem{justify-content:center;padding:11px 0}
@@ -66234,7 +66240,7 @@ function openAceAccessibility() {
   function makeSidebar(){
     sidebar=document.createElement('aside');sidebar.id='aceDesktopSidebar118';sidebar.setAttribute('aria-label','Menu principal');
     const movements='<div class="ace-desk-subtitle">Alimentos</div>'+button('entrada','Entradas')+button('saida','Saídas e perdas')+'<div class="ace-desk-subtitle">Sacos</div>'+button('sacosEntrada','Entradas')+button('sacosSaida','Saídas')+'<div class="ace-desk-subtitle">Cestas</div>'+button('cestas','Montagem de cestas');
-    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}<div class="ace-desk-logo-visual" aria-hidden="true"><img src="ace-cesta.png" alt=""></div></nav><div class="ace-desk-foot">Amor que alimenta e acolhe.<br>Grupo Espírita Paulo e Estevão</div>`;
+    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}<div class="ace-desk-logo-visual" aria-hidden="true"><img src="ace-cesta.png" alt=""></div></nav><div class="ace-desk-foot">Amor que alimenta e acolhe.</div>`;
     document.body.appendChild(sidebar);
     // Ao iniciar/recarregar no computador, todos os grupos começam recolhidos.
     // A abertura da navegação completa fica sob controle do botão de três traços.
