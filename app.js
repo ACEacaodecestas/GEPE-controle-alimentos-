@@ -174,7 +174,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261020-menu-grupos-visiveis-v117",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261031-menu-lateral-farinha-v130",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -41127,7 +41127,7 @@ function closeBasketEditModal() {
 }
 
 
-function openBasketEditModal(basketId) {
+async function openBasketEditModal(basketId) {
 
   closeBasketEditModal();
 
@@ -41142,6 +41142,111 @@ function openBasketEditModal(basketId) {
     toast("Cesta não encontrada.");
     return;
   }
+
+
+  // ========================================================
+  // CESTA TIPO 2 - FARINHA DE MANDIOCA
+  //
+  // O carregamento geral do ACE traz apenas alimentos ativos.
+  // A Farinha de Mandioca pode estar inativa e, por isso, sumir
+  // somente do editor da Cesta Tipo 2. Aqui ela é consultada
+  // diretamente no Supabase e acrescentada APENAS à lista local
+  // deste editor, sem reativar o alimento e sem alterar outras telas.
+  // ========================================================
+
+  let editorFoods =
+    (db?.foods || []).map(
+      food => ({ ...food })
+    );
+
+  const basketNormalizedName =
+    normalizeAceText(
+      basket?.name || ""
+    )
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const isBasketType2 =
+    /\btipo\s*2\b/.test(
+      basketNormalizedName
+    );
+
+  if (isBasketType2) {
+
+    const alreadyHasCassavaFlour =
+      editorFoods.some(food => {
+        const name =
+          normalizeAceText(
+            food?.name || ""
+          );
+
+        return (
+          name.includes("farinha") &&
+          name.includes("mandioca")
+        );
+      });
+
+    if (!alreadyHasCassavaFlour) {
+
+      try {
+
+        const {
+          data: flourRows,
+          error: flourError
+        } =
+          await supabaseClient
+            .from("Alimentos")
+            .select("id,nome,unidade,ativo")
+            .ilike("nome", "%farinha%");
+
+        if (flourError) {
+          throw flourError;
+        }
+
+        const flour =
+          (flourRows || []).find(row => {
+            const name =
+              normalizeAceText(
+                row?.nome || ""
+              );
+
+            return (
+              name.includes("farinha") &&
+              name.includes("mandioca")
+            );
+          });
+
+        if (flour) {
+          editorFoods.push({
+            id: Number(flour.id),
+            name: String(flour.nome || "Farinha de Mandioca"),
+            unit: flour.unidade || "unidade",
+            active: flour.ativo !== false
+          });
+        }
+
+      } catch (error) {
+
+        console.warn(
+          "ACE: não foi possível carregar a Farinha de Mandioca no editor da Cesta Tipo 2:",
+          error
+        );
+
+      }
+
+    }
+
+  }
+
+
+  const getEditorFoodName =
+    foodId =>
+      getName(
+        editorFoods,
+        Number(foodId)
+      );
+
 
   const sourceItems =
     getBasketItems(basketId)
@@ -41255,12 +41360,10 @@ function openBasketEditModal(basketId) {
         ? draftItems
             .sort(
               (a, b) =>
-                getName(
-                  db.foods,
+                getEditorFoodName(
                   a.foodId
                 ).localeCompare(
-                  getName(
-                    db.foods,
+                  getEditorFoodName(
                     b.foodId
                   ),
                   "pt-BR"
@@ -41275,8 +41378,7 @@ function openBasketEditModal(basketId) {
 
                 <div class="ace-basket-edit-food">
                   ${esc(
-                    getName(
-                      db.foods,
+                    getEditorFoodName(
                       item.foodId
                     )
                   )}
@@ -41443,7 +41545,7 @@ function openBasketEditModal(basketId) {
       );
 
     const available =
-      (db.foods || [])
+      editorFoods
         .filter(
           food =>
             !selected.has(
@@ -66132,7 +66234,7 @@ function openAceAccessibility() {
   function makeSidebar(){
     sidebar=document.createElement('aside');sidebar.id='aceDesktopSidebar118';sidebar.setAttribute('aria-label','Menu principal');
     const movements='<div class="ace-desk-subtitle">Alimentos</div>'+button('entrada','Entradas')+button('saida','Saídas e perdas')+'<div class="ace-desk-subtitle">Sacos</div>'+button('sacosEntrada','Entradas')+button('sacosSaida','Saídas')+'<div class="ace-desk-subtitle">Cestas</div>'+button('cestas','Montagem de cestas');
-    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}<div class="ace-desk-logo-visual" aria-hidden="true"><img src="ace-cesta.png" alt=""></div></nav><div class="ace-desk-foot">Amor que alimenta e acolhe.</div>`;
+    sidebar.innerHTML=`<div class="ace-desk-top"><div class="ace-desk-wordmark">ACE<small>GEPE · AÇÃO DE CESTAS</small></div><button class="ace-desk-collapse" type="button" aria-controls="aceDesktopNav118">${icon('menu')}</button></div><nav id="aceDesktopNav118" aria-label="Navegação do sistema">${button('mural','Mural ACE','mural')}${button('inicio','Início','home')}${button('presenca','Presença','people')}<div class="ace-desk-divider"></div>${group('Movimentações','move',movements)}${group('Consultas','chart',button('relatorio','Relatórios')+button('estatisticas','Estatísticas')+button('estoque','Estoque de alimentos')+button('sacosEstoque','Estoque de sacos'))}${group('Gestão','box',button('inventario','Inventário de alimentos')+button('inventarioSacos','Inventário de sacos'))}${group('Configurações','gear',button('config:cadastros','Cadastros')+'<div data-ace-desk-admin>'+button('config:admin','Administração')+button('config:chat','Gerenciar chats')+'</div><button class="ace-desk-navitem" type="button" data-ace-accessibility="open" aria-haspopup="dialog"><span class="ace-desk-label">Acessibilidade</span></button>')}<div class="ace-desk-logo-visual" aria-hidden="true"><img src="ace-cesta.png" alt=""></div></nav><div class="ace-desk-foot">Amor que alimenta e acolhe.<br>Grupo Espírita Paulo e Estevão</div>`;
     document.body.appendChild(sidebar);
     // Ao iniciar/recarregar no computador, todos os grupos começam recolhidos.
     // A abertura da navegação completa fica sob controle do botão de três traços.
