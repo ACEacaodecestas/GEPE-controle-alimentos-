@@ -65972,19 +65972,126 @@ function syncAceCompactOnlineWidth() {
 
 function setAceAccessibilityLevel(value, persist = true) {
   const number = Number(value);
-  aceAccessibilityLevel = Number.isInteger(number) && number >= 0 && number < ACE_ACCESSIBILITY_LEVELS.length ? number : 0;
+  aceAccessibilityLevel =
+    Number.isInteger(number) &&
+    number >= 0 &&
+    number < ACE_ACCESSIBILITY_LEVELS.length
+      ? number
+      : 0;
+
   const level = ACE_ACCESSIBILITY_LEVELS[aceAccessibilityLevel];
+  const percent = Math.round(level.scale * 100);
   const root = document.documentElement;
+
   root.setAttribute('data-ace-font-level', String(aceAccessibilityLevel));
   root.style.setProperty('--ace-text-scale', String(level.scale));
-  if (persist) { try { localStorage.setItem(ACE_ACCESSIBILITY_KEY, String(aceAccessibilityLevel)); } catch {} }
+
+  if (persist) {
+    try {
+      localStorage.setItem(
+        ACE_ACCESSIBILITY_KEY,
+        String(aceAccessibilityLevel)
+      );
+    } catch {}
+  }
+
   const modal = document.getElementById('aceAccessibilityModal');
+
   if (modal) {
-    modal.querySelectorAll('[data-ace-font-level]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.aceFontLevel) === aceAccessibilityLevel)));
-    const status = modal.querySelector('[data-ace-font-status]');
-    if (status) status.textContent = `Tamanho atual: ${level.name} (${Math.round(level.scale * 100)}%)`;
-    modal.querySelector('[data-ace-font-decrease]').disabled = aceAccessibilityLevel === 0;
-    modal.querySelector('[data-ace-font-increase]').disabled = aceAccessibilityLevel === ACE_ACCESSIBILITY_LEVELS.length - 1;
+    const range =
+      modal.querySelector(
+        '[data-ace-font-range]'
+      );
+
+    if (range) {
+      range.value =
+        String(
+          aceAccessibilityLevel
+        );
+
+      const maximum =
+        Math.max(
+          1,
+          ACE_ACCESSIBILITY_LEVELS.length - 1
+        );
+
+      const progress =
+        (
+          aceAccessibilityLevel /
+          maximum
+        ) * 100;
+
+      range.style.setProperty(
+        '--ace-range-progress',
+        `${progress}%`
+      );
+
+      range.setAttribute(
+        'aria-valuetext',
+        `${level.name}, ${percent}%`
+      );
+    }
+
+    const percentLabel =
+      modal.querySelector(
+        '[data-ace-font-percent]'
+      );
+
+    if (percentLabel) {
+      percentLabel.textContent =
+        `${percent}%`;
+    }
+
+    const nameLabel =
+      modal.querySelector(
+        '[data-ace-font-name]'
+      );
+
+    if (nameLabel) {
+      nameLabel.textContent =
+        level.name;
+    }
+
+    const previewAa =
+      modal.querySelector(
+        '[data-ace-font-preview-aa]'
+      );
+
+    if (previewAa) {
+      previewAa.style.fontSize =
+        `${Math.round(42 * level.scale)}px`;
+    }
+
+    const previewText =
+      modal.querySelector(
+        '[data-ace-font-preview-text]'
+      );
+
+    if (previewText) {
+      previewText.style.fontSize =
+        `${Math.round(16 * level.scale)}px`;
+    }
+
+    const decrease =
+      modal.querySelector(
+        '[data-ace-font-decrease]'
+      );
+
+    if (decrease) {
+      decrease.disabled =
+        aceAccessibilityLevel === 0;
+    }
+
+    const increase =
+      modal.querySelector(
+        '[data-ace-font-increase]'
+      );
+
+    if (increase) {
+      increase.disabled =
+        aceAccessibilityLevel ===
+        ACE_ACCESSIBILITY_LEVELS.length - 1;
+    }
   }
 }
 
@@ -66003,45 +66110,320 @@ function openAceAccessibility() {
   if (typeof closeAceMobileDrawer === 'function') closeAceMobileDrawer();
   if (typeof closeAceAccountMenu === 'function') closeAceAccountMenu();
   if (typeof closeAceDesktopAccountMenu === 'function') closeAceDesktopAccountMenu();
+
   aceAccessibilityReturnFocus = document.activeElement;
+
   const modal = document.createElement('div');
   modal.id = 'aceAccessibilityModal';
-  modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
   modal.setAttribute('aria-labelledby', 'aceAccessibilityTitle');
+
   modal.innerHTML = `
     <div class="ace-accessibility-box">
-      <div class="ace-accessibility-title-row"><h2 id="aceAccessibilityTitle">Acessibilidade</h2><button type="button" data-ace-font-close aria-label="Fechar acessibilidade">×</button></div>
-      <p>Ajuste o tamanho das letras para uma leitura mais confortável.</p>
-      <div class="ace-accessibility-stepper" role="group" aria-label="Ajustar tamanho das letras"><button type="button" data-ace-font-decrease aria-label="Diminuir letras">A−</button><strong data-ace-font-status role="status" aria-live="polite"></strong><button type="button" data-ace-font-increase aria-label="Aumentar letras">A+</button></div>
-      <div class="ace-accessibility-presets" role="group" aria-label="Tamanhos disponíveis">${ACE_ACCESSIBILITY_LEVELS.map((level,index)=>`<button type="button" data-ace-font-level="${index}" aria-pressed="false">${level.name}</button>`).join('')}</div>
-      <div class="ace-accessibility-preview">Amor que alimenta e acolhe.<br>Escolha o tamanho que fica melhor para você.</div>
-      <p class="ace-accessibility-save-note">Sua preferência fica salva neste aparelho.</p>
-      <button type="button" class="ace-accessibility-reset" data-ace-font-reset>Restaurar padrão</button>
-    </div>`;
-  modal.addEventListener('click', event => {
-    if (event.target === modal || event.target.closest('[data-ace-font-close]')) { closeAceAccessibility(); return; }
-    const preset = event.target.closest('[data-ace-font-level]');
-    if (preset) setAceAccessibilityLevel(preset.dataset.aceFontLevel);
-    else if (event.target.closest('[data-ace-font-decrease]')) setAceAccessibilityLevel(Math.max(0, aceAccessibilityLevel - 1));
-    else if (event.target.closest('[data-ace-font-increase]')) setAceAccessibilityLevel(Math.min(2, aceAccessibilityLevel + 1));
-    else if (event.target.closest('[data-ace-font-reset]')) setAceAccessibilityLevel(0);
-  });
-  modal.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAceAccessibility(); return; }
-    if (event.key !== 'Tab') return;
-    const controls = Array.from(modal.querySelectorAll('button:not(:disabled)')).filter(button => button.getClientRects().length);
-    const first = controls[0], last = controls[controls.length - 1];
-    if (!first) return;
-    if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-  });
-  document.body.appendChild(modal); document.body.classList.add('ace-accessibility-open');
-  document.querySelectorAll('[data-ace-accessibility]').forEach(button => button.setAttribute('aria-expanded', 'true'));
-  setAceAccessibilityLevel(aceAccessibilityLevel, false);
+
+      <div class="ace-accessibility-title-row">
+        <div>
+          <h2 id="aceAccessibilityTitle">Acessibilidade</h2>
+          <p class="ace-accessibility-intro">
+            Ajuste o tamanho do texto e acompanhe o resultado na prévia.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          data-ace-font-close
+          aria-label="Fechar acessibilidade"
+          title="Fechar"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="ace-accessibility-workspace">
+
+        <section
+          class="ace-accessibility-control-panel"
+          aria-label="Controle do tamanho do texto"
+        >
+
+          <div class="ace-accessibility-current">
+            <div>
+              <span class="ace-accessibility-current-label">
+                Tamanho do texto
+              </span>
+              <strong data-ace-font-name>
+                Padrão
+              </strong>
+            </div>
+
+            <strong
+              class="ace-accessibility-percent"
+              data-ace-font-percent
+              role="status"
+              aria-live="polite"
+            >
+              100%
+            </strong>
+          </div>
+
+          <div class="ace-accessibility-range-row">
+
+            <button
+              type="button"
+              data-ace-font-decrease
+              aria-label="Diminuir tamanho do texto"
+              title="Diminuir"
+            >
+              A−
+            </button>
+
+            <div class="ace-accessibility-range-wrap">
+
+              <input
+                type="range"
+                min="0"
+                max="${ACE_ACCESSIBILITY_LEVELS.length - 1}"
+                step="1"
+                value="${aceAccessibilityLevel}"
+                data-ace-font-range
+                aria-label="Tamanho do texto"
+              >
+
+              <div
+                class="ace-accessibility-range-labels"
+                aria-hidden="true"
+              >
+                <span>100%</span>
+                <span>120%</span>
+                <span>140%</span>
+              </div>
+
+            </div>
+
+            <button
+              type="button"
+              data-ace-font-increase
+              aria-label="Aumentar tamanho do texto"
+              title="Aumentar"
+            >
+              A+
+            </button>
+
+          </div>
+
+          <p class="ace-accessibility-helper">
+            Arraste a barra ou use A− e A+.
+          </p>
+
+        </section>
+
+        <aside
+          class="ace-accessibility-preview-card"
+          aria-label="Prévia do tamanho do texto"
+        >
+          <span class="ace-accessibility-preview-label">
+            PRÉVIA
+          </span>
+
+          <div
+            class="ace-accessibility-preview-aa"
+            data-ace-font-preview-aa
+            aria-hidden="true"
+          >
+            Aa
+          </div>
+
+          <div
+            class="ace-accessibility-preview-text"
+            data-ace-font-preview-text
+          >
+            Amor que alimenta e acolhe.
+          </div>
+        </aside>
+
+      </div>
+
+      <div class="ace-accessibility-footer">
+        <span>
+          Sua preferência fica salva neste aparelho.
+        </span>
+
+        <button
+          type="button"
+          class="ace-accessibility-reset"
+          data-ace-font-reset
+        >
+          ↺ Restaurar 100%
+        </button>
+      </div>
+
+    </div>
+  `;
+
+  modal.addEventListener(
+    'click',
+    event => {
+      if (
+        event.target === modal ||
+        event.target.closest(
+          '[data-ace-font-close]'
+        )
+      ) {
+        closeAceAccessibility();
+        return;
+      }
+
+      if (
+        event.target.closest(
+          '[data-ace-font-decrease]'
+        )
+      ) {
+        setAceAccessibilityLevel(
+          Math.max(
+            0,
+            aceAccessibilityLevel - 1
+          )
+        );
+        return;
+      }
+
+      if (
+        event.target.closest(
+          '[data-ace-font-increase]'
+        )
+      ) {
+        setAceAccessibilityLevel(
+          Math.min(
+            ACE_ACCESSIBILITY_LEVELS.length - 1,
+            aceAccessibilityLevel + 1
+          )
+        );
+        return;
+      }
+
+      if (
+        event.target.closest(
+          '[data-ace-font-reset]'
+        )
+      ) {
+        setAceAccessibilityLevel(0);
+      }
+    }
+  );
+
+  const range =
+    modal.querySelector(
+      '[data-ace-font-range]'
+    );
+
+  if (range) {
+    range.addEventListener(
+      'input',
+      event => {
+        setAceAccessibilityLevel(
+          Number(
+            event.currentTarget.value
+          )
+        );
+      }
+    );
+  }
+
+  modal.addEventListener(
+    'keydown',
+    event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeAceAccessibility();
+        return;
+      }
+
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const controls =
+        Array.from(
+          modal.querySelectorAll(
+            'button:not(:disabled), input[type="range"]'
+          )
+        ).filter(
+          control =>
+            control.getClientRects().length
+        );
+
+      const first = controls[0];
+      const last =
+        controls[
+          controls.length - 1
+        ];
+
+      if (!first) {
+        return;
+      }
+
+      if (
+        event.shiftKey &&
+        (
+          document.activeElement === first ||
+          !modal.contains(
+            document.activeElement
+          )
+        )
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (
+          document.activeElement === last ||
+          !modal.contains(
+            document.activeElement
+          )
+        )
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  );
+
+  document.body.appendChild(modal);
+  document.body.classList.add('ace-accessibility-open');
+
+  document
+    .querySelectorAll(
+      '[data-ace-accessibility]'
+    )
+    .forEach(
+      button =>
+        button.setAttribute(
+          'aria-expanded',
+          'true'
+        )
+    );
+
+  setAceAccessibilityLevel(
+    aceAccessibilityLevel,
+    false
+  );
+
   scaleAceAccessibilityStyles();
-  modal.querySelector('[data-ace-font-close]').focus({preventScroll:true});
+
+  modal
+    .querySelector(
+      '[data-ace-font-close]'
+    )
+    ?.focus(
+      {
+        preventScroll:true
+      }
+    );
 }
 
+// ACE V136 — Acessibilidade com barra progressiva e prévia visual.
 (function installAceAccessibility() {
   function start() {
     if (document.getElementById('aceAccessibilityStyleV96')) return;
@@ -66055,22 +66437,53 @@ function openAceAccessibility() {
       .ace-accessibility-menu-item svg{width:20px!important;height:20px!important;flex:0 0 20px!important;color:#124b73}
       #aceTeamStatusButton .ace-team-compact-pill{display:contents}
       body.ace-accessibility-open{overflow:hidden!important}
-      #aceAccessibilityModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,31,55,.62);box-sizing:border-box}
-      #aceAccessibilityModal .ace-accessibility-box{width:min(480px,100%);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;padding:22px;box-sizing:border-box;border-radius:20px;background:#fff;color:#173750;box-shadow:0 22px 70px rgba(0,31,58,.3)}
-      #aceAccessibilityModal .ace-accessibility-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-      #aceAccessibilityModal h2{margin:0;font-size:22px;color:#124b73}
-      #aceAccessibilityModal p{font-size:14px;line-height:1.5}
-      #aceAccessibilityModal button{min-height:44px;border:1px solid #bdd2e2;border-radius:10px;background:#f4f8fb;color:#124b73;font:inherit;font-weight:750;padding:9px 12px;cursor:pointer;white-space:normal}
-      #aceAccessibilityModal button:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
-      #aceAccessibilityModal [data-ace-font-close]{flex:0 0 44px;font-size:25px;padding:0}
-      #aceAccessibilityModal .ace-accessibility-stepper{display:grid;grid-template-columns:54px minmax(0,1fr) 54px;align-items:center;gap:10px;margin:20px 0}
-      #aceAccessibilityModal [data-ace-font-status]{font-size:14px;text-align:center;line-height:1.5}
-      #aceAccessibilityModal .ace-accessibility-presets{display:flex;flex-wrap:wrap;gap:8px}
-      #aceAccessibilityModal .ace-accessibility-presets button{flex:1 1 110px}
-      #aceAccessibilityModal button[aria-pressed=true]{background:#08785b;color:#fff;border-color:#08785b}
-      #aceAccessibilityModal .ace-accessibility-preview{margin-top:18px;padding:15px;border:1px solid #d8e3ec;border-radius:12px;background:#edf6fc;font-size:16px;line-height:1.6}
-      #aceAccessibilityModal .ace-accessibility-save-note{font-size:12px;color:#526a7d}
-      #aceAccessibilityModal .ace-accessibility-reset{width:100%}
+      #aceAccessibilityModal{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,31,55,.66);box-sizing:border-box;font-size:16px!important}
+      #aceAccessibilityModal .ace-accessibility-box{width:min(700px,100%);max-height:calc(100dvh - 36px);overflow:auto;overscroll-behavior:contain;padding:24px;box-sizing:border-box;border-radius:22px;background:#fff;color:#173750;box-shadow:0 24px 80px rgba(0,31,58,.34)}
+      #aceAccessibilityModal .ace-accessibility-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:18px;border-bottom:1px solid #d9e5ed}
+      #aceAccessibilityModal h2{margin:0;font-size:24px!important;line-height:1.15;color:#124b73}
+      #aceAccessibilityModal .ace-accessibility-intro{margin:7px 0 0;font-size:14px!important;line-height:1.45;color:#5d7487}
+      #aceAccessibilityModal button{min-height:44px;border:1px solid #bdd2e2;border-radius:11px;background:#f5f9fc;color:#124b73;font-family:inherit;font-size:16px!important;font-weight:800;padding:9px 13px;cursor:pointer;white-space:nowrap}
+      #aceAccessibilityModal button:hover:not(:disabled){background:#eaf4fa;border-color:#8eb8d2}
+      #aceAccessibilityModal button:focus-visible,#aceAccessibilityModal input[type="range"]:focus-visible{outline:3px solid #1689d0;outline-offset:3px}
+      #aceAccessibilityModal button:disabled{opacity:.42;cursor:not-allowed}
+      #aceAccessibilityModal [data-ace-font-close]{display:grid;place-items:center;flex:0 0 46px;width:46px;height:46px;min-height:46px;padding:0;font-size:27px!important;line-height:1;background:#f5f9fc}
+      #aceAccessibilityModal .ace-accessibility-workspace{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(210px,.75fr);gap:18px;margin-top:20px}
+      #aceAccessibilityModal .ace-accessibility-control-panel{min-width:0;padding:20px;border:1px solid #d8e5ed;border-radius:16px;background:#fbfdff}
+      #aceAccessibilityModal .ace-accessibility-current{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+      #aceAccessibilityModal .ace-accessibility-current>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+      #aceAccessibilityModal .ace-accessibility-current-label{font-size:12px!important;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:#668095}
+      #aceAccessibilityModal [data-ace-font-name]{font-size:18px!important;line-height:1.25;color:#173f5d}
+      #aceAccessibilityModal .ace-accessibility-percent{display:grid;place-items:center;min-width:88px;min-height:58px;padding:6px 12px;border-radius:14px;background:#0b8064;color:#fff;font-size:25px!important;line-height:1;font-weight:900;box-shadow:0 7px 18px rgba(11,128,100,.16)}
+      #aceAccessibilityModal .ace-accessibility-range-row{display:grid;grid-template-columns:52px minmax(0,1fr) 52px;align-items:center;gap:12px}
+      #aceAccessibilityModal .ace-accessibility-range-row>button{width:52px;height:52px;min-height:52px;padding:0;font-size:17px!important}
+      #aceAccessibilityModal .ace-accessibility-range-wrap{min-width:0}
+      #aceAccessibilityModal [data-ace-font-range]{--ace-range-progress:0%;display:block;width:100%;height:8px;margin:10px 0 9px;appearance:none;-webkit-appearance:none;border:0;border-radius:999px;background:linear-gradient(to right,#0b8064 0%,#0b8064 var(--ace-range-progress),#d7e4ec var(--ace-range-progress),#d7e4ec 100%);cursor:pointer}
+      #aceAccessibilityModal [data-ace-font-range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border:4px solid #fff;border-radius:50%;background:#0b8064;box-shadow:0 1px 7px rgba(9,61,82,.34);cursor:grab}
+      #aceAccessibilityModal [data-ace-font-range]::-moz-range-thumb{width:17px;height:17px;border:4px solid #fff;border-radius:50%;background:#0b8064;box-shadow:0 1px 7px rgba(9,61,82,.34);cursor:grab}
+      #aceAccessibilityModal .ace-accessibility-range-labels{display:flex;justify-content:space-between;gap:8px;color:#698093;font-size:11px!important;font-weight:750}
+      #aceAccessibilityModal .ace-accessibility-helper{margin:17px 0 0;font-size:12px!important;line-height:1.4;color:#698093;text-align:center}
+      #aceAccessibilityModal .ace-accessibility-preview-card{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:230px;padding:19px;border:1px solid #cfe0ea;border-radius:16px;background:linear-gradient(145deg,#edf7fd,#f8fcff);text-align:center;overflow:hidden}
+      #aceAccessibilityModal .ace-accessibility-preview-label{align-self:flex-start;font-size:11px!important;font-weight:900;letter-spacing:.11em;color:#4f758e}
+      #aceAccessibilityModal .ace-accessibility-preview-aa{margin:auto 0 8px;color:#0b8064;font-weight:900;line-height:1;transition:font-size .16s ease}
+      #aceAccessibilityModal .ace-accessibility-preview-text{width:100%;color:#173f5d;font-weight:700;line-height:1.35;overflow-wrap:break-word;transition:font-size .16s ease}
+      #aceAccessibilityModal .ace-accessibility-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;padding-top:18px;border-top:1px solid #d9e5ed}
+      #aceAccessibilityModal .ace-accessibility-footer>span{color:#667f92;font-size:12px!important;line-height:1.4}
+      #aceAccessibilityModal .ace-accessibility-reset{flex:0 0 auto;min-width:165px;background:#fff}
+      @media(max-width:620px){
+        #aceAccessibilityModal{padding:12px}
+        #aceAccessibilityModal .ace-accessibility-box{max-height:calc(100dvh - 24px);padding:18px;border-radius:18px}
+        #aceAccessibilityModal .ace-accessibility-title-row{gap:12px}
+        #aceAccessibilityModal h2{font-size:21px!important}
+        #aceAccessibilityModal .ace-accessibility-workspace{grid-template-columns:1fr;gap:14px;margin-top:16px}
+        #aceAccessibilityModal .ace-accessibility-control-panel{padding:16px}
+        #aceAccessibilityModal .ace-accessibility-current{margin-bottom:19px}
+        #aceAccessibilityModal .ace-accessibility-percent{min-width:78px;min-height:52px;font-size:22px!important}
+        #aceAccessibilityModal .ace-accessibility-range-row{grid-template-columns:48px minmax(0,1fr) 48px;gap:9px}
+        #aceAccessibilityModal .ace-accessibility-range-row>button{width:48px;height:48px;min-height:48px}
+        #aceAccessibilityModal .ace-accessibility-preview-card{min-height:155px;padding:16px}
+        #aceAccessibilityModal .ace-accessibility-footer{align-items:stretch;flex-direction:column}
+        #aceAccessibilityModal .ace-accessibility-reset{width:100%;min-width:0}
+      }
       #aceStockPdfHost,#aceStockPdfDocument,#aceReportPdfHost{--ace-text-scale:1!important}
       html[data-ace-font-level="1"] body :is(button,input,select,textarea),html[data-ace-font-level="2"] body :is(button,input,select,textarea){height:auto;min-height:44px;white-space:normal;overflow-wrap:anywhere}
       html[data-ace-font-level="1"] body main :is(button,input,select,textarea),html[data-ace-font-level="2"] body main :is(button,input,select,textarea){height:auto!important;min-height:44px!important;white-space:normal!important;overflow-wrap:anywhere}
