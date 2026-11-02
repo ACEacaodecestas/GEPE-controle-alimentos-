@@ -66183,7 +66183,9 @@ function openAceAccessibility() {
         #aceDesktopSidebar118 .ace-desk-divider{height:1px;background:#31526b;margin:15px 10px}
         #aceDesktopSidebar118 .ace-desk-logo-visual{display:flex;align-items:center;justify-content:center;min-height:180px;margin:auto 0;padding:24px 8px;pointer-events:none}
         #aceDesktopSidebar118 .ace-desk-logo-visual img{display:block;width:150px;height:150px;object-fit:contain;opacity:.94;filter:drop-shadow(0 9px 18px rgba(0,12,28,.30))}
-        #aceDesktopSidebar118 .ace-desk-foot{font-size:14px;line-height:1.35;color:#76efb3;font-weight:800;white-space:nowrap;padding:16px 8px 0;border-top:1px solid #31526b;margin-top:12px}
+        #aceDesktopSidebar118 .ace-desk-foot{font-size:14px;line-height:1.35;color:#76efb3;font-weight:800;white-space:nowrap;padding:16px 4px 0;border-top:1px solid #31526b;margin-top:12px;text-align:center;overflow:visible}
+        html[data-ace-font-level="1"] body.ace-desktop-workspace #aceDesktopSidebar118 .ace-desk-foot{font-size:12px!important;letter-spacing:-.08px!important;white-space:nowrap!important}
+        html[data-ace-font-level="2"] body.ace-desktop-workspace #aceDesktopSidebar118 .ace-desk-foot{font-size:11px!important;letter-spacing:-.12px!important;white-space:nowrap!important}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-label,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-wordmark,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-foot,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-sub,html body.ace-desktop-collapsed #aceDesktopSidebar118 summary::after{display:none!important}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-top{padding-left:0;padding-right:0;justify-content:center}
         html body.ace-desktop-collapsed #aceDesktopSidebar118 summary,html body.ace-desktop-collapsed #aceDesktopSidebar118 .ace-desk-navitem{justify-content:center;padding:11px 0}
