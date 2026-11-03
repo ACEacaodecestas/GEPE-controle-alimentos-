@@ -60162,13 +60162,13 @@ function aceStatsDonutChart(
   items
 ) {
   const colors = [
-    "#b76f2a",
-    "#d29a55",
-    "#b95358",
-    "#dc8b75",
-    "#9f7950",
-    "#c58f70",
-    "#b6a089"
+    "#b9545c",
+    "#d5a33f",
+    "#6f78a8",
+    "#4f9a78",
+    "#8b6fa8",
+    "#c77d4f",
+    "#7892a1"
   ];
 
   let data =
@@ -61654,7 +61654,7 @@ function renderAceStatistics() {
         ${aceStatsBarChart(
           "Perdas por motivo — quantidade",
           lossReasons,
-          { tone: "amber" }
+          { tone: "red" }
         )}
 
         ${aceStatsPercentBarChart(
