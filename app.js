@@ -59129,12 +59129,12 @@ function aceStatsEnsureStyles() {
       height:100%;
       min-width:3px;
       border-radius:999px;
-      background:linear-gradient(90deg,#0b5fa5,#4c9ed6);
+      background:linear-gradient(90deg,var(--ace-stats-bar-start,#0b5fa5),var(--ace-stats-bar-end,#4c9ed6));
     }
 
     #estatisticas .ace-stats-bar-value{
       min-width:46px;
-      color:#0b4b7a;
+      color:var(--ace-stats-value-color,#0b4b7a);
       font-size:12px;
       font-weight:950;
       text-align:right;
@@ -59945,13 +59945,58 @@ function aceStatsRowMatches(
 }
 
 
+function aceStatsChartTone(tone = "blue") {
+  const palettes = {
+    blue: {
+      start: "#0b5fa5",
+      end: "#4c9ed6",
+      value: "#0b4b7a"
+    },
+    green: {
+      start: "#157a63",
+      end: "#55b79c",
+      value: "#116452"
+    },
+    red: {
+      start: "#b94f57",
+      end: "#df858a",
+      value: "#963f46"
+    },
+    amber: {
+      start: "#b87a24",
+      end: "#dfa957",
+      value: "#8d5d1c"
+    },
+    terracotta: {
+      start: "#a95842",
+      end: "#d4876f",
+      value: "#844432"
+    },
+    violet: {
+      start: "#655f9b",
+      end: "#9a91c6",
+      value: "#514b7f"
+    }
+  };
+
+  return palettes[tone] || palettes.blue;
+}
+
+
 function aceStatsBarChart(
   title,
   items,
   {
-    limit = 7
+    limit = 7,
+    tone = "blue"
   } = {}
 ) {
+  const palette =
+    aceStatsChartTone(tone);
+
+  const chartStyle =
+    `--ace-stats-bar-start:${palette.start};--ace-stats-bar-end:${palette.end};--ace-stats-value-color:${palette.value};`;
+
   const data =
     (Array.isArray(items) ? items : [])
       .filter(item =>
@@ -59962,7 +60007,7 @@ function aceStatsBarChart(
 
   if (!data.length) {
     return `
-      <div class="ace-stats-chart-card">
+      <div class="ace-stats-chart-card" style="${chartStyle}">
         <div class="ace-stats-chart-title">
           ${aceStatsEsc(title)}
         </div>
@@ -59982,7 +60027,7 @@ function aceStatsBarChart(
     );
 
   return `
-    <div class="ace-stats-chart-card">
+    <div class="ace-stats-chart-card" style="${chartStyle}">
       <div class="ace-stats-chart-title">
         ${aceStatsEsc(title)}
       </div>
@@ -60029,9 +60074,16 @@ function aceStatsPercentBarChart(
   items,
   {
     limit = 3,
-    subtitle = ""
+    subtitle = "",
+    tone = "terracotta"
   } = {}
 ) {
+  const palette =
+    aceStatsChartTone(tone);
+
+  const chartStyle =
+    `--ace-stats-bar-start:${palette.start};--ace-stats-bar-end:${palette.end};--ace-stats-value-color:${palette.value};`;
+
   const data =
     (Array.isArray(items) ? items : [])
       .filter(item =>
@@ -60042,7 +60094,7 @@ function aceStatsPercentBarChart(
 
   if (!data.length) {
     return `
-      <div class="ace-stats-chart-card ace-stats-chart-card-wide">
+      <div class="ace-stats-chart-card ace-stats-chart-card-wide" style="${chartStyle}">
         <div class="ace-stats-chart-title">
           ${aceStatsEsc(title)}
         </div>
@@ -60061,7 +60113,7 @@ function aceStatsPercentBarChart(
     }).format(Number(value || 0));
 
   return `
-    <div class="ace-stats-chart-card ace-stats-chart-card-wide">
+    <div class="ace-stats-chart-card ace-stats-chart-card-wide" style="${chartStyle}">
       <div class="ace-stats-chart-title">
         ${aceStatsEsc(title)}
       </div>
@@ -60110,13 +60162,13 @@ function aceStatsDonutChart(
   items
 ) {
   const colors = [
-    "#0b5fa5",
-    "#5aa0d2",
-    "#f2a93b",
-    "#e06b6b",
-    "#7c6fd0",
-    "#57a77a",
-    "#8b98a5"
+    "#b76f2a",
+    "#d29a55",
+    "#b95358",
+    "#dc8b75",
+    "#9f7950",
+    "#c58f70",
+    "#b6a089"
   ];
 
   let data =
@@ -61525,12 +61577,14 @@ function renderAceStatistics() {
       <div class="ace-stats-grid">
         ${aceStatsBarChart(
           "Origem das entradas",
-          entryOrigins
+          entryOrigins,
+          { tone: "green" }
         )}
 
         ${aceStatsBarChart(
           "Alimentos mais recebidos",
-          entryFoods
+          entryFoods,
+          { tone: "green" }
         )}
       </div>
 
@@ -61582,12 +61636,14 @@ function renderAceStatistics() {
 
         ${aceStatsBarChart(
           "Alimentos com maior saída",
-          outputFoods
+          outputFoods,
+          { tone: "blue" }
         )}
 
         ${aceStatsBarChart(
           "Alimentos com maior perda",
-          lossFoods
+          lossFoods,
+          { tone: "red" }
         )}
 
         ${aceStatsDonutChart(
@@ -61597,7 +61653,8 @@ function renderAceStatistics() {
 
         ${aceStatsBarChart(
           "Perdas por motivo — quantidade",
-          lossReasons
+          lossReasons,
+          { tone: "amber" }
         )}
 
         ${aceStatsPercentBarChart(
@@ -61605,7 +61662,8 @@ function renderAceStatistics() {
           gorgulhoLossPercentFoods,
           {
             limit: 3,
-            subtitle: "Percentual calculado por alimento: quantidade perdida por gorgulho ÷ quantidade recebida × 100."
+            subtitle: "Percentual calculado por alimento: quantidade perdida por gorgulho ÷ quantidade recebida × 100.",
+            tone: "terracotta"
           }
         )}
 
@@ -61667,12 +61725,14 @@ function renderAceStatistics() {
 
         ${aceStatsBarChart(
           "Tipos de cesta mais distribuídos",
-          basketTypes
+          basketTypes,
+          { tone: "violet" }
         )}
 
         ${aceStatsBarChart(
           "Destino das cestas",
-          basketDestinations
+          basketDestinations,
+          { tone: "violet" }
         )}
 
       </div>
