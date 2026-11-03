@@ -59059,6 +59059,43 @@ function aceStatsEnsureStyles() {
       font-weight:900;
     }
 
+    #estatisticas .ace-stats-chart-card-wide{
+      grid-column:1/-1;
+    }
+
+    #estatisticas .ace-stats-percent-subtitle{
+      margin:-5px 0 14px;
+      color:#738698;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    #estatisticas .ace-stats-percent-row{
+      grid-template-columns:minmax(110px,180px) minmax(0,1fr) 72px;
+      row-gap:4px;
+    }
+
+    #estatisticas .ace-stats-percent-track{
+      min-height:12px;
+    }
+
+    #estatisticas .ace-stats-percent-fill{
+      min-width:2px;
+    }
+
+    #estatisticas .ace-stats-percent-value{
+      min-width:72px;
+      text-align:right;
+      font-weight:900;
+    }
+
+    #estatisticas .ace-stats-percent-detail{
+      grid-column:2/4;
+      color:#738698;
+      font-size:11px;
+      line-height:1.35;
+    }
+
     #estatisticas .ace-stats-bar-list{
       display:flex;
       flex-direction:column;
@@ -59381,6 +59418,19 @@ function aceStatsEnsureStyles() {
 
       #estatisticas .ace-stats-bar-row{
         grid-template-columns:minmax(76px,115px) minmax(0,1fr) auto;
+      }
+
+      #estatisticas .ace-stats-percent-row{
+        grid-template-columns:minmax(82px,115px) minmax(0,1fr) 64px;
+      }
+
+      #estatisticas .ace-stats-percent-value{
+        min-width:64px;
+      }
+
+      #estatisticas .ace-stats-percent-detail{
+        grid-column:1/-1;
+        padding-left:0;
       }
 
       #estatisticas .ace-stats-evolution-controls{
@@ -59968,6 +60018,87 @@ function aceStatsBarChart(
             </div>
           </div>
         `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+
+function aceStatsPercentBarChart(
+  title,
+  items,
+  {
+    limit = 3,
+    subtitle = ""
+  } = {}
+) {
+  const data =
+    (Array.isArray(items) ? items : [])
+      .filter(item =>
+        Number(item?.value || 0) > 0 &&
+        Number(item?.received || 0) > 0
+      )
+      .slice(0, limit);
+
+  if (!data.length) {
+    return `
+      <div class="ace-stats-chart-card ace-stats-chart-card-wide">
+        <div class="ace-stats-chart-title">
+          ${aceStatsEsc(title)}
+        </div>
+        ${subtitle ? `<div class="ace-stats-percent-subtitle">${aceStatsEsc(subtitle)}</div>` : ""}
+        <div class="ace-stats-empty">
+          Sem perdas por gorgulho com entradas correspondentes no período selecionado.
+        </div>
+      </div>
+    `;
+  }
+
+  const percentFmt = value =>
+    new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2
+    }).format(Number(value || 0));
+
+  return `
+    <div class="ace-stats-chart-card ace-stats-chart-card-wide">
+      <div class="ace-stats-chart-title">
+        ${aceStatsEsc(title)}
+      </div>
+      ${subtitle ? `<div class="ace-stats-percent-subtitle">${aceStatsEsc(subtitle)}</div>` : ""}
+
+      <div class="ace-stats-bar-list ace-stats-percent-list">
+        ${data.map(item => {
+          const percent = Number(item.value || 0);
+          const width = Math.max(0, Math.min(100, percent));
+          const label = `${item.label}: ${percentFmt(percent)}% — ${aceStatsFmt(item.lost)} perdida(s) por gorgulho de ${aceStatsFmt(item.received)} recebida(s)`;
+
+          return `
+            <div class="ace-stats-bar-row ace-stats-percent-row" title="${aceStatsEsc(label)}">
+              <div
+                class="ace-stats-bar-label"
+                title="${aceStatsEsc(item.label)}"
+              >
+                ${aceStatsEsc(item.label)}
+              </div>
+
+              <div class="ace-stats-bar-track ace-stats-percent-track">
+                <div
+                  class="ace-stats-bar-fill ace-stats-percent-fill"
+                  style="width:${width}%;"
+                ></div>
+              </div>
+
+              <div class="ace-stats-bar-value ace-stats-percent-value">
+                ${percentFmt(percent)}%
+              </div>
+
+              <div class="ace-stats-percent-detail">
+                ${aceStatsFmt(item.lost)} por gorgulho / ${aceStatsFmt(item.received)} recebidas
+              </div>
+            </div>
+          `;
+        }).join("")}
       </div>
     </div>
   `;
@@ -61219,6 +61350,89 @@ function renderAceStatistics() {
         row.qty
     );
 
+  const receivedByFood =
+    new Map();
+
+  entries.forEach(row => {
+    const foodId =
+      Number(row?.foodId);
+
+    if (!foodId) return;
+
+    receivedByFood.set(
+      foodId,
+      Number(receivedByFood.get(foodId) || 0) +
+      Number(row?.qty || 0)
+    );
+  });
+
+  const gorgulhoLossByFood =
+    new Map();
+
+  losses.forEach(row => {
+    const reasonName =
+      aceStatsName(
+        db.reasons,
+        row.reasonId,
+        String(row.reasonId || "")
+      );
+
+    if (
+      !aceStatsNormalize(reasonName)
+        .includes("gorgulho")
+    ) {
+      return;
+    }
+
+    const foodId =
+      Number(row?.foodId);
+
+    if (!foodId) return;
+
+    gorgulhoLossByFood.set(
+      foodId,
+      Number(gorgulhoLossByFood.get(foodId) || 0) +
+      Number(row?.qty || 0)
+    );
+  });
+
+  const gorgulhoLossPercentFoods =
+    [...gorgulhoLossByFood.entries()]
+      .map(([foodId, lost]) => {
+        const received =
+          Number(receivedByFood.get(Number(foodId)) || 0);
+
+        return {
+          label:
+            aceStatsName(
+              db.foods,
+              foodId,
+              `Alimento ${foodId}`
+            ),
+          value:
+            received > 0
+              ? Number(lost || 0) / received * 100
+              : 0,
+          lost:
+            Number(lost || 0),
+          received
+        };
+      })
+      .filter(item =>
+        item.received > 0 &&
+        item.lost > 0 &&
+        item.value > 0
+      )
+      .sort((a, b) =>
+        b.value - a.value ||
+        b.lost - a.lost ||
+        String(a.label).localeCompare(
+          String(b.label),
+          "pt-BR"
+        )
+      )
+      .slice(0, 3);
+
   const basketTypes =
     aceStatsAggregate(
       baskets,
@@ -61384,6 +61598,15 @@ function renderAceStatistics() {
         ${aceStatsBarChart(
           "Perdas por motivo — quantidade",
           lossReasons
+        )}
+
+        ${aceStatsPercentBarChart(
+          "Top 3 — % de perda por gorgulho sobre o total recebido",
+          gorgulhoLossPercentFoods,
+          {
+            limit: 3,
+            subtitle: "Percentual calculado por alimento: quantidade perdida por gorgulho ÷ quantidade recebida × 100."
+          }
         )}
 
       </div>
