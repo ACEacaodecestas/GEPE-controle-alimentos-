@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-sem-flash-v140",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-prepaint-v141",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -513,6 +513,13 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
 
       hideTimer = null;
+
+      // V141: libera a pintura real somente DEPOIS que a splash
+      // cumpriu o tempo mínimo e o app terminou sua preparação.
+      // Até aqui o style.css mantém toda a interface principal invisível.
+      document.documentElement.classList.add(
+        "ace-startup-paint-released"
+      );
 
       document.documentElement.classList.remove(
         ROOT_CLASS
@@ -42545,7 +42552,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-sem-flash-v140",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-prepaint-v141",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
