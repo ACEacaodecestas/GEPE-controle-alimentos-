@@ -1,3 +1,46 @@
+// ============================================================
+// ACE V140 — PROTEÇÃO IMEDIATA DA PRIMEIRA PINTURA DO PWA
+// Impede que a tela principal apareça por um instante antes da splash.
+// Esta proteção precisa executar antes de qualquer outra rotina visual.
+// ============================================================
+(function installAceImmediateStartupPaintGuardV140() {
+  const root = document.documentElement;
+  const styleId = "aceImmediateStartupPaintGuardV140";
+
+  // Bloqueia a interface já no primeiro instante em que o app.js executa.
+  root.classList.add("ace-startup-loading");
+
+  if (document.getElementById(styleId)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = styleId;
+  style.textContent = `
+    html.ace-startup-loading{
+      background:#064b7d !important;
+    }
+
+    html.ace-startup-loading body{
+      background:#064b7d !important;
+    }
+
+    html.ace-startup-loading body > *:not(#aceStartupShield){
+      visibility:hidden !important;
+      opacity:0 !important;
+      pointer-events:none !important;
+    }
+
+    html.ace-startup-loading body > #aceStartupShield{
+      visibility:visible !important;
+      opacity:1 !important;
+      pointer-events:auto !important;
+    }
+  `;
+
+  (document.head || document.documentElement).appendChild(style);
+})();
+
 // Preferência de leitura local ao aparelho, compartilhada pelas telas do aplicativo.
 const ACE_ACCESSIBILITY_KEY = 'ace_accessibility_text_size_v1';
 const ACE_ACCESSIBILITY_LEVELS = [
@@ -174,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261031-menu-lateral-v132-rodape",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-sem-flash-v140",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -42502,7 +42545,7 @@ function setupPWA() {
         navigator
           .serviceWorker
           .register(
-            "/GEPE-controle-alimentos-/sw.js?v=ace-20261031-menu-lateral-v132-rodape",
+            "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-sem-flash-v140",
             {
               scope:
                 "/GEPE-controle-alimentos-/",
