@@ -1,3 +1,29 @@
+/* =========================================================
+   ACE V141 — BLOQUEIO DA PRIMEIRA PINTURA DO PWA
+   Evita que o dashboard apareça antes da tela de apresentação.
+   Esta regra está no CSS carregado pelo <head>, portanto entra em
+   ação antes do app.js e antes da primeira pintura útil da página.
+   ========================================================= */
+html:not(.ace-startup-paint-released){
+  background:#064b7d !important;
+}
+
+html:not(.ace-startup-paint-released) body{
+  background:#064b7d !important;
+}
+
+html:not(.ace-startup-paint-released) body > *{
+  visibility:hidden !important;
+  opacity:0 !important;
+  pointer-events:none !important;
+}
+
+html:not(.ace-startup-paint-released) body > #aceStartupShield{
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+}
+
 :root{
   --blue:#0b3a63;
   --blue2:#1467a8;
