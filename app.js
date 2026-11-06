@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261106-v142-origem-outro",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261106-v143-origem-outro-condicional",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -30676,6 +30676,11 @@ function ensureBulkEntryStyles() {
       flex-direction:column;
       gap:6px;
       min-width:0;
+    }
+
+    /* A origem livre só existe visualmente quando "Outro" for escolhido. */
+    #entryOriginCustomWrap[hidden]{
+      display:none !important;
     }
 
     .ace-bulk-field.full{
