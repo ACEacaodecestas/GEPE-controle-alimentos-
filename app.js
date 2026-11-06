@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261106-v143-origem-outro-condicional",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261106-v144-trava-data-origem",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -30949,6 +30949,44 @@ function ensureBulkEntryStyles() {
 }
 
 
+function syncAceBulkEntryContextLock() {
+  const locked =
+    Array.isArray(aceBulkEntryDraft) &&
+    aceBulkEntryDraft.length > 0;
+
+  const date =
+    document.getElementById(
+      "entryDate"
+    );
+
+  const origin =
+    document.getElementById(
+      "entryOrigin"
+    );
+
+  const customOrigin =
+    document.getElementById(
+      "entryOriginCustom"
+    );
+
+  const message =
+    locked
+      ? "Conclua ou limpe a entrada atual antes de alterar a data ou a origem."
+      : "";
+
+  [date, origin, customOrigin]
+    .filter(Boolean)
+    .forEach(field => {
+      field.disabled = locked;
+      field.setAttribute(
+        "aria-disabled",
+        locked ? "true" : "false"
+      );
+      field.title = message;
+    });
+}
+
+
 function syncAceEntryCustomOriginField(
   clearWhenFixed = false
 ) {
@@ -31450,6 +31488,11 @@ function renderBulkEntryDraft() {
       aceBulkEntryDraft.length === 0;
 
   }
+
+
+  // Data e origem pertencem à entrada completa. Depois do primeiro
+  // alimento no resumo, ficam travadas até registrar ou limpar a lista.
+  syncAceBulkEntryContextLock();
 
 
   // Os itens são recriados com innerHTML a cada alteração. Por isso os
