@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261104-startup-prepaint-v141",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261106-v142-origem-outro",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -2538,7 +2538,8 @@ function makeLocalHistoryRecord({
   qty,
   reason = "—",
   basketType = "—",
-  note = ""
+  note = "",
+  originCustomName = ""
 }) {
 
   return {
@@ -2550,6 +2551,10 @@ function makeLocalHistoryRecord({
       originId != null
         ? Number(originId)
         : null,
+    originCustomName:
+      String(
+        originCustomName || ""
+      ).trim(),
     foodId:
       foodId != null
         ? Number(foodId)
@@ -2578,6 +2583,7 @@ function applyLocalEntry({
   historyId,
   date,
   originId,
+  originCustomName = "",
   foodId,
   qty,
   note
@@ -2617,6 +2623,10 @@ function applyLocalEntry({
       Number(qty),
     originId:
       Number(originId),
+    originCustomName:
+      String(
+        originCustomName || ""
+      ).trim(),
     usuarioId:
       userId,
     usuarioNome:
@@ -2674,6 +2684,10 @@ function applyLocalEntry({
       "entrada",
     originId:
       Number(originId),
+    originCustomName:
+      String(
+        originCustomName || ""
+      ).trim(),
     foodId:
       Number(foodId),
     qty:
@@ -4902,28 +4916,37 @@ async function aceLoadFromSupabaseNetwork(
 
 
     entries:
-      entries.map(e => ({
-        id: Number(e.id),
-        date: e.data_entrada,
-        foodId: Number(e.alimento_id),
-        qty: Number(e.quantidade || 0),
-        originId: Number(e.origem_id),
-        usuarioId: e.usuario_id || null,
-        usuarioNome:
-          e.usuario_nome ||
-          e.usuarioNome ||
-          getAceUserNameFromDirectory(
-            e.usuario_id
-          ) ||
-          null,
-        note:
-          e.observacao ||
-          e.obs ||
-          "",
-        createdAt:
-          e.created_at ||
-          `${e.data_entrada || isoToday()}T00:00:00Z`
-      })),
+      entries.map(e => {
+        const stored =
+          aceDecodeCustomEntryStorage(
+            e.observacao ||
+            e.obs ||
+            ""
+          );
+
+        return {
+          id: Number(e.id),
+          date: e.data_entrada,
+          foodId: Number(e.alimento_id),
+          qty: Number(e.quantidade || 0),
+          originId: Number(e.origem_id),
+          originCustomName:
+            stored.originCustomName,
+          usuarioId: e.usuario_id || null,
+          usuarioNome:
+            e.usuario_nome ||
+            e.usuarioNome ||
+            getAceUserNameFromDirectory(
+              e.usuario_id
+            ) ||
+            null,
+          note:
+            stored.note,
+          createdAt:
+            e.created_at ||
+            `${e.data_entrada || isoToday()}T00:00:00Z`
+        };
+      }),
 
 
     movements: [
@@ -5060,32 +5083,48 @@ async function aceLoadFromSupabaseNetwork(
       })),
 
     history:
-      historyRows.map(h => ({
-        id: Number(h.id),
-        date: h.data,
-        type: h.tipo || "",
-        originId:
-          h.origem_id != null
-            ? Number(h.origem_id)
-            : null,
-        foodId:
-          h.alimento_id != null
-            ? Number(h.alimento_id)
-            : null,
-        qty: Number(h.quantidade || 0),
-        reason: h.motivo || "—",
-        basketType: h.tipo_cesta || "—",
-        note: h.observacao || "",
-        usuarioId: h.usuario_id || null,
-        usuarioNome:
-          getAceUserNameFromDirectory(
-            h.usuario_id
-          ) ||
-          null,
-        createdAt:
-          h.created_at ||
-          `${h.data || isoToday()}T00:00:00Z`
-      })),
+      historyRows.map(h => {
+        const stored =
+          h.tipo === "entrada"
+            ? aceDecodeCustomEntryStorage(
+                h.observacao || ""
+              )
+            : {
+                originCustomName: "",
+                note:
+                  h.observacao || ""
+              };
+
+        return {
+          id: Number(h.id),
+          date: h.data,
+          type: h.tipo || "",
+          originId:
+            h.origem_id != null
+              ? Number(h.origem_id)
+              : null,
+          originCustomName:
+            stored.originCustomName,
+          foodId:
+            h.alimento_id != null
+              ? Number(h.alimento_id)
+              : null,
+          qty: Number(h.quantidade || 0),
+          reason: h.motivo || "—",
+          basketType: h.tipo_cesta || "—",
+          note:
+            stored.note,
+          usuarioId: h.usuario_id || null,
+          usuarioNome:
+            getAceUserNameFromDirectory(
+              h.usuario_id
+            ) ||
+            null,
+          createdAt:
+            h.created_at ||
+            `${h.data || isoToday()}T00:00:00Z`
+        };
+      }),
 
     basketStock:
       basketStockRows.map(row => ({
@@ -6503,6 +6542,203 @@ async function insertOrigin(name) {
 }
 
 
+// ============================================================
+// ENTRADA — ORIGEM "OUTRO"
+// ============================================================
+// Existe apenas um registro técnico "Outro" na tabela de origens.
+// O nome digitado pelo usuário fica vinculado somente à entrada.
+// Ele não vira um novo item no cadastro permanente de origens.
+const ACE_ENTRY_OTHER_OPTION_VALUE = "__ace_entry_other__";
+const ACE_ENTRY_CUSTOM_ORIGIN_MARKER = "[[ACE_ORIGEM_LIVRE:";
+
+function isAceGenericOtherOrigin(origin) {
+  return normalizeAceText(origin?.name || origin?.nome || "") === "outro";
+}
+
+function aceEncodeCustomEntryStorage(note = "", originCustomName = "") {
+  const cleanNote = String(note || "").trim();
+  const cleanOrigin = String(originCustomName || "").trim();
+
+  if (!cleanOrigin) {
+    return cleanNote;
+  }
+
+  return `${ACE_ENTRY_CUSTOM_ORIGIN_MARKER}${encodeURIComponent(cleanOrigin)}]]${cleanNote ? "\n" + cleanNote : ""}`;
+}
+
+function aceDecodeCustomEntryStorage(value = "") {
+  const raw = String(value || "");
+
+  if (!raw.startsWith(ACE_ENTRY_CUSTOM_ORIGIN_MARKER)) {
+    return {
+      originCustomName: "",
+      note: raw
+    };
+  }
+
+  const end =
+    raw.indexOf(
+      "]]",
+      ACE_ENTRY_CUSTOM_ORIGIN_MARKER.length
+    );
+
+  if (end < 0) {
+    return {
+      originCustomName: "",
+      note: raw
+    };
+  }
+
+  const encoded =
+    raw.slice(
+      ACE_ENTRY_CUSTOM_ORIGIN_MARKER.length,
+      end
+    );
+
+  let originCustomName = "";
+
+  try {
+    originCustomName =
+      decodeURIComponent(
+        encoded
+      ).trim();
+  } catch {
+    originCustomName =
+      encoded.trim();
+  }
+
+  const note =
+    raw
+      .slice(end + 2)
+      .replace(/^\r?\n/, "");
+
+  return {
+    originCustomName,
+    note
+  };
+}
+
+function getAceEntryOriginDisplayName(row) {
+  const custom =
+    String(
+      row?.originCustomName ||
+      row?.origemInformada ||
+      ""
+    ).trim();
+
+  if (custom) {
+    return custom;
+  }
+
+  return (
+    getName(
+      db?.origins || [],
+      row?.originId
+    ) ||
+    "—"
+  );
+}
+
+function getAceEntryOriginChoices() {
+  return [
+    ...getAceOperationalOrigins(),
+    {
+      id:
+        ACE_ENTRY_OTHER_OPTION_VALUE,
+      name:
+        "Outro"
+    }
+  ];
+}
+
+async function ensureAceGenericOtherOriginId() {
+  const existing =
+    (db?.origins || [])
+      .find(
+        isAceGenericOtherOrigin
+      );
+
+  if (existing?.id != null) {
+    return Number(
+      existing.id
+    );
+  }
+
+  if (!aceIsOnline()) {
+    throw new Error(
+      'Para usar "Outro" pela primeira vez, conecte o aparelho à internet. Depois disso a opção ficará disponível normalmente.'
+    );
+  }
+
+  let id;
+
+  try {
+
+    id =
+      await insertOrigin(
+        "Outro"
+      );
+
+  } catch (error) {
+
+    // Se outro usuário criou "Outro" praticamente ao mesmo tempo,
+    // reaproveita o registro já existente em vez de falhar a entrada.
+    const {
+      data,
+      error: lookupError
+    } =
+      await supabaseClient
+        .from("origens")
+        .select("id,nome")
+        .ilike("nome", "Outro")
+        .limit(1);
+
+
+    if (
+      lookupError ||
+      !data?.[0]?.id
+    ) {
+      throw error;
+    }
+
+
+    id =
+      Number(data[0].id);
+
+  }
+
+
+  db.origins =
+    db.origins || [];
+
+
+  if (
+    !(db.origins || [])
+      .some(
+        origin =>
+          Number(origin.id) ===
+          Number(id)
+      )
+  ) {
+
+    db.origins.push({
+      id:
+        Number(id),
+      name:
+        "Outro"
+    });
+
+  }
+
+
+  try {
+    saveOfflineDbNow();
+  } catch {}
+
+  return Number(id);
+}
+
+
 async function insertHistoryRecord({
   date,
   type,
@@ -6613,6 +6849,7 @@ function mergeAceEntryNotes(
 function findAceEntryIncrementTarget({
   date,
   originId,
+  originCustomName = "",
   foodId,
   userId,
   note
@@ -6641,6 +6878,12 @@ function findAceEntryIncrementTarget({
             String(date || "") &&
           Number(item.originId) ===
             Number(originId) &&
+          String(
+            item.originCustomName || ""
+          ).trim() ===
+            String(
+              originCustomName || ""
+            ).trim() &&
           Number(item.foodId) ===
             Number(foodId) &&
           String(item.usuarioId || "") ===
@@ -6665,6 +6908,7 @@ function findAceEntryIncrementTarget({
 function findAceEntryHistoryIncrementTarget({
   date,
   originId,
+  originCustomName = "",
   foodId,
   userId,
   note
@@ -6694,6 +6938,12 @@ function findAceEntryHistoryIncrementTarget({
             String(date || "") &&
           Number(item.originId) ===
             Number(originId) &&
+          String(
+            item.originCustomName || ""
+          ).trim() ===
+            String(
+              originCustomName || ""
+            ).trim() &&
           Number(item.foodId) ===
             Number(foodId) &&
           String(item.usuarioId || "") ===
@@ -6975,6 +7225,7 @@ async function refreshAceSessionForEntryWrite() {
 async function insertEntry({
   date,
   originId,
+  originCustomName = "",
   foodId,
   qty,
   note
@@ -7003,6 +7254,7 @@ async function insertEntry({
     findAceEntryIncrementTarget({
       date,
       originId,
+      originCustomName,
       foodId,
       userId,
       note
@@ -7013,6 +7265,7 @@ async function insertEntry({
     findAceEntryHistoryIncrementTarget({
       date,
       originId,
+      originCustomName,
       foodId,
       userId,
       note
@@ -7080,7 +7333,10 @@ async function insertEntry({
       origem_id:
         Number(originId),
       observacao:
-        mergedEntryNote,
+        aceEncodeCustomEntryStorage(
+          mergedEntryNote,
+          originCustomName
+        ),
       usuario_id:
         getCurrentUserId()
     });
@@ -7105,7 +7361,10 @@ async function insertEntry({
       tipo_cesta:
         "—",
       observacao:
-        mergedHistoryNote,
+        aceEncodeCustomEntryStorage(
+          mergedHistoryNote,
+          originCustomName
+        ),
       usuario_id:
         getCurrentUserId()
     });
@@ -7190,6 +7449,7 @@ async function insertEntry({
       historyId,
       date,
       originId,
+      originCustomName,
       foodId,
       qty:
         entryTotalQty,
@@ -7226,6 +7486,7 @@ async function insertEntry({
       historyId,
       date,
       originId,
+      originCustomName,
       foodId,
       qty:
         entryTotalQty,
@@ -7264,6 +7525,7 @@ async function insertEntry({
         historyId,
         date,
         originId,
+        originCustomName,
         foodId,
         qty:
           entryTotalQty,
@@ -7720,6 +7982,12 @@ async function updateEntryHistoryAfterEdit({
               Number(
                 original.originId
               ) &&
+            String(
+              history.originCustomName || ""
+            ).trim() ===
+              String(
+                original.originCustomName || ""
+              ).trim() &&
             Number(
               history.foodId
             ) ===
@@ -7777,6 +8045,15 @@ async function updateEntryHistoryAfterEdit({
   }
 
 
+  const preservedOriginCustomName =
+    Number(originId) ===
+      Number(original?.originId)
+      ? String(
+          original?.originCustomName ||
+          ""
+        ).trim()
+      : "";
+
   await aceRunAuthenticatedWrite(
     () =>
       supabaseClient
@@ -7805,7 +8082,10 @@ async function updateEntryHistoryAfterEdit({
         tipo_cesta:
           "—",
         observacao:
-          note || ""
+          aceEncodeCustomEntryStorage(
+            note || "",
+            preservedOriginCustomName
+          )
         })
         .eq(
           "id",
@@ -7820,6 +8100,23 @@ async function updateEntryHistoryAfterEdit({
 
 
 async function updateEntry({ id, date, originId, foodId, qty, note }) {
+  const original =
+    (db.entries || [])
+      .find(
+        item =>
+          String(item.id) ===
+          String(id)
+      );
+
+  const preservedOriginCustomName =
+    Number(originId) ===
+      Number(original?.originId)
+      ? String(
+          original?.originCustomName ||
+          ""
+        ).trim()
+      : "";
+
   await aceRunAuthenticatedWrite(
     () =>
       supabaseClient
@@ -7829,7 +8126,11 @@ async function updateEntry({ id, date, originId, foodId, qty, note }) {
           alimento_id: Number(foodId),
           quantidade: Number(qty),
           origem_id: Number(originId),
-          observacao: note || ""
+          observacao:
+            aceEncodeCustomEntryStorage(
+              note || "",
+              preservedOriginCustomName
+            )
         })
         .eq("id", Number(id)),
     "a edição da entrada"
@@ -13944,6 +14245,9 @@ function getAceOperationalOrigins() {
       origin =>
         !isAceGeneralStockOrigin(
           origin
+        ) &&
+        !isAceGenericOtherOrigin(
+          origin
         )
     );
 
@@ -14092,7 +14396,7 @@ function refreshSelects() {
 
   populateSelect(
     "entryOrigin",
-    getAceOperationalOrigins()
+    getAceEntryOriginChoices()
   );
 
   setupAceMovementGeneralStockSelect();
@@ -14123,7 +14427,7 @@ function refreshSelects() {
 
     reportOrigin.innerHTML =
       '<option value="">Todas</option>' +
-      db.origins
+      getAceOperationalOrigins()
         .map(
           x =>
             `<option value="${x.id}">
@@ -15387,10 +15691,14 @@ function renderDashboard() {
                 ${x.kind}
                 •
                 ${esc(
-                  getName(
-                    db.origins,
-                    x.originId
-                  )
+                  x.kind === "Entrada"
+                    ? getAceEntryOriginDisplayName(
+                        x
+                      )
+                    : getName(
+                        db.origins,
+                        x.originId
+                      )
                 )}
                 •
                 ${fmtDate(x.date)}
@@ -15426,12 +15734,12 @@ async function deleteMatchingHistoryRecord(item, isEntry) {
 
   let query = supabaseClient
     .from("historico_movimentacoes")
-    .select("id")
+    .select("id,observacao")
     .eq("data", item.date)
     .eq("tipo", type)
     .eq("quantidade", Number(item.qty || 0))
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(20);
 
   if (item.originId != null) {
     query = query.eq("origem_id", Number(item.originId));
@@ -15455,7 +15763,23 @@ async function deleteMatchingHistoryRecord(item, isEntry) {
     return;
   }
 
-  const historyId = data?.[0]?.id;
+  const matchingRows =
+    isEntry
+      ? (data || []).filter(
+          row =>
+            String(
+              aceDecodeCustomEntryStorage(
+                row.observacao || ""
+              ).originCustomName || ""
+            ).trim() ===
+            String(
+              item.originCustomName || ""
+            ).trim()
+        )
+      : (data || []);
+
+  const historyId =
+    matchingRows?.[0]?.id;
 
   if (historyId == null) {
     return;
@@ -15696,8 +16020,23 @@ function openRecentEditModal(
                   `
                 : ""
             }
+            ${
+              isEntry &&
+              String(
+                item.originCustomName || ""
+              ).trim()
+                ? `
+                    <option
+                      value="${esc(item.originId)}"
+                      selected
+                    >
+                      ${esc(item.originCustomName)}
+                    </option>
+                  `
+                : ""
+            }
             ${getAceOperationalOrigins().map(o => `
-              <option value="${o.id}" ${Number(item.originId) === Number(o.id) ? "selected" : ""}>
+              <option value="${o.id}" ${!item.originCustomName && Number(item.originId) === Number(o.id) ? "selected" : ""}>
                 ${esc(o.name)}
               </option>
             `).join("")}
@@ -17007,6 +17346,12 @@ function findRealEntryForHistory(historyItem) {
           Number(
             historyItem.originId
           ) &&
+        String(
+          entry.originCustomName || ""
+        ).trim() ===
+          String(
+            historyItem.originCustomName || ""
+          ).trim() &&
         Number(
           entry.foodId
         ) ===
@@ -17058,6 +17403,12 @@ function findRealEntryForHistory(historyItem) {
           Number(
             historyItem.originId
           ) &&
+        String(
+          entry.originCustomName || ""
+        ).trim() ===
+          String(
+            historyItem.originCustomName || ""
+          ).trim() &&
         Number(
           entry.foodId
         ) ===
@@ -17097,6 +17448,12 @@ function findRealEntryForHistory(historyItem) {
           Number(
             historyItem.originId
           ) &&
+        String(
+          entry.originCustomName || ""
+        ).trim() ===
+          String(
+            historyItem.originCustomName || ""
+          ).trim() &&
         Number(
           entry.foodId
         ) ===
@@ -18141,9 +18498,8 @@ function renderEntries() {
             "Origem",
             x =>
               esc(
-                getName(
-                  db.origins,
-                  x.originId
+                getAceEntryOriginDisplayName(
+                  x
                 )
               )
           ],
@@ -22089,9 +22445,8 @@ async function renderReport() {
     row => {
 
       const originName =
-        getName(
-          db.origins,
-          row.originId
+        getAceEntryOriginDisplayName(
+          row
         );
 
 
@@ -27260,9 +27615,8 @@ function exportCSV() {
         rows.push([
           x.date,
           "Entrada",
-          getName(
-            db.origins,
-            x.originId
+          getAceEntryOriginDisplayName(
+            x
           ),
           getName(
             db.foods,
@@ -29735,10 +30089,14 @@ function renderHistory() {
           "Origem",
           x =>
             esc(
-              getName(
-                db.origins,
-                x.originId
-              )
+              x.type === "entrada"
+                ? getAceEntryOriginDisplayName(
+                    x
+                  )
+                : getName(
+                    db.origins,
+                    x.originId
+                  )
             )
         ],
 
@@ -30139,13 +30497,23 @@ function ensureAceBulkEntryDraftLoaded() {
     const record = JSON.parse(raw);
     if (record.version !== 1 || record.userId !== owner || !Array.isArray(record.items) ||
         !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || typeof record.originId !== 'string' ||
+        typeof (record.originCustomName ?? '') !== 'string' ||
         !record.items.every(item => item && ['string','number'].includes(typeof item.id) && String(item.id) &&
           ['string','number'].includes(typeof item.foodId) && String(item.foodId) &&
           Number.isInteger(item.qty) && item.qty > 0 && typeof item.foodName === 'string' && typeof item.note === 'string')) {
       throw new Error('Rascunho de entrada inválido.');
     }
     aceBulkEntryDraft = record.items;
-    aceBulkEntryDraftContext = {date:record.date,originId:record.originId};
+    aceBulkEntryDraftContext = {
+      date:
+        record.date,
+      originId:
+        record.originId,
+      originCustomName:
+        String(
+          record.originCustomName || ""
+        )
+    };
     aceBulkEntryDraftLastSaved = JSON.stringify({version:1,userId:owner,...aceBulkEntryDraftContext,items:record.items});
     aceBulkEntryDraftRecovered = record.items.length > 0;
   } catch (error) {
@@ -30158,17 +30526,39 @@ function ensureAceBulkEntryDraftLoaded() {
 
 function restoreAceBulkEntryDraftContext(context = aceBulkEntryDraftContext) {
   if (!context) return;
+
   for (const [id,key] of [['entryDate','date'],['entryOrigin','originId']]) {
     const field = document.getElementById(id);
     if (field) field.value = context[key] || '';
   }
+
+  const custom =
+    document.getElementById(
+      "entryOriginCustom"
+    );
+
+  if (custom) {
+    custom.value =
+      String(
+        context.originCustomName ||
+        ""
+      );
+  }
+
+  syncAceEntryCustomOriginField(
+    false
+  );
 }
 
 function captureAceBulkEntryDraftContext() {
   if (ensureAceBulkEntryDraftLoaded()) restoreAceBulkEntryDraftContext();
   return {
     date:document.getElementById('entryDate')?.value || aceBulkEntryDraftContext?.date || isoToday(),
-    originId:document.getElementById('entryOrigin')?.value ?? aceBulkEntryDraftContext?.originId ?? ''
+    originId:document.getElementById('entryOrigin')?.value ?? aceBulkEntryDraftContext?.originId ?? '',
+    originCustomName:
+      document.getElementById('entryOriginCustom')?.value ??
+      aceBulkEntryDraftContext?.originCustomName ??
+      ''
   };
 }
 
@@ -30554,6 +30944,51 @@ function ensureBulkEntryStyles() {
 }
 
 
+function syncAceEntryCustomOriginField(
+  clearWhenFixed = false
+) {
+  const select =
+    document.getElementById(
+      "entryOrigin"
+    );
+
+  const wrap =
+    document.getElementById(
+      "entryOriginCustomWrap"
+    );
+
+  const input =
+    document.getElementById(
+      "entryOriginCustom"
+    );
+
+  if (
+    !select ||
+    !wrap ||
+    !input
+  ) {
+    return;
+  }
+
+  const isOther =
+    select.value ===
+      ACE_ENTRY_OTHER_OPTION_VALUE;
+
+  wrap.hidden =
+    !isOther;
+
+  input.required =
+    isOther;
+
+  if (
+    !isOther &&
+    clearWhenFixed
+  ) {
+    input.value = "";
+  }
+}
+
+
 function setupBulkEntryForm() {
 
   ensureBulkEntryStyles();
@@ -30643,6 +31078,24 @@ function setupBulkEntryForm() {
               </option>
             </select>
 
+          </div>
+
+          <div
+            id="entryOriginCustomWrap"
+            class="ace-bulk-field full"
+            hidden
+          >
+            <label for="entryOriginCustom">
+              Informe a origem
+            </label>
+
+            <input
+              id="entryOriginCustom"
+              type="text"
+              maxlength="120"
+              autocomplete="off"
+              placeholder="Ex.: Associação São José"
+            >
           </div>
 
         </div>
@@ -30798,7 +31251,7 @@ function setupBulkEntryForm() {
   // Popula os selects imediatamente.
   populateSelect(
     "entryOrigin",
-    getAceOperationalOrigins()
+    getAceEntryOriginChoices()
   );
 
   populateSelect(
@@ -30820,6 +31273,7 @@ function setupBulkEntryForm() {
 
   ensureAceBulkEntryDraftLoaded();
   restoreAceBulkEntryDraftContext();
+  syncAceEntryCustomOriginField(false);
   renderBulkEntryDraft();
 
   // Liga os comandos imediatamente aos elementos recém-criados.
@@ -31198,9 +31652,38 @@ async function addOrUpdateBulkEntryItem() {
   if (!originId) {
 
     await showAceConfirm(
-      "O campo Origem é obrigatório.\n\nSelecione Piedade ou Água Fria antes de adicionar o alimento.",
+      "O campo Origem é obrigatório.\n\nSelecione Água Fria, Piedade ou Outro antes de adicionar o alimento.",
       "⚠️ Campo obrigatório"
     );
+
+    return;
+  }
+
+
+  const originCustomName =
+    String(
+      document.getElementById(
+        "entryOriginCustom"
+      )?.value || ""
+    ).trim();
+
+
+  if (
+    originId ===
+      ACE_ENTRY_OTHER_OPTION_VALUE &&
+    !originCustomName
+  ) {
+
+    await showAceConfirm(
+      'Ao escolher "Outro", informe o nome da origem antes de adicionar o alimento.',
+      "⚠️ Informe a origem"
+    );
+
+    document
+      .getElementById(
+        "entryOriginCustom"
+      )
+      ?.focus();
 
     return;
   }
@@ -31716,6 +32199,22 @@ function openBulkEntryItemEditModal(
               String(originId)
           );
 
+      const originDisplayName =
+        originId ===
+          ACE_ENTRY_OTHER_OPTION_VALUE
+          ? (
+              String(
+                document.getElementById(
+                  "entryOriginCustom"
+                )?.value || ""
+              ).trim() ||
+              "Outro"
+            )
+          : (
+              origin?.name ||
+              "Não selecionada"
+            );
+
 
       const foodsOptions =
         (db.foods || [])
@@ -31803,8 +32302,7 @@ function openBulkEntryItemEditModal(
               </span>
               <span class="ace-bulk-edit-context-value">
                 ${esc(
-                  origin?.name ||
-                  "Não selecionada"
+                  originDisplayName
                 )}
               </span>
             </div>
@@ -32297,12 +32795,58 @@ function bindBulkEntryFormEvents() {
   form.dataset.aceBulkBound =
     "1";
 
-  for (const id of ['entryDate','entryOrigin']) {
+  for (const id of ['entryDate','entryOrigin','entryOriginCustom']) {
     const field = document.getElementById(id);
     field?.addEventListener('input',saveAceBulkEntryDraft);
     field?.addEventListener('change',saveAceBulkEntryDraft);
   }
 
+  document
+    .getElementById(
+      "entryOrigin"
+    )
+    ?.addEventListener(
+      "change",
+      () => {
+
+        syncAceEntryCustomOriginField(
+          true
+        );
+
+
+        const select =
+          document.getElementById(
+            "entryOrigin"
+          );
+
+
+        if (
+          select?.value ===
+            ACE_ENTRY_OTHER_OPTION_VALUE &&
+          aceIsOnline()
+        ) {
+
+          ensureAceGenericOtherOriginId()
+            .catch(
+              error =>
+                console.warn(
+                  "ACE: não foi possível preparar a origem Outro:",
+                  error
+                )
+            );
+
+        }
+
+
+        saveAceBulkEntryDraft();
+
+      }
+    );
+
+
+  syncAceEntryCustomOriginField(
+    false
+  );
 
 
   document
@@ -32449,10 +32993,17 @@ function bindBulkEntryFormEvents() {
           "entryDate"
         )?.value;
 
-      const originId =
+      const originSelection =
         document.getElementById(
           "entryOrigin"
         )?.value;
+
+      const originCustomName =
+        String(
+          document.getElementById(
+            "entryOriginCustom"
+          )?.value || ""
+        ).trim();
 
 
       if (!date) {
@@ -32465,11 +33016,31 @@ function bindBulkEntryFormEvents() {
       }
 
 
-      if (!originId) {
+      if (!originSelection) {
 
         toast(
           "Selecione a origem da entrada."
         );
+
+        return;
+      }
+
+
+      if (
+        originSelection ===
+          ACE_ENTRY_OTHER_OPTION_VALUE &&
+        !originCustomName
+      ) {
+
+        toast(
+          'Informe o nome da origem para a opção "Outro".'
+        );
+
+        document
+          .getElementById(
+            "entryOriginCustom"
+          )
+          ?.focus();
 
         return;
       }
@@ -32489,16 +33060,33 @@ function bindBulkEntryFormEvents() {
 
       if (form.dataset.aceBulkSubmitting === '1') return;
       const unavailable = aceBulkEntryDraft.find(item => !(db.foods || []).some(food => String(food.id) === String(item.foodId)));
-      if (unavailable || !getAceOperationalOrigins().some(origin => String(origin.id) === String(originId))) {
+
+      const originIsAvailable =
+        originSelection ===
+          ACE_ENTRY_OTHER_OPTION_VALUE ||
+        getAceOperationalOrigins()
+          .some(
+            origin =>
+              String(origin.id) ===
+              String(originSelection)
+          );
+
+      if (
+        unavailable ||
+        !originIsAvailable
+      ) {
         await showAceMessage('Um alimento ou a origem do rascunho não está mais disponível. Revise a lista e selecione a origem antes de registrar.','Revise a entrada');
         return;
       }
 
       const originName =
-        getName(
-          db.origins,
-          originId
-        );
+        originSelection ===
+          ACE_ENTRY_OTHER_OPTION_VALUE
+          ? originCustomName
+          : getName(
+              db.origins,
+              originSelection
+            );
 
 
       const totalUnits =
@@ -32552,6 +33140,12 @@ function bindBulkEntryFormEvents() {
 
       try {
 
+        const resolvedOriginId =
+          originSelection ===
+            ACE_ENTRY_OTHER_OPTION_VALUE
+            ? await ensureAceGenericOtherOriginId()
+            : originSelection;
+
         // Faz uma cópia para a lista não mudar durante o registro.
         const items =
           aceBulkEntryDraft.map(
@@ -32565,7 +33159,13 @@ function bindBulkEntryFormEvents() {
 
           await insertEntry({
             date,
-            originId,
+            originId:
+              resolvedOriginId,
+            originCustomName:
+              originSelection ===
+                ACE_ENTRY_OTHER_OPTION_VALUE
+                ? originCustomName
+                : "",
             foodId:
               item.foodId,
             qty:
@@ -33766,6 +34366,11 @@ async function restoreCloudBackup(obj) {
       alimento_id: e.foodId,
       quantidade: Number(e.qty || 0),
       origem_id: e.originId,
+      observacao:
+        aceEncodeCustomEntryStorage(
+          e.note || "",
+          e.originCustomName || ""
+        ),
       usuario_id: userId
     }));
     const { error } = await supabaseClient.from("entradas").upsert(rows);
@@ -61392,9 +61997,8 @@ function renderAceStatistics() {
     aceStatsAggregate(
       entries,
       row =>
-        aceStatsName(
-          db.origins,
-          row.originId
+        getAceEntryOriginDisplayName(
+          row
         ),
       row =>
         row.qty
