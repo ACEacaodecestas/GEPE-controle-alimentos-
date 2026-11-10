@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261106-v144-trava-data-origem",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v146-export-word-excel",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -23483,6 +23483,22 @@ async function renderReport() {
 
         <button
           type="button"
+          id="exportReportWord"
+          class="ace-report-word-btn"
+        >
+          📝 Word editável (.docx)
+        </button>
+
+        <button
+          type="button"
+          id="exportReportExcel"
+          class="ace-report-excel-btn"
+        >
+          📊 Planilha Excel (.xlsx)
+        </button>
+
+        <button
+          type="button"
           id="shareReportPDF"
           class="ace-report-share-btn"
           disabled
@@ -25348,6 +25364,24 @@ function ensureReportSignatureStyles() {
       color:#fff;
     }
 
+    .ace-report-word-btn{
+      border:1px solid #2b579a;
+      background:#2b579a;
+      color:#fff;
+    }
+
+    .ace-report-excel-btn{
+      border:1px solid #217346;
+      background:#217346;
+      color:#fff;
+    }
+
+    .ace-report-word-btn:disabled,
+    .ace-report-excel-btn:disabled{
+      opacity:.65;
+      cursor:wait;
+    }
+
     .ace-report-share-btn{
       border:1px solid #1570ef;
       background:#1570ef;
@@ -25680,6 +25714,32 @@ function setupReportSignatureCanvas() {
 
     pdfButton.onclick =
       generateSignedReportPDF;
+
+  }
+
+
+  const wordButton =
+    document.getElementById(
+      "exportReportWord"
+    );
+
+  if (wordButton) {
+
+    wordButton.onclick =
+      exportReportWord;
+
+  }
+
+
+  const excelButton =
+    document.getElementById(
+      "exportReportExcel"
+    );
+
+  if (excelButton) {
+
+    excelButton.onclick =
+      exportReportExcel;
 
   }
 
@@ -27554,6 +27614,1059 @@ async function shareSignedReportPDF() {
       "❌ Erro ao compartilhar"
     );
   }
+}
+
+
+// ============================================================
+// RELATÓRIO GERAL — WORD EDITÁVEL + PLANILHA EXCEL
+// ============================================================
+
+function getAceReportExportFileBase() {
+
+  const start =
+    document.getElementById(
+      "reportStart"
+    )?.value || "inicio";
+
+  const end =
+    document.getElementById(
+      "reportEnd"
+    )?.value || "fim";
+
+  return `relatorio_ACE_${start}_${end}`;
+
+}
+
+
+function getAceReportOriginFilterLabel() {
+
+  const select =
+    document.getElementById(
+      "reportOrigin"
+    );
+
+  if (!select?.value) {
+    return "Todas as origens";
+  }
+
+  return (
+    select.selectedOptions?.[0]
+      ?.textContent
+      ?.trim() ||
+    "Origem selecionada"
+  );
+
+}
+
+
+function ensureAceReportGeneratedForExport() {
+
+  const reportResult =
+    document.getElementById(
+      "reportResult"
+    );
+
+  if (
+    !reportResult ||
+    !String(
+      reportResult.textContent || ""
+    ).trim()
+  ) {
+
+    throw new Error(
+      "Gere o Relatório Geral antes de exportar."
+    );
+
+  }
+
+  return reportResult;
+
+}
+
+
+async function ensureAceReportWordLibrary() {
+
+  try {
+
+    await loadExternalScriptOnce(
+      "https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js",
+      () =>
+        Boolean(
+          window.htmlDocx &&
+          typeof window.htmlDocx.asBlob ===
+            "function"
+        )
+    );
+
+  } catch (error) {
+
+    throw new Error(
+      "Não foi possível carregar o gerador de Word. Verifique a conexão com a internet e tente novamente."
+    );
+
+  }
+
+}
+
+
+async function ensureAceReportExcelLibrary() {
+
+  try {
+
+    await loadExternalScriptOnce(
+      "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+      () =>
+        Boolean(
+          window.XLSX &&
+          window.XLSX.utils
+        )
+    );
+
+  } catch (error) {
+
+    throw new Error(
+      "Não foi possível carregar o gerador de Excel. Verifique a conexão com a internet e tente novamente."
+    );
+
+  }
+
+}
+
+
+function aceBlobToDataUrl(
+  blob
+) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        () =>
+          resolve(
+            String(
+              reader.result || ""
+            )
+          );
+
+      reader.onerror =
+        () =>
+          reject(
+            reader.error ||
+            new Error(
+              "Falha ao converter imagem."
+            )
+          );
+
+      reader.readAsDataURL(
+        blob
+      );
+
+    }
+  );
+
+}
+
+
+async function aceInlineReportImagesForWord(
+  root
+) {
+
+  const images =
+    Array.from(
+      root.querySelectorAll(
+        "img"
+      )
+    );
+
+
+  for (
+    const image of images
+  ) {
+
+    const src =
+      String(
+        image.getAttribute(
+          "src"
+        ) || ""
+      ).trim();
+
+
+    if (
+      !src ||
+      src.startsWith(
+        "data:"
+      )
+    ) {
+      continue;
+    }
+
+
+    try {
+
+      const response =
+        await fetch(
+          image.src,
+          {
+            cache:
+              "no-store"
+          }
+        );
+
+
+      if (!response.ok) {
+        throw new Error(
+          "Imagem indisponível."
+        );
+      }
+
+
+      const blob =
+        await response.blob();
+
+
+      image.src =
+        await aceBlobToDataUrl(
+          blob
+        );
+
+
+    } catch (error) {
+
+      // Uma foto externa indisponível não impede a geração do Word.
+      const label =
+        document.createElement(
+          "div"
+        );
+
+      label.textContent =
+        image.alt
+          ? `[Imagem: ${image.alt}]`
+          : "[Imagem não disponível na exportação]";
+
+      label.style.color =
+        "#667085";
+
+      label.style.fontSize =
+        "11px";
+
+      image.replaceWith(
+        label
+      );
+
+    }
+
+  }
+
+}
+
+
+async function buildAceReportWordHtml() {
+
+  const reportResult =
+    ensureAceReportGeneratedForExport();
+
+
+  const clone =
+    reportResult.cloneNode(
+      true
+    );
+
+
+  // Remove somente os controles interativos.
+  clone
+    .querySelectorAll(
+      ".ace-report-signature-section, button, canvas"
+    )
+    .forEach(
+      element =>
+        element.remove()
+    );
+
+
+  // Se houver assinatura, leva a assinatura para o Word também.
+  if (
+    reportSignatureHasInk
+  ) {
+
+    const signature =
+      getReportSignatureImage();
+
+
+    if (signature) {
+
+      const signatureBlock =
+        document.createElement(
+          "div"
+        );
+
+
+      signatureBlock.innerHTML = `
+        <h3>Assinatura do responsável</h3>
+        <div style="margin:12px 0 5px;">
+          <img
+            src="${signature}"
+            alt="Assinatura do responsável"
+            style="max-width:420px;max-height:110px;"
+          >
+        </div>
+        <div>
+          <strong>Responsável:</strong>
+          ${esc(getReportResponsibleName())}
+        </div>
+        <div>
+          <strong>Data:</strong>
+          ${esc(fmtDate(isoToday()))}
+        </div>
+      `;
+
+
+      clone.appendChild(
+        signatureBlock
+      );
+
+    }
+
+  }
+
+
+  await aceInlineReportImagesForWord(
+    clone
+  );
+
+
+  const period =
+    clone.querySelector(
+      ".ace-report-period"
+    )?.textContent
+      ?.replace(
+        /\s+/g,
+        " "
+      )
+      .trim() ||
+    "Todo o período";
+
+
+  const originLabel =
+    getAceReportOriginFilterLabel();
+
+
+  return `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <title>Relatório Geral ACE</title>
+        <style>
+          body{
+            font-family:Arial,Helvetica,sans-serif;
+            color:#172b3a;
+            font-size:10pt;
+            line-height:1.35;
+          }
+          h1{
+            margin:0 0 4px;
+            color:#0b3a63;
+            font-size:22pt;
+          }
+          h2,h3,h4{
+            color:#0b3a63;
+            margin-top:18px;
+            margin-bottom:8px;
+          }
+          .ace-word-meta{
+            margin:0 0 16px;
+            padding:10px 12px;
+            border:1px solid #cbdfea;
+            background:#eef6fc;
+          }
+          .cards{
+            margin:10px 0 18px;
+          }
+          .card{
+            display:inline-block;
+            vertical-align:top;
+            width:17%;
+            min-width:110px;
+            margin:0 7px 7px 0;
+            padding:9px;
+            border:1px solid #d9e4ec;
+            background:#f8fafc;
+          }
+          .card span,
+          .card strong{
+            display:block;
+          }
+          .card strong{
+            margin-top:4px;
+            font-size:16pt;
+          }
+          table{
+            width:100%;
+            border-collapse:collapse;
+            margin:8px 0 16px;
+          }
+          th{
+            background:#0b4b7a;
+            color:#ffffff;
+            font-weight:bold;
+            padding:6px;
+            border:1px solid #b7c7d3;
+          }
+          td{
+            padding:6px;
+            border:1px solid #d9e4ec;
+            vertical-align:top;
+          }
+          img{
+            max-width:620px;
+            height:auto;
+          }
+          .empty{
+            color:#667085;
+            font-style:italic;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>ACE - Ação de Cestas</h1>
+        <h2>Relatório Geral</h2>
+
+        <div class="ace-word-meta">
+          <div><strong>${esc(period)}</strong></div>
+          <div><strong>Origem:</strong> ${esc(originLabel)}</div>
+          <div><strong>Documento gerado por:</strong> ${esc(getReportResponsibleName())}</div>
+          <div><strong>Gerado em:</strong> ${esc(new Date().toLocaleString("pt-BR"))}</div>
+        </div>
+
+        ${clone.innerHTML}
+      </body>
+    </html>
+  `;
+
+}
+
+
+async function exportReportWord() {
+
+  const button =
+    document.getElementById(
+      "exportReportWord"
+    );
+
+
+  const originalText =
+    button?.textContent ||
+    "📝 Word editável (.docx)";
+
+
+  try {
+
+    ensureAceReportGeneratedForExport();
+
+
+    if (button) {
+
+      button.disabled =
+        true;
+
+      button.textContent =
+        "⏳ Gerando Word...";
+
+    }
+
+
+    await ensureAceReportWordLibrary();
+
+
+    const html =
+      await buildAceReportWordHtml();
+
+
+    const blob =
+      window.htmlDocx.asBlob(
+        html,
+        {
+          orientation:
+            "landscape",
+          margins: {
+            top: 720,
+            right: 720,
+            bottom: 720,
+            left: 720,
+            header: 360,
+            footer: 360,
+            gutter: 0
+          }
+        }
+      );
+
+
+    if (
+      !blob ||
+      blob.size <
+        500
+    ) {
+
+      throw new Error(
+        "O arquivo Word foi gerado sem conteúdo."
+      );
+
+    }
+
+
+    download(
+      blob,
+      `${getAceReportExportFileBase()}.docx`
+    );
+
+
+    showAceSuccess(
+      "Relatório Word editável gerado com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO GERAR WORD DO RELATÓRIO:",
+      error
+    );
+
+
+    await showAceMessage(
+      error?.message ||
+        "Não foi possível gerar o Word.",
+      "❌ Erro ao gerar Word"
+    );
+
+
+  } finally {
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        originalText;
+
+    }
+
+  }
+
+}
+
+
+function aceExcelSafeSheetName(
+  value,
+  fallback,
+  usedNames
+) {
+
+  let name =
+    String(
+      value || fallback || "Dados"
+    )
+      .replace(
+        /[\[\]\:\*\?\/\\]/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim()
+      .slice(
+        0,
+        31
+      ) ||
+    "Dados";
+
+
+  let candidate =
+    name;
+
+  let index =
+    2;
+
+
+  while (
+    usedNames.has(
+      candidate.toLowerCase()
+    )
+  ) {
+
+    const suffix =
+      ` ${index}`;
+
+    candidate =
+      name
+        .slice(
+          0,
+          Math.max(
+            1,
+            31 -
+              suffix.length
+          )
+        ) +
+      suffix;
+
+    index +=
+      1;
+
+  }
+
+
+  usedNames.add(
+    candidate.toLowerCase()
+  );
+
+
+  return candidate;
+
+}
+
+
+function aceFitExcelColumns(
+  sheet
+) {
+
+  const rows =
+    window.XLSX.utils
+      .sheet_to_json(
+        sheet,
+        {
+          header: 1,
+          raw: false,
+          defval: ""
+        }
+      );
+
+
+  const columnCount =
+    rows.reduce(
+      (max, row) =>
+        Math.max(
+          max,
+          row.length
+        ),
+      0
+    );
+
+
+  const widths =
+    Array.from(
+      {
+        length:
+          columnCount
+      },
+      () => ({
+        wch: 12
+      })
+    );
+
+
+  rows
+    .slice(
+      0,
+      250
+    )
+    .forEach(
+      row => {
+
+        row.forEach(
+          (value, index) => {
+
+            const size =
+              String(
+                value ?? ""
+              ).length;
+
+
+            widths[index].wch =
+              Math.min(
+                45,
+                Math.max(
+                  widths[index].wch,
+                  size + 2
+                )
+              );
+
+          }
+        );
+
+      }
+    );
+
+
+  sheet["!cols"] =
+    widths;
+
+}
+
+
+function aceReportExcelSummaryRows(
+  reportResult
+) {
+
+  const start =
+    document.getElementById(
+      "reportStart"
+    )?.value || "";
+
+  const end =
+    document.getElementById(
+      "reportEnd"
+    )?.value || "";
+
+
+  const rows = [
+    [
+      "ACE - Ação de Cestas"
+    ],
+    [
+      "Relatório Geral"
+    ],
+    [],
+    [
+      "Período inicial",
+      start
+        ? fmtDate(start)
+        : "Início dos registros"
+    ],
+    [
+      "Período final",
+      end
+        ? fmtDate(end)
+        : "Último registro"
+    ],
+    [
+      "Origem",
+      getAceReportOriginFilterLabel()
+    ],
+    [
+      "Gerado por",
+      getReportResponsibleName()
+    ],
+    [
+      "Gerado em",
+      new Date()
+        .toLocaleString(
+          "pt-BR"
+        )
+    ],
+    [],
+    [
+      "Indicador",
+      "Valor"
+    ]
+  ];
+
+
+  const firstCards =
+    reportResult.querySelector(
+      ".cards"
+    );
+
+
+  if (firstCards) {
+
+    Array.from(
+      firstCards.children
+    )
+      .filter(
+        card =>
+          card.classList
+            .contains(
+              "card"
+            )
+      )
+      .forEach(
+        card => {
+
+          const label =
+            card.querySelector(
+              "span"
+            )?.textContent
+              ?.replace(
+                /\s+/g,
+                " "
+              )
+              .trim() ||
+            "Indicador";
+
+
+          const value =
+            card.querySelector(
+              "strong"
+            )?.textContent
+              ?.replace(
+                /\s+/g,
+                " "
+              )
+              .trim() ||
+            "";
+
+
+          rows.push([
+            label,
+            value
+          ]);
+
+        }
+      );
+
+  }
+
+
+  return rows;
+
+}
+
+
+function aceGetReportTableTitle(
+  table,
+  index
+) {
+
+  const section =
+    table.closest(
+      "section"
+    );
+
+
+  const heading =
+    section?.querySelector(
+      "h1,h2,h3,h4,.section-title"
+    ) ||
+    table
+      .closest(
+        ".panel"
+      )
+      ?.querySelector(
+        "h1,h2,h3,h4"
+      );
+
+
+  return (
+    heading?.textContent
+      ?.replace(
+        /\s+/g,
+        " "
+      )
+      .trim() ||
+    `Tabela ${index + 1}`
+  );
+
+}
+
+
+async function exportReportExcel() {
+
+  const button =
+    document.getElementById(
+      "exportReportExcel"
+    );
+
+
+  const originalText =
+    button?.textContent ||
+    "📊 Planilha Excel (.xlsx)";
+
+
+  try {
+
+    const reportResult =
+      ensureAceReportGeneratedForExport();
+
+
+    if (button) {
+
+      button.disabled =
+        true;
+
+      button.textContent =
+        "⏳ Gerando Excel...";
+
+    }
+
+
+    await ensureAceReportExcelLibrary();
+
+
+    const XLSX =
+      window.XLSX;
+
+
+    const workbook =
+      XLSX.utils
+        .book_new();
+
+
+    const usedNames =
+      new Set();
+
+
+    const summarySheet =
+      XLSX.utils
+        .aoa_to_sheet(
+          aceReportExcelSummaryRows(
+            reportResult
+          )
+        );
+
+
+    aceFitExcelColumns(
+      summarySheet
+    );
+
+
+    XLSX.utils
+      .book_append_sheet(
+        workbook,
+        summarySheet,
+        aceExcelSafeSheetName(
+          "Resumo",
+          "Resumo",
+          usedNames
+        )
+      );
+
+
+    const tables =
+      Array.from(
+        reportResult.querySelectorAll(
+          "table"
+        )
+      );
+
+
+    tables.forEach(
+      (table, index) => {
+
+        const sheet =
+          XLSX.utils
+            .table_to_sheet(
+              table,
+              {
+                raw:
+                  true
+              }
+            );
+
+
+        if (
+          !sheet["!ref"]
+        ) {
+          return;
+        }
+
+
+        aceFitExcelColumns(
+          sheet
+        );
+
+
+        const sheetName =
+          aceExcelSafeSheetName(
+            aceGetReportTableTitle(
+              table,
+              index
+            ),
+            `Tabela ${index + 1}`,
+            usedNames
+          );
+
+
+        XLSX.utils
+          .book_append_sheet(
+            workbook,
+            sheet,
+            sheetName
+          );
+
+      }
+    );
+
+
+    const bytes =
+      XLSX.write(
+        workbook,
+        {
+          bookType:
+            "xlsx",
+          type:
+            "array"
+        }
+      );
+
+
+    const blob =
+      new Blob(
+        [bytes],
+        {
+          type:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+      );
+
+
+    if (
+      !blob ||
+      blob.size <
+        500
+    ) {
+
+      throw new Error(
+        "A planilha foi gerada sem conteúdo."
+      );
+
+    }
+
+
+    download(
+      blob,
+      `${getAceReportExportFileBase()}.xlsx`
+    );
+
+
+    showAceSuccess(
+      "Planilha Excel gerada com sucesso!"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO AO GERAR EXCEL DO RELATÓRIO:",
+      error
+    );
+
+
+    await showAceMessage(
+      error?.message ||
+        "Não foi possível gerar a planilha Excel.",
+      "❌ Erro ao gerar Excel"
+    );
+
+
+  } finally {
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        originalText;
+
+    }
+
+  }
+
 }
 
 
@@ -58061,6 +59174,25 @@ function buildAceInventoryPdfElement(inventory, items) {
     0
   );
   const totalDifference = totalCounted - totalSystem;
+
+  // Indicadores iguais aos exibidos no resultado do inventário no sistema.
+  const adjustedItems =
+    displayItems.filter(
+      row => Number(row.difference || 0) !== 0
+    );
+
+  const totalIncreases =
+    adjustedItems.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.difference || 0)),
+      0
+    );
+
+  const totalReductions =
+    adjustedItems.reduce(
+      (sum, row) => sum + Math.abs(Math.min(0, Number(row.difference || 0))),
+      0
+    );
+
   const generatedAt = new Date().toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short"
@@ -58171,16 +59303,16 @@ function buildAceInventoryPdfElement(inventory, items) {
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
         <div style="padding:13px;border-radius:10px;background:#eaf4fb;border:1px solid #cfe1ef">
-          <div style="font-size:10px;color:#536273;font-weight:800">ESTOQUE NO SISTEMA</div>
-          <div style="font-size:22px;font-weight:900;color:#0b4b7a;margin-top:4px">${fmt(totalSystem)}</div>
+          <div style="font-size:10px;color:#536273;font-weight:800">ITENS AJUSTADOS</div>
+          <div style="font-size:22px;font-weight:900;color:#0b4b7a;margin-top:4px">${adjustedItems.length}</div>
         </div>
         <div style="padding:13px;border-radius:10px;background:#edf8f1;border:1px solid #cce8d6">
-          <div style="font-size:10px;color:#536273;font-weight:800">ESTOQUE CONTADO</div>
-          <div style="font-size:22px;font-weight:900;color:#167a3d;margin-top:4px">${fmt(totalCounted)}</div>
+          <div style="font-size:10px;color:#536273;font-weight:800">ACRÉSCIMOS</div>
+          <div style="font-size:22px;font-weight:900;color:#167a3d;margin-top:4px">${totalIncreases ? `+${fmt(totalIncreases)}` : "—"}</div>
         </div>
-        <div style="padding:13px;border-radius:10px;background:#fff6e7;border:1px solid #f1d3a4">
-          <div style="font-size:10px;color:#536273;font-weight:800">AJUSTE REALIZADO</div>
-          <div style="font-size:22px;font-weight:900;color:${totalDifference < 0 ? "#c62828" : totalDifference > 0 ? "#0756a0" : "#167a3d"};margin-top:4px">${totalDifference > 0 ? "+" : ""}${fmt(totalDifference)}</div>
+        <div style="padding:13px;border-radius:10px;background:#fff0f0;border:1px solid #efc5c5">
+          <div style="font-size:10px;color:#536273;font-weight:800">REDUÇÕES</div>
+          <div style="font-size:22px;font-weight:900;color:#c62828;margin-top:4px">${totalReductions ? `−${fmt(totalReductions)}` : "—"}</div>
         </div>
       </div>
 
