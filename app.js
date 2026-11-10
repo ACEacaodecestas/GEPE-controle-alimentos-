@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v147-excel-completo-graficos",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v148-pdf-inventario-excel-organizado",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -28902,9 +28902,9 @@ function aceExcelStatisticsRows(
 
   const rows = [
     [
-      "Grupo",
+      "Indicador",
       "Item",
-      "Valor"
+      "Quantidade"
     ]
   ];
 
@@ -28931,31 +28931,7 @@ function aceExcelStatisticsRows(
       );
 
   if (!grid) {
-
-    String(
-      statistics.innerText ||
-      statistics.textContent ||
-      ""
-    )
-      .split("\n")
-      .map(
-        line =>
-          line
-            .replace(/\s+/g, " ")
-            .trim()
-      )
-      .filter(Boolean)
-      .forEach(
-        line =>
-          rows.push([
-            "Estatísticas",
-            line,
-            ""
-          ])
-      );
-
     return rows;
-
   }
 
   Array.from(
@@ -28968,7 +28944,7 @@ function aceExcelStatisticsRows(
           String(
             card.firstElementChild
               ?.textContent ||
-            "Destaques"
+            "Indicador"
           )
             .replace(/\s+/g, " ")
             .trim();
@@ -28991,25 +28967,35 @@ function aceExcelStatisticsRows(
           chartRows.forEach(
             row => {
 
-              rows.push([
-                title,
+              const item =
                 String(
                   row.children[0]
                     ?.textContent ||
                   ""
                 )
                   .replace(/\s+/g, " ")
-                  .trim(),
+                  .trim();
+
+              const quantity =
                 String(
                   row.children[
-                    row.children.length -
-                    1
+                    row.children.length - 1
                   ]?.textContent ||
                   ""
                 )
                   .replace(/\s+/g, " ")
-                  .trim()
-              ]);
+                  .trim();
+
+              if (
+                item ||
+                quantity
+              ) {
+                rows.push([
+                  title,
+                  item,
+                  quantity
+                ]);
+              }
 
             }
           );
@@ -29017,38 +29003,78 @@ function aceExcelStatisticsRows(
           return;
         }
 
-        String(
-          card.innerText ||
-          card.textContent ||
-          ""
-        )
-          .split("\n")
-          .map(
-            line =>
-              line
-                .replace(/\s+/g, " ")
-                .trim()
+        // "Destaques do período" vira linhas normais, sem colocar
+        // um segundo indicador dentro da coluna Quantidade.
+        const detailLines =
+          String(
+            card.innerText ||
+            card.textContent ||
+            ""
           )
-          .filter(
-            line =>
-              line &&
-              line !== title
-          )
-          .forEach(
-            line => {
+            .split("\n")
+            .map(
+              line =>
+                line
+                  .replace(/\s+/g, " ")
+                  .trim()
+            )
+            .filter(
+              line =>
+                line &&
+                line !== title
+            );
 
-              const parts =
-                line.split(":");
+        detailLines.forEach(
+          line => {
 
-              rows.push([
-                title,
-                parts.shift()?.trim() ||
-                  line,
-                parts.join(":").trim()
-              ]);
+            const colonIndex =
+              line.indexOf(":");
 
+            if (
+              colonIndex < 0
+            ) {
+              return;
             }
-          );
+
+            const indicator =
+              line
+                .slice(
+                  0,
+                  colonIndex
+                )
+                .trim();
+
+            let detail =
+              line
+                .slice(
+                  colonIndex + 1
+                )
+                .trim();
+
+            let quantity = "";
+
+            const match =
+              detail.match(
+                /^(.*?)\s+[—–-]\s+([+\-−]?\d[\d.,]*)\s*$/
+              );
+
+            if (match) {
+              detail =
+                match[1].trim();
+
+              quantity =
+                match[2].trim();
+            }
+
+            rows.push([
+              indicator ||
+                title,
+              detail,
+              quantity
+            ]);
+
+          }
+        );
 
       }
     );
@@ -29094,9 +29120,40 @@ function aceExcelAddStatistics(
     }
   ];
 
-  aceExcelAutoWidth(
-    sheet,
-    55
+  sheet.getColumn(1).width = 32;
+  sheet.getColumn(2).width = 42;
+  sheet.getColumn(3).width = 16;
+
+  sheet.eachRow(
+    (row, rowNumber) => {
+
+      row.alignment = {
+        vertical: "middle",
+        wrapText: true
+      };
+
+      if (
+        rowNumber > 1 &&
+        rowNumber % 2 === 0
+      ) {
+
+        row.eachCell(
+          cell => {
+
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: {
+                argb: "FFF5F9FC"
+              }
+            };
+
+          }
+        );
+
+      }
+
+    }
   );
 
 }
@@ -29107,65 +29164,297 @@ function aceExcelAddCompleteContent(
   reportResult
 ) {
 
-  const clone =
-    reportResult.cloneNode(
-      true
-    );
-
-  clone
-    .querySelectorAll(
-      ".ace-report-signature-section, button, canvas"
-    )
-    .forEach(
-      element =>
-        element.remove()
-    );
-
-  const lines =
-    String(
-      clone.innerText ||
-      clone.textContent ||
-      ""
-    )
-      .split("\n")
-      .map(
-        line =>
-          line
-            .replace(/\s+/g, " ")
-            .trim()
-      )
-      .filter(Boolean);
-
   const sheet =
     workbook.addWorksheet(
       "Conteúdo Geral"
     );
 
+  // Estrutura profissional: um registro por linha e informações
+  // relacionadas lado a lado, em vez de uma longa coluna vertical.
   sheet.addRow([
-    "Conteúdo completo exibido no Relatório Geral"
+    "Seção",
+    "Descrição",
+    "Valor / Detalhe"
   ]);
 
   aceExcelStyleHeader(
     sheet.getRow(1)
   );
 
-  lines.forEach(
-    line =>
-      sheet.addRow([
-        line
-      ])
-  );
+  const addRow =
+    (
+      section,
+      description,
+      detail
+    ) => {
 
-  sheet.getColumn(1).width =
-    100;
-
-  sheet.eachRow(
-    row => {
+      const row =
+        sheet.addRow([
+          String(section || "").trim(),
+          String(description || "").trim(),
+          String(detail || "").trim()
+        ]);
 
       row.alignment = {
         vertical: "top",
         wrapText: true
       };
+
+      return row;
+    };
+
+
+  const start =
+    document.getElementById(
+      "reportStart"
+    )?.value || "";
+
+  const end =
+    document.getElementById(
+      "reportEnd"
+    )?.value || "";
+
+  addRow(
+    "Relatório",
+    "Período",
+    start && end
+      ? `${fmtDate(start)} a ${fmtDate(end)}`
+      : start
+        ? `A partir de ${fmtDate(start)}`
+        : end
+          ? `Até ${fmtDate(end)}`
+          : "Todo o período"
+  );
+
+  addRow(
+    "Relatório",
+    "Origem",
+    getAceReportOriginFilterLabel()
+  );
+
+  addRow(
+    "Relatório",
+    "Gerado por",
+    getReportResponsibleName()
+  );
+
+  addRow(
+    "Relatório",
+    "Gerado em",
+    new Date()
+      .toLocaleString(
+        "pt-BR"
+      )
+  );
+
+
+  const summaryCards =
+    reportResult.querySelector(
+      ".cards"
+    );
+
+  if (summaryCards) {
+
+    Array.from(
+      summaryCards.children
+    )
+      .filter(
+        card =>
+          card.classList
+            ?.contains(
+              "card"
+            )
+      )
+      .forEach(
+        card => {
+
+          const label =
+            String(
+              card.querySelector(
+                "span"
+              )?.textContent ||
+              "Indicador"
+            )
+              .replace(/\s+/g, " ")
+              .trim();
+
+          const value =
+            String(
+              card.querySelector(
+                "strong"
+              )?.textContent ||
+              ""
+            )
+              .replace(/\s+/g, " ")
+              .trim();
+
+          addRow(
+            "Resumo",
+            label,
+            value
+          );
+
+        }
+      );
+
+  }
+
+
+  const statistics =
+    reportResult.querySelector(
+      ".ace-report-statistics"
+    );
+
+  aceExcelStatisticsRows(
+    statistics
+  )
+    .slice(1)
+    .forEach(
+      row => {
+
+        const [
+          indicator,
+          item,
+          quantity
+        ] = row;
+
+        addRow(
+          "Estatísticas",
+          `${indicator}${item ? ` — ${item}` : ""}`,
+          quantity
+        );
+
+      }
+    );
+
+
+  const tables =
+    Array.from(
+      reportResult.querySelectorAll(
+        "table"
+      )
+    );
+
+  tables.forEach(
+    (table, tableIndex) => {
+
+      const sectionName =
+        aceGetReportTableTitle(
+          table,
+          tableIndex
+        );
+
+      const headers =
+        Array.from(
+          table.querySelectorAll(
+            "thead th"
+          )
+        )
+          .map(
+            header =>
+              String(
+                header.textContent || ""
+              )
+                .replace(/\s+/g, " ")
+                .trim()
+          );
+
+      const bodyRows =
+        Array.from(
+          table.querySelectorAll(
+            "tbody tr"
+          )
+        );
+
+      bodyRows.forEach(
+        (tr, rowIndex) => {
+
+          const values =
+            Array.from(
+              tr.querySelectorAll(
+                "td"
+              )
+            )
+              .map(
+                cell =>
+                  aceExcelCellText(
+                    cell
+                  )
+              );
+
+          if (
+            !values.some(Boolean)
+          ) {
+            return;
+          }
+
+          const details =
+            values
+              .map(
+                (value, index) => {
+
+                  const header =
+                    headers[index] ||
+                    `Campo ${index + 1}`;
+
+                  return `${header}: ${value || "—"}`;
+
+                }
+              )
+              .join(" | ");
+
+          addRow(
+            sectionName,
+            `Registro ${rowIndex + 1}`,
+            details
+          );
+
+        }
+      );
+
+    }
+  );
+
+
+  sheet.views = [
+    {
+      state: "frozen",
+      ySplit: 1
+    }
+  ];
+
+  sheet.getColumn(1).width = 30;
+  sheet.getColumn(2).width = 42;
+  sheet.getColumn(3).width = 105;
+
+  sheet.eachRow(
+    (row, rowNumber) => {
+
+      row.alignment = {
+        vertical: "top",
+        wrapText: true
+      };
+
+      if (
+        rowNumber > 1 &&
+        rowNumber % 2 === 0
+      ) {
+
+        row.eachCell(
+          cell => {
+
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: {
+                argb: "FFF7FAFC"
+              }
+            };
+
+          }
+        );
+
+      }
 
     }
   );
@@ -60050,11 +60339,11 @@ function buildAceInventoryPdfElement(inventory, items) {
 
     return `
       <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;color:#667085;text-align:center">${index + 1}</td>
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;font-weight:700">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right">${fmt(system)}</td>
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900">${fmt(counted)}</td>
-        <td style="padding:9px 8px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor}">${difference > 0 ? "+" : ""}${fmt(difference)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;color:#667085;text-align:center;box-sizing:border-box">${index + 1}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;font-weight:700;box-sizing:border-box;overflow-wrap:anywhere">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;box-sizing:border-box;white-space:nowrap">${fmt(system)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;box-sizing:border-box;white-space:nowrap">${fmt(counted)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${difference > 0 ? "+" : ""}${fmt(difference)}</td>
       </tr>`;
   }).join("");
 
@@ -60094,14 +60383,14 @@ function buildAceInventoryPdfElement(inventory, items) {
         </div>
       </div>
 
-      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px">
+      <table style="width:96%;margin:0 auto;border-collapse:collapse;table-layout:fixed;font-size:10.5px;box-sizing:border-box">
         <thead>
           <tr style="background:#0b4b7a;color:#fff">
-            <th style="width:7%;padding:10px 8px;text-align:center">Nº</th>
-            <th style="width:45%;padding:10px 8px;text-align:left">Alimento</th>
-            <th style="width:16%;padding:10px 8px;text-align:right">Sistema</th>
-            <th style="width:16%;padding:10px 8px;text-align:right">Contado</th>
-            <th style="width:16%;padding:10px 8px;text-align:right">Diferença</th>
+            <th style="width:7%;padding:9px 6px;text-align:center;box-sizing:border-box">Nº</th>
+            <th style="width:45%;padding:9px 6px;text-align:left;box-sizing:border-box">Alimento</th>
+            <th style="width:15%;padding:9px 6px;text-align:right;box-sizing:border-box">Sistema</th>
+            <th style="width:16%;padding:9px 6px;text-align:right;box-sizing:border-box">Contado</th>
+            <th style="width:17%;padding:9px 6px;text-align:right;box-sizing:border-box">Diferença</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -60185,7 +60474,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
     const element = buildAceInventoryPdfElement(inventory, items);
     host = document.createElement("div");
     host.style.cssText = "position:fixed;left:0;top:0;width:794px;min-width:794px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
-    element.style.cssText = "width:760px;min-width:760px;max-width:760px;margin:0;box-sizing:border-box;position:relative;left:0";
+    element.style.cssText = "width:738px;min-width:738px;max-width:738px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
     host.appendChild(element);
     document.body.appendChild(host);
 
@@ -60215,7 +60504,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
         backgroundColor: "#ffffff",
         logging: false,
         windowWidth: 794,
-        width: 760,
+        width: 738,
         x: 0,
         y: 0,
         scrollX: 0,
