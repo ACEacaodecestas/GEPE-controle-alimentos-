@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v148-pdf-inventario-excel-organizado",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v149-inventario-resultado-conteudo-geral",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -29169,39 +29169,43 @@ function aceExcelAddCompleteContent(
       "Conteúdo Geral"
     );
 
-  // Estrutura profissional: um registro por linha e informações
-  // relacionadas lado a lado, em vez de uma longa coluna vertical.
+  const blue =
+    "FF0B4B7A";
+
+  const lightBlue =
+    "FFEAF4FB";
+
+  const lightGray =
+    "FFF7FAFC";
+
+
+  // Título principal.
   sheet.addRow([
-    "Seção",
-    "Descrição",
-    "Valor / Detalhe"
+    "ACE - Ação de Cestas | Relatório Geral"
   ]);
 
-  aceExcelStyleHeader(
-    sheet.getRow(1)
+  sheet.mergeCells(
+    1,
+    1,
+    1,
+    9
   );
 
-  const addRow =
-    (
-      section,
-      description,
-      detail
-    ) => {
+  sheet.getCell(
+    "A1"
+  ).font = {
+    bold: true,
+    size: 16,
+    color: {
+      argb: blue
+    }
+  };
 
-      const row =
-        sheet.addRow([
-          String(section || "").trim(),
-          String(description || "").trim(),
-          String(detail || "").trim()
-        ]);
-
-      row.alignment = {
-        vertical: "top",
-        wrapText: true
-      };
-
-      return row;
-    };
+  sheet.getCell(
+    "A1"
+  ).alignment = {
+    vertical: "middle"
+  };
 
 
   const start =
@@ -29214,37 +29218,93 @@ function aceExcelAddCompleteContent(
       "reportEnd"
     )?.value || "";
 
-  addRow(
-    "Relatório",
-    "Período",
-    start && end
-      ? `${fmtDate(start)} a ${fmtDate(end)}`
-      : start
-        ? `A partir de ${fmtDate(start)}`
-        : end
-          ? `Até ${fmtDate(end)}`
-          : "Todo o período"
+
+  const metaRows = [
+    [
+      "Período",
+      start && end
+        ? `${fmtDate(start)} a ${fmtDate(end)}`
+        : start
+          ? `A partir de ${fmtDate(start)}`
+          : end
+            ? `Até ${fmtDate(end)}`
+            : "Todo o período"
+    ],
+    [
+      "Origem",
+      getAceReportOriginFilterLabel()
+    ],
+    [
+      "Gerado por",
+      getReportResponsibleName()
+    ],
+    [
+      "Gerado em",
+      new Date()
+        .toLocaleString(
+          "pt-BR"
+        )
+    ]
+  ];
+
+
+  metaRows.forEach(
+    row => {
+
+      const excelRow =
+        sheet.addRow(
+          row
+        );
+
+      excelRow.getCell(1).font = {
+        bold: true
+      };
+
+    }
   );
 
-  addRow(
-    "Relatório",
-    "Origem",
-    getAceReportOriginFilterLabel()
+
+  // ----------------------------
+  // RESUMO
+  // ----------------------------
+  sheet.addRow([]);
+
+  const summaryTitle =
+    sheet.addRow([
+      "RESUMO"
+    ]);
+
+  sheet.mergeCells(
+    summaryTitle.number,
+    1,
+    summaryTitle.number,
+    9
   );
 
-  addRow(
-    "Relatório",
-    "Gerado por",
-    getReportResponsibleName()
-  );
+  summaryTitle.getCell(1).font = {
+    bold: true,
+    color: {
+      argb: "FFFFFFFF"
+    }
+  };
 
-  addRow(
-    "Relatório",
-    "Gerado em",
-    new Date()
-      .toLocaleString(
-        "pt-BR"
-      )
+  summaryTitle.getCell(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: {
+      argb: blue
+    }
+  };
+
+
+  const summaryHeader =
+    sheet.addRow([
+      "Indicador",
+      "Valor"
+    ]);
+
+  aceExcelStyleHeader(
+    summaryHeader
   );
 
 
@@ -29252,6 +29312,7 @@ function aceExcelAddCompleteContent(
     reportResult.querySelector(
       ".cards"
     );
+
 
   if (summaryCards) {
 
@@ -29288,11 +29349,10 @@ function aceExcelAddCompleteContent(
               .replace(/\s+/g, " ")
               .trim();
 
-          addRow(
-            "Resumo",
+          sheet.addRow([
             label,
             value
-          );
+          ]);
 
         }
       );
@@ -29300,40 +29360,82 @@ function aceExcelAddCompleteContent(
   }
 
 
+  // ----------------------------
+  // ESTATÍSTICAS
+  // ----------------------------
+  sheet.addRow([]);
+
+  const statsTitle =
+    sheet.addRow([
+      "ESTATÍSTICAS DO PERÍODO"
+    ]);
+
+  sheet.mergeCells(
+    statsTitle.number,
+    1,
+    statsTitle.number,
+    9
+  );
+
+  statsTitle.getCell(1).font = {
+    bold: true,
+    color: {
+      argb: "FFFFFFFF"
+    }
+  };
+
+  statsTitle.getCell(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: {
+      argb: blue
+    }
+  };
+
+
+  const statsHeader =
+    sheet.addRow([
+      "Indicador",
+      "Item",
+      "Quantidade"
+    ]);
+
+  aceExcelStyleHeader(
+    statsHeader
+  );
+
+
   const statistics =
     reportResult.querySelector(
       ".ace-report-statistics"
     );
 
+
   aceExcelStatisticsRows(
     statistics
   )
-    .slice(1)
+    .slice(
+      1
+    )
     .forEach(
-      row => {
-
-        const [
-          indicator,
-          item,
-          quantity
-        ] = row;
-
-        addRow(
-          "Estatísticas",
-          `${indicator}${item ? ` — ${item}` : ""}`,
-          quantity
-        );
-
-      }
+      row =>
+        sheet.addRow(
+          row
+        )
     );
 
 
+  // ----------------------------
+  // TABELAS DO RELATÓRIO
+  // Cada seção preserva as próprias colunas.
+  // ----------------------------
   const tables =
     Array.from(
       reportResult.querySelectorAll(
         "table"
       )
     );
+
 
   tables.forEach(
     (table, tableIndex) => {
@@ -29343,6 +29445,7 @@ function aceExcelAddCompleteContent(
           table,
           tableIndex
         );
+
 
       const headers =
         Array.from(
@@ -29359,12 +29462,80 @@ function aceExcelAddCompleteContent(
                 .trim()
           );
 
+
+      if (
+        !headers.length
+      ) {
+        return;
+      }
+
+
+      sheet.addRow([]);
+
+
+      const sectionTitle =
+        sheet.addRow([
+          String(
+            sectionName || "Dados"
+          )
+            .replace(/\s+/g, " ")
+            .trim()
+        ]);
+
+
+      sheet.mergeCells(
+        sectionTitle.number,
+        1,
+        sectionTitle.number,
+        Math.max(
+          1,
+          Math.min(
+            9,
+            headers.length
+          )
+        )
+      );
+
+
+      sectionTitle.getCell(
+        1
+      ).font = {
+        bold: true,
+        color: {
+          argb: blue
+        }
+      };
+
+
+      sectionTitle.getCell(
+        1
+      ).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: {
+          argb: lightBlue
+        }
+      };
+
+
+      const headerRow =
+        sheet.addRow(
+          headers
+        );
+
+
+      aceExcelStyleHeader(
+        headerRow
+      );
+
+
       const bodyRows =
         Array.from(
           table.querySelectorAll(
             "tbody tr"
           )
         );
+
 
       bodyRows.forEach(
         (tr, rowIndex) => {
@@ -29382,32 +29553,45 @@ function aceExcelAddCompleteContent(
                   )
               );
 
+
           if (
             !values.some(Boolean)
           ) {
             return;
           }
 
-          const details =
-            values
-              .map(
-                (value, index) => {
 
-                  const header =
-                    headers[index] ||
-                    `Campo ${index + 1}`;
+          const excelRow =
+            sheet.addRow(
+              values
+            );
 
-                  return `${header}: ${value || "—"}`;
 
-                }
-              )
-              .join(" | ");
+          excelRow.alignment = {
+            vertical: "top",
+            wrapText: true
+          };
 
-          addRow(
-            sectionName,
-            `Registro ${rowIndex + 1}`,
-            details
-          );
+
+          if (
+            rowIndex % 2 === 1
+          ) {
+
+            excelRow.eachCell(
+              cell => {
+
+                cell.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: {
+                    argb: lightGray
+                  }
+                };
+
+              }
+            );
+
+          }
 
         }
       );
@@ -29416,6 +29600,7 @@ function aceExcelAddCompleteContent(
   );
 
 
+  // Formatação final.
   sheet.views = [
     {
       state: "frozen",
@@ -29423,38 +29608,39 @@ function aceExcelAddCompleteContent(
     }
   ];
 
-  sheet.getColumn(1).width = 30;
-  sheet.getColumn(2).width = 42;
-  sheet.getColumn(3).width = 105;
+
+  const widths = [
+    20,
+    30,
+    25,
+    20,
+    18,
+    22,
+    24,
+    35,
+    24
+  ];
+
+
+  widths.forEach(
+    (width, index) => {
+
+      sheet.getColumn(
+        index + 1
+      ).width =
+        width;
+
+    }
+  );
+
 
   sheet.eachRow(
-    (row, rowNumber) => {
+    row => {
 
       row.alignment = {
         vertical: "top",
         wrapText: true
       };
-
-      if (
-        rowNumber > 1 &&
-        rowNumber % 2 === 0
-      ) {
-
-        row.eachCell(
-          cell => {
-
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: {
-                argb: "FFF7FAFC"
-              }
-            };
-
-          }
-        );
-
-      }
 
     }
   );
@@ -60337,13 +60523,21 @@ function buildAceInventoryPdfElement(inventory, items) {
         ? "#0756a0"
         : "#167a3d";
 
+    const adjustmentText =
+      difference === 0
+        ? "—"
+        : `${difference > 0 ? "+" : ""}${fmt(difference)}`;
+
+    const resultQuantity =
+      counted;
+
     return `
       <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;color:#667085;text-align:center;box-sizing:border-box">${index + 1}</td>
         <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;font-weight:700;box-sizing:border-box;overflow-wrap:anywhere">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
         <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;box-sizing:border-box;white-space:nowrap">${fmt(system)}</td>
         <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;box-sizing:border-box;white-space:nowrap">${fmt(counted)}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${difference > 0 ? "+" : ""}${fmt(difference)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${adjustmentText}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:#102a43;box-sizing:border-box;white-space:nowrap">${fmt(resultQuantity)}</td>
       </tr>`;
   }).join("");
 
@@ -60383,14 +60577,14 @@ function buildAceInventoryPdfElement(inventory, items) {
         </div>
       </div>
 
-      <table style="width:96%;margin:0 auto;border-collapse:collapse;table-layout:fixed;font-size:10.5px;box-sizing:border-box">
+      <table style="width:94%;margin:0 auto;border-collapse:collapse;table-layout:fixed;font-size:9.8px;box-sizing:border-box">
         <thead>
           <tr style="background:#0b4b7a;color:#fff">
-            <th style="width:7%;padding:9px 6px;text-align:center;box-sizing:border-box">Nº</th>
-            <th style="width:45%;padding:9px 6px;text-align:left;box-sizing:border-box">Alimento</th>
-            <th style="width:15%;padding:9px 6px;text-align:right;box-sizing:border-box">Sistema</th>
-            <th style="width:16%;padding:9px 6px;text-align:right;box-sizing:border-box">Contado</th>
-            <th style="width:17%;padding:9px 6px;text-align:right;box-sizing:border-box">Diferença</th>
+            <th style="width:36%;padding:9px 6px;text-align:left;box-sizing:border-box">Alimento</th>
+            <th style="width:16%;padding:9px 6px;text-align:right;box-sizing:border-box">Antes do inventário</th>
+            <th style="width:14%;padding:9px 6px;text-align:right;box-sizing:border-box">Contado</th>
+            <th style="width:16%;padding:9px 6px;text-align:right;box-sizing:border-box">Ajuste do inventário</th>
+            <th style="width:18%;padding:9px 6px;text-align:right;box-sizing:border-box">Resultado do inventário</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -60474,7 +60668,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
     const element = buildAceInventoryPdfElement(inventory, items);
     host = document.createElement("div");
     host.style.cssText = "position:fixed;left:0;top:0;width:794px;min-width:794px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
-    element.style.cssText = "width:738px;min-width:738px;max-width:738px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
+    element.style.cssText = "width:720px;min-width:720px;max-width:720px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
     host.appendChild(element);
     document.body.appendChild(host);
 
@@ -60504,7 +60698,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
         backgroundColor: "#ffffff",
         logging: false,
         windowWidth: 794,
-        width: 738,
+        width: 720,
         x: 0,
         y: 0,
         scrollX: 0,
