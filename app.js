@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v146-export-word-excel",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v147-excel-completo-graficos",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -23497,15 +23497,6 @@ async function renderReport() {
           📊 Planilha Excel (.xlsx)
         </button>
 
-        <button
-          type="button"
-          id="shareReportPDF"
-          class="ace-report-share-btn"
-          disabled
-        >
-          📤 Compartilhar PDF
-        </button>
-
       </div>
 
     </div>
@@ -28432,34 +28423,851 @@ function aceGetReportTableTitle(
   index
 ) {
 
-  const section =
-    table.closest(
-      "section"
-    );
-
-
-  const heading =
-    section?.querySelector(
-      "h1,h2,h3,h4,.section-title"
-    ) ||
-    table
-      .closest(
-        ".panel"
+  const headers =
+    Array.from(
+      table.querySelectorAll(
+        "thead th"
       )
-      ?.querySelector(
-        "h1,h2,h3,h4"
+    )
+      .map(
+        cell =>
+          String(
+            cell.textContent || ""
+          )
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase()
       );
 
+  const has =
+    value =>
+      headers.some(
+        header =>
+          header.includes(
+            value
+          )
+      );
 
-  return (
-    heading?.textContent
-      ?.replace(
-        /\s+/g,
-        " "
+  if (
+    has("matrícula") &&
+    has("nome")
+  ) {
+    return "Presenças";
+  }
+
+  if (
+    has("evidência") &&
+    has("motivo") &&
+    has("tipo") &&
+    has("alimento")
+  ) {
+    return "Saídas e Perdas";
+  }
+
+  if (
+    has("alimento") &&
+    has("origem") &&
+    has("usuário") &&
+    !has("tipo") &&
+    !has("motivo")
+  ) {
+    return "Entradas";
+  }
+
+  if (
+    has("tamanho") &&
+    has("finalidade") &&
+    has("origem / destino")
+  ) {
+    return "Movimentações de Sacos";
+  }
+
+  if (
+    has("montadas") &&
+    has("disponíveis") &&
+    has("retiradas") &&
+    has("estornadas")
+  ) {
+    return "Estoque de Cestas";
+  }
+
+  if (
+    has("responsável") &&
+    has("cesta") &&
+    has("destino") &&
+    has("qtd")
+  ) {
+    return "Retiradas de Cestas";
+  }
+
+  if (
+    has("alteração") &&
+    has("motivo") &&
+    has("cesta")
+  ) {
+    return "Ajustes de Cestas";
+  }
+
+  const clean =
+    value =>
+      String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+  const section =
+    table.closest("section");
+
+  if (section) {
+
+    const headings =
+      Array.from(
+        section.querySelectorAll(
+          "h1,h2,h3,h4,.section-title"
+        )
       )
-      .trim() ||
-    `Tabela ${index + 1}`
+        .filter(
+          heading =>
+            heading.compareDocumentPosition(
+              table
+            ) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+        );
+
+    if (headings.length) {
+
+      const title =
+        clean(
+          headings[
+            headings.length - 1
+          ].textContent
+        );
+
+      if (title) {
+        return title;
+      }
+
+    }
+
+  }
+
+  let node =
+    table.closest(
+      ".table-wrap"
+    ) ||
+    table;
+
+  const reportRoot =
+    document.getElementById(
+      "reportResult"
+    );
+
+  while (
+    node &&
+    node !==
+      reportRoot
+  ) {
+
+    let previous =
+      node.previousElementSibling;
+
+    while (previous) {
+
+      if (
+        /^(H1|H2|H3|H4)$/.test(
+          previous.tagName
+        ) ||
+        previous.classList?.contains(
+          "section-title"
+        )
+      ) {
+
+        const title =
+          clean(
+            previous.textContent
+          );
+
+        if (title) {
+          return title;
+        }
+
+      }
+
+      const nested =
+        Array.from(
+          previous.querySelectorAll?.(
+            "h1,h2,h3,h4,.section-title"
+          ) ||
+          []
+        ).pop();
+
+      if (nested) {
+
+        const title =
+          clean(
+            nested.textContent
+          );
+
+        if (title) {
+          return title;
+        }
+
+      }
+
+      previous =
+        previous.previousElementSibling;
+
+    }
+
+    node =
+      node.parentElement;
+
+  }
+
+  return `Relatório ${index + 1}`;
+}
+
+
+async function ensureAceReportExcelJsLibrary() {
+
+  await loadExternalScriptOnce(
+    "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js",
+    () =>
+      Boolean(
+        window.ExcelJS &&
+        window.ExcelJS.Workbook
+      )
   );
+
+}
+
+
+async function ensureAceReportHtml2CanvasLibrary() {
+
+  await loadExternalScriptOnce(
+    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    () =>
+      typeof window.html2canvas ===
+        "function"
+  );
+
+}
+
+
+function aceExcelCellText(cell) {
+
+  let value =
+    String(
+      cell?.innerText ||
+      cell?.textContent ||
+      ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (
+    !value &&
+    cell
+  ) {
+
+    const image =
+      cell.querySelector?.("img");
+
+    if (image) {
+      value =
+        image.alt ||
+        "Imagem / evidência";
+    }
+
+  }
+
+  return value;
+
+}
+
+
+function aceExcelStyleHeader(row) {
+
+  row.eachCell(
+    cell => {
+
+      cell.font = {
+        bold: true,
+        color: {
+          argb: "FFFFFFFF"
+        }
+      };
+
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: {
+          argb: "FF0B4B7A"
+        }
+      };
+
+      cell.alignment = {
+        vertical: "middle",
+        wrapText: true
+      };
+
+    }
+  );
+
+}
+
+
+function aceExcelAutoWidth(
+  worksheet,
+  maxWidth = 45
+) {
+
+  worksheet.columns
+    .forEach(
+      column => {
+
+        let width = 10;
+
+        column.eachCell?.(
+          {
+            includeEmpty: true
+          },
+          cell => {
+
+            const value =
+              String(
+                cell.value ??
+                ""
+              );
+
+            width =
+              Math.max(
+                width,
+                Math.min(
+                  maxWidth,
+                  value.length + 2
+                )
+              );
+
+          }
+        );
+
+        column.width = width;
+
+      }
+    );
+
+}
+
+
+function aceExcelAddHtmlTable(
+  workbook,
+  table,
+  index,
+  usedNames
+) {
+
+  const sheetName =
+    aceExcelSafeSheetName(
+      aceGetReportTableTitle(
+        table,
+        index
+      ),
+      `Relatório ${index + 1}`,
+      usedNames
+    );
+
+  const worksheet =
+    workbook.addWorksheet(
+      sheetName,
+      {
+        views: [
+          {
+            state: "frozen",
+            ySplit: 1
+          }
+        ]
+      }
+    );
+
+  Array.from(
+    table.querySelectorAll(
+      "tr"
+    )
+  )
+    .forEach(
+      (row, rowIndex) => {
+
+        const values =
+          Array.from(
+            row.querySelectorAll(
+              "th,td"
+            )
+          )
+            .map(
+              aceExcelCellText
+            );
+
+        const excelRow =
+          worksheet.addRow(
+            values
+          );
+
+        excelRow.alignment = {
+          vertical: "top",
+          wrapText: true
+        };
+
+        if (
+          rowIndex === 0 ||
+          row.querySelector("th")
+        ) {
+          aceExcelStyleHeader(
+            excelRow
+          );
+        }
+
+      }
+    );
+
+  if (
+    worksheet.rowCount > 1 &&
+    worksheet.columnCount > 0
+  ) {
+
+    worksheet.autoFilter = {
+      from: {
+        row: 1,
+        column: 1
+      },
+      to: {
+        row: 1,
+        column:
+          worksheet.columnCount
+      }
+    };
+
+  }
+
+  aceExcelAutoWidth(
+    worksheet
+  );
+
+}
+
+
+function aceExcelAddSummary(
+  workbook,
+  reportResult
+) {
+
+  const sheet =
+    workbook.addWorksheet(
+      "Resumo"
+    );
+
+  aceReportExcelSummaryRows(
+    reportResult
+  )
+    .forEach(
+      row =>
+        sheet.addRow(
+          row
+        )
+    );
+
+  sheet.getRow(1).font = {
+    bold: true,
+    size: 16,
+    color: {
+      argb: "FF0B3A63"
+    }
+  };
+
+  sheet.getRow(2).font = {
+    bold: true,
+    size: 13
+  };
+
+  aceExcelAutoWidth(
+    sheet,
+    55
+  );
+
+}
+
+
+function aceExcelStatisticsRows(
+  statistics
+) {
+
+  const rows = [
+    [
+      "Grupo",
+      "Item",
+      "Valor"
+    ]
+  ];
+
+  if (!statistics) {
+    return rows;
+  }
+
+  const grid =
+    Array.from(
+      statistics.children
+    )
+      .find(
+        element =>
+          element.style?.display ===
+            "grid" &&
+          String(
+            element.style
+              ?.gridTemplateColumns ||
+            ""
+          )
+            .includes(
+              "repeat(2"
+            )
+      );
+
+  if (!grid) {
+
+    String(
+      statistics.innerText ||
+      statistics.textContent ||
+      ""
+    )
+      .split("\n")
+      .map(
+        line =>
+          line
+            .replace(/\s+/g, " ")
+            .trim()
+      )
+      .filter(Boolean)
+      .forEach(
+        line =>
+          rows.push([
+            "Estatísticas",
+            line,
+            ""
+          ])
+      );
+
+    return rows;
+
+  }
+
+  Array.from(
+    grid.children
+  )
+    .forEach(
+      card => {
+
+        const title =
+          String(
+            card.firstElementChild
+              ?.textContent ||
+            "Destaques"
+          )
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const chartRows =
+          Array.from(
+            card.children
+          )
+            .slice(1)
+            .filter(
+              row =>
+                row.style?.display ===
+                  "grid" &&
+                row.children.length >=
+                  3
+            );
+
+        if (chartRows.length) {
+
+          chartRows.forEach(
+            row => {
+
+              rows.push([
+                title,
+                String(
+                  row.children[0]
+                    ?.textContent ||
+                  ""
+                )
+                  .replace(/\s+/g, " ")
+                  .trim(),
+                String(
+                  row.children[
+                    row.children.length -
+                    1
+                  ]?.textContent ||
+                  ""
+                )
+                  .replace(/\s+/g, " ")
+                  .trim()
+              ]);
+
+            }
+          );
+
+          return;
+        }
+
+        String(
+          card.innerText ||
+          card.textContent ||
+          ""
+        )
+          .split("\n")
+          .map(
+            line =>
+              line
+                .replace(/\s+/g, " ")
+                .trim()
+          )
+          .filter(
+            line =>
+              line &&
+              line !== title
+          )
+          .forEach(
+            line => {
+
+              const parts =
+                line.split(":");
+
+              rows.push([
+                title,
+                parts.shift()?.trim() ||
+                  line,
+                parts.join(":").trim()
+              ]);
+
+            }
+          );
+
+      }
+    );
+
+  return rows;
+
+}
+
+
+function aceExcelAddStatistics(
+  workbook,
+  reportResult
+) {
+
+  const statistics =
+    reportResult.querySelector(
+      ".ace-report-statistics"
+    );
+
+  const sheet =
+    workbook.addWorksheet(
+      "Estatísticas"
+    );
+
+  aceExcelStatisticsRows(
+    statistics
+  )
+    .forEach(
+      row =>
+        sheet.addRow(
+          row
+        )
+    );
+
+  aceExcelStyleHeader(
+    sheet.getRow(1)
+  );
+
+  sheet.views = [
+    {
+      state: "frozen",
+      ySplit: 1
+    }
+  ];
+
+  aceExcelAutoWidth(
+    sheet,
+    55
+  );
+
+}
+
+
+function aceExcelAddCompleteContent(
+  workbook,
+  reportResult
+) {
+
+  const clone =
+    reportResult.cloneNode(
+      true
+    );
+
+  clone
+    .querySelectorAll(
+      ".ace-report-signature-section, button, canvas"
+    )
+    .forEach(
+      element =>
+        element.remove()
+    );
+
+  const lines =
+    String(
+      clone.innerText ||
+      clone.textContent ||
+      ""
+    )
+      .split("\n")
+      .map(
+        line =>
+          line
+            .replace(/\s+/g, " ")
+            .trim()
+      )
+      .filter(Boolean);
+
+  const sheet =
+    workbook.addWorksheet(
+      "Conteúdo Geral"
+    );
+
+  sheet.addRow([
+    "Conteúdo completo exibido no Relatório Geral"
+  ]);
+
+  aceExcelStyleHeader(
+    sheet.getRow(1)
+  );
+
+  lines.forEach(
+    line =>
+      sheet.addRow([
+        line
+      ])
+  );
+
+  sheet.getColumn(1).width =
+    100;
+
+  sheet.eachRow(
+    row => {
+
+      row.alignment = {
+        vertical: "top",
+        wrapText: true
+      };
+
+    }
+  );
+
+}
+
+
+async function aceExcelAddCharts(
+  workbook,
+  reportResult
+) {
+
+  const statistics =
+    reportResult.querySelector(
+      ".ace-report-statistics"
+    );
+
+  const sheet =
+    workbook.addWorksheet(
+      "Gráficos"
+    );
+
+  sheet.getCell("A1").value =
+    "Análise estatística do período";
+
+  sheet.getCell("A1").font = {
+    bold: true,
+    size: 16,
+    color: {
+      argb: "FF0B3A63"
+    }
+  };
+
+  if (!statistics) {
+
+    sheet.getCell("A3").value =
+      "Sem gráficos disponíveis para o período.";
+
+    return;
+  }
+
+  await ensureAceReportHtml2CanvasLibrary();
+
+  const canvas =
+    await window.html2canvas(
+      statistics,
+      {
+        scale: 1.35,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor:
+          "#ffffff",
+        logging: false
+      }
+    );
+
+  const imageId =
+    workbook.addImage({
+      base64:
+        canvas.toDataURL(
+          "image/png"
+        ),
+      extension: "png"
+    });
+
+  const maxWidth = 1050;
+
+  const scale =
+    Math.min(
+      1,
+      maxWidth /
+        canvas.width
+    );
+
+  const width =
+    Math.round(
+      canvas.width *
+      scale
+    );
+
+  const height =
+    Math.round(
+      canvas.height *
+      scale
+    );
+
+  sheet.addImage(
+    imageId,
+    {
+      tl: {
+        col: 0,
+        row: 2
+      },
+      ext: {
+        width,
+        height
+      }
+    }
+  );
+
+  sheet.getColumn(1).width =
+    140;
 
 }
 
@@ -28471,70 +29279,52 @@ async function exportReportExcel() {
       "exportReportExcel"
     );
 
-
   const originalText =
     button?.textContent ||
     "📊 Planilha Excel (.xlsx)";
-
 
   try {
 
     const reportResult =
       ensureAceReportGeneratedForExport();
 
-
     if (button) {
 
-      button.disabled =
-        true;
-
+      button.disabled = true;
       button.textContent =
         "⏳ Gerando Excel...";
 
     }
 
-
-    await ensureAceReportExcelLibrary();
-
-
-    const XLSX =
-      window.XLSX;
-
+    await ensureAceReportExcelJsLibrary();
 
     const workbook =
-      XLSX.utils
-        .book_new();
+      new window.ExcelJS.Workbook();
 
+    workbook.creator =
+      "ACE - Ação de Cestas";
+
+    workbook.title =
+      "Relatório Geral ACE";
+
+    workbook.subject =
+      "Controle de Alimentos";
+
+    workbook.created =
+      new Date();
 
     const usedNames =
-      new Set();
+      new Set([
+        "resumo",
+        "estatísticas",
+        "gráficos",
+        "conteúdo geral"
+      ]);
 
-
-    const summarySheet =
-      XLSX.utils
-        .aoa_to_sheet(
-          aceReportExcelSummaryRows(
-            reportResult
-          )
-        );
-
-
-    aceFitExcelColumns(
-      summarySheet
+    aceExcelAddSummary(
+      workbook,
+      reportResult
     );
-
-
-    XLSX.utils
-      .book_append_sheet(
-        workbook,
-        summarySheet,
-        aceExcelSafeSheetName(
-          "Resumo",
-          "Resumo",
-          usedNames
-        )
-      );
-
 
     const tables =
       Array.from(
@@ -28543,100 +29333,92 @@ async function exportReportExcel() {
         )
       );
 
-
     tables.forEach(
       (table, index) => {
 
-        const sheet =
-          XLSX.utils
-            .table_to_sheet(
-              table,
-              {
-                raw:
-                  true
-              }
-            );
-
-
-        if (
-          !sheet["!ref"]
-        ) {
-          return;
-        }
-
-
-        aceFitExcelColumns(
-          sheet
+        aceExcelAddHtmlTable(
+          workbook,
+          table,
+          index,
+          usedNames
         );
-
-
-        const sheetName =
-          aceExcelSafeSheetName(
-            aceGetReportTableTitle(
-              table,
-              index
-            ),
-            `Tabela ${index + 1}`,
-            usedNames
-          );
-
-
-        XLSX.utils
-          .book_append_sheet(
-            workbook,
-            sheet,
-            sheetName
-          );
 
       }
     );
 
+    aceExcelAddStatistics(
+      workbook,
+      reportResult
+    );
 
-    const bytes =
-      XLSX.write(
+    aceExcelAddCompleteContent(
+      workbook,
+      reportResult
+    );
+
+    try {
+
+      await aceExcelAddCharts(
         workbook,
-        {
-          bookType:
-            "xlsx",
-          type:
-            "array"
-        }
+        reportResult
       );
 
+    } catch (chartError) {
+
+      console.warn(
+        "ACE: gráficos não puderam ser inseridos na planilha:",
+        chartError
+      );
+
+      if (
+        !workbook.getWorksheet(
+          "Gráficos"
+        )
+      ) {
+
+        const fallback =
+          workbook.addWorksheet(
+            "Gráficos"
+          );
+
+        fallback.addRow([
+          "Os dados dos gráficos estão disponíveis na aba Estatísticas."
+        ]);
+
+      }
+
+    }
+
+    const buffer =
+      await workbook.xlsx
+        .writeBuffer();
 
     const blob =
       new Blob(
-        [bytes],
+        [buffer],
         {
           type:
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         }
       );
 
-
     if (
       !blob ||
-      blob.size <
-        500
+      blob.size < 1000
     ) {
-
       throw new Error(
         "A planilha foi gerada sem conteúdo."
       );
-
     }
-
 
     download(
       blob,
       `${getAceReportExportFileBase()}.xlsx`
     );
 
-
     showAceSuccess(
-      "Planilha Excel gerada com sucesso!"
+      "Planilha Excel completa gerada com dados e gráficos!"
     );
-
 
   } catch (error) {
 
@@ -28645,21 +29427,17 @@ async function exportReportExcel() {
       error
     );
 
-
     await showAceMessage(
       error?.message ||
         "Não foi possível gerar a planilha Excel.",
       "❌ Erro ao gerar Excel"
     );
 
-
   } finally {
 
     if (button) {
 
-      button.disabled =
-        false;
-
+      button.disabled = false;
       button.textContent =
         originalText;
 
