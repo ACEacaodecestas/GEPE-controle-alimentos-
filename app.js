@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v152-inventario-paisagem",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v153-inventario-sem-corte",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -60762,11 +60762,11 @@ function buildAceInventoryPdfElement(inventory, items) {
 
     return `
       <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
-        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;font-weight:700;box-sizing:border-box;overflow-wrap:anywhere">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
-        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;text-align:right;box-sizing:border-box;white-space:nowrap">${fmt(system)}</td>
-        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;box-sizing:border-box;white-space:nowrap">${fmt(counted)}</td>
-        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${adjustmentText}</td>
-        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;border-right:1px solid #cfe0ec;text-align:right;font-weight:900;color:#102a43;box-sizing:border-box;white-space:nowrap">${fmt(resultQuantity)}</td>
+        <td style="padding:7px 3px;border-bottom:1px solid #e5eaf0;font-weight:700;box-sizing:border-box;overflow-wrap:anywhere">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
+        <td style="padding:7px 3px;border-bottom:1px solid #e5eaf0;text-align:right;box-sizing:border-box;white-space:nowrap">${fmt(system)}</td>
+        <td style="padding:7px 3px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;box-sizing:border-box;white-space:nowrap">${fmt(counted)}</td>
+        <td style="padding:7px 3px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${adjustmentText}</td>
+        <td style="padding:7px 3px;border-bottom:1px solid #e5eaf0;border-right:1px solid #cfe0ec;text-align:right;font-weight:900;color:#102a43;box-sizing:border-box;white-space:nowrap">${fmt(resultQuantity)}</td>
       </tr>`;
   }).join("");
 
@@ -60808,11 +60808,11 @@ function buildAceInventoryPdfElement(inventory, items) {
 
       <table style="width:100%;margin:0;border-collapse:collapse;table-layout:fixed;font-size:10px;box-sizing:border-box;border:1px solid #cfe0ec">
         <colgroup>
-          <col style="width:42%">
-          <col style="width:15%">
-          <col style="width:12%">
-          <col style="width:15%">
-          <col style="width:16%">
+          <col style="width:44%">
+          <col style="width:14%">
+          <col style="width:11%">
+          <col style="width:14%">
+          <col style="width:17%">
         </colgroup>
         <thead>
           <tr style="background:#0b4b7a;color:#fff">
@@ -60910,7 +60910,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
     const element = buildAceInventoryPdfElement(inventory, items);
     host = document.createElement("div");
     host.style.cssText = "position:fixed;left:0;top:0;width:1123px;min-width:1123px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
-    element.style.cssText = "width:1040px;min-width:1040px;max-width:1040px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
+    element.style.cssText = "width:1000px;min-width:1000px;max-width:1000px;margin:0;box-sizing:border-box;position:relative;left:0";
     host.appendChild(element);
     document.body.appendChild(host);
 
@@ -60940,7 +60940,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
         backgroundColor: "#ffffff",
         logging: false,
         windowWidth: 1123,
-        width: 1040,
+        width: 1000,
         x: 0,
         y: 0,
         scrollX: 0,
