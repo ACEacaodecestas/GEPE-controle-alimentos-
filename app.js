@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v153-inventario-sem-corte",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v154-restauracao-segura-inventario",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -58832,7 +58832,14 @@ function ensureAceInventoryStyles() {
     .ace-inventory-status{padding:14px;border-radius:12px;background:#fff6e7;border:1px solid #f1c27d;color:#7a4500;margin-bottom:16px;line-height:1.5}
     .ace-inventory-revert-history{min-height:38px;padding:8px 12px;border:1px solid #8b5cf6;border-radius:9px;background:#f5f3ff;color:#5b21b6;font:inherit;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap}
     .ace-inventory-revert-history:hover{background:#ede9fe;border-color:#7c3aed;color:#4c1d95}
-    .ace-inventory-revert-history:disabled{opacity:.58;cursor:wait}
+    .ace-inventory-revert-history:disabled{
+      opacity:.62;
+      cursor:not-allowed;
+      border-color:#cbd5e1;
+      background:#f1f5f9;
+      color:#64748b;
+      filter:saturate(.35);
+    }
     .ace-inventory-reverted-row{background:#faf9ff}
     .ace-inventory-reverted-notice{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;padding:13px 14px;border:1px solid #c4b5fd;border-radius:12px;background:#f5f3ff;color:#4c1d95;line-height:1.4}
     .ace-inventory-reverted-notice b{flex:0 0 auto}
@@ -59504,6 +59511,233 @@ function getAceInventoryAdjustmentState(
 }
 
 
+function aceInventoryTimeMs(
+  value
+) {
+
+  const time =
+    Date.parse(
+      String(
+        value || ""
+      )
+    );
+
+  return Number.isFinite(
+    time
+  )
+    ? time
+    : 0;
+
+}
+
+
+function hasAceStockMovementAfterInventory(
+  inventory
+) {
+
+  const inventoryId =
+    Number(
+      inventory?.id
+    );
+
+  const finalizedAt =
+    aceInventoryTimeMs(
+      inventory?.finalizado_em
+    );
+
+
+  if (
+    !inventoryId ||
+    !finalizedAt
+  ) {
+    return true;
+  }
+
+
+  const isAfter =
+    value => {
+
+      const time =
+        aceInventoryTimeMs(
+          value
+        );
+
+      return (
+        time >
+        finalizedAt
+      );
+
+    };
+
+
+  // Entradas alteram diretamente o Estoque Geral.
+  if (
+    (db?.entries || [])
+      .some(
+        row =>
+          isAfter(
+            row.createdAt ||
+            row.date
+          )
+      )
+  ) {
+    return true;
+  }
+
+
+  // Saídas e perdas alteram diretamente o Estoque Geral.
+  if (
+    (db?.movements || [])
+      .some(
+        row =>
+          isAfter(
+            row.createdAt ||
+            row.date
+          )
+      )
+  ) {
+    return true;
+  }
+
+
+  // Ajustes também alteram o saldo.
+  // Os ajustes criados pelo PRÓPRIO inventário são ignorados,
+  // pois fazem parte da finalização dele.
+  if (
+    (db?.stockAdjustments || [])
+      .some(
+        row =>
+          Number(
+            row.inventoryId
+          ) !==
+            inventoryId &&
+          isAfter(
+            row.createdAt ||
+            row.date
+          )
+      )
+  ) {
+    return true;
+  }
+
+
+  return false;
+
+}
+
+
+function getAceInventoryRevertEligibility(
+  inventory
+) {
+
+  const admin =
+    typeof isAceOperationalAdmin ===
+      "function" &&
+    isAceOperationalAdmin();
+
+
+  if (!admin) {
+
+    return {
+      allowed: false,
+      reason:
+        "Somente administradores autorizados podem restaurar inventários."
+    };
+
+  }
+
+
+  if (
+    !inventory ||
+    inventory.status !==
+      "finalizado"
+  ) {
+
+    return {
+      allowed: false,
+      reason:
+        "Somente inventários finalizados podem ser restaurados."
+    };
+
+  }
+
+
+  const state =
+    getAceInventoryAdjustmentState(
+      inventory.id
+    );
+
+
+  if (
+    state.restoredExact
+  ) {
+
+    return {
+      allowed: false,
+      reason:
+        "Este inventário já foi restaurado."
+    };
+
+  }
+
+
+  // Só o inventário finalizado mais recente pode ser restaurado.
+  if (
+    !aceInventoryLast ||
+    Number(
+      inventory.id
+    ) !==
+      Number(
+        aceInventoryLast.id
+      )
+  ) {
+
+    return {
+      allowed: false,
+      reason:
+        "Restauração bloqueada: somente o inventário mais recente pode ser restaurado."
+    };
+
+  }
+
+
+  if (
+    hasAceStockMovementAfterInventory(
+      inventory
+    )
+  ) {
+
+    return {
+      allowed: false,
+      reason:
+        "Restauração indisponível porque já houve movimentação de estoque após este inventário."
+    };
+
+  }
+
+
+  if (
+    isAceInventoryInProgress()
+  ) {
+
+    return {
+      allowed: false,
+      reason:
+        "Finalize ou cancele o inventário em andamento antes de restaurar o anterior."
+    };
+
+  }
+
+
+  return {
+    allowed: true,
+    reason:
+      "Restaurar o estoque exatamente aos valores de antes deste inventário."
+  };
+
+}
+
+
 function getAceInventoryStatusHtml(
   inventory
 ) {
@@ -59642,6 +59876,24 @@ async function revertAceInventory(
   }
 
 
+  const eligibility =
+    getAceInventoryRevertEligibility(
+      inventory
+    );
+
+
+  if (
+    !eligibility.allowed
+  ) {
+
+    return showAceMessage(
+      eligibility.reason,
+      "🔒 Restauração bloqueada"
+    );
+
+  }
+
+
   const state =
     getAceInventoryAdjustmentState(
       numericInventoryId
@@ -59665,9 +59917,9 @@ async function revertAceInventory(
       `Restaurar o estoque para os valores de antes deste inventário?\n\n` +
       `Data: ${formatAceInventoryDateTime(inventory.iniciado_em)}\n` +
       `Responsável: ${inventory.usuario_nome || "Usuário"}\n\n` +
-      `O sistema usará a coluna "Antes do inventário" como referência oficial e fará um ajuste administrativo para que o estoque atual volte exatamente àqueles valores.\n\n` +
-      `As entradas, saídas e perdas registradas depois do inventário NÃO serão apagadas do histórico, porém o efeito delas no saldo atual será neutralizado por esta restauração.\n\n` +
-      `Esta operação ficará registrada para auditoria e não poderá ser aplicada duas vezes.`,
+      `O sistema usará a coluna "Antes do inventário" como referência oficial e fará um ajuste administrativo para que o estoque volte exatamente àqueles valores.\n\n` +
+      `Esta restauração só é permitida enquanto este for o inventário mais recente e não houver nenhuma movimentação de estoque posterior.\n\n` +
+      `A operação ficará registrada para auditoria e não poderá ser aplicada duas vezes.`,
       "↩️ Restaurar estoque anterior"
     );
 
@@ -59889,19 +60141,33 @@ function renderAceInventoryHistory() {
       );
 
 
+    const revertEligibility =
+      getAceInventoryRevertEligibility(
+        row
+      );
+
+
     const revertButton =
       admin &&
       row.status ===
-        "finalizado" &&
-      !adjustmentState.restoredExact
+        "finalizado"
         ? `
           <button
             type="button"
             class="ace-inventory-revert-history"
-            data-inventory-revert="${row.id}"
-            title="Restaurar o estoque exatamente aos valores de antes deste inventário"
+            ${
+              revertEligibility.allowed
+                ? `data-inventory-revert="${row.id}"`
+                : "disabled"
+            }
+            title="${esc(revertEligibility.reason)}"
+            aria-disabled="${revertEligibility.allowed ? "false" : "true"}"
           >
-            ↩️ Restaurar
+            ${
+              revertEligibility.allowed
+                ? "↩️ Restaurar"
+                : "🔒 Restaurar"
+            }
           </button>
         `
         : "";
