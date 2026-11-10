@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v149-inventario-resultado-conteudo-geral",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v151-exportacao-assinada",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -23477,24 +23477,30 @@ async function renderReport() {
           type="button"
           id="generateReportPDF"
           class="ace-report-pdf-btn"
+          disabled
+          title="Assine o relatório para liberar o PDF."
         >
-          📄 Gerar PDF do relatório
+          📄 PDF
         </button>
 
         <button
           type="button"
           id="exportReportWord"
           class="ace-report-word-btn"
+          disabled
+          title="Assine o relatório para liberar o Word."
         >
-          📝 Word editável (.docx)
+          📝 WORD
         </button>
 
         <button
           type="button"
           id="exportReportExcel"
           class="ace-report-excel-btn"
+          disabled
+          title="Assine o relatório para liberar o Excel."
         >
-          📊 Planilha Excel (.xlsx)
+          📊 EXCEL
         </button>
 
       </div>
@@ -25367,10 +25373,12 @@ function ensureReportSignatureStyles() {
       color:#fff;
     }
 
+    .ace-report-pdf-btn:disabled,
     .ace-report-word-btn:disabled,
     .ace-report-excel-btn:disabled{
-      opacity:.65;
-      cursor:wait;
+      opacity:.42;
+      cursor:not-allowed;
+      filter:saturate(.55);
     }
 
     .ace-report-share-btn{
@@ -25453,6 +25461,50 @@ function getReportSignatureImage() {
 
   return canvas.toDataURL(
     "image/png"
+  );
+
+}
+
+
+function syncAceReportExportButtons() {
+
+  const unlocked =
+    Boolean(
+      reportSignatureHasInk
+    );
+
+  [
+    ["generateReportPDF", "Assine o relatório para liberar o PDF."],
+    ["exportReportWord", "Assine o relatório para liberar o Word."],
+    ["exportReportExcel", "Assine o relatório para liberar o Excel."]
+  ].forEach(
+    ([id, lockedTitle]) => {
+
+      const button =
+        document.getElementById(
+          id
+        );
+
+      if (!button) {
+        return;
+      }
+
+      button.disabled =
+        !unlocked;
+
+      button.setAttribute(
+        "aria-disabled",
+        unlocked
+          ? "false"
+          : "true"
+      );
+
+      button.title =
+        unlocked
+          ? ""
+          : lockedTitle;
+
+    }
   );
 
 }
@@ -25546,6 +25598,7 @@ function setupReportSignatureCanvas() {
 
 
   resizeCanvas();
+  syncAceReportExportButtons();
 
 
   let drawing = false;
@@ -25592,6 +25645,18 @@ function setupReportSignatureCanvas() {
         p.y
       );
 
+      ctx.lineTo(
+        p.x + 0.2,
+        p.y + 0.2
+      );
+
+      ctx.stroke();
+
+      reportSignatureHasInk =
+        true;
+
+      syncAceReportExportButtons();
+
     };
 
 
@@ -25619,6 +25684,8 @@ function setupReportSignatureCanvas() {
 
       reportSignatureHasInk =
         true;
+
+      syncAceReportExportButtons();
 
     };
 
@@ -25675,6 +25742,8 @@ function setupReportSignatureCanvas() {
 
       reportSignatureHasInk =
         false;
+
+      syncAceReportExportButtons();
 
       lastGeneratedReportPdfBlob =
         null;
@@ -28042,6 +28111,16 @@ async function buildAceReportWordHtml() {
 
 async function exportReportWord() {
 
+  if (!reportSignatureHasInk) {
+
+    await showAceMessage(
+      "Assine o relatório antes de gerar o Word.",
+      "✍️ Assinatura obrigatória"
+    );
+
+    return;
+  }
+
   const button =
     document.getElementById(
       "exportReportWord"
@@ -28050,7 +28129,7 @@ async function exportReportWord() {
 
   const originalText =
     button?.textContent ||
-    "📝 Word editável (.docx)";
+    "📝 WORD";
 
 
   try {
@@ -28139,7 +28218,7 @@ async function exportReportWord() {
     if (button) {
 
       button.disabled =
-        false;
+        !reportSignatureHasInk;
 
       button.textContent =
         originalText;
@@ -29747,7 +29826,144 @@ async function aceExcelAddCharts(
 }
 
 
+
+function aceExcelAddReportSignature(
+  workbook
+) {
+
+  if (!reportSignatureHasInk) {
+
+    throw new Error(
+      "Assinatura obrigatória para gerar o Excel."
+    );
+
+  }
+
+  const signature =
+    getReportSignatureImage();
+
+  if (!signature) {
+
+    throw new Error(
+      "Não foi possível obter a assinatura do responsável."
+    );
+
+  }
+
+  const sheet =
+    workbook.getWorksheet(
+      "Resumo"
+    ) ||
+    workbook.addWorksheet(
+      "Resumo"
+    );
+
+  const startRow =
+    sheet.rowCount + 3;
+
+  sheet.getCell(
+    `A${startRow}`
+  ).value =
+    "Assinatura do responsável";
+
+  sheet.getCell(
+    `A${startRow}`
+  ).font = {
+    bold: true,
+    size: 13,
+    color: {
+      argb: "FF0B3A63"
+    }
+  };
+
+  sheet.getCell(
+    `A${startRow + 1}`
+  ).value =
+    "Responsável";
+
+  sheet.getCell(
+    `B${startRow + 1}`
+  ).value =
+    getReportResponsibleName();
+
+  sheet.getCell(
+    `A${startRow + 2}`
+  ).value =
+    "Data";
+
+  sheet.getCell(
+    `B${startRow + 2}`
+  ).value =
+    fmtDate(
+      isoToday()
+    );
+
+  const imageId =
+    workbook.addImage({
+      base64:
+        signature,
+      extension:
+        "png"
+    });
+
+  sheet.addImage(
+    imageId,
+    {
+      tl: {
+        col: 0,
+        row: startRow + 2
+      },
+      ext: {
+        width: 360,
+        height: 105
+      }
+    }
+  );
+
+  for (
+    let row =
+      startRow + 4;
+    row <=
+      startRow + 9;
+    row += 1
+  ) {
+    sheet.getRow(
+      row
+    ).height = 18;
+  }
+
+  sheet.getColumn(1).width =
+    Math.max(
+      Number(
+        sheet.getColumn(1).width ||
+        0
+      ),
+      24
+    );
+
+  sheet.getColumn(2).width =
+    Math.max(
+      Number(
+        sheet.getColumn(2).width ||
+        0
+      ),
+      38
+    );
+
+}
+
+
 async function exportReportExcel() {
+
+  if (!reportSignatureHasInk) {
+
+    await showAceMessage(
+      "Assine o relatório antes de gerar o Excel.",
+      "✍️ Assinatura obrigatória"
+    );
+
+    return;
+  }
 
   const button =
     document.getElementById(
@@ -29756,7 +29972,7 @@ async function exportReportExcel() {
 
   const originalText =
     button?.textContent ||
-    "📊 Planilha Excel (.xlsx)";
+    "📊 EXCEL";
 
   try {
 
@@ -29799,6 +30015,11 @@ async function exportReportExcel() {
     aceExcelAddSummary(
       workbook,
       reportResult
+    );
+
+    // Mesma assinatura desenhada no relatório.
+    aceExcelAddReportSignature(
+      workbook
     );
 
     const tables =
@@ -29912,7 +30133,8 @@ async function exportReportExcel() {
 
     if (button) {
 
-      button.disabled = false;
+      button.disabled =
+        !reportSignatureHasInk;
       button.textContent =
         originalText;
 
@@ -36395,12 +36617,16 @@ function bindEvents() {
   const generateReport = document.getElementById("generateReport");
   if (generateReport) generateReport.addEventListener("click", renderReport);
 
-  const exportCSVButton = document.getElementById("exportCSV");
-  if (exportCSVButton) exportCSVButton.addEventListener("click", exportCSV);
+  // CSV removido da interface. Os formatos oficiais são PDF, Word e Excel.
+  const exportCSVButton =
+    document.getElementById(
+      "exportCSV"
+    );
+
+  exportCSVButton?.remove();
 
 
-  // Botão Limpar relatório:
-  // limpa somente a visualização gerada, sem excluir dados.
+  // Botão Limpar relatório permanece.
   let clearReportButton =
     document.getElementById(
       "clearReport"
@@ -36409,12 +36635,12 @@ function bindEvents() {
 
   if (
     !clearReportButton &&
-    exportCSVButton
+    generateReport
   ) {
 
     clearReportButton =
-      exportCSVButton.cloneNode(
-        true
+      document.createElement(
+        "button"
       );
 
     clearReportButton.id =
@@ -36423,10 +36649,13 @@ function bindEvents() {
     clearReportButton.type =
       "button";
 
+    clearReportButton.className =
+      generateReport.className || "";
+
     clearReportButton.textContent =
       "🧹 Limpar relatório";
 
-    exportCSVButton.insertAdjacentElement(
+    generateReport.insertAdjacentElement(
       "afterend",
       clearReportButton
     );
@@ -60533,11 +60762,11 @@ function buildAceInventoryPdfElement(inventory, items) {
 
     return `
       <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};page-break-inside:avoid;break-inside:avoid">
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;font-weight:700;box-sizing:border-box;overflow-wrap:anywhere">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;box-sizing:border-box;white-space:nowrap">${fmt(system)}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;box-sizing:border-box;white-space:nowrap">${fmt(counted)}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${adjustmentText}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:#102a43;box-sizing:border-box;white-space:nowrap">${fmt(resultQuantity)}</td>
+        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;font-weight:700;box-sizing:border-box;overflow-wrap:anywhere">${esc(item.alimento_nome)}${aceInventoryFoundDetails(item)}</td>
+        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;text-align:right;box-sizing:border-box;white-space:nowrap">${fmt(system)}</td>
+        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;box-sizing:border-box;white-space:nowrap">${fmt(counted)}</td>
+        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;text-align:right;font-weight:900;color:${differenceColor};box-sizing:border-box;white-space:nowrap">${adjustmentText}</td>
+        <td style="padding:8px 5px;border-bottom:1px solid #e5eaf0;border-right:1px solid #cfe0ec;text-align:right;font-weight:900;color:#102a43;box-sizing:border-box;white-space:nowrap">${fmt(resultQuantity)}</td>
       </tr>`;
   }).join("");
 
@@ -60577,14 +60806,27 @@ function buildAceInventoryPdfElement(inventory, items) {
         </div>
       </div>
 
-      <table style="width:94%;margin:0 auto;border-collapse:collapse;table-layout:fixed;font-size:9.8px;box-sizing:border-box">
+      <table style="width:100%;margin:0;border-collapse:collapse;table-layout:fixed;font-size:9.4px;box-sizing:border-box;border-right:1px solid #cfe0ec">
+        <colgroup>
+          <col style="width:38%">
+          <col style="width:15%">
+          <col style="width:12%">
+          <col style="width:16%">
+          <col style="width:19%">
+        </colgroup>
         <thead>
           <tr style="background:#0b4b7a;color:#fff">
-            <th style="width:36%;padding:9px 6px;text-align:left;box-sizing:border-box">Alimento</th>
-            <th style="width:16%;padding:9px 6px;text-align:right;box-sizing:border-box">Antes do inventário</th>
-            <th style="width:14%;padding:9px 6px;text-align:right;box-sizing:border-box">Contado</th>
-            <th style="width:16%;padding:9px 6px;text-align:right;box-sizing:border-box">Ajuste do inventário</th>
-            <th style="width:18%;padding:9px 6px;text-align:right;box-sizing:border-box">Resultado do inventário</th>
+            <th style="padding:8px 5px;text-align:left;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">Alimento</th>
+            <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">
+              <span style="display:block;white-space:normal!important">Antes do<br>inventário</span>
+            </th>
+            <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">Contado</th>
+            <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">
+              <span style="display:block;white-space:normal!important">Ajuste do<br>inventário</span>
+            </th>
+            <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible;border-right:1px solid #cfe0ec">
+              <span style="display:block;white-space:normal!important">Resultado do<br>inventário</span>
+            </th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -60668,7 +60910,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
     const element = buildAceInventoryPdfElement(inventory, items);
     host = document.createElement("div");
     host.style.cssText = "position:fixed;left:0;top:0;width:794px;min-width:794px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
-    element.style.cssText = "width:720px;min-width:720px;max-width:720px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
+    element.style.cssText = "width:724px;min-width:724px;max-width:724px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
     host.appendChild(element);
     document.body.appendChild(host);
 
@@ -60698,7 +60940,7 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
         backgroundColor: "#ffffff",
         logging: false,
         windowWidth: 794,
-        width: 720,
+        width: 724,
         x: 0,
         y: 0,
         scrollX: 0,
