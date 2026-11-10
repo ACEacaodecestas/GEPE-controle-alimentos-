@@ -217,7 +217,7 @@ const ACE_SKIP_STARTUP_SPLASH_ONCE_KEY =
 
   navigator.serviceWorker
     .register(
-      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v151-exportacao-assinada",
+      "/GEPE-controle-alimentos-/sw.js?v=ace-20261110-v152-inventario-paisagem",
       {
         scope: "/GEPE-controle-alimentos-/",
         updateViaCache: "none"
@@ -60806,26 +60806,26 @@ function buildAceInventoryPdfElement(inventory, items) {
         </div>
       </div>
 
-      <table style="width:100%;margin:0;border-collapse:collapse;table-layout:fixed;font-size:9.4px;box-sizing:border-box;border-right:1px solid #cfe0ec">
+      <table style="width:100%;margin:0;border-collapse:collapse;table-layout:fixed;font-size:10px;box-sizing:border-box;border:1px solid #cfe0ec">
         <colgroup>
-          <col style="width:38%">
+          <col style="width:42%">
           <col style="width:15%">
           <col style="width:12%">
+          <col style="width:15%">
           <col style="width:16%">
-          <col style="width:19%">
         </colgroup>
         <thead>
           <tr style="background:#0b4b7a;color:#fff">
             <th style="padding:8px 5px;text-align:left;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">Alimento</th>
             <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">
-              <span style="display:block;white-space:normal!important">Antes do<br>inventário</span>
+              <span style="display:block;white-space:nowrap!important">Antes do inventário</span>
             </th>
             <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">Contado</th>
             <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible">
-              <span style="display:block;white-space:normal!important">Ajuste do<br>inventário</span>
+              <span style="display:block;white-space:nowrap!important">Ajuste do inventário</span>
             </th>
             <th style="padding:8px 5px;text-align:right;box-sizing:border-box;white-space:normal!important;line-height:1.15;overflow:visible;border-right:1px solid #cfe0ec">
-              <span style="display:block;white-space:normal!important">Resultado do<br>inventário</span>
+              <span style="display:block;white-space:nowrap!important">Resultado do inventário</span>
             </th>
           </tr>
         </thead>
@@ -60909,8 +60909,8 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
 
     const element = buildAceInventoryPdfElement(inventory, items);
     host = document.createElement("div");
-    host.style.cssText = "position:fixed;left:0;top:0;width:794px;min-width:794px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
-    element.style.cssText = "width:724px;min-width:724px;max-width:724px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
+    host.style.cssText = "position:fixed;left:0;top:0;width:1123px;min-width:1123px;background:#fff;pointer-events:none;overflow:visible;z-index:-2147483647";
+    element.style.cssText = "width:1040px;min-width:1040px;max-width:1040px;margin:0 auto;box-sizing:border-box;position:relative;left:0";
     host.appendChild(element);
     document.body.appendChild(host);
 
@@ -60939,14 +60939,14 @@ async function generateAceInventoryPDF(inventoryId, button = null) {
         allowTaint: false,
         backgroundColor: "#ffffff",
         logging: false,
-        windowWidth: 794,
-        width: 724,
+        windowWidth: 1123,
+        width: 1040,
         x: 0,
         y: 0,
         scrollX: 0,
         scrollY: 0
       },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
       pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "thead"] }
     }).from(element).toPdf();
 
