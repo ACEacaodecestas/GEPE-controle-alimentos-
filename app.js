@@ -23447,7 +23447,7 @@ async function renderReport() {
       </div>
 
       <div class="ace-report-signature-help">
-        Assine com o dedo na tela do celular ou com o mouse no computador.
+        Faça uma rubrica ou assinatura com o dedo ou mouse. Pontos, riscos curtos e traços retos não liberam os arquivos.
       </div>
 
       <div class="ace-report-signature-canvas-wrap">
@@ -25466,6 +25466,330 @@ function getReportSignatureImage() {
 }
 
 
+function isAceReportSignatureValid(
+  canvas
+) {
+
+  if (
+    !canvas ||
+    !canvas.width ||
+    !canvas.height
+  ) {
+    return false;
+  }
+
+
+  const ctx =
+    canvas.getContext(
+      "2d",
+      {
+        willReadFrequently: true
+      }
+    );
+
+
+  if (!ctx) {
+    return false;
+  }
+
+
+  let imageData;
+
+  try {
+
+    imageData =
+      ctx.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+  } catch (error) {
+
+    console.warn(
+      "ACE: não foi possível validar a rubrica:",
+      error
+    );
+
+    return false;
+
+  }
+
+
+  const data =
+    imageData.data;
+
+  const width =
+    canvas.width;
+
+  const height =
+    canvas.height;
+
+  const ratio =
+    window.devicePixelRatio ||
+    1;
+
+
+  // Amostragem de 2 em 2 pixels para manter a validação rápida no celular.
+  const step = 2;
+
+  let count = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  let sumX = 0;
+  let sumY = 0;
+  let sumXX = 0;
+  let sumYY = 0;
+  let sumXY = 0;
+
+
+  for (
+    let y = 0;
+    y < height;
+    y += step
+  ) {
+
+    for (
+      let x = 0;
+      x < width;
+      x += step
+    ) {
+
+      const index =
+        (
+          y * width + x
+        ) * 4;
+
+      const alpha =
+        data[
+          index + 3
+        ];
+
+
+      // O canvas da assinatura é transparente e o traço é escuro.
+      // Alpha baixo é apenas suavização de borda e não entra na análise.
+      if (
+        alpha < 40
+      ) {
+        continue;
+      }
+
+
+      count += 1;
+
+      minX =
+        Math.min(
+          minX,
+          x
+        );
+
+      maxX =
+        Math.max(
+          maxX,
+          x
+        );
+
+      minY =
+        Math.min(
+          minY,
+          y
+        );
+
+      maxY =
+        Math.max(
+          maxY,
+          y
+        );
+
+      sumX += x;
+      sumY += y;
+      sumXX += x * x;
+      sumYY += y * y;
+      sumXY += x * y;
+
+    }
+
+  }
+
+
+  if (
+    count < 2 ||
+    !Number.isFinite(minX) ||
+    !Number.isFinite(minY)
+  ) {
+    return false;
+  }
+
+
+  const cssWidth =
+    (
+      maxX - minX
+    ) /
+    ratio;
+
+  const cssHeight =
+    (
+      maxY - minY
+    ) /
+    ratio;
+
+  const majorDimension =
+    Math.max(
+      cssWidth,
+      cssHeight
+    );
+
+
+  // Área aproximada de tinta em pixels CSS.
+  // Rejeita ponto, vários pontinhos e risquinhos muito pequenos.
+  const inkArea =
+    (
+      count *
+      step *
+      step
+    ) /
+    (
+      ratio *
+      ratio
+    );
+
+
+  if (
+    inkArea < 35 ||
+    majorDimension < 24
+  ) {
+    return false;
+  }
+
+
+  const meanX =
+    sumX /
+    count;
+
+  const meanY =
+    sumY /
+    count;
+
+
+  const varianceX =
+    Math.max(
+      0,
+      (
+        sumXX /
+        count
+      ) -
+      (
+        meanX *
+        meanX
+      )
+    );
+
+  const varianceY =
+    Math.max(
+      0,
+      (
+        sumYY /
+        count
+      ) -
+      (
+        meanY *
+        meanY
+      )
+    );
+
+  const covariance =
+    (
+      sumXY /
+      count
+    ) -
+    (
+      meanX *
+      meanY
+    );
+
+
+  /*
+    A análise abaixo mede se todo o desenho cabe praticamente em uma
+    única linha reta, independente de ela ser horizontal, vertical
+    ou diagonal.
+
+    - traço reto longo: razão próxima de zero -> REJEITA;
+    - rubrica com curvas, retornos ou letras: razão maior -> ACEITA.
+  */
+  const trace =
+    varianceX +
+    varianceY;
+
+  const determinant =
+    Math.max(
+      0,
+      (
+        varianceX *
+        varianceY
+      ) -
+      (
+        covariance *
+        covariance
+      )
+    );
+
+  const discriminant =
+    Math.sqrt(
+      Math.max(
+        0,
+        (
+          trace *
+          trace
+        ) -
+        (
+          4 *
+          determinant
+        )
+      )
+    );
+
+  const majorVariance =
+    (
+      trace +
+      discriminant
+    ) /
+    2;
+
+  const minorVariance =
+    (
+      trace -
+      discriminant
+    ) /
+    2;
+
+
+  const shapeRatio =
+    majorVariance > 0
+      ? (
+          minorVariance /
+          majorVariance
+        )
+      : 0;
+
+
+  // Limite calibrado para rejeitar linhas retas mesmo quando longas,
+  // mas aceitar uma rubrica rápida com curvas e mudanças de direção.
+  const hasRealRubricShape =
+    shapeRatio >=
+    0.012;
+
+
+  return Boolean(
+    hasRealRubricShape
+  );
+
+}
+
+
 function syncAceReportExportButtons() {
 
   const unlocked =
@@ -25522,6 +25846,82 @@ function setupReportSignatureCanvas() {
   if (!canvas) {
     return;
   }
+
+
+  // ACE V156 — aviso curto de rubrica inválida.
+  let signatureValidationMessage =
+    document.getElementById(
+      "reportSignatureValidationMessage"
+    );
+
+  if (!signatureValidationMessage) {
+
+    signatureValidationMessage =
+      document.createElement(
+        "div"
+      );
+
+    signatureValidationMessage.id =
+      "reportSignatureValidationMessage";
+
+    signatureValidationMessage.textContent =
+      "⚠️ Rubrica inválida";
+
+    signatureValidationMessage.style.display =
+      "none";
+
+    signatureValidationMessage.style.marginTop =
+      "8px";
+
+    signatureValidationMessage.style.fontSize =
+      "14px";
+
+    signatureValidationMessage.style.fontWeight =
+      "800";
+
+    signatureValidationMessage.style.color =
+      "#b42318";
+
+    signatureValidationMessage.style.textAlign =
+      "center";
+
+    const canvasWrap =
+      canvas.closest(
+        ".ace-report-signature-canvas-wrap"
+      );
+
+    if (canvasWrap) {
+      canvasWrap.insertAdjacentElement(
+        "afterend",
+        signatureValidationMessage
+      );
+    } else {
+      canvas.insertAdjacentElement(
+        "afterend",
+        signatureValidationMessage
+      );
+    }
+
+  }
+
+
+  const hideSignatureValidationMessage = () => {
+    if (signatureValidationMessage) {
+      signatureValidationMessage.style.display =
+        "none";
+    }
+  };
+
+
+  const showSignatureValidationMessage = () => {
+    if (signatureValidationMessage) {
+      signatureValidationMessage.textContent =
+        "⚠️ Rubrica inválida";
+
+      signatureValidationMessage.style.display =
+        "block";
+    }
+  };
 
 
   const resizeCanvas = () => {
@@ -25629,6 +26029,8 @@ function setupReportSignatureCanvas() {
 
       drawing = true;
 
+      hideSignatureValidationMessage();
+
       canvas.setPointerCapture?.(
         event.pointerId
       );
@@ -25652,8 +26054,9 @@ function setupReportSignatureCanvas() {
 
       ctx.stroke();
 
+      // Um simples toque/ponto nunca libera os arquivos.
       reportSignatureHasInk =
-        true;
+        false;
 
       syncAceReportExportButtons();
 
@@ -25682,8 +26085,10 @@ function setupReportSignatureCanvas() {
 
       ctx.stroke();
 
+      // Enquanto desenha, mantém os botões bloqueados.
+      // A rubrica só é validada quando o usuário termina o traço.
       reportSignatureHasInk =
-        true;
+        false;
 
       syncAceReportExportButtons();
 
@@ -25693,7 +26098,26 @@ function setupReportSignatureCanvas() {
   const stopDrawing =
     event => {
 
+      if (!drawing) {
+        return;
+      }
+
       drawing = false;
+
+      // ACE V155: só libera PDF/WORD/EXCEL quando o desenho
+      // tiver formato compatível com rubrica/assinatura.
+      reportSignatureHasInk =
+        isAceReportSignatureValid(
+          canvas
+        );
+
+      if (reportSignatureHasInk) {
+        hideSignatureValidationMessage();
+      } else {
+        showSignatureValidationMessage();
+      }
+
+      syncAceReportExportButtons();
 
       try {
         canvas.releasePointerCapture?.(
@@ -25742,6 +26166,8 @@ function setupReportSignatureCanvas() {
 
       reportSignatureHasInk =
         false;
+
+      hideSignatureValidationMessage();
 
       syncAceReportExportButtons();
 
