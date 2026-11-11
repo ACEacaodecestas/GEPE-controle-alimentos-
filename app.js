@@ -25483,6 +25483,17 @@ function isAceReportSignatureValid(
       : [];
 
 
+  const distanceBetweenPoints =
+    (
+      a,
+      b
+    ) =>
+      Math.hypot(
+        b.x - a.x,
+        b.y - a.y
+      );
+
+
   const angleDifference =
     (
       a,
@@ -25513,6 +25524,87 @@ function isAceReportSignatureValid(
     };
 
 
+  const segmentIntersection =
+    (
+      a1,
+      a2,
+      b1,
+      b2
+    ) => {
+
+      const orient =
+        (
+          p,
+          q,
+          r
+        ) =>
+          (
+            q.x - p.x
+          ) *
+          (
+            r.y - p.y
+          ) -
+          (
+            q.y - p.y
+          ) *
+          (
+            r.x - p.x
+          );
+
+
+      const o1 =
+        orient(
+          a1,
+          a2,
+          b1
+        );
+
+      const o2 =
+        orient(
+          a1,
+          a2,
+          b2
+        );
+
+      const o3 =
+        orient(
+          b1,
+          b2,
+          a1
+        );
+
+      const o4 =
+        orient(
+          b1,
+          b2,
+          a2
+        );
+
+
+      return (
+        (
+          o1 > 0 &&
+          o2 < 0
+        ) ||
+        (
+          o1 < 0 &&
+          o2 > 0
+        )
+      ) &&
+      (
+        (
+          o3 > 0 &&
+          o4 < 0
+        ) ||
+        (
+          o3 < 0 &&
+          o4 > 0
+        )
+      );
+
+    };
+
+
   const analyzeStroke =
     points => {
 
@@ -25522,6 +25614,7 @@ function isAceReportSignatureValid(
       ) {
 
         return {
+          points: [],
           length: 0,
           direct: 0,
           efficiency: 1,
@@ -25610,7 +25703,6 @@ function isAceReportSignatureValid(
           );
 
 
-        // Ignora tremores mínimos do dedo/mouse.
         if (
           distance <
           1.4
@@ -25630,7 +25722,6 @@ function isAceReportSignatureValid(
           );
 
 
-        // Direção da linha sem distinguir ida/volta.
         let orientation =
           angle;
 
@@ -25651,7 +25742,6 @@ function isAceReportSignatureValid(
         }
 
 
-        // 6 grupos de orientação.
         const bin =
           Math.min(
             5,
@@ -25671,24 +25761,15 @@ function isAceReportSignatureValid(
 
         if (
           previousAngle !==
-          null
+          null &&
+          angleDifference(
+            angle,
+            previousAngle
+          ) >=
+          0.49
         ) {
 
-          /*
-            Só conta mudança de direção realmente visível:
-            aproximadamente 28 graus ou mais.
-          */
-          if (
-            angleDifference(
-              angle,
-              previousAngle
-            ) >=
-            0.49
-          ) {
-
-            turns += 1;
-
-          }
+          turns += 1;
 
         }
 
@@ -25754,13 +25835,14 @@ function isAceReportSignatureValid(
         ];
 
       const direct =
-        Math.hypot(
-          last.x - first.x,
-          last.y - first.y
+        distanceBetweenPoints(
+          first,
+          last
         );
 
 
       return {
+        points,
         length,
         direct,
         efficiency:
@@ -25877,19 +25959,13 @@ function isAceReportSignatureValid(
     minY;
 
 
-  /*
-    CONDIÇÕES BÁSICAS:
-    - precisa ter movimento suficiente;
-    - precisa ocupar largura e altura reais;
-    - não pode ser ponto, risquinho ou desenho quase sem altura.
-  */
   if (
     totalLength <
-      85 ||
+      90 ||
     width <
       32 ||
     height <
-      12
+      14
   ) {
 
     return false;
@@ -25898,103 +25974,230 @@ function isAceReportSignatureValid(
 
 
   /*
-    MODO 1 — RUBRICA CONTÍNUA:
-    Um ou dois traços são aceitos SOMENTE se pelo menos um deles
-    tiver complexidade real: curvas, retornos e mudanças de direção.
-
-    Isso bloqueia exatamente casos como:
-    - dois riscos separados;
-    - duas linhas curvas simples;
-    - uma linha reta + outra linha inclinada;
-    - "V", triângulo aberto ou desenho feito com apenas dois riscos.
+    Traço realmente complexo:
+    precisa curvar/voltar o suficiente.
   */
-  const hasComplexStroke =
-    analyses.some(
+  const complexStrokeCount =
+    analyses.filter(
       item =>
         (
           item.length >=
-            55 &&
+            60 &&
           item.turns >=
             3 &&
           item.reversals >=
             2 &&
           item.efficiency <=
-            0.90
+            0.88
         ) ||
         (
           item.length >=
-            65 &&
+            75 &&
           item.turns >=
             4 &&
           item.reversals >=
             1 &&
           item.efficiency <=
-            0.84
+            0.82
         )
-    );
+    ).length;
 
 
-  if (
-    analyses.length <=
-    2
+  /*
+    Verifica se os traços realmente se relacionam entre si.
+    Linhas soltas espalhadas pelo campo não contam como rubrica.
+  */
+  let closeStrokePairs = 0;
+  let crossingStrokePairs = 0;
+
+
+  for (
+    let i = 0;
+    i < analyses.length;
+    i += 1
   ) {
 
-    return Boolean(
-      hasComplexStroke &&
+    for (
+      let j = i + 1;
+      j < analyses.length;
+      j += 1
+    ) {
+
+      const a =
+        analyses[i];
+
+      const b =
+        analyses[j];
+
+      let pairClose =
+        false;
+
+      let pairCrosses =
+        false;
+
+
+      /*
+        Proximidade entre pontos:
+        uma rubrica com iniciais e riscos normalmente forma um grupo.
+      */
+      for (
+        let ai = 0;
+        ai < a.points.length;
+        ai += 2
+      ) {
+
+        for (
+          let bi = 0;
+          bi < b.points.length;
+          bi += 2
+        ) {
+
+          if (
+            distanceBetweenPoints(
+              a.points[ai],
+              b.points[bi]
+            ) <=
+            22
+          ) {
+
+            pairClose =
+              true;
+
+            break;
+
+          }
+
+        }
+
+        if (pairClose) {
+          break;
+        }
+
+      }
+
+
+      /*
+        Cruzamento real de segmentos.
+      */
+      for (
+        let ai = 1;
+        ai < a.points.length &&
+        !pairCrosses;
+        ai += 1
+      ) {
+
+        for (
+          let bi = 1;
+          bi < b.points.length;
+          bi += 1
+        ) {
+
+          if (
+            segmentIntersection(
+              a.points[ai - 1],
+              a.points[ai],
+              b.points[bi - 1],
+              b.points[bi]
+            )
+          ) {
+
+            pairCrosses =
+              true;
+
+            break;
+
+          }
+
+        }
+
+      }
+
+
+      if (pairClose) {
+        closeStrokePairs += 1;
+      }
+
+      if (pairCrosses) {
+        crossingStrokePairs += 1;
+      }
+
+    }
+
+  }
+
+
+  /*
+    Regra A:
+    rubrica contínua/curva com complexidade real.
+  */
+  const validComplexRubric =
+    (
+      complexStrokeCount >=
+        1 &&
       totalTurns >=
         3 &&
       totalReversals >=
         2
     );
 
-  }
-
 
   /*
-    MODO 2 — RUBRICA COM VÁRIOS TRAÇOS / INICIAIS:
-    Com três ou mais traços, exige diversidade de direção e forma.
-    Assim três linhas paralelas ou três riscos simples também não passam.
+    Regra B:
+    iniciais + riscos.
+    Só passa quando os traços se aproximam/cruzam e possuem
+    várias direções. Isso bloqueia vários riscos simples separados.
   */
-  const multiStrokeValid =
+  const validStructuredInitials =
     (
       analyses.length >=
-        3 &&
+        2 &&
+      analyses.length <=
+        6 &&
       allOrientationBins.size >=
         3 &&
-      totalTurns >=
-        2 &&
       (
-        totalReversals >=
+        crossingStrokePairs >=
           1 ||
-        hasComplexStroke
+        closeStrokePairs >=
+          2
+      ) &&
+      (
+        totalTurns >=
+          2 ||
+        totalReversals >=
+          1
       )
     );
 
 
   /*
-    MODO 3 — ASSINATURA MAIS COMPLETA:
-    Quatro ou mais traços significativos podem formar letras/rubrica
-    mesmo sem uma curva muito forte em um único traço, mas ainda
-    precisam apresentar várias orientações diferentes.
+    Regra C:
+    assinatura mais elaborada com vários traços.
+    Mesmo com muitos traços, exige coesão espacial.
   */
-  const structuredInitialsValid =
+  const validMultiStrokeSignature =
     (
       analyses.length >=
         4 &&
+      analyses.length <=
+        10 &&
       allOrientationBins.size >=
         3 &&
-      totalLength >=
-        110 &&
-      width >=
-        40 &&
-      height >=
-        16
+      closeStrokePairs >=
+        3 &&
+      (
+        crossingStrokePairs >=
+          1 ||
+        complexStrokeCount >=
+          1
+      )
     );
 
 
   return Boolean(
-    multiStrokeValid ||
-    structuredInitialsValid
+    validComplexRubric ||
+    validStructuredInitials ||
+    validMultiStrokeSignature
   );
 
 }
