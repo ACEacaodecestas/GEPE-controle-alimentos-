@@ -25483,7 +25483,7 @@ function isAceReportSignatureValid(
       : [];
 
 
-  const distanceBetweenPoints =
+  const distance =
     (
       a,
       b
@@ -25524,7 +25524,27 @@ function isAceReportSignatureValid(
     };
 
 
-  const segmentIntersection =
+  const orientation =
+    (
+      p,
+      q,
+      r
+    ) =>
+      (
+        q.x - p.x
+      ) *
+      (
+        r.y - p.y
+      ) -
+      (
+        q.y - p.y
+      ) *
+      (
+        r.x - p.x
+      );
+
+
+  const segmentsCross =
     (
       a1,
       a2,
@@ -25532,49 +25552,29 @@ function isAceReportSignatureValid(
       b2
     ) => {
 
-      const orient =
-        (
-          p,
-          q,
-          r
-        ) =>
-          (
-            q.x - p.x
-          ) *
-          (
-            r.y - p.y
-          ) -
-          (
-            q.y - p.y
-          ) *
-          (
-            r.x - p.x
-          );
-
-
       const o1 =
-        orient(
+        orientation(
           a1,
           a2,
           b1
         );
 
       const o2 =
-        orient(
+        orientation(
           a1,
           a2,
           b2
         );
 
       const o3 =
-        orient(
+        orientation(
           b1,
           b2,
           a1
         );
 
       const o4 =
-        orient(
+        orientation(
           b1,
           b2,
           a2
@@ -25605,21 +25605,114 @@ function isAceReportSignatureValid(
     };
 
 
-  const analyzeStroke =
-    points => {
+  /*
+    Simplifica o traço para remover tremores naturais do dedo/mouse.
+    Assim pequenos ruídos não são confundidos com "complexidade".
+  */
+  const simplifyStroke =
+    (
+      points,
+      minDistance = 5
+    ) => {
 
       if (
         !Array.isArray(points) ||
+        points.length <= 2
+      ) {
+        return Array.isArray(points)
+          ? points.slice()
+          : [];
+      }
+
+
+      const simplified = [
+        points[0]
+      ];
+
+      let last =
+        points[0];
+
+
+      for (
+        let i = 1;
+        i < points.length - 1;
+        i += 1
+      ) {
+
+        if (
+          distance(
+            last,
+            points[i]
+          ) >=
+          minDistance
+        ) {
+
+          simplified.push(
+            points[i]
+          );
+
+          last =
+            points[i];
+
+        }
+
+      }
+
+
+      const finalPoint =
+        points[
+          points.length - 1
+        ];
+
+
+      if (
+        distance(
+          simplified[
+            simplified.length - 1
+          ],
+          finalPoint
+        ) >=
+        1
+      ) {
+
+        simplified.push(
+          finalPoint
+        );
+
+      }
+
+
+      return simplified;
+
+    };
+
+
+  const analyzeStroke =
+    rawPoints => {
+
+      const points =
+        simplifyStroke(
+          rawPoints,
+          5
+        );
+
+
+      if (
         points.length < 2
       ) {
 
         return {
           points: [],
           length: 0,
-          direct: 0,
-          efficiency: 1,
+          width: 0,
+          height: 0,
           turns: 0,
           reversals: 0,
+          selfCrossings: 0,
+          nearReturns: 0,
+          largeCorners: 0,
+          monotonicXRatio: 1,
+          directRatio: 1,
           orientationBins: new Set(),
           minX: Infinity,
           maxX: -Infinity,
@@ -25633,12 +25726,17 @@ function isAceReportSignatureValid(
       let length = 0;
       let turns = 0;
       let reversals = 0;
+      let largeCorners = 0;
+
+      let positiveX = 0;
+      let negativeX = 0;
+      let horizontalSegments = 0;
 
       let previousAngle = null;
       let previousDxSign = 0;
       let previousDySign = 0;
 
-      const orientationBins =
+      const bins =
         new Set();
 
       let minX = Infinity;
@@ -25696,7 +25794,7 @@ function isAceReportSignatureValid(
         const dy =
           b.y - a.y;
 
-        const distance =
+        const segmentLength =
           Math.hypot(
             dx,
             dy
@@ -25704,15 +25802,34 @@ function isAceReportSignatureValid(
 
 
         if (
-          distance <
-          1.4
+          segmentLength <
+          1
         ) {
           continue;
         }
 
 
         length +=
-          distance;
+          segmentLength;
+
+
+        if (
+          Math.abs(dx) >=
+          2
+        ) {
+
+          horizontalSegments +=
+            1;
+
+          if (
+            dx > 0
+          ) {
+            positiveX += 1;
+          } else {
+            negativeX += 1;
+          }
+
+        }
 
 
         const angle =
@@ -25722,65 +25839,83 @@ function isAceReportSignatureValid(
           );
 
 
-        let orientation =
+        let lineOrientation =
           angle;
 
         if (
-          orientation <
+          lineOrientation <
           0
         ) {
-          orientation +=
+          lineOrientation +=
             Math.PI;
         }
 
         if (
-          orientation >=
+          lineOrientation >=
           Math.PI
         ) {
-          orientation -=
+          lineOrientation -=
             Math.PI;
         }
 
 
-        const bin =
+        bins.add(
           Math.min(
-            5,
+            7,
             Math.floor(
               (
-                orientation /
+                lineOrientation /
                 Math.PI
               ) *
-              6
+              8
             )
-          );
-
-        orientationBins.add(
-          bin
+          )
         );
 
 
         if (
           previousAngle !==
-          null &&
-          angleDifference(
-            angle,
-            previousAngle
-          ) >=
-          0.49
+          null
         ) {
 
-          turns += 1;
+          const change =
+            angleDifference(
+              angle,
+              previousAngle
+            );
+
+
+          // Mudança real de direção: ~30 graus.
+          if (
+            change >=
+            0.52
+          ) {
+            turns += 1;
+          }
+
+
+          /*
+            "Esquina grande":
+            mudança abrupta de direção típica de zigue-zague,
+            letras gigantes ou desenhos geométricos.
+          */
+          if (
+            change >=
+            0.88
+          ) {
+            largeCorners += 1;
+          }
 
         }
 
 
         const dxSign =
-          Math.abs(dx) >= 1.8
+          Math.abs(dx) >= 2
             ? Math.sign(dx)
             : 0;
 
         const dySign =
-          Math.abs(dy) >= 1.8
+          Math.abs(dy) >= 2
             ? Math.sign(dy)
             : 0;
 
@@ -25791,9 +25926,7 @@ function isAceReportSignatureValid(
           dxSign !==
           previousDxSign
         ) {
-
           reversals += 1;
-
         }
 
 
@@ -25803,9 +25936,7 @@ function isAceReportSignatureValid(
           dySign !==
           previousDySign
         ) {
-
           reversals += 1;
-
         }
 
 
@@ -25826,6 +25957,86 @@ function isAceReportSignatureValid(
       }
 
 
+      /*
+        Auto-cruzamentos dentro do mesmo traço.
+        Ignora segmentos vizinhos, pois eles se tocam naturalmente.
+      */
+      let selfCrossings = 0;
+
+
+      for (
+        let i = 1;
+        i < points.length;
+        i += 1
+      ) {
+
+        for (
+          let j = i + 3;
+          j < points.length;
+          j += 1
+        ) {
+
+          if (
+            segmentsCross(
+              points[i - 1],
+              points[i],
+              points[j - 1],
+              points[j]
+            )
+          ) {
+
+            selfCrossings +=
+              1;
+
+          }
+
+        }
+
+      }
+
+
+      /*
+        Retornos próximos:
+        partes não vizinhas do mesmo traço que voltam a passar
+        perto umas das outras, característica comum de rubrica.
+      */
+      let nearReturns = 0;
+
+
+      for (
+        let i = 0;
+        i < points.length;
+        i += 1
+      ) {
+
+        for (
+          let j = i + 5;
+          j < points.length;
+          j += 1
+        ) {
+
+          if (
+            distance(
+              points[i],
+              points[j]
+            ) <=
+            14
+          ) {
+
+            nearReturns +=
+              1;
+
+            // Evita inflar o número com vários pontos do mesmo retorno.
+            j +=
+              3;
+
+          }
+
+        }
+
+      }
+
+
       const first =
         points[0];
 
@@ -25835,23 +26046,50 @@ function isAceReportSignatureValid(
         ];
 
       const direct =
-        distanceBetweenPoints(
+        distance(
           first,
           last
         );
 
 
+      const width =
+        maxX -
+        minX;
+
+      const height =
+        maxY -
+        minY;
+
+
+      const monotonicXRatio =
+        horizontalSegments > 0
+          ? (
+              Math.max(
+                positiveX,
+                negativeX
+              ) /
+              horizontalSegments
+            )
+          : 1;
+
+
       return {
         points,
         length,
-        direct,
-        efficiency:
+        width,
+        height,
+        turns,
+        reversals,
+        selfCrossings,
+        nearReturns,
+        largeCorners,
+        monotonicXRatio,
+        directRatio:
           length > 0
             ? direct / length
             : 1,
-        turns,
-        reversals,
-        orientationBins,
+        orientationBins:
+          bins,
         minX,
         maxX,
         minY,
@@ -25869,7 +26107,7 @@ function isAceReportSignatureValid(
       .filter(
         item =>
           item.length >=
-          8
+          10
       );
 
 
@@ -25900,8 +26138,11 @@ function isAceReportSignatureValid(
 
   let totalTurns = 0;
   let totalReversals = 0;
+  let totalSelfCrossings = 0;
+  let totalNearReturns = 0;
+  let totalLargeCorners = 0;
 
-  const allOrientationBins =
+  const allBins =
     new Set();
 
 
@@ -25938,10 +26179,19 @@ function isAceReportSignatureValid(
       totalReversals +=
         item.reversals;
 
+      totalSelfCrossings +=
+        item.selfCrossings;
+
+      totalNearReturns +=
+        item.nearReturns;
+
+      totalLargeCorners +=
+        item.largeCorners;
+
       item.orientationBins
         .forEach(
           bin =>
-            allOrientationBins.add(
+            allBins.add(
               bin
             )
         );
@@ -25959,56 +26209,78 @@ function isAceReportSignatureValid(
     minY;
 
 
+  /*
+    Condições mínimas.
+  */
   if (
     totalLength <
-      90 ||
+      95 ||
     width <
-      32 ||
+      36 ||
     height <
       14
   ) {
-
     return false;
-
   }
 
 
   /*
-    Traço realmente complexo:
-    precisa curvar/voltar o suficiente.
+    BLOQUEIO 1 — ZIGUE-ZAGUE / "M" / "W" GIGANTE
+    Se o traço avança quase sempre para o mesmo lado,
+    tem várias esquinas grandes e não volta sobre si mesmo,
+    é desenho geométrico, não rubrica.
   */
-  const complexStrokeCount =
-    analyses.filter(
+  const isLargeMonotonicZigzag =
+    analyses.some(
       item =>
-        (
-          item.length >=
-            60 &&
-          item.turns >=
-            3 &&
-          item.reversals >=
-            2 &&
-          item.efficiency <=
-            0.88
-        ) ||
-        (
-          item.length >=
-            75 &&
-          item.turns >=
-            4 &&
-          item.reversals >=
-            1 &&
-          item.efficiency <=
-            0.82
-        )
-    ).length;
+        item.length >=
+          120 &&
+        item.monotonicXRatio >=
+          0.82 &&
+        item.largeCorners >=
+          3 &&
+        item.selfCrossings ===
+          0 &&
+        item.nearReturns <=
+          1
+    );
+
+
+  if (
+    isLargeMonotonicZigzag
+  ) {
+    return false;
+  }
 
 
   /*
-    Verifica se os traços realmente se relacionam entre si.
-    Linhas soltas espalhadas pelo campo não contam como rubrica.
+    BLOQUEIO 2 — POLÍGONO / DESENHO GRANDE
+    Muitas esquinas grandes sem entrelaçamento ou retorno
+    também não é considerado assinatura.
   */
-  let closeStrokePairs = 0;
-  let crossingStrokePairs = 0;
+  const isGeometricDrawing =
+    (
+      totalLargeCorners >=
+        5 &&
+      totalSelfCrossings ===
+        0 &&
+      totalNearReturns <=
+        2
+    );
+
+
+  if (
+    isGeometricDrawing
+  ) {
+    return false;
+  }
+
+
+  /*
+    Relação entre traços separados.
+  */
+  let closePairs = 0;
+  let crossingPairs = 0;
 
 
   for (
@@ -26029,17 +26301,13 @@ function isAceReportSignatureValid(
       const b =
         analyses[j];
 
-      let pairClose =
+      let isClose =
         false;
 
-      let pairCrosses =
+      let crosses =
         false;
 
 
-      /*
-        Proximidade entre pontos:
-        uma rubrica com iniciais e riscos normalmente forma um grupo.
-      */
       for (
         let ai = 0;
         ai < a.points.length;
@@ -26053,14 +26321,14 @@ function isAceReportSignatureValid(
         ) {
 
           if (
-            distanceBetweenPoints(
+            distance(
               a.points[ai],
               b.points[bi]
             ) <=
-            22
+            18
           ) {
 
-            pairClose =
+            isClose =
               true;
 
             break;
@@ -26069,20 +26337,17 @@ function isAceReportSignatureValid(
 
         }
 
-        if (pairClose) {
+        if (isClose) {
           break;
         }
 
       }
 
 
-      /*
-        Cruzamento real de segmentos.
-      */
       for (
         let ai = 1;
         ai < a.points.length &&
-        !pairCrosses;
+        !crosses;
         ai += 1
       ) {
 
@@ -26093,7 +26358,7 @@ function isAceReportSignatureValid(
         ) {
 
           if (
-            segmentIntersection(
+            segmentsCross(
               a.points[ai - 1],
               a.points[ai],
               b.points[bi - 1],
@@ -26101,7 +26366,7 @@ function isAceReportSignatureValid(
             )
           ) {
 
-            pairCrosses =
+            crosses =
               true;
 
             break;
@@ -26113,12 +26378,12 @@ function isAceReportSignatureValid(
       }
 
 
-      if (pairClose) {
-        closeStrokePairs += 1;
+      if (isClose) {
+        closePairs += 1;
       }
 
-      if (pairCrosses) {
-        crossingStrokePairs += 1;
+      if (crosses) {
+        crossingPairs += 1;
       }
 
     }
@@ -26127,77 +26392,90 @@ function isAceReportSignatureValid(
 
 
   /*
-    Regra A:
-    rubrica contínua/curva com complexidade real.
+    RUBRICA CONTÍNUA VÁLIDA
+    Precisa mostrar retorno/entrelaçamento real,
+    e não somente vários picos grandes.
   */
-  const validComplexRubric =
+  const validContinuousRubric =
     (
-      complexStrokeCount >=
-        1 &&
+      analyses.length <=
+        2 &&
       totalTurns >=
-        3 &&
+        4 &&
       totalReversals >=
-        2
+        2 &&
+      (
+        totalSelfCrossings >=
+          1 ||
+        totalNearReturns >=
+          3
+      ) &&
+      totalLargeCorners <=
+        7
     );
 
 
   /*
-    Regra B:
-    iniciais + riscos.
-    Só passa quando os traços se aproximam/cruzam e possuem
-    várias direções. Isso bloqueia vários riscos simples separados.
+    RUBRICA COM INICIAIS / VÁRIOS TRAÇOS
+    Os traços precisam formar um conjunto unido:
+    próximos ou cruzados, não espalhados.
   */
-  const validStructuredInitials =
+  const validStructuredRubric =
     (
       analyses.length >=
         2 &&
       analyses.length <=
-        6 &&
-      allOrientationBins.size >=
+        7 &&
+      allBins.size >=
         3 &&
       (
-        crossingStrokePairs >=
+        crossingPairs >=
           1 ||
-        closeStrokePairs >=
+        closePairs >=
           2
       ) &&
       (
-        totalTurns >=
+        totalSelfCrossings >=
+          1 ||
+        totalNearReturns >=
           2 ||
-        totalReversals >=
-          1
-      )
+        crossingPairs >=
+          2
+      ) &&
+      totalTurns >=
+        3
     );
 
 
   /*
-    Regra C:
-    assinatura mais elaborada com vários traços.
-    Mesmo com muitos traços, exige coesão espacial.
+    ASSINATURA MAIS ELABORADA
+    Para muitos traços, exige ainda mais coesão.
   */
-  const validMultiStrokeSignature =
+  const validFullSignature =
     (
       analyses.length >=
         4 &&
       analyses.length <=
         10 &&
-      allOrientationBins.size >=
-        3 &&
-      closeStrokePairs >=
+      closePairs >=
         3 &&
       (
-        crossingStrokePairs >=
+        crossingPairs >=
           1 ||
-        complexStrokeCount >=
+        totalSelfCrossings >=
           1
-      )
+      ) &&
+      totalNearReturns >=
+        2 &&
+      allBins.size >=
+        3
     );
 
 
   return Boolean(
-    validComplexRubric ||
-    validStructuredInitials ||
-    validMultiStrokeSignature
+    validContinuousRubric ||
+    validStructuredRubric ||
+    validFullSignature
   );
 
 }
