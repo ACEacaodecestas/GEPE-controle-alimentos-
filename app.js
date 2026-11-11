@@ -25470,325 +25470,534 @@ function isAceReportSignatureValid(
   canvas
 ) {
 
+  if (!canvas) {
+    return false;
+  }
+
+
+  const strokes =
+    Array.isArray(
+      canvas.__aceSignatureStrokes
+    )
+      ? canvas.__aceSignatureStrokes
+      : [];
+
+
+  const angleDifference =
+    (
+      a,
+      b
+    ) => {
+
+      let diff =
+        Math.abs(
+          a - b
+        );
+
+      while (
+        diff >
+        Math.PI
+      ) {
+        diff =
+          Math.abs(
+            diff -
+            (
+              Math.PI *
+              2
+            )
+          );
+      }
+
+      return diff;
+
+    };
+
+
+  const analyzeStroke =
+    points => {
+
+      if (
+        !Array.isArray(points) ||
+        points.length < 2
+      ) {
+
+        return {
+          length: 0,
+          direct: 0,
+          efficiency: 1,
+          turns: 0,
+          reversals: 0,
+          orientationBins: new Set(),
+          minX: Infinity,
+          maxX: -Infinity,
+          minY: Infinity,
+          maxY: -Infinity
+        };
+
+      }
+
+
+      let length = 0;
+      let turns = 0;
+      let reversals = 0;
+
+      let previousAngle = null;
+      let previousDxSign = 0;
+      let previousDySign = 0;
+
+      const orientationBins =
+        new Set();
+
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+
+      points.forEach(
+        point => {
+
+          minX =
+            Math.min(
+              minX,
+              point.x
+            );
+
+          maxX =
+            Math.max(
+              maxX,
+              point.x
+            );
+
+          minY =
+            Math.min(
+              minY,
+              point.y
+            );
+
+          maxY =
+            Math.max(
+              maxY,
+              point.y
+            );
+
+        }
+      );
+
+
+      for (
+        let i = 1;
+        i < points.length;
+        i += 1
+      ) {
+
+        const a =
+          points[i - 1];
+
+        const b =
+          points[i];
+
+        const dx =
+          b.x - a.x;
+
+        const dy =
+          b.y - a.y;
+
+        const distance =
+          Math.hypot(
+            dx,
+            dy
+          );
+
+
+        // Ignora tremores mínimos do dedo/mouse.
+        if (
+          distance <
+          1.4
+        ) {
+          continue;
+        }
+
+
+        length +=
+          distance;
+
+
+        const angle =
+          Math.atan2(
+            dy,
+            dx
+          );
+
+
+        // Direção da linha sem distinguir ida/volta.
+        let orientation =
+          angle;
+
+        if (
+          orientation <
+          0
+        ) {
+          orientation +=
+            Math.PI;
+        }
+
+        if (
+          orientation >=
+          Math.PI
+        ) {
+          orientation -=
+            Math.PI;
+        }
+
+
+        // 6 grupos de orientação.
+        const bin =
+          Math.min(
+            5,
+            Math.floor(
+              (
+                orientation /
+                Math.PI
+              ) *
+              6
+            )
+          );
+
+        orientationBins.add(
+          bin
+        );
+
+
+        if (
+          previousAngle !==
+          null
+        ) {
+
+          /*
+            Só conta mudança de direção realmente visível:
+            aproximadamente 28 graus ou mais.
+          */
+          if (
+            angleDifference(
+              angle,
+              previousAngle
+            ) >=
+            0.49
+          ) {
+
+            turns += 1;
+
+          }
+
+        }
+
+
+        const dxSign =
+          Math.abs(dx) >= 1.8
+            ? Math.sign(dx)
+            : 0;
+
+        const dySign =
+          Math.abs(dy) >= 1.8
+            ? Math.sign(dy)
+            : 0;
+
+
+        if (
+          dxSign &&
+          previousDxSign &&
+          dxSign !==
+          previousDxSign
+        ) {
+
+          reversals += 1;
+
+        }
+
+
+        if (
+          dySign &&
+          previousDySign &&
+          dySign !==
+          previousDySign
+        ) {
+
+          reversals += 1;
+
+        }
+
+
+        if (dxSign) {
+          previousDxSign =
+            dxSign;
+        }
+
+        if (dySign) {
+          previousDySign =
+            dySign;
+        }
+
+
+        previousAngle =
+          angle;
+
+      }
+
+
+      const first =
+        points[0];
+
+      const last =
+        points[
+          points.length - 1
+        ];
+
+      const direct =
+        Math.hypot(
+          last.x - first.x,
+          last.y - first.y
+        );
+
+
+      return {
+        length,
+        direct,
+        efficiency:
+          length > 0
+            ? direct / length
+            : 1,
+        turns,
+        reversals,
+        orientationBins,
+        minX,
+        maxX,
+        minY,
+        maxY
+      };
+
+    };
+
+
+  const analyses =
+    strokes
+      .map(
+        analyzeStroke
+      )
+      .filter(
+        item =>
+          item.length >=
+          8
+      );
+
+
   if (
-    !canvas ||
-    !canvas.width ||
-    !canvas.height
+    analyses.length ===
+    0
   ) {
     return false;
   }
 
 
-  const ctx =
-    canvas.getContext(
-      "2d",
-      {
-        willReadFrequently: true
-      }
+  const totalLength =
+    analyses.reduce(
+      (
+        total,
+        item
+      ) =>
+        total +
+        item.length,
+      0
     );
 
 
-  if (!ctx) {
-    return false;
-  }
-
-
-  let imageData;
-
-  try {
-
-    imageData =
-      ctx.getImageData(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-  } catch (error) {
-
-    console.warn(
-      "ACE: não foi possível validar a rubrica:",
-      error
-    );
-
-    return false;
-
-  }
-
-
-  const data =
-    imageData.data;
-
-  const width =
-    canvas.width;
-
-  const height =
-    canvas.height;
-
-  const ratio =
-    window.devicePixelRatio ||
-    1;
-
-
-  // Amostragem de 2 em 2 pixels para manter a validação rápida no celular.
-  const step = 2;
-
-  let count = 0;
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
 
-  let sumX = 0;
-  let sumY = 0;
-  let sumXX = 0;
-  let sumYY = 0;
-  let sumXY = 0;
+  let totalTurns = 0;
+  let totalReversals = 0;
+
+  const allOrientationBins =
+    new Set();
 
 
-  for (
-    let y = 0;
-    y < height;
-    y += step
-  ) {
-
-    for (
-      let x = 0;
-      x < width;
-      x += step
-    ) {
-
-      const index =
-        (
-          y * width + x
-        ) * 4;
-
-      const alpha =
-        data[
-          index + 3
-        ];
-
-
-      // O canvas da assinatura é transparente e o traço é escuro.
-      // Alpha baixo é apenas suavização de borda e não entra na análise.
-      if (
-        alpha < 40
-      ) {
-        continue;
-      }
-
-
-      count += 1;
+  analyses.forEach(
+    item => {
 
       minX =
         Math.min(
           minX,
-          x
+          item.minX
         );
 
       maxX =
         Math.max(
           maxX,
-          x
+          item.maxX
         );
 
       minY =
         Math.min(
           minY,
-          y
+          item.minY
         );
 
       maxY =
         Math.max(
           maxY,
-          y
+          item.maxY
         );
 
-      sumX += x;
-      sumY += y;
-      sumXX += x * x;
-      sumYY += y * y;
-      sumXY += x * y;
+      totalTurns +=
+        item.turns;
+
+      totalReversals +=
+        item.reversals;
+
+      item.orientationBins
+        .forEach(
+          bin =>
+            allOrientationBins.add(
+              bin
+            )
+        );
 
     }
+  );
+
+
+  const width =
+    maxX -
+    minX;
+
+  const height =
+    maxY -
+    minY;
+
+
+  /*
+    CONDIÇÕES BÁSICAS:
+    - precisa ter movimento suficiente;
+    - precisa ocupar largura e altura reais;
+    - não pode ser ponto, risquinho ou desenho quase sem altura.
+  */
+  if (
+    totalLength <
+      85 ||
+    width <
+      32 ||
+    height <
+      12
+  ) {
+
+    return false;
 
   }
+
+
+  /*
+    MODO 1 — RUBRICA CONTÍNUA:
+    Um ou dois traços são aceitos SOMENTE se pelo menos um deles
+    tiver complexidade real: curvas, retornos e mudanças de direção.
+
+    Isso bloqueia exatamente casos como:
+    - dois riscos separados;
+    - duas linhas curvas simples;
+    - uma linha reta + outra linha inclinada;
+    - "V", triângulo aberto ou desenho feito com apenas dois riscos.
+  */
+  const hasComplexStroke =
+    analyses.some(
+      item =>
+        (
+          item.length >=
+            55 &&
+          item.turns >=
+            3 &&
+          item.reversals >=
+            2 &&
+          item.efficiency <=
+            0.90
+        ) ||
+        (
+          item.length >=
+            65 &&
+          item.turns >=
+            4 &&
+          item.reversals >=
+            1 &&
+          item.efficiency <=
+            0.84
+        )
+    );
 
 
   if (
-    count < 2 ||
-    !Number.isFinite(minX) ||
-    !Number.isFinite(minY)
+    analyses.length <=
+    2
   ) {
-    return false;
+
+    return Boolean(
+      hasComplexStroke &&
+      totalTurns >=
+        3 &&
+      totalReversals >=
+        2
+    );
+
   }
 
 
-  const cssWidth =
+  /*
+    MODO 2 — RUBRICA COM VÁRIOS TRAÇOS / INICIAIS:
+    Com três ou mais traços, exige diversidade de direção e forma.
+    Assim três linhas paralelas ou três riscos simples também não passam.
+  */
+  const multiStrokeValid =
     (
-      maxX - minX
-    ) /
-    ratio;
-
-  const cssHeight =
-    (
-      maxY - minY
-    ) /
-    ratio;
-
-  const majorDimension =
-    Math.max(
-      cssWidth,
-      cssHeight
-    );
-
-
-  // Área aproximada de tinta em pixels CSS.
-  // Rejeita ponto, vários pontinhos e risquinhos muito pequenos.
-  const inkArea =
-    (
-      count *
-      step *
-      step
-    ) /
-    (
-      ratio *
-      ratio
-    );
-
-
-  if (
-    inkArea < 35 ||
-    majorDimension < 24
-  ) {
-    return false;
-  }
-
-
-  const meanX =
-    sumX /
-    count;
-
-  const meanY =
-    sumY /
-    count;
-
-
-  const varianceX =
-    Math.max(
-      0,
+      analyses.length >=
+        3 &&
+      allOrientationBins.size >=
+        3 &&
+      totalTurns >=
+        2 &&
       (
-        sumXX /
-        count
-      ) -
-      (
-        meanX *
-        meanX
+        totalReversals >=
+          1 ||
+        hasComplexStroke
       )
-    );
-
-  const varianceY =
-    Math.max(
-      0,
-      (
-        sumYY /
-        count
-      ) -
-      (
-        meanY *
-        meanY
-      )
-    );
-
-  const covariance =
-    (
-      sumXY /
-      count
-    ) -
-    (
-      meanX *
-      meanY
     );
 
 
   /*
-    A análise abaixo mede se todo o desenho cabe praticamente em uma
-    única linha reta, independente de ela ser horizontal, vertical
-    ou diagonal.
-
-    - traço reto longo: razão próxima de zero -> REJEITA;
-    - rubrica com curvas, retornos ou letras: razão maior -> ACEITA.
+    MODO 3 — ASSINATURA MAIS COMPLETA:
+    Quatro ou mais traços significativos podem formar letras/rubrica
+    mesmo sem uma curva muito forte em um único traço, mas ainda
+    precisam apresentar várias orientações diferentes.
   */
-  const trace =
-    varianceX +
-    varianceY;
-
-  const determinant =
-    Math.max(
-      0,
-      (
-        varianceX *
-        varianceY
-      ) -
-      (
-        covariance *
-        covariance
-      )
-    );
-
-  const discriminant =
-    Math.sqrt(
-      Math.max(
-        0,
-        (
-          trace *
-          trace
-        ) -
-        (
-          4 *
-          determinant
-        )
-      )
-    );
-
-  const majorVariance =
+  const structuredInitialsValid =
     (
-      trace +
-      discriminant
-    ) /
-    2;
-
-  const minorVariance =
-    (
-      trace -
-      discriminant
-    ) /
-    2;
-
-
-  const shapeRatio =
-    majorVariance > 0
-      ? (
-          minorVariance /
-          majorVariance
-        )
-      : 0;
-
-
-  // Limite calibrado para rejeitar linhas retas mesmo quando longas,
-  // mas aceitar uma rubrica rápida com curvas e mudanças de direção.
-  const hasRealRubricShape =
-    shapeRatio >=
-    0.012;
+      analyses.length >=
+        4 &&
+      allOrientationBins.size >=
+        3 &&
+      totalLength >=
+        110 &&
+      width >=
+        40 &&
+      height >=
+        16
+    );
 
 
   return Boolean(
-    hasRealRubricShape
+    multiStrokeValid ||
+    structuredInitialsValid
   );
 
 }
-
 
 function syncAceReportExportButtons() {
 
@@ -25998,10 +26207,15 @@ function setupReportSignatureCanvas() {
 
 
   resizeCanvas();
+
+  canvas.__aceSignatureStrokes =
+    [];
+
   syncAceReportExportButtons();
 
 
   let drawing = false;
+  let currentSignatureStroke = null;
 
 
   const getPoint =
@@ -26041,6 +26255,13 @@ function setupReportSignatureCanvas() {
       const p =
         getPoint(event);
 
+      currentSignatureStroke = [
+        {
+          x: p.x,
+          y: p.y
+        }
+      ];
+
       ctx.beginPath();
       ctx.moveTo(
         p.x,
@@ -26078,6 +26299,34 @@ function setupReportSignatureCanvas() {
       const p =
         getPoint(event);
 
+      if (
+        currentSignatureStroke
+      ) {
+
+        const previous =
+          currentSignatureStroke[
+            currentSignatureStroke.length - 1
+          ];
+
+        if (
+          !previous ||
+          Math.hypot(
+            p.x - previous.x,
+            p.y - previous.y
+          ) >= 1.6
+        ) {
+
+          currentSignatureStroke.push(
+            {
+              x: p.x,
+              y: p.y
+            }
+          );
+
+        }
+
+      }
+
       ctx.lineTo(
         p.x,
         p.y
@@ -26104,8 +26353,25 @@ function setupReportSignatureCanvas() {
 
       drawing = false;
 
-      // ACE V155: só libera PDF/WORD/EXCEL quando o desenho
-      // tiver formato compatível com rubrica/assinatura.
+      if (
+        Array.isArray(
+          currentSignatureStroke
+        ) &&
+        currentSignatureStroke.length >=
+          2
+      ) {
+
+        canvas.__aceSignatureStrokes.push(
+          currentSignatureStroke
+        );
+
+      }
+
+      currentSignatureStroke =
+        null;
+
+      // ACE V157: só libera PDF/WORD/EXCEL quando o desenho
+      // cumprir as condições reforçadas de rubrica/assinatura.
       reportSignatureHasInk =
         isAceReportSignatureValid(
           canvas
@@ -26166,6 +26432,12 @@ function setupReportSignatureCanvas() {
 
       reportSignatureHasInk =
         false;
+
+      canvas.__aceSignatureStrokes =
+        [];
+
+      currentSignatureStroke =
+        null;
 
       hideSignatureValidationMessage();
 
