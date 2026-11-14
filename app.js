@@ -2539,7 +2539,8 @@ function makeLocalHistoryRecord({
   reason = "—",
   basketType = "—",
   note = "",
-  originCustomName = ""
+  originCustomName = "",
+  destinationName = ""
 }) {
 
   return {
@@ -2554,6 +2555,10 @@ function makeLocalHistoryRecord({
     originCustomName:
       String(
         originCustomName || ""
+      ).trim(),
+    destinationName:
+      String(
+        destinationName || ""
       ).trim(),
     foodId:
       foodId != null
@@ -2751,7 +2756,8 @@ function applyLocalMovement({
   foodId,
   qty,
   reasonName,
-  note
+  note,
+  destinationName = ""
 }) {
 
   db.movements =
@@ -2781,6 +2787,10 @@ function applyLocalMovement({
       Number(qty),
     originId:
       Number(originId),
+    destinationName:
+      type === "saida"
+        ? String(destinationName || "").trim()
+        : "",
     usuarioId:
       currentUser?.id ||
       null,
@@ -2809,6 +2819,10 @@ function applyLocalMovement({
         reasonName,
       basketType:
         "—",
+      destinationName:
+        type === "saida"
+          ? String(destinationName || "").trim()
+          : "",
       note
     })
   );
@@ -4951,42 +4965,47 @@ async function aceLoadFromSupabaseNetwork(
 
     movements: [
 
-      ...outputs.map(s => ({
-        id: `saida-${s.id}`,
-        rawId: Number(s.id),
-        sourceTable: "saídas",
-        date: s.data_saida,
-        type: "saida",
-        foodId: Number(s.alimento_id),
-        qty: Number(s.quantidade || 0),
-        originId: Number(s.origem_id),
-        usuarioId: s.usuario_id || null,
-        usuarioNome:
-          s.usuario_nome ||
-          s.usuarioNome ||
-          getAceUserNameFromDirectory(
-            s.usuario_id
-          ) ||
-          null,
-        reasonId:
-          reasons.find(
-            r =>
-              r.name
-                .toLowerCase() ===
-              String(
-                s.motivo || ""
-              ).toLowerCase()
-          )?.id ||
-          s.motivo ||
-          null,
-        note:
-          s.observacao ||
-          s.destino ||
-          "",
-        createdAt:
-          s.created_at ||
-          `${s.data_saida || isoToday()}T00:00:00Z`
-      })),
+      ...outputs.map(s => {
+        const storedOutput = aceDecodeOutputDestinationStorage(
+          s.destino || s.observacao || ""
+        );
+
+        return {
+          id: `saida-${s.id}`,
+          rawId: Number(s.id),
+          sourceTable: "saídas",
+          date: s.data_saida,
+          type: "saida",
+          foodId: Number(s.alimento_id),
+          qty: Number(s.quantidade || 0),
+          originId: Number(s.origem_id),
+          destinationName: storedOutput.destinationName,
+          usuarioId: s.usuario_id || null,
+          usuarioNome:
+            s.usuario_nome ||
+            s.usuarioNome ||
+            getAceUserNameFromDirectory(
+              s.usuario_id
+            ) ||
+            null,
+          reasonId:
+            reasons.find(
+              r =>
+                r.name
+                  .toLowerCase() ===
+                String(
+                  s.motivo || ""
+                ).toLowerCase()
+            )?.id ||
+            s.motivo ||
+            null,
+          note:
+            storedOutput.note,
+          createdAt:
+            s.created_at ||
+            `${s.data_saida || isoToday()}T00:00:00Z`
+        };
+      }),
 
       ...losses.map(p => ({
         id: `perda-${p.id}`,
@@ -5089,11 +5108,19 @@ async function aceLoadFromSupabaseNetwork(
             ? aceDecodeCustomEntryStorage(
                 h.observacao || ""
               )
-            : {
-                originCustomName: "",
-                note:
-                  h.observacao || ""
-              };
+            : h.tipo === "saida"
+              ? {
+                  originCustomName: "",
+                  ...aceDecodeOutputDestinationStorage(
+                    h.observacao || ""
+                  )
+                }
+              : {
+                  originCustomName: "",
+                  destinationName: "",
+                  note:
+                    h.observacao || ""
+                };
 
         return {
           id: Number(h.id),
@@ -5105,6 +5132,8 @@ async function aceLoadFromSupabaseNetwork(
               : null,
           originCustomName:
             stored.originCustomName,
+          destinationName:
+            stored.destinationName || "",
           foodId:
             h.alimento_id != null
               ? Number(h.alimento_id)
@@ -7644,7 +7673,8 @@ async function insertMovement({
   foodId,
   qty,
   reasonId,
-  note
+  note,
+  destinationName = ""
 }) {
 
   assertAceMovementAllowed();
@@ -7705,7 +7735,10 @@ async function insertMovement({
               originId
             ),
           destino:
-            note || "",
+            aceEncodeOutputDestinationStorage(
+              destinationName,
+              note || ""
+            ),
           motivo:
             reasonName,
           usuario_id:
@@ -7761,7 +7794,12 @@ async function insertMovement({
     tipo_cesta:
       "—",
     observacao:
-      note || "",
+      type === "saida"
+        ? aceEncodeOutputDestinationStorage(
+            destinationName,
+            note || ""
+          )
+        : note || "",
     usuario_id:
       userId
   };
@@ -7784,7 +7822,8 @@ async function insertMovement({
           qty
         ),
       reasonName,
-      note
+      note,
+      destinationName
     });
 
     enqueueOfflineOperation(
@@ -7880,7 +7919,8 @@ async function insertMovement({
           qty
         ),
       reasonName,
-      note
+      note,
+      destinationName
     });
 
     return {
@@ -7920,7 +7960,8 @@ async function insertMovement({
           qty
         ),
       reasonName,
-      note
+      note,
+      destinationName
     });
 
 
@@ -8385,7 +8426,16 @@ async function updateMovement({ id, type, date, originId, foodId, qty, reasonId,
           alimento_id: Number(foodId),
           quantidade: Number(qty),
           origem_id: Number(originId),
-          destino: note || "",
+          destino:
+            aceEncodeOutputDestinationStorage(
+              movement.destinationName ||
+              getName(
+                db.origins,
+                originId
+              ) ||
+              "",
+              note || ""
+            ),
           motivo: reasonName,
           usuario_id:
             movement.usuarioId ||
@@ -14216,6 +14266,63 @@ const ACE_GENERAL_STOCK_OPTION_VALUE =
   "__ace_estoque_geral__";
 
 
+// ============================================================
+// ACE V163 — DESTINOS DAS SAÍDAS
+// Saída usa uma lista própria de destinos, independente das origens.
+// Destino + observação são preservados no Supabase sem nova coluna.
+// ============================================================
+
+const ACE_OUTPUT_DESTINATION_OTHER_VALUE =
+  "__ace_destino_outro__";
+
+const ACE_OUTPUT_DESTINATION_STORAGE_PREFIX =
+  "__ACE_SAIDA_V163__:";
+
+const ACE_OUTPUT_DESTINATIONS = [
+  { id: "agua-fria", name: "Água Fria" },
+  { id: "piedade", name: "Piedade" },
+  { id: "messejana", name: "Messejana" },
+  { id: "praia-do-futuro", name: "Praia do Futuro" },
+  { id: ACE_OUTPUT_DESTINATION_OTHER_VALUE, name: "Outro" }
+];
+
+function aceEncodeOutputDestinationStorage(destinationName, note) {
+  const payload = {
+    destinationName: String(destinationName || "").trim(),
+    note: String(note || "").trim()
+  };
+  return ACE_OUTPUT_DESTINATION_STORAGE_PREFIX +
+    encodeURIComponent(JSON.stringify(payload));
+}
+
+function aceDecodeOutputDestinationStorage(value) {
+  const raw = String(value || "");
+  if (raw.startsWith(ACE_OUTPUT_DESTINATION_STORAGE_PREFIX)) {
+    try {
+      const payload = JSON.parse(
+        decodeURIComponent(raw.slice(ACE_OUTPUT_DESTINATION_STORAGE_PREFIX.length))
+      );
+      return {
+        destinationName: String(payload?.destinationName || "").trim(),
+        note: String(payload?.note || "").trim()
+      };
+    } catch (error) {
+      console.warn("ACE: falha ao ler destino da saída:", error);
+    }
+  }
+  return { destinationName: "", note: raw };
+}
+
+function getAceMovementLocationDisplay(movement) {
+  if (!movement) return "";
+  if (movement.type === "saida") {
+    return String(movement.destinationName || "").trim() ||
+      getName(db.origins, movement.originId) || "—";
+  }
+  return getName(db.origins, movement.originId) || "—";
+}
+
+
 function isAceGeneralStockOrigin(
   origin
 ) {
@@ -14399,7 +14506,22 @@ function refreshSelects() {
     getAceEntryOriginChoices()
   );
 
-  setupAceMovementGeneralStockSelect();
+  const movementTypeValue =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  if (
+    movementTypeValue ===
+    "saida"
+  ) {
+    populateAceMovementDestinationSelect(
+      true
+    );
+  } else {
+    setupAceMovementGeneralStockSelect();
+  }
 
   populateSelect(
     "entryFood",
@@ -19493,12 +19615,11 @@ function renderMovementDayHistory() {
         ],
 
         [
-          "Origem",
+          "Origem / Destino",
           x =>
             esc(
-              getName(
-                db.origins,
-                x.originId
+              getAceMovementLocationDisplay(
+                x
               )
             )
         ],
@@ -20137,12 +20258,11 @@ function renderMovements() {
         ],
 
         [
-          "Origem",
+          "Origem / Destino",
           x =>
             esc(
-              getName(
-                db.origins,
-                x.originId
+              getAceMovementLocationDisplay(
+                x
               )
             )
         ],
@@ -22952,12 +23072,11 @@ async function renderReport() {
                   )
               ],
               [
-                "Origem",
+                "Origem / Destino",
                 x =>
                   esc(
-                    getName(
-                      db.origins,
-                      x.originId
+                    getAceMovementLocationDisplay(
+                      x
                     )
                   )
               ],
@@ -37476,7 +37595,184 @@ function ensureAceMovementBatchStyles() {
 }
 
 
+function getAceMovementTechnicalOriginIdForOutput() {
+
+  const general =
+    getAceGeneralStockOrigin();
+
+  if (general?.id != null) {
+    return String(general.id);
+  }
+
+  const aguaFria =
+    (db.origins || [])
+      .find(
+        origin =>
+          normalizeAceText(
+            origin.name || ""
+          ) ===
+          "agua fria"
+      );
+
+  if (aguaFria?.id != null) {
+    return String(aguaFria.id);
+  }
+
+  return String(
+    (db.origins || [])[0]?.id ||
+    ""
+  );
+
+}
+
+
+function populateAceMovementDestinationSelect(
+  preserveCurrent = true
+) {
+
+  const select =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+  if (!select) {
+    return;
+  }
+
+  const current =
+    preserveCurrent
+      ? String(select.value || "")
+      : "";
+
+  select.innerHTML =
+    '<option value="">Selecione...</option>' +
+    ACE_OUTPUT_DESTINATIONS
+      .map(
+        item => `
+          <option value="${esc(item.id)}">
+            ${esc(item.name)}
+          </option>
+        `
+      )
+      .join("");
+
+  if (
+    current &&
+    [...select.options]
+      .some(
+        option =>
+          option.value === current
+      )
+  ) {
+    select.value = current;
+  } else {
+    select.value = "";
+  }
+
+}
+
+
+function syncAceMovementDestinationCustomField(
+  clearWhenHidden = false
+) {
+
+  const type =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  const select =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+  const wrap =
+    document.getElementById(
+      "movementDestinationCustomWrap"
+    );
+
+  const input =
+    document.getElementById(
+      "movementDestinationCustom"
+    );
+
+  if (
+    !wrap ||
+    !input
+  ) {
+    return;
+  }
+
+  const visible =
+    type === "saida" &&
+    select?.value ===
+      ACE_OUTPUT_DESTINATION_OTHER_VALUE;
+
+  wrap.hidden =
+    !visible;
+
+  input.required =
+    false;
+
+  if (
+    !visible &&
+    clearWhenHidden
+  ) {
+    input.value = "";
+  }
+
+}
+
+
+function getAceMovementSelectedDestinationName() {
+
+  const select =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+  if (!select) {
+    return "";
+  }
+
+  if (
+    select.value ===
+    ACE_OUTPUT_DESTINATION_OTHER_VALUE
+  ) {
+    return String(
+      document.getElementById(
+        "movementDestinationCustom"
+      )?.value ||
+      ""
+    ).trim();
+  }
+
+  return (
+    ACE_OUTPUT_DESTINATIONS
+      .find(
+        item =>
+          String(item.id) ===
+          String(select.value)
+      )
+      ?.name ||
+    ""
+  );
+
+}
+
+
 function getAceMovementBatchResolvedOriginId() {
+
+  const type =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  if (type === "saida") {
+    return getAceMovementTechnicalOriginIdForOutput();
+  }
 
   const originSelection =
     document.getElementById(
@@ -37484,20 +37780,16 @@ function getAceMovementBatchResolvedOriginId() {
     )?.value ||
     "";
 
-
   if (
     originSelection ===
     ACE_GENERAL_STOCK_OPTION_VALUE
   ) {
-
     return String(
       getAceGeneralStockOrigin()
         ?.id ||
       ""
     );
-
   }
-
 
   return String(
     originSelection ||
@@ -37509,12 +37801,21 @@ function getAceMovementBatchResolvedOriginId() {
 
 function getAceMovementBatchOriginDisplayName() {
 
+  const type =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  if (type === "saida") {
+    return getAceMovementSelectedDestinationName();
+  }
+
   const originSelection =
     document.getElementById(
       "movementOrigin"
     )?.value ||
     "";
-
 
   if (
     originSelection ===
@@ -37522,7 +37823,6 @@ function getAceMovementBatchOriginDisplayName() {
   ) {
     return "Estoque Geral";
   }
-
 
   return (
     getName(
@@ -37583,6 +37883,9 @@ function syncAceMovementBatchContextLock() {
     ),
     document.getElementById(
       "movementType"
+    ),
+    document.getElementById(
+      "movementDestinationCustom"
     )
   ];
 
@@ -37659,6 +37962,54 @@ function syncAceMovementBatchTypeFields(
     )?.value ||
     "saida";
 
+
+  const originSelect =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+  const previousMode =
+    originSelect?.dataset
+      ?.aceMovementLocationMode ||
+    "";
+
+  if (originSelect) {
+
+    if (type === "saida") {
+
+      if (
+        previousMode !==
+        "saida"
+      ) {
+        populateAceMovementDestinationSelect(
+          false
+        );
+      }
+
+      originSelect.dataset
+        .aceMovementLocationMode =
+        "saida";
+
+    } else {
+
+      if (
+        previousMode !==
+        "perda"
+      ) {
+        setupAceMovementGeneralStockSelect();
+      }
+
+      originSelect.dataset
+        .aceMovementLocationMode =
+        "perda";
+
+    }
+
+  }
+
+  syncAceMovementDestinationCustomField(
+    clearReasonWhenOutput
+  );
 
   const reasonWrap =
     document.getElementById(
@@ -37891,6 +38242,25 @@ function setupAceMovementBatchForm() {
 
           </div>
 
+          <div
+            id="movementDestinationCustomWrap"
+            class="ace-movement-batch-field full"
+            hidden
+          >
+            <label for="movementDestinationCustom">
+              Informe o destino
+            </label>
+
+            <input
+              id="movementDestinationCustom"
+              name="destinationCustom"
+              type="text"
+              maxlength="120"
+              autocomplete="off"
+              placeholder="Digite o destino"
+            >
+          </div>
+
         </div>
 
 
@@ -38074,8 +38444,6 @@ function setupAceMovementBatchForm() {
 
   `;
 
-
-  setupAceMovementGeneralStockSelect();
 
   populateSelect(
     "movementFood",
@@ -38449,6 +38817,11 @@ function resetAceMovementBatchItemEditor() {
       "movementNote"
     );
 
+  const destinationCustom =
+    document.getElementById(
+      "movementDestinationCustom"
+    );
+
   const add =
     document.getElementById(
       "bulkMovementAdd"
@@ -38474,6 +38847,13 @@ function resetAceMovementBatchItemEditor() {
 
   if (note) {
     note.value = "";
+  }
+
+  if (
+    destinationCustom &&
+    aceMovementBatchDraft.length === 0
+  ) {
+    destinationCustom.value = "";
   }
 
 
@@ -38773,6 +39153,11 @@ async function addOrUpdateAceMovementBatchItem() {
   const originId =
     getAceMovementBatchResolvedOriginId();
 
+  const destinationName =
+    type === "saida"
+      ? getAceMovementSelectedDestinationName()
+      : "";
+
   const foodId =
     document.getElementById(
       "movementFood"
@@ -38845,10 +39230,33 @@ async function addOrUpdateAceMovementBatchItem() {
   }
 
 
+  if (
+    type === "saida" &&
+    originSelection ===
+      ACE_OUTPUT_DESTINATION_OTHER_VALUE &&
+    !destinationName
+  ) {
+
+    await showAceMessage(
+      'Ao escolher "Outro", informe o destino da saída.',
+      "⚠️ Informe o destino"
+    );
+
+    document
+      .getElementById(
+        "movementDestinationCustom"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
   if (!originId) {
 
     await showAceMessage(
-      'A origem técnica "Estoque Geral" ainda não está disponível no sistema.',
+      'Não foi possível identificar o estoque técnico para esta movimentação.',
       "⚠️ Local indisponível"
     );
 
@@ -39081,6 +39489,10 @@ async function addOrUpdateAceMovementBatchItem() {
         `mov-${Date.now()}-${Math.random()}`
       ),
     type,
+    destinationName:
+      type === "saida"
+        ? destinationName
+        : "",
     foodId:
       food.id,
     foodName:
@@ -39318,11 +39730,20 @@ async function registerAceMovementBatch() {
   const originId =
     getAceMovementBatchResolvedOriginId();
 
+  const destinationName =
+    type === "saida"
+      ? getAceMovementSelectedDestinationName()
+      : "";
+
 
   if (
     !date ||
     !originSelection ||
-    !originId
+    !originId ||
+    (
+      type === "saida" &&
+      !destinationName
+    )
   ) {
 
     await showAceMessage(
@@ -39490,6 +39911,9 @@ async function registerAceMovementBatch() {
             item.reasonId,
           note:
             item.note ||
+            "",
+          destinationName:
+            item.destinationName ||
             ""
         });
 
@@ -39672,6 +40096,19 @@ function bindAceMovementBatchEvents() {
       "change",
       () =>
         syncAceMovementBatchTypeFields(
+          true
+        )
+    );
+
+
+  document
+    .getElementById(
+      "movementOrigin"
+    )
+    ?.addEventListener(
+      "change",
+      () =>
+        syncAceMovementDestinationCustomField(
           true
         )
     );
@@ -40613,7 +41050,11 @@ async function restoreCloudBackup(obj) {
       alimento_id: m.foodId,
       quantidade: Number(m.qty || 0),
       origem_id: m.originId,
-      destino: m.note || "",
+      destino:
+        aceEncodeOutputDestinationStorage(
+          m.destinationName || "",
+          m.note || ""
+        ),
       usuario_id: userId
     }));
     const { error } = await supabaseClient.from("saídas").upsert(rows);
@@ -57200,6 +57641,7 @@ function captureAceMovementFormDraft() {
     "date",
     "type",
     "origin",
+    "destinationCustom",
     "foodId",
     "qty",
     "reasonId",
@@ -57359,6 +57801,10 @@ function renderAll() {
 
   restoreAceMovementFormDraft(
     movementDraft
+  );
+
+  syncAceMovementDestinationCustomField(
+    false
   );
 
   // O Mural possui mídias e não precisa ser reconstruído
