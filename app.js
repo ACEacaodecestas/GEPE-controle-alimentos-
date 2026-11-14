@@ -37052,6 +37052,2631 @@ function bindBulkEntryFormEvents() {
 
 
 
+
+// ============================================================
+// ACE V160 — SAÍDAS E PERDAS EM LOTE
+// Mesmo fluxo da Entrada em lote:
+// - adiciona vários alimentos antes de registrar;
+// - Data, Origem e Tipo travam após o primeiro item;
+// - Motivo e Observação permanecem individuais;
+// - foto de perda por vencimento fica vinculada ao item;
+// - valida o estoque total do lote antes de iniciar o registro.
+// ============================================================
+
+let aceMovementBatchDraft = [];
+let aceMovementBatchEditingId = null;
+let aceMovementBatchDropEditingPhoto = false;
+
+
+function ensureAceMovementBatchStyles() {
+
+  if (
+    document.getElementById(
+      "aceMovementBatchStyleV160"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "aceMovementBatchStyleV160";
+
+
+  style.textContent = `
+
+    #movementForm.ace-movement-batch-form{
+      display:block !important;
+      width:100% !important;
+      max-width:none !important;
+      min-width:0 !important;
+      grid-column:1 / -1 !important;
+      padding:0 !important;
+      border:0 !important;
+      background:transparent !important;
+      box-shadow:none !important;
+    }
+
+    .ace-movement-batch-shell{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(360px,.98fr);
+      gap:22px;
+      align-items:start;
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    .ace-movement-batch-panel{
+      min-width:0;
+      padding:22px;
+      border:1px solid #d7e3ec;
+      border-radius:17px;
+      background:#fff;
+      box-shadow:0 10px 28px rgba(19,54,81,.06);
+      box-sizing:border-box;
+    }
+
+    .ace-movement-batch-panel h3{
+      margin:0 0 18px;
+      color:#0b3a63;
+      font-size:24px;
+      font-weight:950;
+      line-height:1.2;
+    }
+
+    .ace-movement-batch-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+
+    .ace-movement-batch-add-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 174px;
+      gap:14px;
+      margin-top:14px;
+    }
+
+    .ace-movement-batch-field{
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+      min-width:0;
+    }
+
+    .ace-movement-batch-field.full{
+      grid-column:1 / -1;
+    }
+
+    .ace-movement-batch-field label{
+      color:#183b56;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .ace-movement-batch-field input,
+    .ace-movement-batch-field select{
+      width:100%;
+      min-height:54px;
+      box-sizing:border-box;
+      padding:10px 14px;
+      border:1px solid #bed3e2;
+      border-radius:12px;
+      outline:none;
+      background:#fff;
+      color:#172b3a;
+      font:inherit;
+      font-size:15px;
+      font-weight:750;
+    }
+
+    .ace-movement-batch-field input:focus,
+    .ace-movement-batch-field select:focus{
+      border-color:#1688c9;
+      box-shadow:0 0 0 3px rgba(22,136,201,.13);
+    }
+
+    .ace-movement-batch-field input:disabled,
+    .ace-movement-batch-field select:disabled{
+      background:#edf3f7 !important;
+      color:#526d80 !important;
+      cursor:not-allowed !important;
+      opacity:1 !important;
+    }
+
+    .ace-movement-batch-note-row{
+      margin-top:14px;
+    }
+
+    .ace-movement-batch-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:16px;
+    }
+
+    .ace-movement-batch-btn{
+      min-height:50px;
+      padding:10px 18px;
+      border-radius:11px;
+      font:inherit;
+      font-size:14px;
+      font-weight:950;
+      cursor:pointer;
+    }
+
+    .ace-movement-batch-btn-primary{
+      border:1px solid #075a94;
+      background:#075a94;
+      color:#fff;
+    }
+
+    .ace-movement-batch-btn-secondary{
+      border:1px solid #9bb7ca;
+      background:#fff;
+      color:#075a94;
+    }
+
+    .ace-movement-batch-btn-danger{
+      border:1px solid #f3a9a2;
+      background:#fff7f6;
+      color:#b42318;
+    }
+
+    .ace-movement-batch-help{
+      margin-top:11px;
+      color:#667085;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .ace-movement-batch-lock-note{
+      display:none;
+      margin-top:11px;
+      padding:9px 11px;
+      border:1px solid #c7dff0;
+      border-radius:10px;
+      background:#eef7fd;
+      color:#075a94;
+      font-size:12px;
+      font-weight:850;
+      line-height:1.4;
+    }
+
+    .ace-movement-batch-lock-note.show{
+      display:block;
+    }
+
+    .ace-movement-batch-summary-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .ace-movement-batch-summary-title{
+      color:#0b3a63;
+      font-size:23px;
+      font-weight:950;
+    }
+
+    .ace-movement-batch-summary-badge{
+      flex:0 0 auto;
+      padding:7px 12px;
+      border-radius:999px;
+      background:#eef4f8;
+      color:#0b3a63;
+      font-size:13px;
+      font-weight:950;
+      white-space:nowrap;
+    }
+
+    .ace-movement-batch-items{
+      display:flex;
+      flex-direction:column;
+      gap:9px;
+      max-height:410px;
+      overflow:auto;
+      padding-right:2px;
+    }
+
+    .ace-movement-batch-empty{
+      padding:36px 18px;
+      border:1px dashed #bed3e2;
+      border-radius:12px;
+      background:#fbfdff;
+      color:#667085;
+      font-size:14px;
+      line-height:1.45;
+      text-align:center;
+    }
+
+    .ace-movement-batch-item{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:12px;
+      align-items:center;
+      padding:12px 13px;
+      border:1px solid #dce6ed;
+      border-radius:12px;
+      background:#fbfdff;
+    }
+
+    .ace-movement-batch-item-title{
+      color:#16324a;
+      font-size:14px;
+      font-weight:950;
+      line-height:1.35;
+    }
+
+    .ace-movement-batch-item-meta{
+      margin-top:4px;
+      color:#667085;
+      font-size:12px;
+      line-height:1.4;
+    }
+
+    .ace-movement-batch-item-tags{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:6px;
+    }
+
+    .ace-movement-batch-tag{
+      display:inline-flex;
+      align-items:center;
+      padding:4px 7px;
+      border-radius:999px;
+      background:#edf5fa;
+      color:#35566d;
+      font-size:10px;
+      font-weight:900;
+    }
+
+    .ace-movement-batch-tag.loss{
+      background:#fff1f0;
+      color:#b42318;
+    }
+
+    .ace-movement-batch-tag.photo{
+      background:#f0f9ff;
+      color:#0369a1;
+    }
+
+    .ace-movement-batch-item-actions{
+      display:flex;
+      gap:7px;
+      align-items:center;
+    }
+
+    .ace-movement-batch-mini{
+      width:38px;
+      height:38px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:9px;
+      background:#fff;
+      cursor:pointer;
+      font-size:15px;
+    }
+
+    .ace-movement-batch-mini.edit{
+      border:1px solid #0b4b7a;
+      color:#0b4b7a;
+    }
+
+    .ace-movement-batch-mini.delete{
+      border:1px solid #ef4444;
+      color:#d92d20;
+    }
+
+    .ace-movement-batch-total{
+      margin-top:14px;
+      padding:12px 14px;
+      border-radius:10px;
+      background:#eef6fb;
+      color:#0b3a63;
+      font-weight:950;
+    }
+
+    #bulkMovementRegister{
+      width:100%;
+      margin-top:14px;
+      min-height:54px;
+      border:0;
+      border-radius:11px;
+      background:#0b4b7a;
+      color:#fff;
+      font:inherit;
+      font-size:17px;
+      font-weight:950;
+      cursor:pointer;
+    }
+
+    #bulkMovementRegister:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    #aceMovementPhotoSlot{
+      margin-top:14px;
+    }
+
+    #aceMovementPhotoSlot #aceLossPhotoField{
+      margin:0 !important;
+    }
+
+    @media(max-width:1050px){
+
+      .ace-movement-batch-shell{
+        grid-template-columns:1fr;
+      }
+
+      .ace-movement-batch-items{
+        max-height:360px;
+      }
+
+    }
+
+    @media(max-width:650px){
+
+      .ace-movement-batch-panel{
+        padding:15px;
+        border-radius:13px;
+      }
+
+      .ace-movement-batch-grid,
+      .ace-movement-batch-add-row{
+        grid-template-columns:1fr;
+      }
+
+      .ace-movement-batch-field.full{
+        grid-column:auto;
+      }
+
+      .ace-movement-batch-actions{
+        flex-direction:column;
+      }
+
+      .ace-movement-batch-btn{
+        width:100%;
+      }
+
+      .ace-movement-batch-summary-head{
+        align-items:flex-start;
+        flex-direction:column;
+      }
+
+      .ace-movement-batch-item{
+        grid-template-columns:1fr;
+      }
+
+      .ace-movement-batch-item-actions{
+        justify-content:flex-end;
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(
+    style
+  );
+
+}
+
+
+function getAceMovementBatchResolvedOriginId() {
+
+  const originSelection =
+    document.getElementById(
+      "movementOrigin"
+    )?.value ||
+    "";
+
+
+  if (
+    originSelection ===
+    ACE_GENERAL_STOCK_OPTION_VALUE
+  ) {
+
+    return String(
+      getAceGeneralStockOrigin()
+        ?.id ||
+      ""
+    );
+
+  }
+
+
+  return String(
+    originSelection ||
+    ""
+  );
+
+}
+
+
+function getAceMovementBatchOriginDisplayName() {
+
+  const originSelection =
+    document.getElementById(
+      "movementOrigin"
+    )?.value ||
+    "";
+
+
+  if (
+    originSelection ===
+    ACE_GENERAL_STOCK_OPTION_VALUE
+  ) {
+    return "Estoque Geral";
+  }
+
+
+  return (
+    getName(
+      db.origins,
+      originSelection
+    ) ||
+    "Origem não identificada"
+  );
+
+}
+
+
+function getAceMovementBatchTypeLabel(
+  type
+) {
+
+  return type ===
+    "perda"
+      ? "Perda"
+      : "Saída";
+
+}
+
+
+function syncAceMovementBatchContextLock() {
+
+  const locked =
+    aceMovementBatchDraft.length >
+    0;
+
+
+  const fields = [
+    document.getElementById(
+      "movementDate"
+    ),
+    document.getElementById(
+      "movementOrigin"
+    ),
+    document.getElementById(
+      "movementType"
+    )
+  ];
+
+
+  const message =
+    locked
+      ? "Conclua ou limpe a movimentação atual antes de alterar a data, a origem ou o tipo."
+      : "";
+
+
+  fields
+    .filter(
+      Boolean
+    )
+    .forEach(
+      field => {
+
+        field.disabled =
+          locked;
+
+        field.setAttribute(
+          "aria-disabled",
+          locked
+            ? "true"
+            : "false"
+        );
+
+        field.title =
+          message;
+
+      }
+    );
+
+
+  const note =
+    document.getElementById(
+      "aceMovementBatchLockNote"
+    );
+
+
+  if (note) {
+    note.classList.toggle(
+      "show",
+      locked
+    );
+  }
+
+}
+
+
+function syncAceMovementBatchTypeFields(
+  clearReasonWhenOutput = false
+) {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  const type =
+    form.querySelector(
+      '[name="type"]'
+    )?.value ||
+    "saida";
+
+
+  const reasonWrap =
+    document.getElementById(
+      "aceMovementReasonWrap"
+    );
+
+
+  const reason =
+    document.getElementById(
+      "movementReason"
+    );
+
+
+  if (reasonWrap) {
+    reasonWrap.hidden =
+      type !==
+      "perda";
+  }
+
+
+  if (reason) {
+
+    reason.required =
+      type ===
+      "perda";
+
+    if (
+      type !==
+        "perda" &&
+      clearReasonWhenOutput
+    ) {
+      reason.value = "";
+    }
+
+  }
+
+
+  if (
+    type !==
+    "perda"
+  ) {
+
+    resetAceLossPhotoField();
+
+  }
+
+
+  // Atualiza a visibilidade do campo de foto quando necessário.
+  reason?.dispatchEvent(
+    new Event(
+      "change",
+      {
+        bubbles:
+          true
+      }
+    )
+  );
+
+}
+
+
+function setupAceMovementBatchForm() {
+
+  ensureAceMovementBatchStyles();
+
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  if (
+    form.dataset.aceMovementBatchReady ===
+    "1"
+  ) {
+    return;
+  }
+
+
+  form.dataset.aceMovementBatchReady =
+    "1";
+
+  form.dataset.aceBulkBound =
+    "0";
+
+  form.classList.add(
+    "ace-movement-batch-form"
+  );
+
+
+  // Remove o botão antigo do cabeçalho, pois agora o próprio resumo
+  // possui "Limpar lista", igual à Entrada em lote.
+  document
+    .getElementById(
+      "movementClearData"
+    )
+    ?.remove();
+
+
+  form.innerHTML = `
+
+    <div class="ace-movement-batch-shell">
+
+      <div class="ace-movement-batch-panel">
+
+        <h3>
+          ➕ Adicionar movimentação
+        </h3>
+
+
+        <div class="ace-movement-batch-grid">
+
+          <div class="ace-movement-batch-field">
+
+            <label for="movementDate">
+              Data
+            </label>
+
+            <input
+              id="movementDate"
+              name="date"
+              type="date"
+              required
+              value="${esc(isoToday())}"
+            >
+
+          </div>
+
+
+          <div class="ace-movement-batch-field">
+
+            <label for="movementType">
+              Tipo
+            </label>
+
+            <select
+              id="movementType"
+              name="type"
+              required
+            >
+              <option value="saida">
+                Saída
+              </option>
+              <option value="perda">
+                Perda
+              </option>
+            </select>
+
+          </div>
+
+
+          <div class="ace-movement-batch-field full">
+
+            <label for="movementOrigin">
+              Origem
+            </label>
+
+            <select
+              id="movementOrigin"
+              name="origin"
+              required
+            >
+              <option value="">
+                Selecione...
+              </option>
+            </select>
+
+          </div>
+
+        </div>
+
+
+        <div class="ace-movement-batch-add-row">
+
+          <div class="ace-movement-batch-field">
+
+            <label for="movementFood">
+              Alimento
+            </label>
+
+            <select
+              id="movementFood"
+              name="foodId"
+              required
+            >
+              <option value="">
+                Selecione...
+              </option>
+            </select>
+
+          </div>
+
+
+          <div class="ace-movement-batch-field">
+
+            <label for="movementQty">
+              Quantidade
+            </label>
+
+            <input
+              id="movementQty"
+              name="qty"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              placeholder="Ex.: 10"
+              required
+            >
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="aceMovementReasonWrap"
+          class="ace-movement-batch-field ace-movement-batch-note-row"
+          hidden
+        >
+
+          <label for="movementReason">
+            Motivo
+          </label>
+
+          <select
+            id="movementReason"
+            name="reasonId"
+          >
+            <option value="">
+              Selecione...
+            </option>
+          </select>
+
+        </div>
+
+
+        <div class="ace-movement-batch-field ace-movement-batch-note-row">
+
+          <label for="movementNote">
+            Observação
+          </label>
+
+          <input
+            id="movementNote"
+            name="note"
+            type="text"
+            maxlength="200"
+            placeholder="Opcional"
+          >
+
+        </div>
+
+
+        <div id="aceMovementPhotoSlot"></div>
+
+
+        <div class="ace-movement-batch-actions">
+
+          <button
+            id="bulkMovementAdd"
+            class="ace-movement-batch-btn ace-movement-batch-btn-primary"
+            type="button"
+          >
+            ➕ Adicionar à movimentação
+          </button>
+
+          <button
+            id="bulkMovementCancelEdit"
+            class="ace-movement-batch-btn ace-movement-batch-btn-secondary"
+            type="button"
+            style="display:none;"
+          >
+            Cancelar edição
+          </button>
+
+        </div>
+
+
+        <div class="ace-movement-batch-help">
+          Data, origem, tipo, alimento e quantidade são obrigatórios.
+          Em <b>Perda</b>, o motivo pertence a cada alimento.
+        </div>
+
+
+        <div
+          id="aceMovementBatchLockNote"
+          class="ace-movement-batch-lock-note"
+        >
+          🔒 Data, origem e tipo ficam bloqueados até registrar ou limpar esta movimentação.
+        </div>
+
+      </div>
+
+
+      <div class="ace-movement-batch-panel">
+
+        <div class="ace-movement-batch-summary-head">
+
+          <div class="ace-movement-batch-summary-title">
+            🧾 Resumo da movimentação
+          </div>
+
+          <div
+            id="bulkMovementCount"
+            class="ace-movement-batch-summary-badge"
+          >
+            0 itens
+          </div>
+
+        </div>
+
+
+        <div
+          id="bulkMovementList"
+          class="ace-movement-batch-items"
+        ></div>
+
+
+        <div
+          id="bulkMovementTotal"
+          class="ace-movement-batch-total"
+        >
+          0 unidades no total
+        </div>
+
+
+        <button
+          id="bulkMovementRegister"
+          type="submit"
+          disabled
+        >
+          ✅ Registrar movimentação completa
+        </button>
+
+
+        <button
+          id="bulkMovementClear"
+          class="ace-movement-batch-btn ace-movement-batch-btn-danger"
+          type="button"
+          style="width:100%;margin-top:9px;"
+        >
+          🗑️ Limpar lista
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  setupAceMovementGeneralStockSelect();
+
+  populateSelect(
+    "movementFood",
+    db.foods
+  );
+
+  populateSelect(
+    "movementReason",
+    db.reasons
+  );
+
+
+  const date =
+    document.getElementById(
+      "movementDate"
+    );
+
+
+  if (date) {
+    date.value =
+      isoToday();
+  }
+
+
+  syncAceMovementBatchTypeFields(
+    true
+  );
+
+
+  // O campo de evidência é reconstruído no espaço correto do novo layout.
+  ensureAceLossPhotoField();
+
+  renderAceMovementBatchDraft();
+  bindAceMovementBatchEvents();
+
+}
+
+
+function getAceMovementBatchReasonName(
+  reasonId
+) {
+
+  return (
+    db.reasons
+      ?.find(
+        reason =>
+          String(reason.id) ===
+          String(reasonId || "")
+      )
+      ?.name ||
+    reasonId ||
+    ""
+  );
+
+}
+
+
+function renderAceMovementBatchDraft() {
+
+  const list =
+    document.getElementById(
+      "bulkMovementList"
+    );
+
+  const count =
+    document.getElementById(
+      "bulkMovementCount"
+    );
+
+  const total =
+    document.getElementById(
+      "bulkMovementTotal"
+    );
+
+  const register =
+    document.getElementById(
+      "bulkMovementRegister"
+    );
+
+
+  if (!list) {
+    return;
+  }
+
+
+  const totalUnits =
+    aceMovementBatchDraft.reduce(
+      (
+        sum,
+        item
+      ) =>
+        sum +
+        Number(
+          item.qty || 0
+        ),
+      0
+    );
+
+
+  if (
+    !aceMovementBatchDraft.length
+  ) {
+
+    list.innerHTML = `
+
+      <div class="ace-movement-batch-empty">
+        Nenhum alimento adicionado ainda.<br>
+        Escolha um alimento, informe a quantidade e clique em <b>Adicionar à movimentação</b>.
+      </div>
+
+    `;
+
+  } else {
+
+    list.innerHTML =
+      aceMovementBatchDraft
+        .map(
+          item => {
+
+            const reasonText =
+              item.type ===
+                "perda"
+                ? (
+                    item.reasonName ||
+                    "Motivo não informado"
+                  )
+                : "";
+
+
+            return `
+
+              <div class="ace-movement-batch-item">
+
+                <div>
+
+                  <div class="ace-movement-batch-item-title">
+                    ${esc(item.foodName)}
+                    — ${fmt(item.qty)}
+                  </div>
+
+                  <div class="ace-movement-batch-item-meta">
+                    ${
+                      item.note
+                        ? `Obs.: ${esc(item.note)}`
+                        : "Sem observação"
+                    }
+                  </div>
+
+                  <div class="ace-movement-batch-item-tags">
+
+                    <span
+                      class="ace-movement-batch-tag ${
+                        item.type === "perda"
+                          ? "loss"
+                          : ""
+                      }"
+                    >
+                      ${esc(
+                        getAceMovementBatchTypeLabel(
+                          item.type
+                        )
+                      )}
+                    </span>
+
+                    ${
+                      reasonText
+                        ? `
+                          <span class="ace-movement-batch-tag loss">
+                            ${esc(reasonText)}
+                          </span>
+                        `
+                        : ""
+                    }
+
+                    ${
+                      item.photoFile
+                        ? `
+                          <span class="ace-movement-batch-tag photo">
+                            📷 Foto
+                          </span>
+                        `
+                        : ""
+                    }
+
+                  </div>
+
+                </div>
+
+
+                <div class="ace-movement-batch-item-actions">
+
+                  <button
+                    type="button"
+                    class="ace-movement-batch-mini edit"
+                    data-movement-batch-edit="${esc(item.id)}"
+                    title="Editar item"
+                  >
+                    ✏️
+                  </button>
+
+                  <button
+                    type="button"
+                    class="ace-movement-batch-mini delete"
+                    data-movement-batch-delete="${esc(item.id)}"
+                    title="Remover item"
+                  >
+                    🗑️
+                  </button>
+
+                </div>
+
+              </div>
+
+            `;
+
+          }
+        )
+        .join("");
+
+  }
+
+
+  if (count) {
+
+    count.textContent =
+      `${aceMovementBatchDraft.length} ${
+        aceMovementBatchDraft.length ===
+          1
+          ? "item"
+          : "itens"
+      }`;
+
+  }
+
+
+  if (total) {
+
+    total.textContent =
+      `${fmt(totalUnits)} unidades no total`;
+
+  }
+
+
+  if (register) {
+
+    register.disabled =
+      aceMovementBatchDraft.length ===
+      0;
+
+  }
+
+
+  syncAceMovementBatchContextLock();
+  bindAceMovementBatchItemActions();
+
+}
+
+
+function bindAceMovementBatchItemActions() {
+
+  const list =
+    document.getElementById(
+      "bulkMovementList"
+    );
+
+
+  if (!list) {
+    return;
+  }
+
+
+  list
+    .querySelectorAll(
+      "[data-movement-batch-edit]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          event => {
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            editAceMovementBatchItem(
+              button.dataset
+                .movementBatchEdit
+            );
+
+          };
+
+      }
+    );
+
+
+  list
+    .querySelectorAll(
+      "[data-movement-batch-delete]"
+    )
+    .forEach(
+      button => {
+
+        button.onclick =
+          event => {
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const id =
+              button.dataset
+                .movementBatchDelete;
+
+
+            aceMovementBatchDraft =
+              aceMovementBatchDraft
+                .filter(
+                  item =>
+                    String(item.id) !==
+                    String(id)
+                );
+
+
+            if (
+              String(
+                aceMovementBatchEditingId
+              ) ===
+              String(id)
+            ) {
+
+              resetAceMovementBatchItemEditor();
+
+            }
+
+
+            renderAceMovementBatchDraft();
+
+          };
+
+      }
+    );
+
+}
+
+
+function resetAceMovementBatchItemEditor() {
+
+  aceMovementBatchEditingId =
+    null;
+
+  aceMovementBatchDropEditingPhoto =
+    false;
+
+
+  const food =
+    document.getElementById(
+      "movementFood"
+    );
+
+  const qty =
+    document.getElementById(
+      "movementQty"
+    );
+
+  const reason =
+    document.getElementById(
+      "movementReason"
+    );
+
+  const note =
+    document.getElementById(
+      "movementNote"
+    );
+
+  const add =
+    document.getElementById(
+      "bulkMovementAdd"
+    );
+
+  const cancel =
+    document.getElementById(
+      "bulkMovementCancelEdit"
+    );
+
+
+  if (food) {
+    food.value = "";
+  }
+
+  if (qty) {
+    qty.value = "";
+  }
+
+  if (reason) {
+    reason.value = "";
+  }
+
+  if (note) {
+    note.value = "";
+  }
+
+
+  resetAceLossPhotoField();
+
+
+  if (add) {
+
+    add.textContent =
+      "➕ Adicionar à movimentação";
+
+    delete add.dataset
+      .movementBatchEditingId;
+
+  }
+
+
+  if (cancel) {
+    cancel.style.display =
+      "none";
+  }
+
+
+  syncAceMovementBatchTypeFields(
+    false
+  );
+
+}
+
+
+function showAceMovementBatchExistingPhoto(
+  file
+) {
+
+  if (!file) {
+    return;
+  }
+
+
+  const preview =
+    document.getElementById(
+      "aceLossPhotoPreview"
+    );
+
+  const status =
+    document.getElementById(
+      "aceLossPhotoStatus"
+    );
+
+  const remove =
+    document.getElementById(
+      "aceLossPhotoRemove"
+    );
+
+
+  if (
+    aceLossPhotoPreviewUrl
+  ) {
+
+    URL.revokeObjectURL(
+      aceLossPhotoPreviewUrl
+    );
+
+  }
+
+
+  aceLossPhotoPreviewUrl =
+    URL.createObjectURL(
+      file
+    );
+
+
+  if (preview) {
+
+    preview.src =
+      aceLossPhotoPreviewUrl;
+
+    preview.style.display =
+      "block";
+
+  }
+
+
+  if (remove) {
+    remove.style.display =
+      "inline-flex";
+  }
+
+
+  if (status) {
+
+    status.textContent =
+      `Foto mantida neste item: ${file.name || "imagem selecionada"}. Se escolher outra, ela será substituída.`;
+
+  }
+
+}
+
+
+function editAceMovementBatchItem(
+  id
+) {
+
+  const item =
+    aceMovementBatchDraft
+      .find(
+        row =>
+          String(row.id) ===
+          String(id)
+      );
+
+
+  if (!item) {
+    return;
+  }
+
+
+  aceMovementBatchEditingId =
+    item.id;
+
+  aceMovementBatchDropEditingPhoto =
+    false;
+
+
+  const food =
+    document.getElementById(
+      "movementFood"
+    );
+
+  const qty =
+    document.getElementById(
+      "movementQty"
+    );
+
+  const reason =
+    document.getElementById(
+      "movementReason"
+    );
+
+  const note =
+    document.getElementById(
+      "movementNote"
+    );
+
+  const add =
+    document.getElementById(
+      "bulkMovementAdd"
+    );
+
+  const cancel =
+    document.getElementById(
+      "bulkMovementCancelEdit"
+    );
+
+
+  if (food) {
+    food.value =
+      String(
+        item.foodId
+      );
+  }
+
+  if (qty) {
+    qty.value =
+      String(
+        item.qty
+      );
+  }
+
+  if (reason) {
+    reason.value =
+      String(
+        item.reasonId ||
+        ""
+      );
+  }
+
+  if (note) {
+    note.value =
+      String(
+        item.note ||
+        ""
+      );
+  }
+
+
+  if (add) {
+
+    add.textContent =
+      "💾 Salvar alteração";
+
+    add.dataset
+      .movementBatchEditingId =
+      String(
+        item.id
+      );
+
+  }
+
+
+  if (cancel) {
+    cancel.style.display =
+      "";
+  }
+
+
+  syncAceMovementBatchTypeFields(
+    false
+  );
+
+
+  if (
+    item.photoFile
+  ) {
+
+    showAceMovementBatchExistingPhoto(
+      item.photoFile
+    );
+
+  }
+
+
+  food?.scrollIntoView({
+    behavior:
+      "smooth",
+    block:
+      "center"
+  });
+
+  food?.focus();
+
+}
+
+
+function getAceMovementBatchReservedQty(
+  foodId,
+  exceptId = null
+) {
+
+  return aceMovementBatchDraft
+    .filter(
+      item =>
+        String(item.foodId) ===
+          String(foodId) &&
+        (
+          exceptId === null ||
+          String(item.id) !==
+            String(exceptId)
+        )
+    )
+    .reduce(
+      (
+        total,
+        item
+      ) =>
+        total +
+        Number(
+          item.qty || 0
+        ),
+      0
+    );
+
+}
+
+
+async function addOrUpdateAceMovementBatchItem() {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  const date =
+    document.getElementById(
+      "movementDate"
+    )?.value ||
+    "";
+
+  const type =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  const originSelection =
+    document.getElementById(
+      "movementOrigin"
+    )?.value ||
+    "";
+
+  const originId =
+    getAceMovementBatchResolvedOriginId();
+
+  const foodId =
+    document.getElementById(
+      "movementFood"
+    )?.value ||
+    "";
+
+  const qty =
+    Number(
+      document.getElementById(
+        "movementQty"
+      )?.value
+    );
+
+  const reasonId =
+    document.getElementById(
+      "movementReason"
+    )?.value ||
+    "";
+
+  const note =
+    String(
+      document.getElementById(
+        "movementNote"
+      )?.value ||
+      ""
+    ).trim();
+
+
+  const editingId =
+    document.getElementById(
+      "bulkMovementAdd"
+    )?.dataset
+      ?.movementBatchEditingId ||
+    aceMovementBatchEditingId;
+
+
+  if (!date) {
+
+    await showAceMessage(
+      "Selecione a data da movimentação.",
+      "⚠️ Informação obrigatória"
+    );
+
+    document
+      .getElementById(
+        "movementDate"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
+  if (!originSelection) {
+
+    await showAceMessage(
+      "Selecione a origem da movimentação.",
+      "⚠️ Informação obrigatória"
+    );
+
+    document
+      .getElementById(
+        "movementOrigin"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
+  if (!originId) {
+
+    await showAceMessage(
+      'A origem técnica "Estoque Geral" ainda não está disponível no sistema.',
+      "⚠️ Origem indisponível"
+    );
+
+    return;
+
+  }
+
+
+  if (!foodId) {
+
+    await showAceMessage(
+      "Selecione o alimento da movimentação.",
+      "⚠️ Informação obrigatória"
+    );
+
+    document
+      .getElementById(
+        "movementFood"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
+  if (
+    !Number.isInteger(
+      qty
+    ) ||
+    qty <= 0
+  ) {
+
+    await showAceMessage(
+      "Informe uma quantidade inteira maior que zero.",
+      "⚠️ Quantidade inválida"
+    );
+
+    document
+      .getElementById(
+        "movementQty"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
+  if (
+    type ===
+      "perda" &&
+    !reasonId
+  ) {
+
+    await showAceMessage(
+      "Selecione o motivo da perda.",
+      "⚠️ Informação obrigatória"
+    );
+
+    document
+      .getElementById(
+        "movementReason"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
+  if (
+    type ===
+      "perda" &&
+    isAceOtherMovementReason(
+      reasonId
+    ) &&
+    !note
+  ) {
+
+    await showAceMessage(
+      'Quando o motivo for "Outro", informe a observação descrevendo o motivo da perda.',
+      "⚠️ Informação obrigatória"
+    );
+
+    document
+      .getElementById(
+        "movementNote"
+      )
+      ?.focus();
+
+    return;
+
+  }
+
+
+  const food =
+    (db.foods || [])
+      .find(
+        row =>
+          String(row.id) ===
+          String(foodId)
+      );
+
+
+  if (!food) {
+
+    await showAceMessage(
+      "Não foi possível identificar o alimento selecionado.",
+      "⚠️ Alimento não identificado"
+    );
+
+    return;
+
+  }
+
+
+  const reserved =
+    getAceMovementBatchReservedQty(
+      foodId,
+      editingId ||
+      null
+    );
+
+
+  const stock =
+    calcStock();
+
+
+  const available =
+    Number(
+      stock[
+        originId
+      ]?.[
+        foodId
+      ] ||
+      0
+    );
+
+
+  const requestedTotal =
+    reserved +
+    qty;
+
+
+  if (
+    requestedTotal >
+    available
+  ) {
+
+    await showAceConfirm(
+      "Não há quantidade suficiente deste alimento no estoque para o lote atual.\n\n" +
+      `Alimento: ${food.name}\n` +
+      `Origem: ${getAceMovementBatchOriginDisplayName()}\n` +
+      `Já reservado no lote: ${fmt(reserved)}\n` +
+      `Nova quantidade: ${fmt(qty)}\n` +
+      `Total solicitado: ${fmt(requestedTotal)}\n` +
+      `Quantidade disponível: ${fmt(available)}`,
+      "⚠️ Estoque insuficiente"
+    );
+
+    return;
+
+  }
+
+
+  const currentItem =
+    editingId
+      ? aceMovementBatchDraft
+          .find(
+            item =>
+              String(item.id) ===
+              String(editingId)
+          )
+      : null;
+
+
+  const selectedPhoto =
+    type ===
+      "perda" &&
+    isAceExpirationReason(
+      reasonId
+    )
+      ? (
+          document
+            .getElementById(
+              "aceLossPhotoInput"
+            )
+            ?.files?.[0] ||
+          null
+        )
+      : null;
+
+
+  let photoFile =
+    null;
+
+
+  if (
+    type ===
+      "perda" &&
+    isAceExpirationReason(
+      reasonId
+    )
+  ) {
+
+    if (selectedPhoto) {
+
+      photoFile =
+        selectedPhoto;
+
+    } else if (
+      currentItem?.photoFile &&
+      !aceMovementBatchDropEditingPhoto
+    ) {
+
+      photoFile =
+        currentItem.photoFile;
+
+    }
+
+  }
+
+
+  const itemData = {
+    id:
+      currentItem?.id ||
+      (
+        crypto?.randomUUID?.() ||
+        `mov-${Date.now()}-${Math.random()}`
+      ),
+    type,
+    foodId:
+      food.id,
+    foodName:
+      food.name,
+    qty,
+    reasonId:
+      type === "perda"
+        ? reasonId
+        : "",
+    reasonName:
+      type === "perda"
+        ? getAceMovementBatchReasonName(
+            reasonId
+          )
+        : "",
+    note,
+    photoFile
+  };
+
+
+  if (currentItem) {
+
+    const index =
+      aceMovementBatchDraft
+        .findIndex(
+          item =>
+            String(item.id) ===
+            String(currentItem.id)
+        );
+
+
+    if (index >= 0) {
+
+      aceMovementBatchDraft[
+        index
+      ] =
+        itemData;
+
+    }
+
+  } else {
+
+    aceMovementBatchDraft.push(
+      itemData
+    );
+
+  }
+
+
+  resetAceMovementBatchItemEditor();
+  renderAceMovementBatchDraft();
+
+}
+
+
+async function clearAceMovementBatchDraft(
+  ask = true
+) {
+
+  if (
+    !aceMovementBatchDraft.length
+  ) {
+
+    resetAceMovementBatchItemEditor();
+
+    return;
+
+  }
+
+
+  if (ask) {
+
+    const confirmed =
+      await showAceConfirm(
+        "Deseja limpar todos os itens desta movimentação?\n\nNenhum estoque será alterado.",
+        "🗑️ Limpar lista"
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+  }
+
+
+  aceMovementBatchDraft = [];
+
+  resetAceMovementBatchItemEditor();
+  renderAceMovementBatchDraft();
+
+}
+
+
+function validateAceMovementBatchStockBeforeRegister(
+  originId
+) {
+
+  const grouped =
+    new Map();
+
+
+  aceMovementBatchDraft
+    .forEach(
+      item => {
+
+        const key =
+          String(
+            item.foodId
+          );
+
+
+        grouped.set(
+          key,
+          (
+            grouped.get(
+              key
+            ) ||
+            0
+          ) +
+          Number(
+            item.qty || 0
+          )
+        );
+
+      }
+    );
+
+
+  const stock =
+    calcStock();
+
+
+  for (
+    const [
+      foodId,
+      requested
+    ]
+    of grouped.entries()
+  ) {
+
+    const available =
+      Number(
+        stock[
+          originId
+        ]?.[
+          foodId
+        ] ||
+        0
+      );
+
+
+    if (
+      requested >
+      available
+    ) {
+
+      const foodName =
+        getName(
+          db.foods,
+          foodId
+        );
+
+
+      const error =
+        new Error(
+          `Estoque insuficiente para ${foodName}. Disponível: ${fmt(available)} unidade(s). Solicitado no lote: ${fmt(requested)} unidade(s).`
+        );
+
+
+      error.code =
+        "ACE_BATCH_STOCK_INSUFFICIENT";
+
+      error.foodId =
+        foodId;
+
+      error.available =
+        available;
+
+      error.requested =
+        requested;
+
+
+      throw error;
+
+    }
+
+  }
+
+
+  return true;
+
+}
+
+
+async function registerAceMovementBatch() {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (!form) {
+    return;
+  }
+
+
+  if (
+    form.dataset.aceMovementBatchSubmitting ===
+    "1"
+  ) {
+    return;
+  }
+
+
+  const date =
+    document.getElementById(
+      "movementDate"
+    )?.value ||
+    "";
+
+  const type =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  const originSelection =
+    document.getElementById(
+      "movementOrigin"
+    )?.value ||
+    "";
+
+  const originId =
+    getAceMovementBatchResolvedOriginId();
+
+
+  if (
+    !date ||
+    !originSelection ||
+    !originId
+  ) {
+
+    await showAceMessage(
+      "Confira a data e a origem antes de registrar a movimentação.",
+      "⚠️ Informação obrigatória"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !aceMovementBatchDraft.length
+  ) {
+
+    await showAceMessage(
+      "Adicione pelo menos um alimento à movimentação.",
+      "Movimentação vazia"
+    );
+
+    return;
+
+  }
+
+
+  const unavailable =
+    aceMovementBatchDraft
+      .find(
+        item =>
+          !(db.foods || [])
+            .some(
+              food =>
+                String(food.id) ===
+                String(item.foodId)
+            )
+      );
+
+
+  if (unavailable) {
+
+    await showAceMessage(
+      "Um alimento do resumo não está mais disponível no cadastro. Remova ou edite esse item antes de registrar.",
+      "Revise a movimentação"
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    validateAceMovementBatchStockBeforeRegister(
+      originId
+    );
+
+  } catch (error) {
+
+    await showAceConfirm(
+      error.message,
+      "⚠️ Estoque insuficiente"
+    );
+
+    return;
+
+  }
+
+
+  const totalUnits =
+    aceMovementBatchDraft
+      .reduce(
+        (
+          total,
+          item
+        ) =>
+          total +
+          Number(
+            item.qty || 0
+          ),
+        0
+      );
+
+
+  const confirmed =
+    await showAceConfirm(
+      `Confira a movimentação antes de registrar:\n\n` +
+      `Tipo: ${getAceMovementBatchTypeLabel(type)}\n` +
+      `Origem: ${getAceMovementBatchOriginDisplayName()}\n` +
+      `Tipos de alimentos: ${aceMovementBatchDraft.length}\n` +
+      `Quantidade total: ${fmt(totalUnits)}\n\n` +
+      `Depois de confirmar, todos os itens serão descontados do estoque.`,
+      "✅ Registrar movimentação completa"
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  form.dataset
+    .aceMovementBatchSubmitting =
+    "1";
+
+
+  const wasInert =
+    form.inert;
+
+
+  form.inert =
+    true;
+
+
+  const submit =
+    document.getElementById(
+      "bulkMovementRegister"
+    );
+
+
+  if (submit) {
+
+    submit.disabled =
+      true;
+
+    submit.textContent =
+      "⏳ Registrando...";
+
+  }
+
+
+  const items =
+    aceMovementBatchDraft
+      .map(
+        item => ({
+          ...item
+        })
+      );
+
+
+  let registeredCount =
+    0;
+
+  let photoWarningCount =
+    0;
+
+
+  try {
+
+    for (
+      const item
+      of items
+    ) {
+
+      const result =
+        await insertMovement({
+          date,
+          type,
+          originId,
+          foodId:
+            item.foodId,
+          qty:
+            item.qty,
+          reasonId:
+            item.reasonId,
+          note:
+            item.note ||
+            ""
+        });
+
+
+      registeredCount +=
+        1;
+
+
+      aceMovementBatchDraft =
+        aceMovementBatchDraft
+          .filter(
+            row =>
+              String(row.id) !==
+              String(item.id)
+          );
+
+
+      if (
+        item.photoFile &&
+        type ===
+          "perda" &&
+        isAceExpirationReason(
+          item.reasonId
+        )
+      ) {
+
+        if (
+          !result.online
+        ) {
+
+          photoWarningCount +=
+            1;
+
+        } else {
+
+          try {
+
+            await saveAceLossEvidence(
+              result.movementId,
+              item.photoFile
+            );
+
+          } catch (photoError) {
+
+            console.error(
+              "ACE - ERRO AO ENVIAR FOTO DO ITEM DO LOTE:",
+              photoError
+            );
+
+            photoWarningCount +=
+              1;
+
+          }
+
+        }
+
+      }
+
+
+      renderAceMovementBatchDraft();
+
+    }
+
+
+    resetAceMovementBatchItemEditor();
+
+    renderAll();
+    renderAceMovementBatchDraft();
+
+
+    if (
+      photoWarningCount >
+      0
+    ) {
+
+      await showAceConfirm(
+        `Movimentação registrada com sucesso.\n\n${photoWarningCount} fotografia(s) não puderam ser enviada(s), mas os registros e o estoque foram mantidos corretamente.`,
+        "⚠️ Movimentação salva com aviso"
+      );
+
+    } else {
+
+      showAceSuccess(
+        `${getAceMovementBatchTypeLabel(type)} registrada com sucesso! ${registeredCount} item(ns) processados.`
+      );
+
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      "ACE - ERRO NA MOVIMENTAÇÃO EM LOTE:",
+      error
+    );
+
+
+    if (
+      registeredCount >
+      0
+    ) {
+
+      renderAll();
+
+    }
+
+
+    renderAceMovementBatchDraft();
+
+
+    await showAceConfirm(
+      (
+        registeredCount >
+        0
+          ? `${registeredCount} item(ns) já foram registrados antes da interrupção.\nOs itens que ainda não foram registrados permanecem no resumo.\n\n`
+          : ""
+      ) +
+      (
+        error?.message ||
+        "Não foi possível concluir a movimentação."
+      ),
+      "❌ Erro ao registrar movimentação"
+    );
+
+
+  } finally {
+
+    delete form.dataset
+      .aceMovementBatchSubmitting;
+
+    form.inert =
+      wasInert;
+
+
+    if (submit) {
+
+      submit.disabled =
+        aceMovementBatchDraft.length ===
+        0;
+
+      submit.textContent =
+        "✅ Registrar movimentação completa";
+
+    }
+
+
+    syncAceMovementBatchContextLock();
+
+  }
+
+}
+
+
+function bindAceMovementBatchEvents() {
+
+  const form =
+    document.getElementById(
+      "movementForm"
+    );
+
+
+  if (
+    !form ||
+    form.dataset.aceMovementBatchBound ===
+      "1"
+  ) {
+    return;
+  }
+
+
+  form.dataset.aceMovementBatchBound =
+    "1";
+
+
+  document
+    .getElementById(
+      "movementType"
+    )
+    ?.addEventListener(
+      "change",
+      () =>
+        syncAceMovementBatchTypeFields(
+          true
+        )
+    );
+
+
+  document
+    .getElementById(
+      "bulkMovementAdd"
+    )
+    ?.addEventListener(
+      "click",
+      async event => {
+
+        event.preventDefault();
+
+
+        const button =
+          event.currentTarget;
+
+
+        if (button.disabled) {
+          return;
+        }
+
+
+        button.disabled =
+          true;
+
+
+        try {
+
+          await addOrUpdateAceMovementBatchItem();
+
+        } finally {
+
+          button.disabled =
+            false;
+
+        }
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "bulkMovementCancelEdit"
+    )
+    ?.addEventListener(
+      "click",
+      event => {
+
+        event.preventDefault();
+
+        resetAceMovementBatchItemEditor();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "bulkMovementClear"
+    )
+    ?.addEventListener(
+      "click",
+      () =>
+        clearAceMovementBatchDraft(
+          true
+        )
+    );
+
+
+  form.addEventListener(
+    "submit",
+    async event => {
+
+      event.preventDefault();
+
+      await registerAceMovementBatch();
+
+    }
+  );
+
+}
+
+
+
 // ============================================================
 // QUANTIDADES INTEIRAS
 // ============================================================
@@ -37213,7 +39838,9 @@ function clearMovementFormData(
   }
 
 
-  form.reset();
+  aceMovementBatchDraft = [];
+
+  resetAceMovementBatchItemEditor();
 
 
   const date =
@@ -37221,88 +39848,58 @@ function clearMovementFormData(
       "movementDate"
     );
 
+  const type =
+    document.getElementById(
+      "movementType"
+    ) ||
+    form.querySelector(
+      '[name="type"]'
+    );
+
+  const origin =
+    document.getElementById(
+      "movementOrigin"
+    ) ||
+    form.querySelector(
+      '[name="origin"]'
+    );
+
+
   if (date) {
     date.value =
       isoToday();
   }
 
 
-  const type =
-    form.querySelector(
-      '[name="type"]'
-    );
-
   if (type) {
+
     type.value =
       "saida";
 
-    type.dispatchEvent(
-      new Event(
-        "change",
-        {
-          bubbles:
-            true
-        }
-      )
-    );
   }
-
-
-  const origin =
-    form.querySelector(
-      '[name="origin"]'
-    );
-
-  const food =
-    form.querySelector(
-      '[name="foodId"]'
-    );
-
-  const qty =
-    form.querySelector(
-      '[name="qty"]'
-    );
-
-  const reason =
-    form.querySelector(
-      '[name="reasonId"]'
-    );
-
-  const note =
-    form.querySelector(
-      '[name="note"]'
-    );
 
 
   if (origin) {
     origin.value = "";
   }
 
-  if (food) {
-    food.value = "";
-  }
 
-  if (qty) {
-    qty.value = "";
-  }
+  syncAceMovementBatchTypeFields(
+    true
+  );
 
-  if (reason) {
-    reason.value = "";
-  }
-
-  if (note) {
-    note.value = "";
-  }
+  renderAceMovementBatchDraft();
 
 
   if (showMessage) {
+
     toast(
       "Dados da Saída/Perda limpos."
     );
+
   }
 
 }
-
 
 function ensureMovementClearButton() {
 
@@ -37482,283 +40079,9 @@ function bindEvents() {
   bindBulkEntryFormEvents();
 
 
-  const movementForm = document.getElementById("movementForm");
-
-  if (movementForm) {
-    movementForm.addEventListener("submit", async e => {
-      e.preventDefault();
-
-      // Impede dois envios simultâneos em toque duplo/clique repetido.
-      if (
-        e.target.dataset
-          .aceMovementSubmitting ===
-          "1"
-      ) {
-        return;
-      }
-
-      const f = new FormData(e.target);
-      const date = f.get("date");
-      const type = f.get("type");
-      const originSelection =
-        f.get("origin");
-      const originId =
-        originSelection ===
-          ACE_GENERAL_STOCK_OPTION_VALUE
-          ? String(
-              getAceGeneralStockOrigin()
-                ?.id ||
-              ""
-            )
-          : originSelection;
-      const foodId = f.get("foodId");
-      const qty = Number(f.get("qty"));
-      const reasonId = f.get("reasonId");
-      const note = String(f.get("note") || "").trim();
-      const lossPhotoFile =
-        type === "perda" &&
-        isAceExpirationReason(reasonId)
-          ? document.getElementById("aceLossPhotoInput")?.files?.[0] || null
-          : null;
-
-      const showMissingMovementField =
-        async (message, selector) => {
-
-          await showAceMessage(
-            message,
-            "⚠️ Informação obrigatória"
-          );
-
-          const field =
-            e.target.querySelector(
-              selector
-            );
-
-          field?.scrollIntoView({
-            behavior: "smooth",
-            block: "center"
-          });
-
-          field?.focus();
-
-        };
-
-
-      if (!date) {
-        await showMissingMovementField(
-          "Selecione a data da movimentação.",
-          '[name="date"]'
-        );
-        return;
-      }
-
-
-      if (!originId) {
-
-        if (
-          originSelection ===
-          ACE_GENERAL_STOCK_OPTION_VALUE
-        ) {
-
-          await showAceMessage(
-            'A origem técnica "Estoque Geral" ainda não foi criada no Supabase.\n\nExecute uma única vez o SQL V69 enviado junto com este app.js.',
-            "⚠️ Atualização necessária"
-          );
-
-          return;
-
-        }
-
-        await showMissingMovementField(
-          "Selecione a Origem do alimento. Escolha Estoque Geral, Água Fria ou Piedade antes de registrar a perda.",
-          '[name="origin"]'
-        );
-        return;
-      }
-
-
-      if (!foodId) {
-        await showMissingMovementField(
-          "Selecione o alimento da movimentação.",
-          '[name="foodId"]'
-        );
-        return;
-      }
-
-
-      if (
-        !Number.isInteger(qty) ||
-        qty <= 0
-      ) {
-        await showMissingMovementField(
-          "Informe uma quantidade inteira maior que zero.",
-          '[name="qty"]'
-        );
-        return;
-      }
-
-      const st = calcStock();
-      const available = Number(st[originId]?.[foodId] || 0);
-
-      if (qty > available) {
-
-        const foodName =
-          getName(
-            db.foods,
-            foodId
-          );
-
-        const originName =
-          originSelection ===
-            ACE_GENERAL_STOCK_OPTION_VALUE
-            ? "Estoque Geral"
-            : getName(
-                db.origins,
-                originId
-              );
-
-
-        await showAceConfirm(
-          "Não há quantidade suficiente deste alimento no estoque.\n\n" +
-          `Alimento: ${foodName}\n` +
-          `Origem: ${originName}\n` +
-          `Quantidade solicitada: ${fmt(qty)}\n` +
-          `Quantidade disponível: ${fmt(available)}`,
-          "⚠️ Estoque insuficiente"
-        );
-
-        return;
-      }
-
-      if (type === "perda" && !reasonId) {
-        await showMissingMovementField(
-          "Selecione o motivo da perda.",
-          '[name="reasonId"]'
-        );
-        return;
-      }
-
-
-      if (
-        type ===
-          "perda"
-        &&
-        isAceOtherMovementReason(
-          reasonId
-        )
-        &&
-        !note
-      ) {
-
-        await showMissingMovementField(
-          'Quando o motivo for "Outro", informe obrigatoriamente a observação descrevendo o motivo da perda.',
-          '[name="note"]'
-        );
-
-        return;
-
-      }
-
-      const submit = e.target.querySelector('button[type="submit"]');
-
-      e.target.dataset
-        .aceMovementSubmitting =
-        "1";
-
-      if (submit) {
-        submit.disabled = true;
-      }
-
-      try {
-
-        const movementResult = await insertMovement({
-          date,
-          type,
-          originId,
-          foodId,
-          qty,
-          reasonId,
-          note
-        });
-
-        let photoWarning = "";
-
-        if (lossPhotoFile) {
-          if (!movementResult.online) {
-            photoWarning =
-              "A perda foi salva, mas a fotografia não pôde ser enviada porque o aparelho está offline.";
-          } else {
-            try {
-              await saveAceLossEvidence(
-                movementResult.movementId,
-                lossPhotoFile
-              );
-            } catch (photoError) {
-              console.error(
-                "ACE - ERRO AO ENVIAR FOTO DA PERDA:",
-                photoError
-              );
-              photoWarning =
-                "A perda foi registrada, porém a fotografia não foi enviada. " +
-                (photoError?.message || "Verifique o Supabase.");
-            }
-          }
-        }
-
-        // insertMovement() já atualiza os dados locais após a
-        // confirmação do Supabase. Não fazemos reload completo
-        // aqui, evitando travamento após várias movimentações seguidas.
-        clearMovementFormData(
-          false
-        );
-
-        resetAceLossPhotoField();
-
-        renderAll();
-
-        if (photoWarning) {
-          await showAceConfirm(
-            photoWarning +
-              "\n\nA movimentação e o estoque foram mantidos corretamente.",
-            "⚠️ Movimentação salva sem foto"
-          );
-        } else {
-          showAceSuccess(
-            type === "perda"
-              ? "Perda registrada com sucesso!"
-              : "Saída registrada com sucesso!"
-          );
-        }
-
-      } catch (error) {
-
-        console.error(
-          "ACE - ERRO AO REGISTRAR SAÍDA/PERDA:",
-          error
-        );
-
-        await showAceConfirm(
-          "Não foi possível registrar a movimentação.\n\n" +
-          (
-            error?.message ||
-            "Verifique a conexão e o Supabase."
-          ),
-          "❌ Erro na movimentação"
-        );
-
-      } finally {
-
-        delete e.target.dataset
-          .aceMovementSubmitting;
-
-        if (submit) {
-          submit.disabled = false;
-        }
-
-      }
-
-    });
-  }
+  // Saída/Perda agora usa o fluxo em lote, igual à Entrada.
+  setupAceMovementBatchForm();
+  bindAceMovementBatchEvents();
 
 
   const dashboardDate = document.getElementById("dashboardDate");
@@ -53154,31 +55477,54 @@ function ensureAceLossPhotoField() {
       <div id="aceLossPhotoStatus">Nenhuma foto selecionada.</div>
     `;
 
-    const submit =
-      form.querySelector(
-        'button[type="submit"]'
+    const batchPhotoSlot =
+      document.getElementById(
+        "aceMovementPhotoSlot"
       );
 
-    // Coloca a foto ANTES do bloco que contém o botão de registro.
-    // Assim o usuário escolhe a imagem e encontra o botão logo abaixo.
-    let submitBlock =
-      submit || null;
 
-    while (
-      submitBlock?.parentElement &&
-      submitBlock.parentElement !== form
-    ) {
-      submitBlock =
-        submitBlock.parentElement;
-    }
+    if (batchPhotoSlot) {
 
-    if (submitBlock?.parentElement === form) {
-      form.insertBefore(
-        field,
-        submitBlock
+      batchPhotoSlot.appendChild(
+        field
       );
+
     } else {
-      form.appendChild(field);
+
+      const submit =
+        form.querySelector(
+          'button[type="submit"]'
+        );
+
+      let submitBlock =
+        submit || null;
+
+      while (
+        submitBlock?.parentElement &&
+        submitBlock.parentElement !== form
+      ) {
+        submitBlock =
+          submitBlock.parentElement;
+      }
+
+      if (
+        submitBlock?.parentElement ===
+        form
+      ) {
+
+        form.insertBefore(
+          field,
+          submitBlock
+        );
+
+      } else {
+
+        form.appendChild(
+          field
+        );
+
+      }
+
     }
 
     const input =
@@ -53247,7 +55593,7 @@ function ensureAceLossPhotoField() {
         }
         if (remove) remove.style.display = "inline-flex";
         if (status) {
-          status.textContent = `Foto pronta: ${(file.size / 1024 / 1024).toFixed(1)} MB. Agora toque em "Registrar movimentação". A imagem será reduzida antes do envio.`;
+          status.textContent = `Foto pronta: ${(file.size / 1024 / 1024).toFixed(1)} MB. Agora toque em "Adicionar à movimentação". A imagem será vinculada a este item.`;
         }
       }
     );
@@ -53256,7 +55602,20 @@ function ensureAceLossPhotoField() {
       "#aceLossPhotoRemove"
     )?.addEventListener(
       "click",
-      resetAceLossPhotoField
+      () => {
+
+        if (
+          aceMovementBatchEditingId
+        ) {
+
+          aceMovementBatchDropEditingPhoto =
+            true;
+
+        }
+
+        resetAceLossPhotoField();
+
+      }
     );
   }
 
@@ -54949,6 +57308,10 @@ function renderAll() {
   // Atualiza o estoque separado de sacos e seus dois históricos.
   renderAceSackModule();
 
+  // Mantém a Saída/Perda em lote sincronizada.
+  setupAceMovementBatchForm();
+  renderAceMovementBatchDraft();
+
   // Mantém o campo de foto visível somente em Perda por Vencimento.
   ensureAceLossPhotoField();
 
@@ -54957,9 +57320,6 @@ function renderAll() {
 
   // Garante números inteiros em Entrada, Saída, Perda e Cestas.
   setupIntegerQuantityInputs();
-
-  // Mantém o botão de limpar dados no cabeçalho da Saída/Perda.
-  ensureMovementClearButton();
 
   if (
     typeof setupProfessionalMobileLayout ===
@@ -57436,6 +59796,9 @@ async function initApp() {
 
     // Cria o histórico de Saída/Perda abaixo do formulário.
     ensureMovementDayHistory();
+
+    // Substitui Saída/Perda pelo novo fluxo em lote.
+    setupAceMovementBatchForm();
 
     // Foto opcional apenas para perdas causadas por vencimento.
     ensureAceLossPhotoField();
