@@ -37656,9 +37656,17 @@ function syncAceMovementBatchTypeFields(
 
   if (reason) {
 
+    // A obrigatoriedade do motivo é verificada ao ADICIONAR o item.
+    // Não usamos required aqui para não bloquear o registro final do lote.
     reason.required =
-      type ===
-      "perda";
+      false;
+
+    reason.setAttribute(
+      "aria-required",
+      type === "perda"
+        ? "true"
+        : "false"
+    );
 
     if (
       type !==
@@ -37721,6 +37729,18 @@ function setupAceMovementBatchForm() {
 
   form.dataset.aceMovementBatchReady =
     "1";
+
+  // ACE V161:
+  // o registro final usa a validação própria do lote.
+  // Isso impede o navegador de bloquear o botão final porque
+  // Alimento/Quantidade/Motivo do editor estão vazios após adicionar itens.
+  form.noValidate =
+    true;
+
+  form.setAttribute(
+    "novalidate",
+    ""
+  );
 
   form.dataset.aceBulkBound =
     "0";
@@ -37823,7 +37843,6 @@ function setupAceMovementBatchForm() {
             <select
               id="movementFood"
               name="foodId"
-              required
             >
               <option value="">
                 Selecione...
@@ -37847,7 +37866,6 @@ function setupAceMovementBatchForm() {
               step="1"
               inputmode="numeric"
               placeholder="Ex.: 10"
-              required
             >
 
           </div>
@@ -37970,6 +37988,7 @@ function setupAceMovementBatchForm() {
         <button
           id="bulkMovementRegister"
           type="submit"
+          formnovalidate
           disabled
         >
           ✅ Registrar movimentação completa
