@@ -37057,7 +37057,7 @@ function bindBulkEntryFormEvents() {
 // ACE V160 — SAÍDAS E PERDAS EM LOTE
 // Mesmo fluxo da Entrada em lote:
 // - adiciona vários alimentos antes de registrar;
-// - Data, Origem e Tipo travam após o primeiro item;
+// - Data, Destino/Origem e Tipo travam após o primeiro item;
 // - Motivo e Observação permanecem individuais;
 // - foto de perda por vencimento fica vinculada ao item;
 // - valida o estoque total do lote antes de iniciar o registro.
@@ -37547,6 +37547,26 @@ function getAceMovementBatchTypeLabel(
 }
 
 
+function getAceMovementBatchLocationLabel(
+  type = null
+) {
+
+  const movementType =
+    type ||
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+
+  return movementType ===
+    "perda"
+      ? "Origem"
+      : "Destino";
+
+}
+
+
 function syncAceMovementBatchContextLock() {
 
   const locked =
@@ -37567,9 +37587,14 @@ function syncAceMovementBatchContextLock() {
   ];
 
 
+  const locationLabel =
+    getAceMovementBatchLocationLabel()
+      .toLowerCase();
+
+
   const message =
     locked
-      ? "Conclua ou limpe a movimentação atual antes de alterar a data, a origem ou o tipo."
+      ? `Conclua ou limpe a movimentação atual antes de alterar a data, o ${locationLabel} ou o tipo.`
       : "";
 
 
@@ -37645,6 +37670,40 @@ function syncAceMovementBatchTypeFields(
     document.getElementById(
       "movementReason"
     );
+
+
+  const locationLabel =
+    document.getElementById(
+      "movementLocationLabel"
+    );
+
+
+  if (locationLabel) {
+
+    locationLabel.textContent =
+      getAceMovementBatchLocationLabel(
+        type
+      );
+
+  }
+
+
+  const lockText =
+    document.getElementById(
+      "aceMovementBatchLockText"
+    );
+
+
+  if (lockText) {
+
+    lockText.textContent =
+      `🔒 Data, ${
+        type === "perda"
+          ? "origem"
+          : "destino"
+      } e tipo ficam bloqueados até registrar ou limpar esta movimentação.`;
+
+  }
 
 
   if (reasonWrap) {
@@ -37813,8 +37872,11 @@ function setupAceMovementBatchForm() {
 
           <div class="ace-movement-batch-field full">
 
-            <label for="movementOrigin">
-              Origem
+            <label
+              id="movementLocationLabel"
+              for="movementOrigin"
+            >
+              Destino
             </label>
 
             <select
@@ -37938,7 +38000,7 @@ function setupAceMovementBatchForm() {
 
 
         <div class="ace-movement-batch-help">
-          Data, origem, tipo, alimento e quantidade são obrigatórios.
+          Data, destino/origem, tipo, alimento e quantidade são obrigatórios.
           Em <b>Perda</b>, o motivo pertence a cada alimento.
         </div>
 
@@ -37947,7 +38009,9 @@ function setupAceMovementBatchForm() {
           id="aceMovementBatchLockNote"
           class="ace-movement-batch-lock-note"
         >
-          🔒 Data, origem e tipo ficam bloqueados até registrar ou limpar esta movimentação.
+          <span id="aceMovementBatchLockText">
+            🔒 Data, destino e tipo ficam bloqueados até registrar ou limpar esta movimentação.
+          </span>
         </div>
 
       </div>
@@ -38766,7 +38830,7 @@ async function addOrUpdateAceMovementBatchItem() {
   if (!originSelection) {
 
     await showAceMessage(
-      "Selecione a origem da movimentação.",
+      `Selecione o ${getAceMovementBatchLocationLabel(type).toLowerCase()} da movimentação.`,
       "⚠️ Informação obrigatória"
     );
 
@@ -38785,7 +38849,7 @@ async function addOrUpdateAceMovementBatchItem() {
 
     await showAceMessage(
       'A origem técnica "Estoque Geral" ainda não está disponível no sistema.',
-      "⚠️ Origem indisponível"
+      "⚠️ Local indisponível"
     );
 
     return;
@@ -38938,7 +39002,7 @@ async function addOrUpdateAceMovementBatchItem() {
     await showAceConfirm(
       "Não há quantidade suficiente deste alimento no estoque para o lote atual.\n\n" +
       `Alimento: ${food.name}\n` +
-      `Origem: ${getAceMovementBatchOriginDisplayName()}\n` +
+      `${getAceMovementBatchLocationLabel(type)}: ${getAceMovementBatchOriginDisplayName()}\n` +
       `Já reservado no lote: ${fmt(reserved)}\n` +
       `Nova quantidade: ${fmt(qty)}\n` +
       `Total solicitado: ${fmt(requestedTotal)}\n` +
@@ -39262,7 +39326,7 @@ async function registerAceMovementBatch() {
   ) {
 
     await showAceMessage(
-      "Confira a data e a origem antes de registrar a movimentação.",
+      `Confira a data e o ${getAceMovementBatchLocationLabel(type).toLowerCase()} antes de registrar a movimentação.`,
       "⚠️ Informação obrigatória"
     );
 
@@ -39347,7 +39411,7 @@ async function registerAceMovementBatch() {
     await showAceConfirm(
       `Confira a movimentação antes de registrar:\n\n` +
       `Tipo: ${getAceMovementBatchTypeLabel(type)}\n` +
-      `Origem: ${getAceMovementBatchOriginDisplayName()}\n` +
+      `${getAceMovementBatchLocationLabel(type)}: ${getAceMovementBatchOriginDisplayName()}\n` +
       `Tipos de alimentos: ${aceMovementBatchDraft.length}\n` +
       `Quantidade total: ${fmt(totalUnits)}\n\n` +
       `Depois de confirmar, todos os itens serão descontados do estoque.`,
