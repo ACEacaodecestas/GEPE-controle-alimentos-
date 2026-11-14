@@ -37269,6 +37269,15 @@ function ensureAceMovementBatchStyles() {
       min-width:0;
     }
 
+    /* ACE V164:
+       respeita de verdade o atributo hidden.
+       - "Informe o destino" só aparece quando Destino = Outro.
+       - "Motivo" só aparece quando Tipo = Perda.
+    */
+    #movementForm .ace-movement-batch-field[hidden]{
+      display:none !important;
+    }
+
     .ace-movement-batch-field.full{
       grid-column:1 / -1;
     }
