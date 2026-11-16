@@ -66440,6 +66440,263 @@ function aceStatsNormalize(value) {
 }
 
 
+// ============================================================
+// ACE V165 — NORMALIZAÇÃO DE DESTINOS
+// Para agrupamentos, filtros, gráficos e relatórios:
+// - ignora maiúsculas/minúsculas;
+// - ignora acentos;
+// - ignora espaços extras;
+// - preserva um nome de exibição padronizado.
+// Os registros originais NÃO são alterados.
+// ============================================================
+
+function aceDestinationGroupKey(
+  value
+) {
+
+  return String(
+    value || ""
+  )
+    .normalize(
+      "NFD"
+    )
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+}
+
+
+function aceDestinationDisplayName(
+  value
+) {
+
+  const raw =
+    String(
+      value || ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+
+  const key =
+    aceDestinationGroupKey(
+      raw
+    );
+
+
+  if (!key) {
+    return "Destino não informado";
+  }
+
+
+  const official = {
+    "agua fria":
+      "Água Fria",
+    "piedade":
+      "Piedade",
+    "messejana":
+      "Messejana",
+    "praia do futuro":
+      "Praia do Futuro",
+    "vinha de luz":
+      "Vinha de Luz",
+    "comunidade":
+      "Comunidade"
+  };
+
+
+  if (
+    official[
+      key
+    ]
+  ) {
+
+    return official[
+      key
+    ];
+
+  }
+
+
+  /*
+    Para destinos manuais, padroniza apenas a apresentação.
+    Exemplo:
+      "ASSOCIAÇÃO SÃO JOSÉ" -> "Associação São José"
+      "associação são josé" -> "Associação São José"
+  */
+  const connectors =
+    new Set([
+      "a",
+      "as",
+      "da",
+      "das",
+      "de",
+      "do",
+      "dos",
+      "e"
+    ]);
+
+
+  return raw
+    .toLocaleLowerCase(
+      "pt-BR"
+    )
+    .split(
+      " "
+    )
+    .map(
+      (word, index) => {
+
+        if (
+          index > 0 &&
+          connectors.has(
+            word
+          )
+        ) {
+
+          return word;
+
+        }
+
+
+        return word
+          ? (
+              word.charAt(0)
+                .toLocaleUpperCase(
+                  "pt-BR"
+                ) +
+              word.slice(1)
+            )
+          : "";
+
+      }
+    )
+    .join(
+      " "
+    );
+
+}
+
+
+function aceStatsAggregateDestinations(
+  rows,
+  labelFn,
+  valueFn
+) {
+
+  const map =
+    new Map();
+
+
+  (
+    Array.isArray(
+      rows
+    )
+      ? rows
+      : []
+  )
+    .forEach(
+      row => {
+
+        const rawLabel =
+          String(
+            labelFn(row) ||
+            "Destino não informado"
+          );
+
+
+        const key =
+          aceDestinationGroupKey(
+            rawLabel
+          ) ||
+          "__destino_nao_informado__";
+
+
+        const label =
+          key ===
+            "__destino_nao_informado__"
+            ? "Destino não informado"
+            : aceDestinationDisplayName(
+                rawLabel
+              );
+
+
+        const value =
+          Number(
+            valueFn
+              ? valueFn(
+                  row
+                )
+              : row?.qty ||
+                0
+          );
+
+
+        const current =
+          map.get(
+            key
+          ) || {
+            label,
+            value: 0
+          };
+
+
+        current.value +=
+          value;
+
+
+        /*
+          Se aparecer posteriormente uma grafia oficial conhecida,
+          mantém a apresentação padronizada.
+        */
+        current.label =
+          aceDestinationDisplayName(
+            current.label ||
+            rawLabel
+          );
+
+
+        map.set(
+          key,
+          current
+        );
+
+      }
+    );
+
+
+  return [
+    ...map.values()
+  ]
+    .sort(
+      (a, b) =>
+        b.value -
+          a.value ||
+        String(
+          a.label
+        )
+          .localeCompare(
+            String(
+              b.label
+            ),
+            "pt-BR"
+          )
+    );
+
+}
+
+
 function aceStatsName(list, id, fallback = "—") {
   const source = Array.isArray(list) ? list : [];
 
@@ -67514,41 +67771,106 @@ function aceStatsRefreshFilterOptions() {
   }
 
   if (destinationSelect) {
-    const selected =
-      destinationSelect.value;
+
+    const selectedKey =
+      aceDestinationGroupKey(
+        destinationSelect.value
+      );
+
+
+    const destinationMap =
+      new Map();
+
+
+    (db?.basketWithdrawals || [])
+      .forEach(
+        row => {
+
+          const raw =
+            String(
+              row?.destination ||
+              ""
+            )
+              .trim();
+
+
+          const key =
+            aceDestinationGroupKey(
+              raw
+            );
+
+
+          if (
+            !key
+          ) {
+            return;
+          }
+
+
+          if (
+            !destinationMap.has(
+              key
+            )
+          ) {
+
+            destinationMap.set(
+              key,
+              aceDestinationDisplayName(
+                raw
+              )
+            );
+
+          }
+
+        }
+      );
+
 
     const destinations =
-      [...new Set(
-        (db?.basketWithdrawals || [])
-          .map(row =>
-            String(
-              row?.destination || ""
-            ).trim()
-          )
-          .filter(Boolean)
-      )]
-        .sort((a, b) =>
-          a.localeCompare(
-            b,
-            "pt-BR"
-          )
+      [
+        ...destinationMap
+          .entries()
+      ]
+        .map(
+          (
+            [
+              key,
+              name
+            ]
+          ) => ({
+            key,
+            name
+          })
+        )
+        .sort(
+          (a, b) =>
+            a.name
+              .localeCompare(
+                b.name,
+                "pt-BR"
+              )
         );
+
 
     destinationSelect.innerHTML = `
       <option value="">Todos os destinos</option>
-      ${destinations.map(name => `
-        <option value="${aceStatsEsc(name)}">
-          ${aceStatsEsc(name)}
+      ${destinations.map(item => `
+        <option value="${aceStatsEsc(item.key)}">
+          ${aceStatsEsc(item.name)}
         </option>
       `).join("")}
     `;
 
+
     destinationSelect.value =
-      destinations.includes(
-        selected
+      destinations.some(
+        item =>
+          item.key ===
+          selectedKey
       )
-        ? selected
+        ? selectedKey
         : "";
+
   }
 }
 
@@ -67617,10 +67939,13 @@ function aceStatsRowMatches(
   if (
     destination &&
     filters.destination &&
-    String(
-      row.destination || ""
+    aceDestinationGroupKey(
+      row.destination ||
+      ""
     ) !==
-      String(filters.destination)
+      aceDestinationGroupKey(
+        filters.destination
+      )
   ) {
     return false;
   }
@@ -68768,13 +69093,27 @@ function aceMonthlyBuildModel(source,state) {
     totals[key]+=value;
     if(key===dailyKey&&byDay.has(day)){byDay.get(day).value+=value;byDay.get(day).count++;}
     if((foodMode&&key==='c')||(!foodMode&&key==='b')){
-      const label=foodMode?aceStatsName(source.reasons,row.reasonId,row.reason||'Motivo não informado'):String(row.destination||'Destino não informado');
-      ranking.set(label,(ranking.get(label)||0)+value);
+      if(foodMode){
+        const label=aceStatsName(source.reasons,row.reasonId,row.reason||'Motivo não informado');
+        ranking.set(label,(ranking.get(label)||0)+value);
+      }else{
+        const rawDestination=String(row.destination||'Destino não informado');
+        const destinationKey=aceDestinationGroupKey(rawDestination)||'__destino_nao_informado__';
+        const current=ranking.get(destinationKey)||{
+          label:destinationKey==='__destino_nao_informado__'?'Destino não informado':aceDestinationDisplayName(rawDestination),
+          value:0
+        };
+        current.value+=value;
+        ranking.set(destinationKey,current);
+      }
     }
   });
   const foods=aceMonthlyFoods(source);
   return {mode:foodMode?'food':'basket',month,anchor,span,months:monthly,series,totals,days,dailyKey,
-    ranking:[...ranking].map(([label,value])=>({label,value})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value||a.label.localeCompare(b.label,'pt-BR')),
+    ranking:(foodMode
+      ? [...ranking].map(([label,value])=>({label,value}))
+      : [...ranking.values()]
+    ).filter(x=>x.value>0).sort((a,b)=>b.value-a.value||a.label.localeCompare(b.label,'pt-BR')),
     unit:foodMode?'unidades':'cestas',foodName:foodMode?(foods.find(food=>food.id===String(state.foodId))?.name||(state.foodId?`Alimento #${state.foodId}`:'Todos os alimentos')):'Cestas',foods};
 }
 function aceMonthlyFoodOptions(model) {
@@ -69008,10 +69347,11 @@ function renderAceStatistics() {
 
         if (
           filters.destination &&
-          String(
-            row.destination || ""
+          aceDestinationGroupKey(
+            row.destination ||
+            ""
           ) !==
-            String(
+            aceDestinationGroupKey(
               filters.destination
             )
         ) {
@@ -69179,7 +69519,7 @@ function renderAceStatistics() {
     );
 
   const basketDestinations =
-    aceStatsAggregate(
+    aceStatsAggregateDestinations(
       baskets,
       row =>
         row.destination ||
@@ -69751,7 +70091,7 @@ window.aceBuildStatisticsReportHtml =
       );
 
     const basketDestinations =
-      aceStatsAggregate(
+      aceStatsAggregateDestinations(
         baskets,
         row =>
           row.destination ||
