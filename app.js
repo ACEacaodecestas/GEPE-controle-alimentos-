@@ -66697,6 +66697,225 @@ function aceStatsAggregateDestinations(
 }
 
 
+// ============================================================
+// ACE V166 — EQUIVALÊNCIAS ESTATÍSTICAS CONFIRMADAS
+//
+// Não altera nenhum registro histórico.
+// Apenas consolida nomes equivalentes na leitura estatística.
+//
+// Confirmado pelo usuário:
+// - Doação Teatro + Teatro Transcendental -> Teatro Transcendental
+// - FNTI + CESTAS FNTI -> FNTI
+// ============================================================
+
+function aceStatsCanonicalKey(
+  value
+) {
+
+  return String(
+    value || ""
+  )
+    .normalize(
+      "NFD"
+    )
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+}
+
+
+function aceStatsCanonicalOriginName(
+  value
+) {
+
+  const raw =
+    String(
+      value || ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+
+  const key =
+    aceStatsCanonicalKey(
+      raw
+    );
+
+
+  const aliases = {
+    "doacao teatro":
+      "Teatro Transcendental",
+    "teatro transcendental":
+      "Teatro Transcendental"
+  };
+
+
+  return (
+    aliases[
+      key
+    ] ||
+    raw ||
+    "Origem não informada"
+  );
+
+}
+
+
+function aceStatsCanonicalBasketTypeName(
+  value
+) {
+
+  const raw =
+    String(
+      value || ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+
+  const key =
+    aceStatsCanonicalKey(
+      raw
+    );
+
+
+  const aliases = {
+    "fnti":
+      "FNTI",
+    "cestas fnti":
+      "FNTI"
+  };
+
+
+  return (
+    aliases[
+      key
+    ] ||
+    raw ||
+    "Cesta não informada"
+  );
+
+}
+
+
+function aceStatsAggregateCanonical(
+  rows,
+  labelFn,
+  valueFn,
+  canonicalNameFn
+) {
+
+  const map =
+    new Map();
+
+
+  (
+    Array.isArray(
+      rows
+    )
+      ? rows
+      : []
+  )
+    .forEach(
+      row => {
+
+        const rawLabel =
+          String(
+            labelFn(row) ||
+            "Não informado"
+          )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
+
+
+        const label =
+          canonicalNameFn(
+            rawLabel
+          );
+
+
+        const key =
+          aceStatsCanonicalKey(
+            label
+          ) ||
+          "__nao_informado__";
+
+
+        const value =
+          Number(
+            valueFn
+              ? valueFn(
+                  row
+                )
+              : row?.qty ||
+                0
+          );
+
+
+        const current =
+          map.get(
+            key
+          ) || {
+            label,
+            value: 0
+          };
+
+
+        current.value +=
+          Number.isFinite(
+            value
+          )
+            ? value
+            : 0;
+
+
+        map.set(
+          key,
+          current
+        );
+
+      }
+    );
+
+
+  return [
+    ...map.values()
+  ]
+    .sort(
+      (a, b) =>
+        b.value -
+          a.value ||
+        String(
+          a.label
+        )
+          .localeCompare(
+            String(
+              b.label
+            ),
+            "pt-BR"
+          )
+    );
+
+}
+
+
 function aceStatsName(list, id, fallback = "—") {
   const source = Array.isArray(list) ? list : [];
 
@@ -69363,14 +69582,15 @@ function renderAceStatistics() {
       });
 
   const entryOrigins =
-    aceStatsAggregate(
+    aceStatsAggregateCanonical(
       entries,
       row =>
         getAceEntryOriginDisplayName(
           row
         ),
       row =>
-        row.qty
+        row.qty,
+      aceStatsCanonicalOriginName
     );
 
   const entryFoods =
@@ -69509,13 +69729,14 @@ function renderAceStatistics() {
       .slice(0, 3);
 
   const basketTypes =
-    aceStatsAggregate(
+    aceStatsAggregateCanonical(
       baskets,
       row =>
         row.basketName ||
         "Cesta não informada",
       row =>
-        row.qty
+        row.qty,
+      aceStatsCanonicalBasketTypeName
     );
 
   const basketDestinations =
@@ -70015,15 +70236,15 @@ window.aceBuildStatisticsReportHtml =
       );
 
     const entryOrigins =
-      aceStatsAggregate(
+      aceStatsAggregateCanonical(
         entries,
         row =>
-          aceStatsName(
-            db?.origins,
-            row.originId
+          getAceEntryOriginDisplayName(
+            row
           ),
         row =>
-          row.qty
+          row.qty,
+        aceStatsCanonicalOriginName
       );
 
     const entryFoods =
@@ -70079,7 +70300,7 @@ window.aceBuildStatisticsReportHtml =
       );
 
     const basketTypes =
-      aceStatsAggregate(
+      aceStatsAggregateCanonical(
         baskets,
         row =>
           row.basketName ||
@@ -70087,7 +70308,8 @@ window.aceBuildStatisticsReportHtml =
         row =>
           row.qty ??
           row.basketQty ??
-          0
+          0,
+        aceStatsCanonicalBasketTypeName
       );
 
     const basketDestinations =
