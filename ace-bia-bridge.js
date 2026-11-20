@@ -62,7 +62,13 @@
   async function prepare({from,to,origin=""}){
     if(!authorized())fail("O ACE ainda não confirmou seu acesso. Reconecte sua conta.");
     if(!okDate(from)||!okDate(to)||from>to)fail("Datas do período inválidas.");
-    if(typeof reloadFromSupabase==="function")await reloadFromSupabase(false);
+    // A autenticação já carregou a base no ACE. Evita recarregar tudo em duplicidade
+    // imediatamente antes da prévia, o que era especialmente lento no celular.
+    if(Date.now()-lastLoadedAt>30000&&typeof reloadFromSupabase==="function"){
+      await reloadFromSupabase(false);
+      lastLoadedAt=Date.now();
+    }
+    if(!dataReady())fail("O ACE ainda não concluiu a leitura dos registros.");
     navigate("relatorios");
     const first=document.getElementById("reportStart"),last=document.getElementById("reportEnd"),sel=document.getElementById("reportOrigin");
     if(!first||!last)fail("Os filtros originais de período não estão disponíveis.");
