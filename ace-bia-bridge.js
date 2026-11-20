@@ -10,20 +10,38 @@
   const okDate=s=>{if(!/^20\d{2}-\d{2}-\d{2}$/.test(String(s||"")))return false;const d=new Date(s+"T12:00:00Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s};
   const authorized=()=>typeof currentUser!=="undefined"&&Boolean(currentUser?.id);
   const delay=ms=>new Promise(r=>setTimeout(r,ms));
+  // Usa a mesma autorização do ACE, sem pedir novo login ao usuário.
+  let lastLoadedAt=0;
+  const dataReady=()=>authorized()&&typeof db!=="undefined"&&Array.isArray(db?.entries)&&Array.isArray(db?.movements);
   async function ensureSession(data){
-    if(!data?.access_token||!data?.refresh_token)fail("Entre com sua conta no botão ACE do escritório.");
-    if(typeof supabaseClient==="undefined")fail("A autenticação do ACE não iniciou.");
+    if(!data?.access_token||!data?.refresh_token)fail("A sessão do ACE não está disponível nesta aba. Confira a conexão do escritório.");
+    if(typeof supabaseClient==="undefined")fail("O mecanismo de autenticação do ACE não iniciou.");
     const {data:auth,error}=await supabaseClient.auth.setSession({access_token:data.access_token,refresh_token:data.refresh_token});
-    if(error||!auth?.user?.id)fail("A sessão ACE não foi autorizada. Reconecte sua conta no escritório.");
-    for(let i=0;i<60;i++){
-      if(authorized()&&typeof db!=="undefined"&&db?.entries&&db?.movements)return {connected:true,ready:true};
-      await delay(250);
+    if(error||!auth?.user?.id)fail("O ACE não aceitou a sessão atual. Confira se sua conta permanece autenticada no escritório.");
+    const userId=String(auth.user.id);
+    // Confere no próprio ACE as permissões da conta que veio do escritório.
+    if(typeof loadAceOnlineAccess!=="function")fail("O controle de acesso oficial do ACE não está disponível.");
+    await loadAceOnlineAccess(auth.user);
+    const ok=()=>dataReady()&&String(currentUser.id)===userId;
+    // O listener SIGNED_IN do ACE inicializa a base. Nunca reiniciar à força
+    // enquanto o initApp está trabalhando: isso duplicava a carga e travava relatórios.
+    for(let i=0;i<35;i++){
+      if(ok()){lastLoadedAt=Date.now();return {connected:true,ready:true,original:true};}
+      await delay(350);
     }
-    // Em um iframe isolado, algumas rotinas de inicialização dependem do evento de login.
-    if(typeof currentUser!=="undefined"&&!currentUser)currentUser=auth.user;
-    if(typeof initApp==="function"&&!db){appStarted=false;await initApp();}
-    if(!db)fail("A sessão foi autorizada, mas os registros ACE ainda não carregaram.");
-    return {connected:true,ready:true};
+    if(!authorized()&&typeof currentUser!=="undefined"&&!currentUser){
+      // O acesso já foi validado em ace_app_users. Recupera a inicialização
+      // quando o evento SIGNED_IN não disparou (alguns navegadores móveis).
+      currentUser=auth.user;
+    }
+    if(typeof initApp==="function"&&typeof appStarted!=="undefined"&&!appStarted){
+      await initApp();
+    }
+    for(let i=0;i<95;i++){
+      if(ok()){lastLoadedAt=Date.now();return {connected:true,ready:true,original:true};}
+      await delay(350);
+    }
+    fail("A conta foi autorizada, mas o ACE não concluiu a sincronização dos registros para gerar o relatório. Não foi solicitado novo login.");
   }
   function navigate(page){
     const pages=new Set(["dashboard","entrada","movimentacao","presenca","estoque","relatorios","cadastros","estatisticas","inventario","inventarioSacos","sacosEstoque","sacos"]);
