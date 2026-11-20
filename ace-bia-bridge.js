@@ -1,4 +1,4 @@
-/* Integração adicional Bia/Escritório IA GEPE com o ACE original.
+/* Integração Bia/Escritório IA GEPE com o ACE original (execução discreta e relatórios oficiais).
  * Somente relatórios e navegação autorizada. Nenhuma alteração de dados.
  * O login e as permissões continuam sendo os do próprio ACE/Supabase.
  */
