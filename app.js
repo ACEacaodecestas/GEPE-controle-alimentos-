@@ -2753,6 +2753,7 @@ function applyLocalMovement({
   date,
   type,
   originId,
+  originCustomName = "",
   foodId,
   qty,
   reasonName,
@@ -2787,6 +2788,10 @@ function applyLocalMovement({
       Number(qty),
     originId:
       Number(originId),
+    originCustomName:
+      type === "perda"
+        ? String(originCustomName || "").trim()
+        : "",
     destinationName:
       type === "saida"
         ? String(destinationName || "").trim()
@@ -2813,6 +2818,10 @@ function applyLocalMovement({
       date,
       type,
       originId,
+      originCustomName:
+        type === "perda"
+          ? String(originCustomName || "").trim()
+          : "",
       foodId,
       qty,
       reason:
@@ -5007,42 +5016,52 @@ async function aceLoadFromSupabaseNetwork(
         };
       }),
 
-      ...losses.map(p => ({
-        id: `perda-${p.id}`,
-        rawId: Number(p.id),
-        sourceTable: "perdas",
-        date: p.data_perda,
-        type: "perda",
-        foodId: Number(p.alimento_id),
-        qty: Number(p.quantidade || 0),
-        originId: Number(p.origem_id),
-        usuarioId: p.usuario_id || null,
-        usuarioNome:
-          p.usuario_nome ||
-          p.usuarioNome ||
-          getAceUserNameFromDirectory(
-            p.usuario_id
-          ) ||
-          null,
-        reasonId:
-          reasons.find(
-            r =>
-              r.name
-                .toLowerCase() ===
-              String(
-                p.motivo || ""
-              ).toLowerCase()
-          )?.id ||
-          p.motivo ||
-          null,
-        note:
-          p.observacao ||
-          p.obs ||
-          "",
-        createdAt:
-          p.created_at ||
-          `${p.data_perda || isoToday()}T00:00:00Z`
-      }))
+      ...losses.map(p => {
+
+        const storedLoss =
+          aceDecodeCustomLossOriginStorage(
+            p.observacao ||
+            p.obs ||
+            ""
+          );
+
+        return {
+          id: `perda-${p.id}`,
+          rawId: Number(p.id),
+          sourceTable: "perdas",
+          date: p.data_perda,
+          type: "perda",
+          foodId: Number(p.alimento_id),
+          qty: Number(p.quantidade || 0),
+          originId: Number(p.origem_id),
+          originCustomName:
+            storedLoss.originCustomName,
+          usuarioId: p.usuario_id || null,
+          usuarioNome:
+            p.usuario_nome ||
+            p.usuarioNome ||
+            getAceUserNameFromDirectory(
+              p.usuario_id
+            ) ||
+            null,
+          reasonId:
+            reasons.find(
+              r =>
+                r.name
+                  .toLowerCase() ===
+                String(
+                  p.motivo || ""
+                ).toLowerCase()
+            )?.id ||
+            p.motivo ||
+            null,
+          note:
+            storedLoss.note,
+          createdAt:
+            p.created_at ||
+            `${p.data_perda || isoToday()}T00:00:00Z`
+        };
+      })
 
     ],
 
@@ -5115,12 +5134,19 @@ async function aceLoadFromSupabaseNetwork(
                     h.observacao || ""
                   )
                 }
-              : {
-                  originCustomName: "",
-                  destinationName: "",
-                  note:
-                    h.observacao || ""
-                };
+              : h.tipo === "perda"
+                ? {
+                    destinationName: "",
+                    ...aceDecodeCustomLossOriginStorage(
+                      h.observacao || ""
+                    )
+                  }
+                : {
+                    originCustomName: "",
+                    destinationName: "",
+                    note:
+                      h.observacao || ""
+                  };
 
         return {
           id: Number(h.id),
@@ -6580,6 +6606,100 @@ async function insertOrigin(name) {
 const ACE_ENTRY_OTHER_OPTION_VALUE = "__ace_entry_other__";
 const ACE_ENTRY_CUSTOM_ORIGIN_MARKER = "[[ACE_ORIGEM_LIVRE:";
 
+// ============================================================
+// ACE V167 — PERDA: ORIGEM "OUTRO" COM NOME MANUAL
+// ============================================================
+const ACE_LOSS_ORIGIN_OTHER_VALUE =
+  "__ace_loss_origin_other__";
+
+const ACE_LOSS_CUSTOM_ORIGIN_MARKER =
+  "[[ACE_ORIGEM_PERDA_LIVRE:";
+
+
+function aceEncodeCustomLossOriginStorage(
+  note = "",
+  originCustomName = ""
+) {
+
+  const cleanNote =
+    String(note || "").trim();
+
+  const cleanOrigin =
+    String(originCustomName || "").trim();
+
+  if (!cleanOrigin) {
+    return cleanNote;
+  }
+
+  return (
+    `${ACE_LOSS_CUSTOM_ORIGIN_MARKER}` +
+    `${encodeURIComponent(cleanOrigin)}]]` +
+    `${cleanNote ? "\n" + cleanNote : ""}`
+  );
+}
+
+
+function aceDecodeCustomLossOriginStorage(
+  value = ""
+) {
+
+  const raw =
+    String(value || "");
+
+  if (
+    !raw.startsWith(
+      ACE_LOSS_CUSTOM_ORIGIN_MARKER
+    )
+  ) {
+    return {
+      originCustomName: "",
+      note: raw
+    };
+  }
+
+  const end =
+    raw.indexOf(
+      "]]",
+      ACE_LOSS_CUSTOM_ORIGIN_MARKER.length
+    );
+
+  if (end < 0) {
+    return {
+      originCustomName: "",
+      note: raw
+    };
+  }
+
+  const encoded =
+    raw.slice(
+      ACE_LOSS_CUSTOM_ORIGIN_MARKER.length,
+      end
+    );
+
+  let originCustomName = "";
+
+  try {
+    originCustomName =
+      decodeURIComponent(
+        encoded
+      ).trim();
+  } catch {
+    originCustomName =
+      encoded.trim();
+  }
+
+  const note =
+    raw
+      .slice(end + 2)
+      .replace(/^\r?\n/, "");
+
+  return {
+    originCustomName,
+    note
+  };
+}
+
+
 function isAceGenericOtherOrigin(origin) {
   return normalizeAceText(origin?.name || origin?.nome || "") === "outro";
 }
@@ -7670,6 +7790,7 @@ async function insertMovement({
   date,
   type,
   originId,
+  originCustomName = "",
   foodId,
   qty,
   reasonId,
@@ -7764,7 +7885,10 @@ async function insertMovement({
           motivo:
             reasonName,
           observacao:
-            note || "",
+            aceEncodeCustomLossOriginStorage(
+              note || "",
+              originCustomName
+            ),
           usuario_id:
             userId
         };
@@ -7799,7 +7923,10 @@ async function insertMovement({
             destinationName,
             note || ""
           )
-        : note || "",
+        : aceEncodeCustomLossOriginStorage(
+            note || "",
+            originCustomName
+          ),
     usuario_id:
       userId
   };
@@ -7816,6 +7943,7 @@ async function insertMovement({
       date,
       type,
       originId,
+      originCustomName,
       foodId,
       qty:
         Number(
@@ -7913,6 +8041,7 @@ async function insertMovement({
       date,
       type,
       originId,
+      originCustomName,
       foodId,
       qty:
         Number(
@@ -7954,6 +8083,7 @@ async function insertMovement({
       date,
       type,
       originId,
+      originCustomName,
       foodId,
       qty:
         Number(
@@ -14319,7 +14449,17 @@ function getAceMovementLocationDisplay(movement) {
     return String(movement.destinationName || "").trim() ||
       getName(db.origins, movement.originId) || "—";
   }
-  return getName(db.origins, movement.originId) || "—";
+  return (
+    String(
+      movement.originCustomName ||
+      ""
+    ).trim() ||
+    getName(
+      db.origins,
+      movement.originId
+    ) ||
+    "—"
+  );
 }
 
 
@@ -14377,6 +14517,127 @@ function getAceGeneralStockOrigin() {
     null
   );
 
+}
+
+
+function populateAceMovementLossOriginSelect(
+  preserveCurrent = true
+) {
+
+  const select =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+  if (!select) {
+    return;
+  }
+
+  const current =
+    preserveCurrent
+      ? String(select.value || "")
+      : "";
+
+  setupAceMovementGeneralStockSelect();
+
+  if (
+    ![...select.options]
+      .some(
+        option =>
+          option.value ===
+          ACE_LOSS_ORIGIN_OTHER_VALUE
+      )
+  ) {
+
+    const option =
+      document.createElement(
+        "option"
+      );
+
+    option.value =
+      ACE_LOSS_ORIGIN_OTHER_VALUE;
+
+    option.textContent =
+      "Outro";
+
+    select.appendChild(
+      option
+    );
+  }
+
+  if (
+    current &&
+    [...select.options]
+      .some(
+        option =>
+          option.value === current
+      )
+  ) {
+    select.value = current;
+  }
+}
+
+
+function syncAceMovementLossCustomOriginField(
+  clearWhenHidden = false
+) {
+
+  const type =
+    document.getElementById(
+      "movementType"
+    )?.value ||
+    "saida";
+
+  const select =
+    document.getElementById(
+      "movementOrigin"
+    );
+
+  const wrap =
+    document.getElementById(
+      "movementOriginCustomWrap"
+    );
+
+  const input =
+    document.getElementById(
+      "movementOriginCustom"
+    );
+
+  if (
+    !wrap ||
+    !input
+  ) {
+    return;
+  }
+
+  const visible =
+    type === "perda" &&
+    select?.value ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE;
+
+  wrap.hidden =
+    !visible;
+
+  input.required =
+    false;
+
+  if (
+    !visible &&
+    clearWhenHidden
+  ) {
+    input.value = "";
+  }
+}
+
+
+function getAceMovementSelectedLossCustomOriginName() {
+
+  return String(
+    document.getElementById(
+      "movementOriginCustom"
+    )?.value ||
+    ""
+  ).trim();
 }
 
 
@@ -14520,7 +14781,9 @@ function refreshSelects() {
       true
     );
   } else {
-    setupAceMovementGeneralStockSelect();
+    populateAceMovementLossOriginSelect(
+      true
+    );
   }
 
   populateSelect(
@@ -15817,9 +16080,8 @@ function renderDashboard() {
                     ? getAceEntryOriginDisplayName(
                         x
                       )
-                    : getName(
-                        db.origins,
-                        x.originId
+                    : getAceMovementLocationDisplay(
+                        x
                       )
                 )}
                 •
@@ -37800,6 +38062,20 @@ function getAceMovementBatchResolvedOriginId() {
     );
   }
 
+  if (
+    originSelection ===
+    ACE_LOSS_ORIGIN_OTHER_VALUE
+  ) {
+    return String(
+      (db?.origins || [])
+        .find(
+          isAceGenericOtherOrigin
+        )
+        ?.id ||
+      ""
+    );
+  }
+
   return String(
     originSelection ||
     ""
@@ -37831,6 +38107,16 @@ function getAceMovementBatchOriginDisplayName() {
     ACE_GENERAL_STOCK_OPTION_VALUE
   ) {
     return "Estoque Geral";
+  }
+
+  if (
+    originSelection ===
+    ACE_LOSS_ORIGIN_OTHER_VALUE
+  ) {
+    return (
+      getAceMovementSelectedLossCustomOriginName() ||
+      "Outro"
+    );
   }
 
   return (
@@ -37895,6 +38181,9 @@ function syncAceMovementBatchContextLock() {
     ),
     document.getElementById(
       "movementDestinationCustom"
+    ),
+    document.getElementById(
+      "movementOriginCustom"
     )
   ];
 
@@ -38005,7 +38294,9 @@ function syncAceMovementBatchTypeFields(
         previousMode !==
         "perda"
       ) {
-        setupAceMovementGeneralStockSelect();
+        populateAceMovementLossOriginSelect(
+          false
+        );
       }
 
       originSelect.dataset
@@ -38017,6 +38308,10 @@ function syncAceMovementBatchTypeFields(
   }
 
   syncAceMovementDestinationCustomField(
+    clearReasonWhenOutput
+  );
+
+  syncAceMovementLossCustomOriginField(
     clearReasonWhenOutput
   );
 
@@ -38267,6 +38562,26 @@ function setupAceMovementBatchForm() {
               maxlength="120"
               autocomplete="off"
               placeholder="Digite o destino"
+            >
+          </div>
+
+
+          <div
+            id="movementOriginCustomWrap"
+            class="ace-movement-batch-field full"
+            hidden
+          >
+            <label for="movementOriginCustom">
+              Informe a origem
+            </label>
+
+            <input
+              id="movementOriginCustom"
+              name="originCustom"
+              type="text"
+              maxlength="120"
+              autocomplete="off"
+              placeholder="Digite a origem"
             >
           </div>
 
@@ -39159,8 +39474,15 @@ async function addOrUpdateAceMovementBatchItem() {
     )?.value ||
     "";
 
-  const originId =
+  let originId =
     getAceMovementBatchResolvedOriginId();
+
+  const originCustomName =
+    type === "perda" &&
+    originSelection ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE
+      ? getAceMovementSelectedLossCustomOriginName()
+      : "";
 
   const destinationName =
     type === "saida"
@@ -39236,6 +39558,55 @@ async function addOrUpdateAceMovementBatchItem() {
 
     return;
 
+  }
+
+
+  if (
+    type === "perda" &&
+    originSelection ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE &&
+    !originCustomName
+  ) {
+
+    await showAceMessage(
+      'Ao escolher "Outro", informe a origem da perda.',
+      "⚠️ Informe a origem"
+    );
+
+    document
+      .getElementById(
+        "movementOriginCustom"
+      )
+      ?.focus();
+
+    return;
+  }
+
+
+  if (
+    type === "perda" &&
+    originSelection ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE &&
+    !originId
+  ) {
+
+    try {
+
+      originId =
+        String(
+          await ensureAceGenericOtherOriginId()
+        );
+
+    } catch (error) {
+
+      await showAceMessage(
+        error?.message ||
+        'Não foi possível preparar a origem "Outro".',
+        "⚠️ Origem indisponível"
+      );
+
+      return;
+    }
   }
 
 
@@ -39736,13 +40107,69 @@ async function registerAceMovementBatch() {
     )?.value ||
     "";
 
-  const originId =
+  let originId =
     getAceMovementBatchResolvedOriginId();
+
+  const originCustomName =
+    type === "perda" &&
+    originSelection ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE
+      ? getAceMovementSelectedLossCustomOriginName()
+      : "";
 
   const destinationName =
     type === "saida"
       ? getAceMovementSelectedDestinationName()
       : "";
+
+
+  if (
+    type === "perda" &&
+    originSelection ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE &&
+    !originCustomName
+  ) {
+
+    await showAceMessage(
+      'Ao escolher "Outro", informe a origem da perda.',
+      "⚠️ Informe a origem"
+    );
+
+    document
+      .getElementById(
+        "movementOriginCustom"
+      )
+      ?.focus();
+
+    return;
+  }
+
+
+  if (
+    type === "perda" &&
+    originSelection ===
+      ACE_LOSS_ORIGIN_OTHER_VALUE &&
+    !originId
+  ) {
+
+    try {
+
+      originId =
+        String(
+          await ensureAceGenericOtherOriginId()
+        );
+
+    } catch (error) {
+
+      await showAceMessage(
+        error?.message ||
+        'Não foi possível preparar a origem "Outro".',
+        "⚠️ Origem indisponível"
+      );
+
+      return;
+    }
+  }
 
 
   if (
@@ -39912,6 +40339,10 @@ async function registerAceMovementBatch() {
           date,
           type,
           originId,
+          originCustomName:
+            type === "perda"
+              ? originCustomName
+              : "",
           foodId:
             item.foodId,
           qty:
@@ -40116,10 +40547,17 @@ function bindAceMovementBatchEvents() {
     )
     ?.addEventListener(
       "change",
-      () =>
+      () => {
+
         syncAceMovementDestinationCustomField(
           true
-        )
+        );
+
+        syncAceMovementLossCustomOriginField(
+          true
+        );
+
+      }
     );
 
 
@@ -40410,6 +40848,17 @@ function clearMovementFormData(
 
   if (origin) {
     origin.value = "";
+  }
+
+
+  const originCustom =
+    document.getElementById(
+      "movementOriginCustom"
+    );
+
+
+  if (originCustom) {
+    originCustom.value = "";
   }
 
 
@@ -57651,6 +58100,7 @@ function captureAceMovementFormDraft() {
     "type",
     "origin",
     "destinationCustom",
+    "originCustom",
     "foodId",
     "qty",
     "reasonId",
@@ -57683,6 +58133,14 @@ function restoreAceMovementFormDraft(draft) {
 
     field.value = value;
   });
+
+  syncAceMovementDestinationCustomField(
+    false
+  );
+
+  syncAceMovementLossCustomOriginField(
+    false
+  );
 }
 
 
