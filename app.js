@@ -58894,25 +58894,24 @@ function ensureAceTeamStyles() {
       backdrop-filter:blur(10px);
     }
 
-    @keyframes aceTeamNewMessagePulse{
+    @keyframes aceTeamChatBubblePulse{
       0%{
         transform:scale(1);
-        box-shadow:0 7px 22px rgba(0,26,54,.18);
+        box-shadow:0 0 0 0 rgba(217,45,32,.22);
       }
       45%{
-        transform:scale(1.045);
-        box-shadow:
-          0 11px 30px rgba(0,26,54,.25),
-          0 0 0 6px rgba(22,137,208,.13);
+        transform:scale(1.16);
+        box-shadow:0 0 0 7px rgba(217,45,32,.14);
       }
       100%{
         transform:scale(1);
-        box-shadow:0 7px 22px rgba(0,26,54,.18);
+        box-shadow:0 0 0 0 rgba(217,45,32,0);
       }
     }
 
-    #aceTeamStatusButton.ace-team-new-message{
-      animation:aceTeamNewMessagePulse .72s ease;
+    #aceTeamStatusButton.ace-team-new-message
+    .ace-team-chat-symbol{
+      animation:aceTeamChatBubblePulse .72s ease;
     }
 
     .ace-team-status-dot{
@@ -58934,28 +58933,104 @@ function ensureAceTeamStyles() {
       box-shadow:0 0 0 4px rgba(245,158,11,.17);
     }
 
-    .ace-team-chat-symbol{
-      padding-left:7px;
+    .ace-team-chat-wrap{
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:38px;
+      height:30px;
+      margin-left:1px;
+      padding-left:9px;
       border-left:1px solid #dbe4ea;
-      font-size:17px;
-      line-height:1;
+      box-sizing:border-box;
     }
 
+    /*
+      Balão do chat desenhado por CSS:
+      normal = azul;
+      não lidas = vermelho.
+    */
+    .ace-team-chat-symbol{
+      position:relative;
+      display:block;
+      width:23px;
+      height:17px;
+      flex:0 0 23px;
+      border:2px solid #0b4b7a;
+      border-radius:8px;
+      background:#fff;
+      color:#0b4b7a;
+      box-sizing:border-box;
+      transition:
+        background .16s ease,
+        border-color .16s ease,
+        transform .16s ease,
+        box-shadow .16s ease;
+    }
+
+    .ace-team-chat-symbol::after{
+      content:"";
+      position:absolute;
+      left:4px;
+      bottom:-5px;
+      width:7px;
+      height:7px;
+      background:#fff;
+      border-left:2px solid #0b4b7a;
+      border-bottom:2px solid #0b4b7a;
+      border-radius:0 0 0 2px;
+      transform:skewY(-35deg);
+      box-sizing:border-box;
+      transition:
+        background .16s ease,
+        border-color .16s ease;
+    }
+
+    #aceTeamStatusButton.has-unread
+    .ace-team-chat-symbol{
+      border-color:#d92d20;
+      background:#d92d20;
+      color:#fff;
+      box-shadow:0 0 0 3px rgba(217,45,32,.10);
+    }
+
+    #aceTeamStatusButton.has-unread
+    .ace-team-chat-symbol::after{
+      border-color:#d92d20;
+      background:#d92d20;
+    }
+
+    /*
+      Quantidade posicionada POR CIMA do balão.
+      Como o balão já fica vermelho, o contador usa fundo branco
+      e número vermelho para continuar bem legível.
+    */
     #aceTeamUnreadBadge{
+      position:absolute;
+      top:-8px;
+      right:-8px;
+      z-index:2;
       display:none;
       align-items:center;
       justify-content:center;
       min-width:19px;
       height:19px;
-      padding:0 5px;
-      border-radius:99px;
-      background:#d92d20;
-      color:#fff;
+      padding:0 4px;
+      border:2px solid #d92d20;
+      border-radius:999px;
+      background:#fff;
+      color:#d92d20;
       font-size:10px;
-      font-weight:900;
+      line-height:1;
+      font-weight:950;
+      box-sizing:border-box;
+      box-shadow:0 2px 7px rgba(0,0,0,.16);
     }
 
-    #aceTeamUnreadBadge.show{display:inline-flex;}
+    #aceTeamUnreadBadge.show{
+      display:inline-flex;
+    }
 
     #aceTeamBackdrop{
       position:fixed;
@@ -59389,8 +59464,13 @@ function ensureAceTeamInterface() {
     button.innerHTML = `
       <span class="ace-team-status-dot"></span>
       <span id="aceTeamStatusText">Conectando...</span>
-      <span class="ace-team-chat-symbol">💬</span>
-      <span id="aceTeamUnreadBadge"></span>
+      <span
+        class="ace-team-chat-wrap"
+        aria-hidden="true"
+      >
+        <span class="ace-team-chat-symbol"></span>
+        <span id="aceTeamUnreadBadge"></span>
+      </span>
     `;
     button.onclick = () => {
 
@@ -59526,8 +59606,37 @@ function renderAceTeamStatus() {
     aceTeamChannelStatus === "SUBSCRIBED";
 
   if (button) {
-    button.classList.toggle("is-online", connected);
-    button.classList.toggle("is-offline", !aceIsOnline());
+
+    button.classList.toggle(
+      "is-online",
+      connected
+    );
+
+    button.classList.toggle(
+      "is-offline",
+      !aceIsOnline()
+    );
+
+    button.classList.toggle(
+      "has-unread",
+      aceTeamUnread > 0
+    );
+
+    const unreadLabel =
+      aceTeamUnread > 0
+        ? `${aceTeamUnread} mensagem${aceTeamUnread === 1 ? "" : "ns"} não lida${aceTeamUnread === 1 ? "" : "s"}`
+        : "Nenhuma mensagem não lida";
+
+    button.setAttribute(
+      "aria-label",
+      `Equipe ACE. ${count} online. ${unreadLabel}.`
+    );
+
+    button.title =
+      aceTeamUnread > 0
+        ? `Chat: ${unreadLabel}`
+        : "Equipe online e chat";
+
   }
 
   if (text) {
@@ -59740,6 +59849,10 @@ async function aceRefreshTeamPresence() {
 }
 
 
+// ACE V168:
+// Mensagens recebidas de OUTROS usuários continuam incrementando
+// aceTeamUnread somente quando o chat não está aberto. O novo visual
+// usa esse mesmo contador para deixar o balão vermelho e mostrar a quantidade.
 function receiveAceTeamChatMessage(row, countUnread = true) {
   const normalized = normalizeAceChatMessage(row);
   if (!normalized) return;
